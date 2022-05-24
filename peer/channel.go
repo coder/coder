@@ -41,12 +41,6 @@ func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOptions) *Chann
 	return channel
 }
 
-const (
-	ProtocolReconnectingPTY = "reconnecting-pty"
-	ProtocolSSH             = "ssh"
-	ProtocolDial            = "dial"
-)
-
 type ChannelOptions struct {
 	// ID is a channel ID that should be used when `Negotiated`
 	// is true.

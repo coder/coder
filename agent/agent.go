@@ -36,6 +36,12 @@ import (
 	"github.com/coder/retry"
 )
 
+const (
+	ProtocolReconnectingPTY = "reconnecting-pty"
+	ProtocolSSH             = "ssh"
+	ProtocolDial            = "dial"
+)
+
 type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
@@ -213,11 +219,11 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 		}
 
 		switch channel.Protocol() {
-		case peer.ProtocolSSH:
+		case ProtocolSSH:
 			go a.sshServer.HandleConn(channel.NetConn())
-		case peer.ProtocolReconnectingPTY:
+		case ProtocolReconnectingPTY:
 			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
-		case peer.ProtocolDial:
+		case ProtocolDial:
 			go a.handleDial(ctx, channel.Label(), channel.NetConn())
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
