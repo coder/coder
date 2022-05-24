@@ -28,7 +28,7 @@ func OrganizationParam(r *http.Request) database.Organization {
 func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 	organizationMember, ok := r.Context().Value(organizationMemberParamContextKey{}).(database.OrganizationMember)
 	if !ok {
-		panic("developer error: organization param middleware not provided")
+		panic("developer error: organization member param middleware not provided")
 	}
 	return organizationMember
 }

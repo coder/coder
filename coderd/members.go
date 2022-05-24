@@ -18,18 +18,8 @@ import (
 
 func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
-	// TODO: @emyrk add proper `Authorize()` check here instead of a uuid match.
-	//	Proper authorize should check the granted roles are able to given within
-	//	the selected organization. Until then, allow anarchy
-	if apiKey.UserID != user.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "modifying other users is not supported at this time",
-		})
-		return
-	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
