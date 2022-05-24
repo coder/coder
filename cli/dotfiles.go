@@ -47,12 +47,12 @@ func dotfiles() *cobra.Command {
 
 			// if repo exists already do a git pull instead of clone
 			if dotfilesExists {
-				_, _ = fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("Found dotfiles repository at %s\n", dotfilesDir))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Found dotfiles repository at %s\n", dotfilesDir)
 				gitCmdDir = dotfilesDir
 				subcommands = []string{"pull", "--ff-only"}
 				promtText = fmt.Sprintf("Pulling latest from %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
 			} else {
-				_, _ = fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("Did not find dotfiles repository at %s\n", dotfilesDir))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Did not find dotfiles repository at %s\n", dotfilesDir)
 			}
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
@@ -122,7 +122,7 @@ func dotfiles() *cobra.Command {
 				}
 
 				for _, s := range scripts {
-					_, _ = fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("\nRunning %s...\n", s))
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nRunning %s...\n", s)
 					// it is safe to use a variable command here because it's from
 					// a filtered list of pre-approved install scripts
 					// nolint:gosec
@@ -158,7 +158,7 @@ func dotfiles() *cobra.Command {
 				for _, df := range dotfiles {
 					from := filepath.Join(dotfilesDir, df)
 					to := filepath.Join(home, df)
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), fmt.Sprintf("Symlinking %s to %s...\n", from, to))
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Symlinking %s to %s...\n", from, to)
 					// if file already exists at destination remove it
 					// this behavior matches `ln -f`
 					_, err := os.Lstat(to)
