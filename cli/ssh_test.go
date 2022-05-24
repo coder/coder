@@ -211,15 +211,17 @@ func TestSSH(t *testing.T) {
 		})
 
 		// Ensure that SSH_AUTH_SOCK is set.
+		// Linux: /tmp/auth-agent3167016167/listener.sock
+		// macOS: /var/folders/ng/m1q0wft14hj0t3rtjxrdnzsr0000gn/T/auth-agent3245553419/listener.sock
 		pty.WriteLine("env")
-		pty.ExpectMatch("SSH_AUTH_SOCK=/tmp") // E.g. /tmp/auth-agent3167016167/listener.sock
+		pty.ExpectMatch("SSH_AUTH_SOCK=")
 		// Ensure that ssh-add lists our key.
 		pty.WriteLine("ssh-add -L")
 		keys, err := kr.List()
 		require.NoError(t, err)
 		pty.ExpectMatch(keys[0].String())
 
-		// kthxbye
+		// And we're done.
 		pty.WriteLine("exit")
 	})
 }
