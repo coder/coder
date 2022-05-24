@@ -100,12 +100,23 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ is
   })
   const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form)
 
+  const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
+    { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
+    { value: form.values.monday, name: "monday", label: Language.dayMondayLabel },
+    { value: form.values.tuesday, name: "tuesday", label: Language.dayTuesdayLabel },
+    { value: form.values.wednesday, name: "wednesday", label: Language.dayWednesdayLabel },
+    { value: form.values.thursday, name: "thursday", label: Language.dayThursdayLabel },
+    { value: form.values.friday, name: "friday", label: Language.dayFridayLabel },
+    { value: form.values.saturday, name: "saturday", label: Language.daySaturdayLabel },
+  ]
+
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
       <form className={styles.form} onSubmit={form.handleSubmit}>
         <Stack className={styles.stack}>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
+            disabled={form.isSubmitting || isLoading}
             InputLabelProps={{
               shrink: true,
             }}
@@ -120,89 +131,28 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ is
             </FormLabel>
 
             <FormGroup>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.sunday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="sunday"
-                  />
-                }
-                label={Language.daySundayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.monday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="monday"
-                  />
-                }
-                label={Language.dayMondayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.tuesday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="tuesday"
-                  />
-                }
-                label={Language.dayTuesdayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.wednesday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="wednesday"
-                  />
-                }
-                label={Language.dayWednesdayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.thursday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="thursday"
-                  />
-                }
-                label={Language.dayThursdayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.friday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="friday"
-                  />
-                }
-                label={Language.dayFridayLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.values.saturday}
-                    disabled={!form.values.startTime}
-                    onChange={form.handleChange}
-                    name="saturday"
-                  />
-                }
-                label={Language.daySaturdayLabel}
-              />
+              {checkboxes.map((checkbox) => (
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={checkbox.value}
+                      disabled={!form.values.startTime || form.isSubmitting || isLoading}
+                      onChange={form.handleChange}
+                      name={checkbox.name}
+                    />
+                  }
+                  key={checkbox.name}
+                  label={checkbox.label}
+                />
+              ))}
             </FormGroup>
+
             {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
           </FormControl>
 
           <TextField
             {...formHelpers("ttl", Language.ttlHelperText)}
+            disabled={form.isSubmitting || isLoading}
             inputProps={{ min: 0, step: 30 }}
             label={Language.ttlLabel}
             type="number"
