@@ -6,14 +6,22 @@
 # SEE: https://www.chromatic.com/docs/ci
 name: chromatic
 
+# REMARK: We want Chromatic to run whenever anything in the FE or its deps
+#         change, including node_modules and generated code. Currently, all
+#         node_modules and generated code live in site. If any of these are
+#         hoisted, we'll want to adjust the paths filter to account for them.
 on:
   push:
+    paths:
+      - site/**
     branches:
       - main
     tags:
       - "*"
 
   pull_request:
+    paths:
+      - site/**
 
 jobs:
   deploy:
