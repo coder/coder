@@ -29,7 +29,8 @@ func publickey() *cobra.Command {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.
 				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Confirm regenerate a new sshkey for your workspaces? This will require updating the key on any services it is registered with. This action cannot be reverted.",
+					Text: "Confirm regenerate a new sshkey for your workspaces? This will require updating the key " +
+						"on any services it is registered with. This action cannot be reverted.",
 					IsConfirm: true,
 				})
 				if err != nil {
