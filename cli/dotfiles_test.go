@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coder/coder/cli/clitest"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/coder/coder/cli/clitest"
 )
 
 func TestDotfiles(t *testing.T) {
@@ -27,6 +28,7 @@ func TestDotfiles(t *testing.T) {
 		c.Dir = testRepo
 		err = c.Run()
 		assert.NoError(t, err)
+		// nolint:gosec
 		err = os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0750)
 		assert.NoError(t, err)
 		c = exec.Command("git", "add", ".bashrc")
@@ -54,6 +56,7 @@ func TestDotfiles(t *testing.T) {
 		c.Dir = testRepo
 		err = c.Run()
 		assert.NoError(t, err)
+		// nolint:gosec
 		err = os.WriteFile(filepath.Join(testRepo, "install.sh"), []byte("#!/bin/bash\necho wow > "+filepath.Join(string(root), ".bashrc")), 0750)
 		assert.NoError(t, err)
 		c = exec.Command("git", "add", "install.sh")
