@@ -36,7 +36,8 @@ TODO: succintly list value props
 ## How it works
 
 Coder workspaces are represented with terraform. But, no terraform knowledge is
-required to get started. We have a database of pre-made templates [here](https://github.com/coder/coder/tree/main/examples). Terraform empowers you to create
+required to get started. We have a database of pre-made templates built into
+the product. Terraform empowers you to create
 environments on _anything_, including:
 
 - VMs across any cloud
