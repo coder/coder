@@ -9,15 +9,22 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 Team-wide CLI for spawning up dev servers on demand, powered by Terraform.
 ||||||| parent of 059e6c7a (Add logos)
 Provision remote development environments with Terraform.
 =======
 Provision remote development environments anywhere on anything.
 >>>>>>> 059e6c7a (Add logos)
+||||||| parent of b6574d34 (Integrate Ben's improvements)
+Provision remote development environments anywhere on anything.
+=======
+Provision remote development servers anywhere on anything.
+>>>>>>> b6574d34 (Integrate Ben's improvements)
 
 ![Kubernetes workspace in Coder v2](./docs/screenshot.png)
 
+<<<<<<< HEAD
 ## Highlights
 
 Workspaces:
@@ -30,15 +37,26 @@ Templates:
 - Use any OS and architecture: Mac, Windows, Linux, VM, Kubernetes, ARM, etc
 - Auto-shutdown or update workspaces when they're not in use!
 
+||||||| parent of b6574d34 (Integrate Ben's improvements)
+## Highlights
+
+- Automate development environments for Linux, Windows, and macOS
+- Start writing code with a single command
+- Get started quickly using one of the [examples](./examples) provided
+=======
+- Automate development environments for Linux, Windows, and macOS
+- Start writing code with a single command
+- Get started quickly using one of the [examples](./examples) provided
+>>>>>>> b6574d34 (Integrate Ben's improvements)
 
 TODO: succintly list value props
 
 ## How it works
 
-Coder workspaces are represented with terraform. But, no terraform knowledge is
+Coder workspaces are represented with Terraform. But, no Terraform knowledge is
 required to get started. We have a database of pre-made templates built into
 the product. Terraform empowers you to create
-environments on _anything_, including:
+remote environments on _anything_, including:
 
 - VMs across any cloud
 - Kubernetes across any cloud (AKS, EKS, GKS)
