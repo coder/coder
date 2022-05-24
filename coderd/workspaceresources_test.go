@@ -49,6 +49,12 @@ func TestWorkspaceResource(t *testing.T) {
 		_, client, coderd := coderdtest.NewWithServer(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, coderd)
+		app := &proto.App{
+			Name:    "code-server",
+			Command: "some-command",
+			Target:  "http://localhost:3000",
+			Icon:    "/code.svg",
+		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -60,10 +66,7 @@ func TestWorkspaceResource(t *testing.T) {
 							Agents: []*proto.Agent{{
 								Id:   "something",
 								Auth: &proto.Agent_Token{},
-								Apps: []*proto.App{{
-									Name:    "code-server",
-									Command: "code-server",
-								}},
+								Apps: []*proto.App{app},
 							}},
 						}},
 					},
@@ -81,5 +84,10 @@ func TestWorkspaceResource(t *testing.T) {
 		require.Len(t, resource.Agents, 1)
 		agent := resource.Agents[0]
 		require.Len(t, agent.Apps, 1)
+		got := agent.Apps[0]
+		require.Equal(t, app.Command, got.Command)
+		require.Equal(t, app.Icon, got.Icon)
+		require.Equal(t, app.Name, got.Name)
+		require.Equal(t, app.Target, got.Target)
 	})
 }
