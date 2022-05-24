@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -25,7 +26,7 @@ func TestUserList(t *testing.T) {
 	go func() {
 		defer close(doneChan)
 		err := cmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	pty.ExpectMatch("coder.com")
 	<-doneChan
@@ -48,7 +49,7 @@ func TestUserMe(t *testing.T) {
 	go func() {
 		defer close(doneChan)
 		err := cmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	pty.ExpectMatch(otherUser.Email)
 	<-doneChan
