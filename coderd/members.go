@@ -17,12 +17,10 @@ import (
 )
 
 func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
-	// User is the user to modify
-	// TODO: Until rbac authorize is implemented, only be able to change your
-	//	own roles. This also means you can grant yourself whatever roles you want.
 	user := httpmw.UserParam(r)
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
+	member := httpmw.OrganizationMemberParam(r)
 	// TODO: @emyrk add proper `Authorize()` check here instead of a uuid match.
 	//	Proper authorize should check the granted roles are able to given within
 	//	the selected organization. Until then, allow anarchy
@@ -36,6 +34,20 @@ func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	added, removed := rbac.ChangeRoleSet(member.Roles, params.Roles)
+	for _, roleName := range added {
+		// Assigning a role requires the create permission.
+		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+			return
+		}
+	}
+	for _, roleName := range removed {
+		// Removing a role requires the delete permission.
+		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+			return
+		}
 	}
 
 	updatedUser, err := api.updateOrganizationMemberRoles(r.Context(), database.UpdateMemberRolesParams{

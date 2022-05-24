@@ -211,6 +211,32 @@ func SiteRoles() []Role {
 	return roles
 }
 
+func ChangeRoleSet(from []string, to []string) (added []string, removed []string) {
+	has := make(map[string]struct{})
+	for _, exists := range from {
+		has[exists] = struct{}{}
+	}
+
+	for _, roleName := range to {
+		// If the user already has the role assigned, we don't need to check the permission
+		// to reassign it. Only run permission checks on the difference in the set of
+		// roles.
+		if _, ok := has[roleName]; ok {
+			delete(has, roleName)
+			continue
+		}
+
+		added = append(added, roleName)
+	}
+
+	// Remaining roles are the ones removed/deleted.
+	for roleName := range has {
+		removed = append(removed, roleName)
+	}
+
+	return
+}
+
 // roleName is a quick helper function to return
 // 	role_name:scopeID
 // If no scopeID is required, only 'role_name' is returned

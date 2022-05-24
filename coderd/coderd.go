@@ -170,6 +170,7 @@ func newRouter(options *Options, a *api) chi.Router {
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractUserParam(options.Database),
+						httpmw.ExtractOrganizationMemberParam(options.Database),
 					)
 					r.Put("/roles", a.putMemberRoles)
 				})

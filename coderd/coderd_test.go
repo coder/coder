@@ -118,7 +118,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
@@ -254,8 +253,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	for k, v := range assertRoute {

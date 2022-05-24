@@ -93,3 +93,52 @@ func TestListRoles(t *testing.T) {
 	},
 		orgRoleNames)
 }
+
+func TestChangeSet(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name      string
+		From      []string
+		To        []string
+		ExpAdd    []string
+		ExpRemove []string
+	}{
+		{
+			Name: "Empty",
+		},
+		{
+			Name:      "Same",
+			From:      []string{"a", "b", "c"},
+			To:        []string{"a", "b", "c"},
+			ExpAdd:    []string{},
+			ExpRemove: []string{},
+		},
+		{
+			Name:      "AllRemoved",
+			From:      []string{"a", "b", "c"},
+			ExpRemove: []string{"a", "b", "c"},
+		},
+		{
+			Name:   "AllAdded",
+			To:     []string{"a", "b", "c"},
+			ExpAdd: []string{"a", "b", "c"},
+		},
+		{
+			Name:      "AddAndRemove",
+			From:      []string{"a", "b", "c"},
+			To:        []string{"a", "b", "d", "e"},
+			ExpAdd:    []string{"d", "e"},
+			ExpRemove: []string{"c"},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			add, remove := rbac.ChangeRoleSet(c.From, c.To)
+			require.ElementsMatch(t, c.ExpAdd, add, "expect added")
+			require.ElementsMatch(t, c.ExpRemove, remove, "expect removed")
+		})
+	}
+}

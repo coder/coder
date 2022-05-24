@@ -167,9 +167,11 @@ func TestOrganizationParam(t *testing.T) {
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
+			httpmw.ExtractUserParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.OrganizationParam(r)
