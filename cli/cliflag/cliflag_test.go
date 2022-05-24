@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,16 @@ func TestCliflag(t *testing.T) {
 		require.Equal(t, []string{"wow", "test"}, got)
 	})
 
+	t.Run("StringArrayEnvVarEmpty", func(t *testing.T) {
+		var ptr []string
+		flagset, name, shorthand, env, usage := randomFlag()
+		t.Setenv(env, "")
+		cliflag.StringArrayVarP(flagset, &ptr, name, shorthand, env, nil, usage)
+		got, err := flagset.GetStringArray(name)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, got)
+	})
+
 	t.Run("IntDefault", func(t *testing.T) {
 		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()
@@ -170,6 +181,45 @@ func TestCliflag(t *testing.T) {
 
 		cliflag.BoolVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetBool(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+	})
+
+	t.Run("DurationDefault", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+		require.Contains(t, flagset.FlagUsages(), usage)
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+	})
+
+	t.Run("DurationEnvVar", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		envValue, _ := cryptorand.Duration()
+		t.Setenv(env, envValue.String())
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
+		require.NoError(t, err)
+		require.Equal(t, envValue, got)
+	})
+
+	t.Run("DurationFailParse", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		envValue, _ := cryptorand.String(10)
+		t.Setenv(env, envValue)
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 	})

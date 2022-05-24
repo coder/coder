@@ -1,8 +1,11 @@
 package audit
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 )
 
 // TODO: this might need to be in the database package.
@@ -64,6 +67,11 @@ func diffValues[T any](left, right T, table Table) Map {
 			continue
 		}
 
+		// coerce struct types that would produce bad diffs.
+		if leftI, rightI, ok = convertDiffType(leftI, rightI); ok {
+			leftF, rightF = reflect.ValueOf(leftI), reflect.ValueOf(rightI)
+		}
+
 		// If the field is a pointer, dereference it. Nil pointers are coerced
 		// to the zero value of their underlying type.
 		if leftF.Kind() == reflect.Ptr && rightF.Kind() == reflect.Ptr {
@@ -90,6 +98,52 @@ func diffValues[T any](left, right T, table Table) Map {
 	return baseDiff
 }
 
+// convertDiffType converts external struct types to primitive types.
+//nolint:forcetypeassert
+func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
+	switch typed := left.(type) {
+	case uuid.UUID:
+		return typed.String(), right.(uuid.UUID).String(), true
+
+	case uuid.NullUUID:
+		leftStr, _ := typed.MarshalText()
+		rightStr, _ := right.(uuid.NullUUID).MarshalText()
+		return string(leftStr), string(rightStr), true
+
+	case sql.NullString:
+		leftStr := typed.String
+		if !typed.Valid {
+			leftStr = "null"
+		}
+
+		rightStr := right.(sql.NullString).String
+		if !right.(sql.NullString).Valid {
+			rightStr = "null"
+		}
+
+		return leftStr, rightStr, true
+
+	case sql.NullInt64:
+		var leftInt64Ptr *int64
+		var rightInt64Ptr *int64
+		if !typed.Valid {
+			leftInt64Ptr = nil
+		} else {
+			leftInt64Ptr = ptr(typed.Int64)
+		}
+
+		rightInt64Ptr = ptr(right.(sql.NullInt64).Int64)
+		if !right.(sql.NullInt64).Valid {
+			rightInt64Ptr = nil
+		}
+
+		return leftInt64Ptr, rightInt64Ptr, true
+
+	default:
+		return left, right, false
+	}
+}
+
 // derefPointer deferences a reflect.Value that is a pointer to its underlying
 // value. It dereferences recursively until it finds a non-pointer value. If the
 // pointer is nil, it will be coerced to the zero value of the underlying type.
@@ -108,4 +162,8 @@ func derefPointer(ptr reflect.Value) reflect.Value {
 	}
 
 	return ptr
+}
+
+func ptr[T any](x T) *T {
+	return &x
 }

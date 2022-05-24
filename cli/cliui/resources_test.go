@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -22,7 +22,7 @@ func TestWorkspaceResources(t *testing.T) {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
 				Type:       "google_compute_instance",
 				Name:       "dev",
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Agents: []codersdk.WorkspaceAgent{{
 					Name:            "dev",
 					Status:          codersdk.WorkspaceAgentConnected,
@@ -32,7 +32,7 @@ func TestWorkspaceResources(t *testing.T) {
 			}}, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: "example",
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			close(done)
 		}()
 		ptty.ExpectMatch("coder ssh example")
@@ -46,15 +46,15 @@ func TestWorkspaceResources(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Transition: database.WorkspaceTransitionStop,
+				Transition: codersdk.WorkspaceTransitionStop,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_instance",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
@@ -65,7 +65,7 @@ func TestWorkspaceResources(t *testing.T) {
 					Architecture:    "amd64",
 				}},
 			}, {
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "kubernetes_pod",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
@@ -85,7 +85,7 @@ func TestWorkspaceResources(t *testing.T) {
 				HideAgentState: false,
 				HideAccess:     false,
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			close(done)
 		}()
 		ptty.ExpectMatch("google_compute_disk.root")

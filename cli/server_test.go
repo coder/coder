@@ -17,7 +17,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -32,10 +31,11 @@ import (
 )
 
 // This cannot be ran in parallel because it uses a signal.
-// nolint:tparallel
+// nolint:paralleltest
 func TestServer(t *testing.T) {
 	t.Run("Production", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		// t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
@@ -44,12 +44,11 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		done := make(chan struct{})
+		defer cancelFunc()
 		root, cfg := clitest.New(t, "server", "--address", ":0", "--postgres-url", connectionURL)
+		errC := make(chan error)
 		go func() {
-			defer close(done)
-			err = root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
+			errC <- root.ExecuteContext(ctx)
 		}()
 		var client *codersdk.Client
 		require.Eventually(t, func() bool {
@@ -58,7 +57,7 @@ func TestServer(t *testing.T) {
 				return false
 			}
 			accessURL, err := url.Parse(rawURL)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			client = codersdk.New(accessURL)
 			return true
 		}, 15*time.Second, 25*time.Millisecond)
@@ -70,8 +69,9 @@ func TestServer(t *testing.T) {
 		})
 		require.NoError(t, err)
 		cancelFunc()
-		<-done
+		require.ErrorIs(t, <-errC, context.Canceled)
 	})
+
 	t.Run("Development", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -81,26 +81,12 @@ func TestServer(t *testing.T) {
 
 		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
 		var buf strings.Builder
+		errC := make(chan error)
 		root.SetOutput(&buf)
-		var wg sync.WaitGroup
-		wg.Add(1)
 		go func() {
-			defer wg.Done()
-
-			err := root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
-
-			// Verify that credentials were output to the terminal.
-			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
-			// Check that the password line is output and that it's non-empty.
-			if _, after, found := strings.Cut(buf.String(), "password: "); found {
-				before, _, _ := strings.Cut(after, "\n")
-				before = strings.Trim(before, "\r") // Ensure no control character is left.
-				assert.NotEmpty(t, before, "expected non-empty password; got empty")
-			} else {
-				t.Error("expected password line output; got no match")
-			}
+			errC <- root.ExecuteContext(ctx)
 		}()
+
 		var token string
 		require.Eventually(t, func() bool {
 			var err error
@@ -118,8 +104,20 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		wg.Wait()
+		require.ErrorIs(t, <-errC, context.Canceled)
+
+		// Verify that credentials were output to the terminal.
+		assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+		// Check that the password line is output and that it's non-empty.
+		if _, after, found := strings.Cut(buf.String(), "password: "); found {
+			before, _, _ := strings.Cut(after, "\n")
+			before = strings.Trim(before, "\r") // Ensure no control character is left.
+			assert.NotEmpty(t, before, "expected non-empty password; got empty")
+		} else {
+			t.Error("expected password line output; got no match")
+		}
 	})
+
 	// Duplicated test from "Development" above to test setting email/password via env.
 	// Cannot run parallel due to os.Setenv.
 	//nolint:paralleltest
@@ -135,18 +133,11 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
-		var wg sync.WaitGroup
-		wg.Add(1)
+		errC := make(chan error)
 		go func() {
-			defer wg.Done()
-
-			err := root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
-
-			// Verify that credentials were output to the terminal.
-			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
-			assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
+			errC <- root.ExecuteContext(ctx)
 		}()
+
 		var token string
 		require.Eventually(t, func() bool {
 			var err error
@@ -164,8 +155,12 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		wg.Wait()
+		require.ErrorIs(t, <-errC, context.Canceled)
+		// Verify that credentials were output to the terminal.
+		assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+		assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
 	})
+
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -201,10 +196,12 @@ func TestServer(t *testing.T) {
 		certPath, keyPath := generateTLSCertificate(t)
 		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
 			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
+		errC := make(chan error)
 		go func() {
-			err := root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
+			errC <- root.ExecuteContext(ctx)
 		}()
+
+		// Verify HTTPS
 		var accessURLRaw string
 		require.Eventually(t, func() bool {
 			var err error
@@ -225,6 +222,9 @@ func TestServer(t *testing.T) {
 		}
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
+
+		cancelFunc()
+		require.ErrorIs(t, <-errC, context.Canceled)
 	})
 	// This cannot be ran in parallel because it uses a signal.
 	//nolint:paralleltest
@@ -235,12 +235,11 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "0")
-		done := make(chan struct{})
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "1")
+		serverErr := make(chan error)
 		go func() {
-			defer close(done)
 			err := root.ExecuteContext(ctx)
-			require.NoError(t, err)
+			serverErr <- err
 		}()
 		var token string
 		require.Eventually(t, func() bool {
@@ -257,7 +256,6 @@ func TestServer(t *testing.T) {
 		client.SessionToken = token
 		orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 		require.NoError(t, err)
-		coderdtest.NewProvisionerDaemon(t, client)
 
 		// Create a workspace so the cleanup occurs!
 		version := coderdtest.CreateTemplateVersion(t, client, orgs[0].ID, nil)
@@ -277,21 +275,20 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
-		<-done
+		err = <-serverErr
+		require.NoError(t, err)
 	})
-	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
+	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
-		done := make(chan struct{})
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace=true")
+		errC := make(chan error)
 		go func() {
-			defer close(done)
-			err := root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
+			errC <- root.ExecuteContext(ctx)
 		}()
 		cancelFunc()
-		<-done
+		require.ErrorIs(t, <-errC, context.Canceled)
 		require.Error(t, goleak.Find())
 	})
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -56,17 +57,28 @@ import (
 
 type Options struct {
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
 	AutobuildTicker      <-chan time.Time
+
+	// IncludeProvisionerD when true means to start an in-memory provisionerD
+	IncludeProvisionerD bool
 }
 
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
+	_, cli, _ := NewWithServer(t, options)
+	return cli
+}
+
+// NewWithServer returns an in-memory coderd instance and
+// the HTTP server it started with.
+func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client, coderd.CoderD) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -122,7 +134,6 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	var closeWait func()
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
@@ -133,7 +144,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	require.NoError(t, err)
 
 	// We set the handler after server creation for the access URL.
-	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
+	coderDaemon := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -147,21 +158,26 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
+		Authorizer:           options.Authorizer,
 	})
+	srv.Config.Handler = coderDaemon.Handler()
+	if options.IncludeProvisionerD {
+		_ = NewProvisionerDaemon(t, coderDaemon)
+	}
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		closeWait()
+		coderDaemon.CloseWait()
 	})
 
-	return codersdk.New(serverURL)
+	return srv, codersdk.New(serverURL), coderDaemon
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
+func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
 	echoClient, echoServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -173,10 +189,10 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(coderDaemon.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
@@ -252,9 +268,8 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 		for _, r := range user.Roles {
 			siteRoles = append(siteRoles, r.Name)
 		}
-		// TODO: @emyrk switch "other" to "client" when we support updating other
-		//	users.
-		_, err := other.UpdateUserRoles(context.Background(), user.ID, codersdk.UpdateRoles{Roles: siteRoles})
+
+		_, err := client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
@@ -262,7 +277,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 			organizationID, err := uuid.Parse(orgID)
 			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
 			// TODO: @Emyrk add the member to the organization if they do not already belong.
-			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID,
+			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
 				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
 			require.NoError(t, err, "update org membership roles")
 		}
@@ -280,19 +295,34 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion
+}
+
+// CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
+func CreateWorkspaceBuild(
+	t *testing.T,
+	client *codersdk.Client,
+	workspace codersdk.Workspace,
+	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	req := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransition(transition),
+	}
+	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
+	require.NoError(t, err)
+	return build
 }
 
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {
 	template, err := client.CreateTemplate(context.Background(), organization, codersdk.CreateTemplateRequest{
-		Name:      randomUsername(),
-		VersionID: version,
+		Name:        randomUsername(),
+		Description: randomUsername(),
+		VersionID:   version,
 	})
 	require.NoError(t, err)
 	return template
@@ -308,8 +338,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion
@@ -360,11 +390,19 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID) codersdk.Workspace {
-	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.CreateWorkspaceRequest{
-		TemplateID: templateID,
-		Name:       randomUsername(),
-	})
+// To customize the defaults, pass a mutator func.
+func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+	t.Helper()
+	req := codersdk.CreateWorkspaceRequest{
+		TemplateID:        templateID,
+		Name:              randomUsername(),
+		AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
+		TTL:               ptr(8 * time.Hour),
+	}
+	for _, mutator := range mutators {
+		mutator(&req)
+	}
+	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
 	require.NoError(t, err)
 	return workspace
 }
@@ -560,4 +598,8 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+func ptr[T any](x T) *T {
+	return &x
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -86,7 +85,7 @@ func configSSH() *cobra.Command {
 						return err
 					}
 					for _, resource := range resources {
-						if resource.Transition != database.WorkspaceTransitionStart {
+						if resource.Transition != codersdk.WorkspaceTransitionStart {
 							continue
 						}
 						for _, agent := range resource.Agents {

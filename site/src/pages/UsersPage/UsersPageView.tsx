@@ -8,7 +8,7 @@ import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
   pageTitle: "Users",
-  newUserButton: "New User",
+  newUserButton: "New user",
 }
 
 export interface UsersPageViewProps {
@@ -16,6 +16,8 @@ export interface UsersPageViewProps {
   roles?: TypesGen.Role[]
   error?: unknown
   isUpdatingUserRoles?: boolean
+  canEditUsers?: boolean
+  isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
@@ -31,6 +33,8 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   onUpdateUserRoles,
   error,
   isUpdatingUserRoles,
+  canEditUsers,
+  isLoading,
 }) => {
   return (
     <Stack spacing={4}>
@@ -46,6 +50,8 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
             onResetUserPassword={onResetUserPassword}
             onUpdateUserRoles={onUpdateUserRoles}
             isUpdatingUserRoles={isUpdatingUserRoles}
+            canEditUsers={canEditUsers}
+            isLoading={isLoading}
           />
         )}
       </Margins>

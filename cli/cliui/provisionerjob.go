@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -165,16 +164,16 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 			}
 			output := ""
 			switch log.Level {
-			case database.LogLevelTrace, database.LogLevelDebug:
+			case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
 				if !opts.Verbose {
 					continue
 				}
 				output = Styles.Placeholder.Render(log.Output)
-			case database.LogLevelError:
+			case codersdk.LogLevelError:
 				output = defaultStyles.Error.Render(log.Output)
-			case database.LogLevelWarn:
+			case codersdk.LogLevelWarn:
 				output = Styles.Warn.Render(log.Output)
-			case database.LogLevelInfo:
+			case codersdk.LogLevelInfo:
 				output = log.Output
 			}
 			jobMutex.Lock()

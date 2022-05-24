@@ -13,17 +13,17 @@ jobs:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       # Docker is not included on macos-latest
-      - uses: docker-practice/actions-setup-docker@v1.0.8
+      - uses: docker-practice/actions-setup-docker@1.0.10
 
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
 
       - name: Docker Login
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -80,7 +80,7 @@ jobs:
         run: make site/out/index.html
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2.9.1
+        uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
           args: release --rm-dist

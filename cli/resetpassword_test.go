@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -15,8 +16,10 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
+// nolint:paralleltest
 func TestResetPassword(t *testing.T) {
-	t.Parallel()
+	// postgres.Open() seems to be creating race conditions when run in parallel.
+	// t.Parallel()
 
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
@@ -39,7 +42,7 @@ func TestResetPassword(t *testing.T) {
 	go func() {
 		defer close(serverDone)
 		err = serverCmd.ExecuteContext(ctx)
-		require.ErrorIs(t, err, context.Canceled)
+		assert.ErrorIs(t, err, context.Canceled)
 	}()
 	var client *codersdk.Client
 	require.Eventually(t, func() bool {
@@ -71,7 +74,7 @@ func TestResetPassword(t *testing.T) {
 	go func() {
 		defer close(cmdDone)
 		err = resetCmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	matches := []struct {

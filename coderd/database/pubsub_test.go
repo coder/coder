@@ -22,8 +22,10 @@ func TestPubsub(t *testing.T) {
 		return
 	}
 
+	// nolint:paralleltest
 	t.Run("Postgres", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		// t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
@@ -46,14 +48,16 @@ func TestPubsub(t *testing.T) {
 		defer cancelFunc()
 		go func() {
 			err = pubsub.Publish(event, []byte(data))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		message := <-messageChannel
 		assert.Equal(t, string(message), data)
 	})
 
+	// nolint:paralleltest
 	t.Run("PostgresCloseCancel", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		// t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		connectionURL, closePg, err := postgres.Open()

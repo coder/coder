@@ -10,7 +10,12 @@ import (
 // auditable types. If you want to audit a new type, first define it in
 // AuditableResources, then add it to this interface.
 type Auditable interface {
-	database.User |
+	database.GitSSHKey |
+		database.OrganizationMember |
+		database.Organization |
+		database.Template |
+		database.TemplateVersion |
+		database.User |
 		database.Workspace
 }
 
@@ -34,26 +39,69 @@ type Table map[string]map[string]Action
 // AuditableResources contains a definitive list of all auditable resources and
 // which fields are auditable.
 var AuditableResources = auditMap(map[any]map[string]Action{
+	&database.GitSSHKey{}: {
+		"user_id":     ActionTrack,
+		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
+		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
+	},
+	&database.OrganizationMember{}: {
+		"user_id":         ActionTrack,
+		"organization_id": ActionTrack,
+		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"roles":           ActionTrack,
+	},
+	&database.Organization{}: {
+		"id":          ActionTrack,
+		"name":        ActionTrack,
+		"description": ActionTrack,
+		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+	},
+	&database.Template{}: {
+		"id":                ActionTrack,
+		"created_at":        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":   ActionTrack,
+		"deleted":           ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":              ActionTrack,
+		"provisioner":       ActionTrack,
+		"active_version_id": ActionTrack,
+		"description":       ActionTrack,
+	},
+	&database.TemplateVersion{}: {
+		"id":              ActionTrack,
+		"template_id":     ActionTrack,
+		"organization_id": ActionTrack,
+		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":            ActionTrack,
+		"readme":          ActionTrack,
+		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+	},
 	&database.User{}: {
-		"id":              ActionIgnore, // Never changes.
-		"email":           ActionTrack,  // A user can edit their email.
-		"username":        ActionIgnore, // A user cannot change their username.
-		"hashed_password": ActionSecret, // A user can change their own password.
+		"id":              ActionTrack,
+		"email":           ActionTrack,
+		"username":        ActionTrack,
+		"hashed_password": ActionSecret, // Do not expose a users hashed password.
 		"created_at":      ActionIgnore, // Never changes.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"status":          ActionTrack,  // A user can update another user status
-		"rbac_roles":      ActionTrack,  // A user's roles are mutable
+		"status":          ActionTrack,
+		"rbac_roles":      ActionTrack,
 	},
 	&database.Workspace{}: {
-		"id":                 ActionIgnore, // Never changes.
+		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"owner_id":           ActionIgnore, // We don't allow workspaces to change ownership.
-		"template_id":        ActionIgnore, // We don't allow workspaces to change templates.
+		"owner_id":           ActionTrack,
+		"organization_id":    ActionTrack,
+		"template_id":        ActionTrack,
 		"deleted":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":               ActionIgnore, // We don't allow workspaces to change names.
-		"autostart_schedule": ActionTrack,  // Autostart schedules are directly editable by users.
-		"autostop_schedule":  ActionTrack,  // Autostart schedules are directly editable by users.
+		"name":               ActionTrack,
+		"autostart_schedule": ActionTrack,
+		"ttl":                ActionTrack,
 	},
 })
 

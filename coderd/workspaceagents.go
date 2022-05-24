@@ -219,11 +219,11 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	// Ensure the resource is still valid!
 	// We only accept agents for resources on the latest build.
 	ensureLatestBuild := func() error {
-		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), build.WorkspaceID)
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
 		if err != nil {
 			return err
 		}
-		if build.ID.String() != latestBuild.ID.String() {
+		if build.ID != latestBuild.ID {
 			return xerrors.New("build is outdated")
 		}
 		return nil

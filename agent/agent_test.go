@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,8 +17,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pion/udp"
 	"github.com/pion/webrtc/v3"
 	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
@@ -117,7 +120,7 @@ func TestAgent(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			conn, err := local.Accept()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			_ = conn.Close()
 			close(done)
 		}()
@@ -203,6 +206,11 @@ func TestAgent(t *testing.T) {
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100)
 		require.NoError(t, err)
+		bufRead := bufio.NewReader(netConn)
+
+		// Brief pause to reduce the likelihood that we send keystrokes while
+		// the shell is simultaneously sending a prompt.
+		time.Sleep(100 * time.Millisecond)
 
 		data, err := json.Marshal(agent.ReconnectingPTYRequest{
 			Data: "echo test\r\n",
@@ -211,28 +219,141 @@ func TestAgent(t *testing.T) {
 		_, err = netConn.Write(data)
 		require.NoError(t, err)
 
-		findEcho := func() {
+		expectLine := func(matcher func(string) bool) {
 			for {
-				read, err := netConn.Read(data)
+				line, err := bufRead.ReadString('\n')
 				require.NoError(t, err)
-				if strings.Contains(string(data[:read]), "test") {
+				if matcher(line) {
 					break
 				}
 			}
 		}
+		matchEchoCommand := func(line string) bool {
+			return strings.Contains(line, "echo test")
+		}
+		matchEchoOutput := func(line string) bool {
+			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+		}
 
 		// Once for typing the command...
-		findEcho()
+		expectLine(matchEchoCommand)
 		// And another time for the actual output.
-		findEcho()
+		expectLine(matchEchoOutput)
 
 		_ = netConn.Close()
 		netConn, err = conn.ReconnectingPTY(id, 100, 100)
 		require.NoError(t, err)
+		bufRead = bufio.NewReader(netConn)
 
 		// Same output again!
-		findEcho()
-		findEcho()
+		expectLine(matchEchoCommand)
+		expectLine(matchEchoOutput)
+	})
+
+	t.Run("Dial", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name  string
+			setup func(t *testing.T) net.Listener
+		}{
+			{
+				name: "TCP",
+				setup: func(t *testing.T) net.Listener {
+					l, err := net.Listen("tcp", "127.0.0.1:0")
+					require.NoError(t, err, "create TCP listener")
+					return l
+				},
+			},
+			{
+				name: "UDP",
+				setup: func(t *testing.T) net.Listener {
+					addr := net.UDPAddr{
+						IP:   net.ParseIP("127.0.0.1"),
+						Port: 0,
+					}
+					l, err := udp.Listen("udp", &addr)
+					require.NoError(t, err, "create UDP listener")
+					return l
+				},
+			},
+			{
+				name: "Unix",
+				setup: func(t *testing.T) net.Listener {
+					if runtime.GOOS == "windows" {
+						t.Skip("Unix socket forwarding isn't supported on Windows")
+					}
+
+					tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
+					require.NoError(t, err, "create temp dir for unix listener")
+					t.Cleanup(func() {
+						_ = os.RemoveAll(tmpDir)
+					})
+
+					l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
+					require.NoError(t, err, "create UDP listener")
+					return l
+				},
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Setup listener
+				l := c.setup(t)
+				defer l.Close()
+				go func() {
+					for {
+						c, err := l.Accept()
+						if err != nil {
+							return
+						}
+
+						go testAccept(t, c)
+					}
+				}()
+
+				// Dial the listener over WebRTC twice and test out of order
+				conn := setupAgent(t, agent.Metadata{}, 0)
+				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+				require.NoError(t, err)
+				defer conn1.Close()
+				conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+				require.NoError(t, err)
+				defer conn2.Close()
+				testDial(t, conn2)
+				testDial(t, conn1)
+			})
+		}
+	})
+
+	t.Run("DialError", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			// This test uses Unix listeners so we can very easily ensure that
+			// no other tests decide to listen on the same random port we
+			// picked.
+			t.Skip("this test is unsupported on Windows")
+			return
+		}
+
+		tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
+		require.NoError(t, err, "create temp dir")
+		t.Cleanup(func() {
+			_ = os.RemoveAll(tmpDir)
+		})
+
+		// Try to dial the non-existent Unix socket over WebRTC
+		conn := setupAgent(t, agent.Metadata{}, 0)
+		netConn, err := conn.DialContext(context.Background(), "unix", filepath.Join(tmpDir, "test.sock"))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "remote dial error")
+		require.ErrorContains(t, err, "no such file")
+		require.Nil(t, netConn)
 	})
 }
 
@@ -247,7 +368,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 				return
 			}
 			ssh, err := agentConn.SSH()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			go io.Copy(conn, ssh)
 			go io.Copy(ssh, conn)
 		}
@@ -289,7 +410,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	})
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := api.NegotiateConnection(context.Background())
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil),
 	})
@@ -302,4 +423,35 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		Negotiator: api,
 		Conn:       conn,
 	}
+}
+
+var dialTestPayload = []byte("dean-was-here123")
+
+func testDial(t *testing.T, c net.Conn) {
+	t.Helper()
+
+	assertWritePayload(t, c, dialTestPayload)
+	assertReadPayload(t, c, dialTestPayload)
+}
+
+func testAccept(t *testing.T, c net.Conn) {
+	t.Helper()
+	defer c.Close()
+
+	assertReadPayload(t, c, dialTestPayload)
+	assertWritePayload(t, c, dialTestPayload)
+}
+
+func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+	b := make([]byte, len(payload)+16)
+	n, err := r.Read(b)
+	assert.NoError(t, err, "read payload")
+	assert.Equal(t, len(payload), n, "read payload length does not match")
+	assert.Equal(t, payload, b[:n])
+}
+
+func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+	n, err := w.Write(payload)
+	assert.NoError(t, err, "write payload")
+	assert.Equal(t, len(payload), n, "payload length does not match")
 }

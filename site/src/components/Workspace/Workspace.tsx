@@ -1,102 +1,79 @@
-import Box from "@material-ui/core/Box"
-import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import React from "react"
-import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Resources } from "../Resources/Resources"
+import { Stack } from "../Stack/Stack"
+import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
-import * as Constants from "./constants"
+import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export interface WorkspaceProps {
-  organization: TypesGen.Organization
+  handleStart: () => void
+  handleStop: () => void
+  handleRetry: () => void
+  handleUpdate: () => void
   workspace: TypesGen.Workspace
-  template: TypesGen.Template
+  resources?: TypesGen.WorkspaceResource[]
+  getResourcesError?: Error
+  builds?: TypesGen.WorkspaceBuild[]
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({
+  handleStart,
+  handleStop,
+  handleRetry,
+  handleUpdate,
+  workspace,
+  resources,
+  getResourcesError,
+  builds,
+}) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
-      <div className={styles.vertical}>
-        <WorkspaceHeader organization={organization} template={template} workspace={workspace} />
-        <div className={styles.horizontal}>
-          <div className={styles.sidebarContainer}>
-            <WorkspaceSection title="Applications">
-              <Placeholder />
-            </WorkspaceSection>
-            <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
-            <WorkspaceSection title="Dev URLs">
-              <Placeholder />
-            </WorkspaceSection>
-            <WorkspaceSection title="Resources">
-              <Placeholder />
-            </WorkspaceSection>
-          </div>
-          <div className={styles.timelineContainer}>
-            <WorkspaceSection title="Timeline">
-              <div
-                className={styles.vertical}
-                style={{ justifyContent: "center", alignItems: "center", height: "300px" }}
-              >
-                <Placeholder />
-              </div>
-            </WorkspaceSection>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+      <div className={styles.header}>
+        <div>
+          <Typography variant="h4" className={styles.title}>
+            {workspace.name}
+          </Typography>
 
-/**
- * Component for the header at the top of the workspace page
- */
-export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
-  const styles = useStyles()
-
-  const templateLink = `/templates/${organization.name}/${template.name}`
-
-  return (
-    <Paper elevation={0} className={styles.section}>
-      <div className={styles.horizontal}>
-        <WorkspaceHeroIcon />
-        <div className={styles.vertical}>
-          <Typography variant="h4">{workspace.name}</Typography>
-          <Typography variant="body2" color="textSecondary">
-            <Link to={templateLink}>{template.name}</Link>
+          <Typography color="textSecondary" className={styles.subtitle}>
+            {workspace.owner_name}
           </Typography>
         </div>
+
+        <div className={styles.headerActions}>
+          <WorkspaceActions
+            workspace={workspace}
+            handleStart={handleStart}
+            handleStop={handleStop}
+            handleRetry={handleRetry}
+            handleUpdate={handleUpdate}
+          />
+        </div>
       </div>
-    </Paper>
-  )
-}
 
-/**
- * Component to render the 'Hero Icon' in the header of a workspace
- */
-export const WorkspaceHeroIcon: React.FC = () => {
-  return (
-    <Box mr="1em">
-      <CloudCircleIcon width={Constants.TitleIconSize} height={Constants.TitleIconSize} />
-    </Box>
-  )
-}
+      <Stack direction="row" spacing={3} className={styles.layout}>
+        <Stack spacing={3} className={styles.main}>
+          <WorkspaceStats workspace={workspace} />
+          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+            <BuildsTable builds={builds} className={styles.timelineTable} />
+          </WorkspaceSection>
+        </Stack>
 
-/**
- * Temporary placeholder component until we have the sections implemented
- * Can be removed once the Workspace page has all the necessary sections
- */
-const Placeholder: React.FC = () => {
-  return (
-    <div style={{ textAlign: "center", opacity: "0.5" }}>
-      <Typography variant="caption">Not yet implemented</Typography>
+        <Stack spacing={3} className={styles.sidebar}>
+          <WorkspaceSchedule workspace={workspace} />
+        </Stack>
+      </Stack>
     </div>
   )
 }
@@ -107,31 +84,39 @@ export const useStyles = makeStyles((theme) => {
       display: "flex",
       flexDirection: "column",
     },
-    horizontal: {
+    header: {
+      paddingTop: theme.spacing(5),
+      paddingBottom: theme.spacing(5),
+      fontFamily: MONOSPACE_FONT_FAMILY,
       display: "flex",
-      flexDirection: "row",
+      alignItems: "center",
     },
-    vertical: {
-      display: "flex",
-      flexDirection: "column",
+    headerActions: {
+      marginLeft: "auto",
     },
-    section: {
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: Constants.CardRadius,
-      padding: Constants.CardPadding,
-      margin: theme.spacing(1),
+    title: {
+      fontWeight: 600,
+      fontFamily: "inherit",
     },
-    sidebarContainer: {
-      display: "flex",
-      flexDirection: "column",
-      flex: "0 0 350px",
+    subtitle: {
+      fontFamily: "inherit",
+      marginTop: theme.spacing(0.5),
     },
-    timelineContainer: {
-      flex: 1,
+    layout: {
+      alignItems: "flex-start",
     },
-    icon: {
-      width: Constants.TitleIconSize,
-      height: Constants.TitleIconSize,
+    main: {
+      width: "100%",
+    },
+    sidebar: {
+      width: theme.spacing(32),
+      flexShrink: 0,
+    },
+    timelineContents: {
+      margin: 0,
+    },
+    timelineTable: {
+      border: 0,
     },
   }
 })

@@ -1,19 +1,27 @@
-import Button from "@material-ui/core/Button"
+import IconButton from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
 import React, { useState } from "react"
+import { combineClasses } from "../../util/combineClasses"
 import { FileCopyIcon } from "../Icons/FileCopyIcon"
 
 interface CopyButtonProps {
   text: string
-  className?: string
+  ctaCopy?: string
+  wrapperClassName?: string
+  buttonClassName?: string
 }
 
 /**
  * Copy button used inside the CodeBlock component internally
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({
+  text,
+  ctaCopy,
+  wrapperClassName = "",
+  buttonClassName = "",
+}) => {
   const styles = useStyles()
   const [isCopied, setIsCopied] = useState<boolean>(false)
 
@@ -36,10 +44,15 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) 
 
   return (
     <Tooltip title="Copy to Clipboard" placement="top">
-      <div className={`${styles.copyButtonWrapper} ${className}`}>
-        <Button className={styles.copyButton} onClick={copyToClipboard} size="small">
+      <div className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}>
+        <IconButton
+          className={combineClasses([styles.copyButton, buttonClassName])}
+          onClick={copyToClipboard}
+          size="small"
+        >
           {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
-        </Button>
+          {ctaCopy && <div className={styles.buttonCopy}>{ctaCopy}</div>}
+        </IconButton>
       </div>
     </Tooltip>
   )
@@ -52,17 +65,20 @@ const useStyles = makeStyles((theme) => ({
   },
   copyButton: {
     borderRadius: 7,
-    background: theme.palette.codeBlock.button.main,
-    color: theme.palette.codeBlock.button.contrastText,
+    background: theme.palette.background.default,
+    color: theme.palette.primary.contrastText,
     padding: theme.spacing(0.85),
     minWidth: 32,
 
     "&:hover": {
-      background: theme.palette.codeBlock.button.hover,
+      background: theme.palette.background.paper,
     },
   },
   fileCopyIcon: {
     width: 20,
     height: 20,
+  },
+  buttonCopy: {
+    marginLeft: theme.spacing(1),
   },
 }))

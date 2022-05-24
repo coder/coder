@@ -4,33 +4,20 @@ import { ComponentsProps } from "@material-ui/core/styles/props"
  * These are global overrides to MUI components and we may move away from using them in the future.
  */
 export const props = {
+  MuiButtonBase: {
+    disableRipple: true,
+  },
   MuiButton: {
     variant: "contained",
   },
   MuiTextField: {
     margin: "dense",
-    InputProps: {
-      labelWidth: 0,
-    },
     variant: "outlined",
     spellCheck: false,
-  },
-  MuiInputLabel: {
-    shrink: true,
   },
   MuiFormControl: {
     variant: "outlined",
     margin: "dense",
-  },
-  MuiInput: {
-    spellCheck: false,
-    autoCorrect: "off",
-  },
-  MuiOutlinedInput: {
-    notched: false,
-  },
-  MuiDialogTitle: {
-    disableTypography: true,
   },
   MuiMenu: {
     anchorOrigin: {
@@ -51,7 +38,7 @@ export const props = {
     textColor: "primary",
     indicatorColor: "primary",
   },
-  MuiTab: {
-    disableTouchRipple: true,
+  MuiPaper: {
+    elevation: 0,
   },
 } as ComponentsProps

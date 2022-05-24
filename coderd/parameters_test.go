@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -21,8 +20,8 @@ func TestPostParameter(t *testing.T) {
 		_, err := client.CreateParameter(context.Background(), codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -36,8 +35,8 @@ func TestPostParameter(t *testing.T) {
 		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
 	})
@@ -49,16 +48,16 @@ func TestPostParameter(t *testing.T) {
 		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
 
 		_, err = client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -82,8 +81,8 @@ func TestParameters(t *testing.T) {
 		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
 		params, err := client.Parameters(context.Background(), codersdk.ParameterOrganization, user.OrganizationID)
@@ -110,8 +109,8 @@ func TestDeleteParameter(t *testing.T) {
 		param, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
 		err = client.DeleteParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, param.Name)

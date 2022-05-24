@@ -21,7 +21,7 @@ func TestGitSSHKey(t *testing.T) {
 		ctx := context.Background()
 		client := coderdtest.New(t, nil)
 		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
@@ -32,7 +32,7 @@ func TestGitSSHKey(t *testing.T) {
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
@@ -43,7 +43,7 @@ func TestGitSSHKey(t *testing.T) {
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmECDSA,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
@@ -54,7 +54,7 @@ func TestGitSSHKey(t *testing.T) {
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmRSA4096,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
@@ -65,10 +65,10 @@ func TestGitSSHKey(t *testing.T) {
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
-		key1, err := client.GitSSHKey(ctx, res.UserID)
+		key1, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key1.PublicKey)
-		key2, err := client.RegenerateGitSSHKey(ctx, res.UserID)
+		key2, err := client.RegenerateGitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
@@ -79,9 +79,9 @@ func TestGitSSHKey(t *testing.T) {
 func TestAgentGitSSHKey(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,

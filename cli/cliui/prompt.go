@@ -24,8 +24,21 @@ type PromptOptions struct {
 	Validate  func(string) error
 }
 
+func AllowSkipPrompt(cmd *cobra.Command) {
+	cmd.Flags().BoolP("yes", "y", false, "Bypass prompts")
+}
+
 // Prompt asks the user for input.
 func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
+	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
+	// If it's not a "Confirm" prompt, then don't skip. As the default value of
+	// "yes" makes no sense.
+	if opts.IsConfirm && cmd.Flags().Lookup("yes") != nil {
+		if skip, _ := cmd.Flags().GetBool("yes"); skip {
+			return "yes", nil
+		}
+	}
+
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
 		opts.Default = "yes"
@@ -34,8 +47,6 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	defer signal.Stop(interrupt)
 
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
@@ -45,8 +56,12 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := cmd.InOrStdin().(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
+			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
 		} else {
+			signal.Notify(interrupt, os.Interrupt)
+			defer signal.Stop(interrupt)
+
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
 

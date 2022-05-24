@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"golang.org/x/oauth2"
 
@@ -46,7 +47,8 @@ func OAuth2(r *http.Request) OAuth2State {
 func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if config == nil {
+			// Interfaces can hold a nil value
+			if config == nil || reflect.ValueOf(config).IsNil() {
 				httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
 					Message: "The oauth2 method requested is not configured!",
 				})

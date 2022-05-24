@@ -3,11 +3,32 @@ package rbac
 import (
 	"context"
 	_ "embed"
-
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/rego"
 )
+
+type Authorizer interface {
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
+}
+
+// Filter takes in a list of objects, and will filter the list removing all
+// the elements the subject does not have permission for.
+// Filter does not allocate a new slice, and will use the existing one
+// passed in. This can cause memory leaks if the slice is held for a prolonged
+// period of time.
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) []O {
+	filtered := make([]O, 0)
+
+	for i := range objects {
+		object := objects[i]
+		err := auth.ByRoleName(ctx, subjID, subjRoles, action, object.RBACObject())
+		if err == nil {
+			filtered = append(filtered, object)
+		}
+	}
+	return filtered
+}
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
@@ -38,10 +59,10 @@ type authSubject struct {
 	Roles []Role `json:"roles"`
 }
 
-// AuthorizeByRoleName will expand all roleNames into roles before calling Authorize().
+// ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)

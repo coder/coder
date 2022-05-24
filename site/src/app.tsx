@@ -4,8 +4,9 @@ import React from "react"
 import { BrowserRouter as Router } from "react-router-dom"
 import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
+import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
-import { light } from "./theme"
+import { dark } from "./theme"
 import "./theme/globalFonts"
 import { XServiceProvider } from "./xServices/StateContext"
 
@@ -30,13 +31,15 @@ export const App: React.FC = () => {
           },
         }}
       >
-        <XServiceProvider>
-          <ThemeProvider theme={light}>
-            <CssBaseline />
-            <AppRouter />
-            <GlobalSnackbar />
-          </ThemeProvider>
-        </XServiceProvider>
+        <ThemeProvider theme={dark}>
+          <CssBaseline />
+          <ErrorBoundary>
+            <XServiceProvider>
+              <AppRouter />
+              <GlobalSnackbar />
+            </XServiceProvider>
+          </ErrorBoundary>
+        </ThemeProvider>
       </SWRConfig>
     </Router>
   )

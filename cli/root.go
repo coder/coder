@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
@@ -36,6 +40,15 @@ const (
 	varForceTty     = "force-tty"
 )
 
+func init() {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	header := cliui.Styles.Placeholder
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
+		return header.Render(s)
+	})
+}
+
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
@@ -53,13 +66,13 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		autostart(),
-		autostop(),
 		configSSH(),
 		create(),
 		delete(),
 		gitssh(),
 		list(),
 		login(),
+		logout(),
 		publickey(),
 		resetPassword(),
 		server(),
@@ -69,9 +82,10 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
+		ttl(),
 		update(),
 		users(),
-		tunnel(),
+		portForward(),
 		workspaceAgent(),
 	)
 
@@ -101,10 +115,14 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || rawURL == "" {
 		rawURL, err = root.URL().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+			}
 			return nil, err
 		}
 	}
-	serverURL, err := url.Parse(rawURL)
+	serverURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +130,15 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || token == "" {
 		token, err = root.Session().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+			}
 			return nil, err
 		}
 	}
 	client := codersdk.New(serverURL)
-	client.SessionToken = token
+	client.SessionToken = strings.TrimSpace(token)
 	return client, nil
 }
 
@@ -179,24 +201,65 @@ func isTTY(cmd *cobra.Command) bool {
 }
 
 func usageTemplate() string {
-	// Customizes the color of headings to make subcommands
-	// more visually appealing.
-	header := cliui.Styles.Placeholder
+	// usageHeader is defined in init().
+	return `{{usageHeader "Usage:"}}
+{{- if .Runnable}}
+  {{.UseLine}}
+{{end}}
+{{- if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]
+{{end}}
 
-	return `{{if .HasExample}}` + header.Render("Get Started:") + `
+{{- if gt (len .Aliases) 0}}
+{{usageHeader "Aliases:"}}
+  {{.NameAndAliases}}
+{{end}}
+
+{{- if .HasExample}}
+{{usageHeader "Get Started:"}}
 {{.Example}}
+{{end}}
 
-{{end}}{{if .HasAvailableLocalFlags}}` + header.Render("Flags:") + `
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+{{- if .HasAvailableSubCommands}}
+{{usageHeader "Commands:"}}
+  {{- range .Commands}}
+    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-` + header.Render("Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (eq (len .Annotations) 0)}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .HasParent }}
+{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{usageHeader "Workspace Commands:"}}
+  {{- range .Commands}}
+    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-` + header.Render("Workspace Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (ne (index .Annotations "workspaces") "")}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}
+{{- if .HasAvailableLocalFlags}}
+{{usageHeader "Flags:"}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
 
+{{- if .HasAvailableInheritedFlags}}
+{{usageHeader "Global Flags:"}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
+
+{{- if .HasHelpSubCommands}}
+{{usageHeader "Additional help topics:"}}
+  {{- range .Commands}}
+    {{- if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
+
+{{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-`
+{{end}}`
 }
 
 func versionTemplate() string {
@@ -208,4 +271,10 @@ func versionTemplate() string {
 	template += "\r\n" + buildinfo.ExternalURL()
 	template += "\r\n"
 	return template
+}
+
+// FormatCobraError colorizes and adds "--help" docs to cobra commands.
+func FormatCobraError(err error, cmd *cobra.Command) string {
+	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
+	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }

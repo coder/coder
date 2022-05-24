@@ -17,7 +17,7 @@ interface BorderedMenuRowProps {
   /** An SvgIcon that will be rendered to the left of the title */
   Icon: typeof SvgIcon
   /** URL path */
-  path?: string
+  path: string
   /** Required title of this row */
   title: string
   /** Defaults to `"wide"` */
@@ -37,38 +37,30 @@ export const BorderedMenuRow: React.FC<BorderedMenuRowProps> = ({
 }) => {
   const styles = useStyles()
 
-  const Component = () => (
-    <ListItem
-      classes={{ gutters: styles.rootGutters }}
-      className={styles.root}
-      onClick={onClick}
-      data-status={active ? "active" : "inactive"}
-    >
-      <div className={styles.content} data-variant={variant}>
-        <div className={styles.contentTop}>
-          <Icon className={styles.icon} />
-          <Typography className={styles.title}>{title}</Typography>
-          {active && <CheckIcon className={styles.checkMark} />}
+  return (
+    <NavLink className={styles.link} to={path}>
+      <ListItem
+        classes={{ gutters: styles.rootGutters }}
+        className={styles.root}
+        data-status={active ? "active" : "inactive"}
+        onClick={onClick}
+      >
+        <div className={styles.content} data-variant={variant}>
+          <div className={styles.contentTop}>
+            <Icon className={styles.icon} />
+            <Typography className={styles.title}>{title}</Typography>
+            {active && <CheckIcon className={styles.checkMark} />}
+          </div>
+
+          {description && (
+            <Typography className={styles.description} color="textSecondary" variant="caption">
+              {ellipsizeText(description)}
+            </Typography>
+          )}
         </div>
-
-        {description && (
-          <Typography className={styles.description} color="textSecondary" variant="caption">
-            {ellipsizeText(description)}
-          </Typography>
-        )}
-      </div>
-    </ListItem>
+      </ListItem>
+    </NavLink>
   )
-
-  if (path) {
-    return (
-      <NavLink to={path} className={styles.link}>
-        <Component />
-      </NavLink>
-    )
-  }
-
-  return <Component />
 }
 
 const iconSize = 20

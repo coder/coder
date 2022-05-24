@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -23,9 +23,8 @@ func TestProvisionerDaemons(t *testing.T) {
 			// Takes too long to allocate memory on Windows!
 			t.Skip()
 		}
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		data := make([]byte, provisionersdk.MaxMessageSize)
 		rand.Read(data)
 		resp, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
@@ -33,9 +32,9 @@ func TestProvisionerDaemons(t *testing.T) {
 		t.Log(resp.Hash)
 
 		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			StorageMethod: database.ProvisionerStorageMethodFile,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: resp.Hash,
-			Provisioner:   database.ProvisionerTypeEcho,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
@@ -44,5 +43,23 @@ func TestProvisionerDaemons(t *testing.T) {
 			require.NoError(t, err)
 			return version.Job.Error != ""
 		}, 5*time.Second, 25*time.Millisecond)
+	})
+}
+
+func TestProvisionerDaemonsByOrganization(t *testing.T) {
+	t.Parallel()
+	t.Run("NoAuth", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), uuid.New())
+		require.Error(t, err)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), user.OrganizationID)
+		require.NoError(t, err)
 	})
 }

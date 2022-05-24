@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -52,7 +54,7 @@ provider "coder" {
 			},
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
@@ -555,4 +557,50 @@ provider "coder" {
 			}
 		})
 	}
+
+	t.Run("DestroyNoState", func(t *testing.T) {
+		t.Parallel()
+
+		const template = `resource "null_resource" "A" {}`
+
+		directory := t.TempDir()
+		err := os.WriteFile(filepath.Join(directory, "main.tf"), []byte(template), 0600)
+		require.NoError(t, err)
+
+		request := &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					State:     nil,
+					Directory: directory,
+					Metadata: &proto.Provision_Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
+					},
+				},
+			},
+		}
+
+		response, err := api.Provision(ctx)
+		require.NoError(t, err)
+		err = response.Send(request)
+		require.NoError(t, err)
+
+		gotLog := false
+		for {
+			msg, err := response.Recv()
+			require.NoError(t, err)
+			require.NotNil(t, msg)
+
+			if msg.GetLog() != nil && strings.Contains(msg.GetLog().Output, "nothing to do") {
+				gotLog = true
+				continue
+			}
+			if msg.GetComplete() == nil {
+				continue
+			}
+
+			require.Empty(t, msg.GetComplete().Error)
+			require.True(t, gotLog, "never received 'nothing to do' log")
+			break
+		}
+	})
 }

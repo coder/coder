@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"runtime"
 	"strings"
 
@@ -164,32 +165,37 @@ func login() *cobra.Command {
 					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
 
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates create"))+"\n")
+					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}
 
-			authURL := *serverURL
-			authURL.Path = serverURL.Path + "/cli-auth"
-			if err := openURL(cmd, authURL.String()); err != nil {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
-			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
-			}
+			sessionToken, _ := cmd.Flags().GetString(varToken)
+			if sessionToken == "" {
+				authURL := *serverURL
+				// Don't use filepath.Join, we don't want to use the os separator
+				// for a url.
+				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
+				if err := openURL(cmd, authURL.String()); err != nil {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
+				} else {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
+				}
 
-			sessionToken, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:   "Paste your token here:",
-				Secret: true,
-				Validate: func(token string) error {
-					client.SessionToken = token
-					_, err := client.User(cmd.Context(), codersdk.Me)
-					if err != nil {
-						return xerrors.New("That's not a valid token!")
-					}
-					return err
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("paste token prompt: %w", err)
+				sessionToken, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:   "Paste your token here:",
+					Secret: true,
+					Validate: func(token string) error {
+						client.SessionToken = token
+						_, err := client.User(cmd.Context(), codersdk.Me)
+						if err != nil {
+							return xerrors.New("That's not a valid token!")
+						}
+						return err
+					},
+				})
+				if err != nil {
+					return xerrors.Errorf("paste token prompt: %w", err)
+				}
 			}
 
 			// Login to get user data - verify it is OK before persisting

@@ -65,7 +65,7 @@ func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, servic
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
 	}
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (Workspac
 		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
 	}
 
-	res, err = c.request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
+	res, err = c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
 		Signature: string(signature),
 		Document:  string(document),
 	})
@@ -164,7 +164,7 @@ func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (Worksp
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}
 
-	res, err = c.request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
+	res, err = c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}
@@ -188,7 +188,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -213,7 +213,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	}
 	listener, err := peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
 		// This can be cached if it adds to latency too much.
-		res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
+		res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -240,7 +240,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	if err != nil {
 		return agent.Metadata{}, nil, xerrors.Errorf("listen peerbroker: %w", err)
 	}
-	res, err = c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+	res, err = c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
 	if err != nil {
 		return agent.Metadata{}, nil, err
 	}
@@ -263,7 +263,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -292,7 +292,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("negotiate connection: %w", err)
 	}
 
-	res, err = c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/iceservers", agentID.String()), nil)
+	res, err = c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/iceservers", agentID.String()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 // WorkspaceAgent returns an agent by ID.
 func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s", id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s", id), nil)
 	if err != nil {
 		return WorkspaceAgent{}, err
 	}
@@ -351,7 +351,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
