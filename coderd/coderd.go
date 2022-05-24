@@ -201,6 +201,7 @@ func newRouter(options *Options, a *api) chi.Router {
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 

@@ -22,6 +22,10 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceTemplate CRUD. Org owner only.
+	//	create/delete = Make or delete a new template
+	//	update = Update the template, make new template versions
+	//	read = read the template and all versions associated
 	ResourceTemplate = Object{
 		Type: "template",
 	}

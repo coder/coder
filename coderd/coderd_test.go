@@ -108,17 +108,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
 
-		"GET:/api/v2/templates/{template}/versions":                       {NoAuthorize: true},
-		"PATCH:/api/v2/templates/{template}/versions":                     {NoAuthorize: true},
-		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {NoAuthorize: true},
-
-		"GET:/api/v2/templateversions/{templateversion}":            {NoAuthorize: true},
-		"PATCH:/api/v2/templateversions/{templateversion}/cancel":   {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/logs":       {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/parameters": {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/resources":  {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/schema":     {NoAuthorize: true},
-
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
 		"GET:/api/v2/workspaces/{workspace}/watch": {NoAuthorize: true},
@@ -199,8 +188,46 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{fileHash}": {AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash)},
+		"GET:/api/v2/files/{fileHash}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash),
+		},
+		"GET:/api/v2/templates/{template}/versions": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templates/{template}/versions": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/parameters": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/resources": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/schema": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
