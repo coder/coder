@@ -570,6 +570,35 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (api *API) putWorkspaceDeadline(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	var req codersdk.PutExtendWorkspaceRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get latest workspace build: %s", err),
+		})
+		return
+	}
+
+	if build.Transition != database.WorkspaceTransitionStart {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("workspace must be started, current status: %s", build.Transition),
+		})
+		return
+	}
+}
+
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 

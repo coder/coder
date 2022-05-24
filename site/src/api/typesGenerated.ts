@@ -216,6 +216,11 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/workspaces.go:182:6
+export interface PutWorkspaceDeadlineRequest {
+  readonly stop_at: string
+}
+
 // From codersdk/roles.go:12:6
 export interface Role {
   readonly name: string
@@ -430,7 +435,7 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:180:6
+// From codersdk/workspaces.go:200:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
   readonly Owner: string
