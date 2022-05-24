@@ -46,7 +46,7 @@ export const formValuesToAutoStartRequest = (
     !values.saturday &&
     !values.sunday
 
-  // Handle special cases, falling throw to comma-separation
+  // Handle special cases, falling through to comma-separation
   if (isEveryDay) {
     return {
       schedule: makeCronString("1-7"),
