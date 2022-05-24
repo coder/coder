@@ -8,7 +8,7 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Coder turns your cloud into a fleet of development servers.
+Coder turns your cloud into a fleet of remote development servers.
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -18,25 +18,26 @@ Coder turns your cloud into a fleet of development servers.
 
 - Build and test faster, leveraging cloud CPUs, RAM, network speeds, etc.
 - Access your environment from anywhere on any client (even an iPad)
-- Onboard instantly then stay up to date
+- Onboard instantly then stay up to date continuously
 
 **Manage less**
 
 - Ensure consistent development workspaces across your team
-  - Rollout critical updates to your fleet of workspaces with one command
+  - Rollout critical updates to your developers with one command
 - Automatically shut down expensive cloud resources
 - Keep your source code and data behind your firewall
 
 ## How it works
 
-Coder workspaces are represented with terraform. But, no terraform knowledge is
+Coder workspaces are represented with Terraform. But, no Terraform knowledge is
 required to get started. We have a database of pre-made templates built into the
 product. Terraform empowers you to create
 environments on _anything_, including:
 
-- VMs across any cloud
-- Kubernetes across any cloud (AKS, EKS, GKS)
-- Dedicated server providers (Hetzner, OVH)
+- Cloud VMs
+- Kubernetes containers (including AKS, EKS, GKS)
+- Docker containers
+- Dedicated servers (Hetzner, OVH, etc.)
 - Linux, Windows and MacOS environments
 
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
@@ -50,8 +51,13 @@ and whatever else Terraform lets you dream up.
 
 ## IDE Support
 
-Coder gives you a private tunnel to any port on your workspace as well as
-SSH access. You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+Coder gives you a few ways of accessing your workspace:
+
+- `coder port-forward` a remote port to a local port
+- `coder ssh`
+- A URL interface to HTTP services
+
+With these methods, you can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 <p align="center">
   <img src="./docs/images/ide-icons.svg" height=72>
