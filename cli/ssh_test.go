@@ -2,8 +2,13 @@ package cli_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"errors"
 	"io"
 	"net"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -12,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	gosshagent "golang.org/x/crypto/ssh/agent"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -134,6 +140,84 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
+	})
+	//nolint:paralleltest // Disabled due to use of t.Setenv.
+	t.Run("ForwardAgent", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
+
+		tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			agentClient := codersdk.New(client.URL)
+			agentClient.SessionToken = agentToken
+			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			})
+			<-ctx.Done()
+			_ = agentCloser.Close()
+		})
+
+		// Generate private key.
+		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		kr := gosshagent.NewKeyring()
+		kr.Add(gosshagent.AddedKey{
+			PrivateKey: privateKey,
+		})
+
+		// Start up ssh agent listening on unix socket.
+		tmpdir := t.TempDir()
+		agentSock := filepath.Join(tmpdir, "agent.sock")
+		l, err := net.Listen("unix", agentSock)
+		require.NoError(t, err)
+		defer l.Close()
+		tGo(t, func() {
+			for {
+				fd, err := l.Accept()
+				if err != nil {
+					t.Logf("accept error: %v", err)
+					return
+				}
+
+				err = gosshagent.ServeAgent(kr, fd)
+				if !errors.Is(err, io.EOF) {
+					assert.NoError(t, err)
+				}
+			}
+		})
+
+		t.Setenv("SSH_AUTH_SOCK", agentSock)
+		cmd, root := clitest.New(t,
+			"ssh",
+			workspace.Name,
+			"--forward-agent",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		cmd.SetErr(io.Discard)
+		tGo(t, func() {
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		})
+
+		// Ensure that SSH_AUTH_SOCK is set.
+		pty.WriteLine("env")
+		pty.ExpectMatch("SSH_AUTH_SOCK=/tmp") // E.g. /tmp/auth-agent3167016167/listener.sock
+		// Ensure that ssh-add lists our key.
+		pty.WriteLine("ssh-add -L")
+		keys, err := kr.List()
+		require.NoError(t, err)
+		pty.ExpectMatch(keys[0].String())
+
+		// kthxbye
+		pty.WriteLine("exit")
 	})
 }
 
