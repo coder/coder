@@ -12,7 +12,7 @@ import (
 
 func publickey() *cobra.Command {
 	var (
-		resetKey bool
+		reset bool
 	)
 
 	cmd := &cobra.Command{
@@ -25,11 +25,11 @@ func publickey() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			if resetKey {
+			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.
 				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Confirm regenerate a new sshkey for your workspaces?",
+					Text:      "Confirm regenerate a new sshkey for your workspaces? This will require updating the key on any services it is registered with. This action cannot be reverted.",
 					IsConfirm: true,
 				})
 				if err != nil {
@@ -62,7 +62,7 @@ func publickey() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&resetKey, "reset", false, "regenerate a new public key")
+	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
