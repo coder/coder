@@ -6,10 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func logout() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "logout",
 		Short: "Remove the local authenticated session",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -17,7 +19,16 @@ func logout() *cobra.Command {
 
 			config := createConfig(cmd)
 
-			err := config.URL().Delete()
+			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Are you sure you want to logout?",
+				IsConfirm: true,
+				Default:   "yes",
+			})
+			if err != nil {
+				return err
+			}
+
+			err = config.URL().Delete()
 			if err != nil {
 				// Only throw error if the URL configuration file is present,
 				// otherwise the user is already logged out, and we proceed
@@ -43,13 +54,16 @@ func logout() *cobra.Command {
 				return xerrors.Errorf("remove organization file: %w", err)
 			}
 
-			// If the user was already logged out, we show them a message
+			// If the user was already logged out, we show them a different message
 			if isLoggedOut {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), notLoggedInMessage+"\n")
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Successfully logged out.\n")
 			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Successfully logged out.\n")
 			return nil
 		},
 	}
+
+	cliui.AllowSkipPrompt(cmd)
+	return cmd
 }
