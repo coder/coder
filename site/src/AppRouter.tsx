@@ -17,6 +17,7 @@ import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
+import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
@@ -70,6 +71,14 @@ export const AppRouter: React.FC = () => (
               element={
                 <AuthAndFrame>
                   <WorkspaceSettingsPage />
+                </AuthAndFrame>
+              }
+            />
+            <Route
+              path="schedule"
+              element={
+                <AuthAndFrame>
+                  <WorkspaceSchedulePage />
                 </AuthAndFrame>
               }
             />
