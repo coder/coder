@@ -55,6 +55,15 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
+  it("allows startTime 16:20", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      startTime: "16:20",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrow()
+  })
+
   it("disallows startTime to be H:mm", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
@@ -73,10 +82,10 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorTime)
   })
 
-  it("disallows an invalid startTime 13:01", () => {
+  it("disallows an invalid startTime 24:01", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
-      startTime: "13:01",
+      startTime: "24:01",
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)

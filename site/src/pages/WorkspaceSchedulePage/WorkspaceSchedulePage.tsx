@@ -11,7 +11,6 @@ import {
 import { firstOrItem } from "../../util/array"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 
-// TODO(Grey): Test before opening PR from draft
 export const formValuesToAutoStartRequest = (
   values: WorkspaceScheduleFormValues,
 ): TypesGen.UpdateWorkspaceAutostartRequest => {
@@ -21,22 +20,61 @@ export const formValuesToAutoStartRequest = (
     }
   }
 
-  // TODO(Grey): Fill in
-  return {
-    schedule: "9 30 * * 1-5",
+  const [HH, mm] = values.startTime.split(":")
+
+  const makeCronString = (dow: string) => `${mm} ${HH} * * ${dow}`
+
+  const days = [
+    values.sunday,
+    values.monday,
+    values.tuesday,
+    values.wednesday,
+    values.thursday,
+    values.friday,
+    values.saturday,
+  ]
+
+  const isEveryDay = days.every((day) => day)
+
+  const isMonThroughFri =
+    !values.sunday &&
+    values.monday &&
+    values.tuesday &&
+    values.wednesday &&
+    values.thursday &&
+    values.friday &&
+    !values.saturday &&
+    !values.sunday
+
+  // Handle special cases, falling throw to comma-separation
+  if (isEveryDay) {
+    return {
+      schedule: makeCronString("1-7"),
+    }
+  } else if (isMonThroughFri) {
+    return {
+      schedule: makeCronString("1-5"),
+    }
+  } else {
+    const dow = days.reduce((previous, current, idx) => {
+      if (!current) {
+        return previous
+      } else {
+        const prefix = previous ? "," : ""
+        return previous + prefix + idx
+      }
+    }, "")
+
+    return {
+      schedule: makeCronString(dow),
+    }
   }
 }
 
 export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
-  if (!values.ttl) {
-    return {
-      ttl: 0, // TODO(Grey): Verify with Cian whether 0 or null is better to send
-    }
-  }
-
-  // TODO(Grey): Fill in
   return {
-    ttl: 0,
+    // minutes to nanoseconds
+    ttl: values.ttl ? values.ttl * 60 * 1000 * 1_000_000 : undefined,
   }
 }
 

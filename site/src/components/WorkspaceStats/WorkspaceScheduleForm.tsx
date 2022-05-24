@@ -86,7 +86,7 @@ export const validationSchema = Yup.object({
         const parts = value.split(":")
         const HH = Number(parts[0])
         const mm = Number(parts[1])
-        return HH >= 0 && HH <= 12 && mm >= 0 && mm <= 59
+        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
       }
     }),
   ttl: Yup.number().min(0).integer(),
