@@ -181,7 +181,7 @@ func dotfiles() *cobra.Command {
 		},
 	}
 	cliui.AllowSkipPrompt(cmd)
-	cliflag.StringVarP(cmd.Flags(), &homeDir, "home-dir", "-d", "CODER_HOME_DIR", "", "Specifies the home directory for the dotfiles symlink destination. If empty will use $HOME.")
+	cliflag.StringVarP(cmd.Flags(), &homeDir, "home-dir", "", "CODER_HOME_DIR", "", "Specifies the home directory for the dotfiles symlink destination. If empty will use $HOME.")
 
 	return cmd
 }
