@@ -94,7 +94,6 @@ func dotfiles() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(out))
 
-			// check for install scripts
 			files, err := os.ReadDir(dotfilesDir)
 			if err != nil {
 				return xerrors.Errorf("reading files in dir %s: %w", dotfilesDir, err)
@@ -154,7 +153,6 @@ func dotfiles() *cobra.Command {
 				return nil
 			}
 
-			// run found install scripts
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Running install script %s.\n\n  Continue?", script),
 				IsConfirm: true,
@@ -186,6 +184,7 @@ func dotfiles() *cobra.Command {
 	return cmd
 }
 
+// dirExists checks if the dir already exists.
 func dirExists(name string) (bool, error) {
 	_, err := os.Stat(name)
 	if err != nil {
@@ -199,8 +198,9 @@ func dirExists(name string) (bool, error) {
 	return true, nil
 }
 
-func findScript(installScriptSet []string, files []fs.DirEntry) string {
-	for _, i := range installScriptSet {
+// findScript will find the first file that matches the script set.
+func findScript(scriptSet []string, files []fs.DirEntry) string {
+	for _, i := range scriptSet {
 		for _, f := range files {
 			if f.Name() == i {
 				return f.Name()
