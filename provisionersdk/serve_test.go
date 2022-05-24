@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"storj.io/drpc/drpcerr"
@@ -30,7 +31,7 @@ func TestProvisionerSDK(t *testing.T) {
 			err := provisionersdk.Serve(ctx, &proto.DRPCProvisionerUnimplementedServer{}, &provisionersdk.ServeOptions{
 				Listener: server,
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))

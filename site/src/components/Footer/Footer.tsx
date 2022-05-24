@@ -42,6 +42,7 @@ const useFooterStyles = makeStyles((theme) => ({
     flex: "0",
     paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(2),
+    marginTop: theme.spacing(3),
   },
   copyRight: {
     margin: theme.spacing(0.25),

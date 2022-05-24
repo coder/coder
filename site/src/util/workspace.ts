@@ -1,7 +1,7 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
-import { WorkspaceBuild } from "../api/typesGenerated"
+import { WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
 
 export type WorkspaceStatus =
   | "queued"
@@ -147,4 +147,41 @@ export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): numbe
 export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
   const duration = getWorkspaceBuildDurationInSeconds(build)
   return duration ? `${duration} seconds` : inProgressLabel
+}
+
+export const DisplayAgentStatusLanguage = {
+  connected: "⦿ Connected",
+  connecting: "⦿ Connecting",
+  disconnected: "◍ Disconnected",
+}
+
+export const getDisplayAgentStatus = (
+  theme: Theme,
+  agent: WorkspaceAgent,
+): {
+  color: string
+  status: string
+} => {
+  switch (agent.status) {
+    case undefined:
+      return {
+        color: theme.palette.text.secondary,
+        status: DisplayStatusLanguage.loading,
+      }
+    case "connected":
+      return {
+        color: theme.palette.success.main,
+        status: DisplayAgentStatusLanguage["connected"],
+      }
+    case "connecting":
+      return {
+        color: theme.palette.success.main,
+        status: DisplayAgentStatusLanguage["connecting"],
+      }
+    case "disconnected":
+      return {
+        color: theme.palette.text.secondary,
+        status: DisplayAgentStatusLanguage["disconnected"],
+      }
+  }
 }

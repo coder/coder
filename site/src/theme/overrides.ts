@@ -44,6 +44,11 @@ export const getOverrides = (palette: PaletteOptions) => {
         // Gives the appearance of a border!
         borderRadius: 2,
         border: `1px solid ${palette.divider}`,
+
+        "& td": {
+          paddingTop: 16,
+          paddingBottom: 16,
+        },
       },
     },
     MuiTableCell: {

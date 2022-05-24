@@ -3,10 +3,11 @@ import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { WorkspaceStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
+import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -16,7 +17,8 @@ export interface WorkspaceProps {
   handleRetry: () => void
   handleUpdate: () => void
   workspace: TypesGen.Workspace
-  workspaceStatus: WorkspaceStatus
+  resources?: TypesGen.WorkspaceResource[]
+  getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
 }
 
@@ -29,7 +31,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspace,
-  workspaceStatus,
+  resources,
+  getResourcesError,
   builds,
 }) => {
   const styles = useStyles()
@@ -54,16 +57,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             handleStop={handleStop}
             handleRetry={handleRetry}
             handleUpdate={handleUpdate}
-            workspaceStatus={workspaceStatus}
           />
         </div>
       </div>
 
-      <Stack spacing={3}>
-        <WorkspaceStats workspace={workspace} />
-        <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
-          <BuildsTable builds={builds} className={styles.timelineTable} />
-        </WorkspaceSection>
+      <Stack direction="row" spacing={3} className={styles.layout}>
+        <Stack spacing={3} className={styles.main}>
+          <WorkspaceStats workspace={workspace} />
+          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+            <BuildsTable builds={builds} className={styles.timelineTable} />
+          </WorkspaceSection>
+        </Stack>
+
+        <Stack spacing={3} className={styles.sidebar}>
+          <WorkspaceSchedule workspace={workspace} />
+        </Stack>
       </Stack>
     </div>
   )
@@ -92,6 +101,16 @@ export const useStyles = makeStyles((theme) => {
     subtitle: {
       fontFamily: "inherit",
       marginTop: theme.spacing(0.5),
+    },
+    layout: {
+      alignItems: "flex-start",
+    },
+    main: {
+      width: "100%",
+    },
+    sidebar: {
+      width: theme.spacing(32),
+      flexShrink: 0,
     },
     timelineContents: {
       margin: 0,

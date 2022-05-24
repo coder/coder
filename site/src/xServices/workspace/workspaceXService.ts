@@ -19,16 +19,15 @@ const Language = {
 export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
-  organization?: TypesGen.Organization
   build?: TypesGen.WorkspaceBuild
+  resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
-  getTemplateError?: Error | unknown
-  getOrganizationError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   // these are separate from getX errors because they don't make the page unusable
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
+  getResourcesError: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -57,9 +56,6 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
-        getOrganization: {
-          data: TypesGen.Organization
-        }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
@@ -68,6 +64,9 @@ export const workspaceMachine = createMachine(
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
+        }
+        getResources: {
+          data: TypesGen.WorkspaceResource[]
         }
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
@@ -125,43 +124,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          breadcrumb: {
-            initial: "gettingTemplate",
-            states: {
-              gettingTemplate: {
-                invoke: {
-                  src: "getTemplate",
-                  id: "getTemplate",
-                  onDone: {
-                    target: "gettingOrganization",
-                    actions: ["assignTemplate", "clearGetTemplateError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetTemplateError",
-                  },
-                },
-                tags: "loading",
-              },
-              gettingOrganization: {
-                invoke: {
-                  src: "getOrganization",
-                  id: "getOrganization",
-                  onDone: {
-                    target: "ready",
-                    actions: ["assignOrganization", "clearGetOrganizationError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetOrganizationError",
-                  },
-                },
-                tags: "loading",
-              },
-              error: {},
-              ready: {},
-            },
-          },
           build: {
             initial: "idle",
             states: {
@@ -216,6 +178,25 @@ export const workspaceMachine = createMachine(
                     target: "idle",
                     actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
                   },
+                },
+              },
+            },
+          },
+          pollingResources: {
+            initial: "gettingResources",
+            states: {
+              gettingResources: {
+                entry: "clearGetResourcesError",
+                invoke: {
+                  id: "getResources",
+                  src: "getResources",
+                  onDone: { target: "waiting", actions: "assignResources" },
+                  onError: { target: "waiting", actions: "assignGetResourcesError" },
+                },
+              },
+              waiting: {
+                after: {
+                  5000: "gettingResources",
                 },
               },
             },
@@ -285,7 +266,6 @@ export const workspaceMachine = createMachine(
         assign({
           workspace: undefined,
           template: undefined,
-          organization: undefined,
           build: undefined,
         }),
       assignWorkspace: assign({
@@ -298,17 +278,6 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignGetTemplateError: assign({
-        getTemplateError: (_, event) => event.data,
-      }),
-      clearGetTemplateError: (context) => assign({ ...context, getTemplateError: undefined }),
-      assignOrganization: assign({
-        organization: (_, event) => event.data,
-      }),
-      assignGetOrganizationError: assign({
-        getOrganizationError: (_, event) => event.data,
-      }),
-      clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
       assignBuild: (_, event) =>
         assign({
           build: event.data,
@@ -342,6 +311,17 @@ export const workspaceMachine = createMachine(
       clearRefreshTemplateError: (_) =>
         assign({
           refreshTemplateError: undefined,
+        }),
+      assignResources: assign({
+        resources: (_, event) => event.data,
+      }),
+      assignGetResourcesError: (_, event) =>
+        assign({
+          getResourcesError: event.data,
+        }),
+      clearGetResourcesError: (_) =>
+        assign({
+          getResourcesError: undefined,
         }),
       // Timeline
       assignBuilds: assign({
@@ -403,13 +383,6 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template without workspace")
         }
       },
-      getOrganization: async (context) => {
-        if (context.template) {
-          return await API.getOrganization(context.template.organization_id)
-        } else {
-          throw Error("Cannot get organization without template")
-        }
-      },
       startWorkspace: async (context) => {
         if (context.workspace) {
           return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
@@ -429,6 +402,14 @@ export const workspaceMachine = createMachine(
           return await API.getWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot refresh workspace without id")
+        }
+      },
+      getResources: async (context) => {
+        if (context.workspace) {
+          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
+          return resources
+        } else {
+          throw Error("Cannot fetch workspace resources without workspace")
         }
       },
       getBuilds: async (context) => {

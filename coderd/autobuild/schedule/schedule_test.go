@@ -42,6 +42,13 @@ func Test_Weekly(t *testing.T) {
 			expectedString: "CRON_TZ=UTC 30 9 * * 1-5",
 		},
 		{
+			name:          "time.Local will bite you",
+			spec:          "CRON_TZ=Local 30 9 * * 1-5",
+			at:            time.Time{},
+			expectedNext:  time.Time{},
+			expectedError: "schedules scoped to time.Local are not supported",
+		},
+		{
 			name:          "invalid schedule",
 			spec:          "asdfasdfasdfsd",
 			at:            time.Time{},

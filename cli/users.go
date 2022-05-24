@@ -19,7 +19,6 @@ func users() *cobra.Command {
 		userCreate(),
 		userList(),
 		userSingle(),
-		userResetGitSSH(),
 		createUserStatusCommand(codersdk.UserStatusActive),
 		createUserStatusCommand(codersdk.UserStatusSuspended),
 	)

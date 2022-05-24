@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
 	"github.com/coder/coder/cli/cliui"
@@ -43,7 +43,7 @@ func TestAgent(t *testing.T) {
 	go func() {
 		defer close(done)
 		err := cmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	ptty.ExpectMatch("lost connection")
 	disconnected.Store(true)

@@ -16,11 +16,13 @@ import {
   MockStoppingWorkspace,
   MockTemplate,
   MockWorkspace,
+  MockWorkspaceAgent,
+  MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { DisplayStatusLanguage } from "../../util/workspace"
+import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
@@ -157,10 +159,27 @@ describe("Workspace Page", () => {
   it("shows the Deleted status when the workspace is deleted", async () => {
     await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
   })
-  it("shows the timeline build", async () => {
-    await renderWorkspacePage()
-    const table = await screen.findByRole("table")
-    const rows = table.querySelectorAll("tbody > tr")
-    expect(rows).toHaveLength(MockBuilds.length)
+
+  describe("Timeline", () => {
+    it("shows the timeline build", async () => {
+      await renderWorkspacePage()
+      const table = await screen.findByTestId("builds-table")
+      const rows = table.querySelectorAll("tbody > tr")
+      expect(rows).toHaveLength(MockBuilds.length)
+    })
+  })
+
+  describe("Resources", () => {
+    it("shows the status of each agent in each resource", async () => {
+      renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+      const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
+      expect(agent1Names.length).toEqual(2)
+      const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
+      expect(agent2Names.length).toEqual(2)
+      const agent1Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgent.status])
+      expect(agent1Status.length).toEqual(2)
+      const agent2Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status])
+      expect(agent2Status.length).toEqual(2)
+    })
   })
 })

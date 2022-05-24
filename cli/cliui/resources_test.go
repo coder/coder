@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -32,7 +32,7 @@ func TestWorkspaceResources(t *testing.T) {
 			}}, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: "example",
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			close(done)
 		}()
 		ptty.ExpectMatch("coder ssh example")
@@ -85,7 +85,7 @@ func TestWorkspaceResources(t *testing.T) {
 				HideAgentState: false,
 				HideAccess:     false,
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			close(done)
 		}()
 		ptty.ExpectMatch("google_compute_disk.root")

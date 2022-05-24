@@ -22,13 +22,13 @@ import { firstLetter } from "../../util/firstLetter"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create Template",
+  createButton: "Create template",
   developerCount: (ownerCount: number): string => {
     return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
-  usedByLabel: "Used By",
-  lastUpdatedLabel: "Last Updated",
+  usedByLabel: "Used by",
+  lastUpdatedLabel: "Last updated",
   emptyViewCreateCTA: "Create a template",
   emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
@@ -77,13 +77,17 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
               </TableRow>
             )}
             {props.templates?.map((template) => (
-              <TableRow key={template.id} className={styles.templateRow}>
+              <TableRow key={template.id}>
                 <TableCell>
                   <Box alignItems="center" display="flex">
                     <Avatar variant="square" className={styles.templateAvatar}>
                       {firstLetter(template.name)}
                     </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.name}/new`} className={styles.templateLink}>
+                    <Link
+                      component={RouterLink}
+                      to={`/workspaces/new?template=${template.name}`}
+                      className={styles.templateLink}
+                    >
                       <b>{template.name}</b>
                       <span>{template.description}</span>
                     </Link>
@@ -125,12 +129,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  templateRow: {
-    "& > td": {
-      paddingTop: theme.spacing(2),
-      paddingBottom: theme.spacing(2),
     },
   },
   templateAvatar: {
