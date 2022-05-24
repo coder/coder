@@ -8,7 +8,13 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
+<<<<<<< HEAD
 Team-wide CLI for spawning up dev servers on demand, powered by Terraform.
+||||||| parent of 059e6c7a (Add logos)
+Provision remote development environments with Terraform.
+=======
+Provision remote development environments anywhere on anything.
+>>>>>>> 059e6c7a (Add logos)
 
 ![Kubernetes workspace in Coder v2](./docs/screenshot.png)
 
@@ -24,6 +30,31 @@ Templates:
 - Use any OS and architecture: Mac, Windows, Linux, VM, Kubernetes, ARM, etc
 - Auto-shutdown or update workspaces when they're not in use!
 
+
+TODO: succintly list value props
+
+## How it works
+
+Coder workspaces are represented with terraform. But, no terraform knowledge is
+required to get started. We have a database of pre-made templates [here](https://github.com/coder/coder/tree/main/examples). Terraform empowers you to create
+environments on _anything_, including:
+
+- VMs across any cloud
+- Kubernetes across any cloud (AKS, EKS, GKS)
+- Dedicated server providers (Hetzner, OVH)
+- Linux, Windows and MacOS environments
+
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+and whatever else Terraform lets you dream up.
+
+TODO: add logos.
+
+<img src="./docs/images/gcp.png" height=64>
+<img src="./docs/images/aws.svg" width=64>
+<img src="./docs/images/azure.svg" width=64>
+<img src="./docs/images/k8s.svg" width=64>
+
+## IDE Support
 
 ## Installing Coder
 
