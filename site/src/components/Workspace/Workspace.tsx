@@ -3,7 +3,6 @@ import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { WorkspaceStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
@@ -18,7 +17,6 @@ export interface WorkspaceProps {
   handleRetry: () => void
   handleUpdate: () => void
   workspace: TypesGen.Workspace
-  workspaceStatus: WorkspaceStatus
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
@@ -33,7 +31,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspace,
-  workspaceStatus,
   resources,
   getResourcesError,
   builds,
@@ -60,7 +57,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             handleStop={handleStop}
             handleRetry={handleRetry}
             handleUpdate={handleUpdate}
-            workspaceStatus={workspaceStatus}
           />
         </div>
       </div>
