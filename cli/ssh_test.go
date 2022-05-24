@@ -184,7 +184,9 @@ func TestSSH(t *testing.T) {
 			for {
 				fd, err := l.Accept()
 				if err != nil {
-					t.Logf("accept error: %v", err)
+					if !errors.Is(err, net.ErrClosed) {
+						t.Logf("accept error: %v", err)
+					}
 					return
 				}
 
