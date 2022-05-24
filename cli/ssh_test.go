@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	"io"
 	"net"
 	"runtime"
@@ -14,6 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -23,49 +25,52 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
+func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "dev",
+						Type: "google_compute_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: agentToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	return client, workspace, agentToken
+}
+
 func TestSSH(t *testing.T) {
-	t.Skip("This is causing test flakes. TODO @cian fix this")
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "dev",
-							Type: "google_compute_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: agentToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
+		tGo(t, func() {
 			err := cmd.Execute()
 			assert.NoError(t, err)
-		}()
+		})
 		pty.ExpectMatch("Waiting")
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		agentClient := codersdk.New(client.URL)
@@ -78,37 +83,12 @@ func TestSSH(t *testing.T) {
 		})
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		<-doneChan
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "dev",
-							Type: "google_compute_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: agentToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		go func() {
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
+
+		tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -117,25 +97,22 @@ func TestSSH(t *testing.T) {
 			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			})
-			t.Cleanup(func() {
-				_ = agentCloser.Close()
-			})
-		}()
+			<-ctx.Done()
+			_ = agentCloser.Close()
+		})
 
 		clientOutput, clientInput := io.Pipe()
 		serverOutput, serverInput := io.Pipe()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		cmd.SetIn(clientOutput)
 		cmd.SetOut(serverInput)
 		cmd.SetErr(io.Discard)
-		go func() {
-			defer close(doneChan)
+		tGo(t, func() {
 			err := cmd.Execute()
 			assert.NoError(t, err)
-		}()
+		})
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
 			Reader: serverOutput,
@@ -157,8 +134,43 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
-		<-doneChan
 	})
+}
+
+// tGoContext runs fn in a goroutine passing a context that will be
+// canceled on test completion and wait until fn has finished executing.
+//
+// NOTE(mafredri): This could be moved to a helper library.
+func tGoContext(t *testing.T, fn func(context.Context)) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	go func() {
+		fn(ctx)
+		close(done)
+	}()
+}
+
+// tGo runs fn in a goroutine and waits until fn has completed before
+// test completion.
+//
+// NOTE(mafredri): This could be moved to a helper library.
+func tGo(t *testing.T, fn func()) {
+	t.Helper()
+
+	done := make(chan struct{})
+	t.Cleanup(func() {
+		<-done
+	})
+	go func() {
+		fn()
+		close(done)
+	}()
 }
 
 type stdioConn struct {
