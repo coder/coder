@@ -12,12 +12,12 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func AuthorizeFilter[O rbac.IsObject](api *api, r *http.Request, action rbac.Action, objects []O) []O {
+func AuthorizeFilter[O rbac.Objecter](api *api, r *http.Request, action rbac.Action, objects []O) []O {
 	roles := httpmw.UserRoles(r)
 	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
 }
 
-func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.IsObject) bool {
+func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserRoles(r)
 	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
 	if err != nil {

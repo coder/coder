@@ -6,8 +6,8 @@ import (
 
 const WildcardSymbol = "*"
 
-// IsObject returns the RBAC object for itself.
-type IsObject interface {
+// Objecter returns the RBAC object for itself.
+type Objecter interface {
 	RBACObject() Object
 }
 

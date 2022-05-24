@@ -17,17 +17,17 @@ type Authorizer interface {
 // Filter does not allocate a new slice, and will use the existing one
 // passed in. This can cause memory leaks if the slice is held for a prolonged
 // period of time.
-func Filter[O IsObject](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) []O {
-	var currentIdx int
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) []O {
+	filtered := make([]O, 0)
+
 	for i := range objects {
 		object := objects[i]
 		err := auth.ByRoleName(ctx, subjID, subjRoles, action, object.RBACObject())
 		if err == nil {
-			objects[currentIdx] = objects[i]
-			currentIdx++
+			filtered = append(filtered, object)
 		}
 	}
-	return objects[:currentIdx]
+	return filtered
 }
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()
