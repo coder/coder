@@ -14,6 +14,7 @@ import (
 )
 
 func TestUserList(t *testing.T) {
+	t.Parallel()
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
