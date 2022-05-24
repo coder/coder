@@ -10,7 +10,7 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 
 Coder turns your cloud into a fleet of development servers.
 
-![Kubernetes workspace in Coder v2](./docs/screenshot.png)
+![hero image](./docs/images/hero-image.png)
 
 **Code more**
 
@@ -42,14 +42,14 @@ and whatever else Terraform lets you dream up.
 
 <img src="./docs/images/providers-compute.png" width=1024>
 
-TODO: Describe administrator workflow. Perhaps in a linked document.
-
 [Learn more about managing infrastructure.](./docs/templates.md)
 
 ## IDE Support
 
 Coder gives you a private tunnel to any port on your workspace as well as
 SSH access. You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+
+<img src="./docs/images/editors.png" width=1024>
 
 ## Installing Coder
 
