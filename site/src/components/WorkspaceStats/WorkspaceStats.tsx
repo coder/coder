@@ -8,6 +8,15 @@ import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { getDisplayStatus } from "../../util/workspace"
 
+const Language = {
+  templateLabel: "Template",
+  statusLabel: "Status",
+  versionLabel: "Version",
+  lastBuiltLabel: "Last Built",
+  outdated: "Outdated",
+  upToDate: "Up to date",
+}
+
 export interface WorkspaceStatsProps {
   workspace: Workspace
 }
@@ -20,7 +29,7 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
   return (
     <div className={styles.stats}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Workspace</span>
+        <span className={styles.statsLabel}>{Language.templateLabel}</span>
         <Link
           component={RouterLink}
           to={`/templates/${workspace.template_name}`}
@@ -31,7 +40,7 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Status</span>
+        <span className={styles.statsLabel}>{Language.statusLabel}</span>
         <span className={styles.statsValue}>
           <span style={{ color: status.color }} role="status">
             {status.status}
@@ -40,19 +49,21 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Version</span>
+        <span className={styles.statsLabel}>{Language.versionLabel}</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
-            <span style={{ color: theme.palette.error.main }}>outdated</span>
+            <span style={{ color: theme.palette.error.main }}>{Language.outdated}</span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+            <span style={{ color: theme.palette.text.secondary }}>{Language.upToDate}</span>
           )}
         </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Last Built</span>
-        <span className={styles.statsValue}>{dayjs().to(dayjs(workspace.latest_build.created_at))}</span>
+        <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
+        <span className={styles.statsValue} data-chromatic="ignore">
+          {dayjs().to(dayjs(workspace.latest_build.created_at))}
+        </span>
       </div>
     </div>
   )

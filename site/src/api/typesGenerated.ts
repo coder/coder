@@ -94,6 +94,9 @@ export interface CreateWorkspaceBuildRequest {
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
+  readonly autostart_schedule?: string
+  // This is likely an enum in an external package ("time.Duration")
+  readonly ttl?: number
   readonly parameter_values?: CreateParameterRequest[]
 }
 

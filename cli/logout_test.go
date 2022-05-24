@@ -3,6 +3,7 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -25,7 +26,7 @@ func TestLogout(t *testing.T) {
 	go func() {
 		defer close(doneChan)
 		err := root.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	pty.ExpectMatch("Paste your token here:")
