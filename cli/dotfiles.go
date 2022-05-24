@@ -22,8 +22,7 @@ func dotfiles() *cobra.Command {
 			var (
 				dotfilesRepoDir  = "dotfiles"
 				gitRepo          = args[0]
-				cfg              = createConfig(cmd)
-				cfgDir           = string(cfg)
+				cfgDir           = string(createConfig(cmd))
 				dotfilesDir      = filepath.Join(cfgDir, dotfilesRepoDir)
 				subcommands      = []string{"clone", args[0], dotfilesRepoDir}
 				gitCmdDir        = cfgDir
@@ -56,12 +55,6 @@ func dotfiles() *cobra.Command {
 				_, _ = fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("Did not find dotfiles repository at %s\n", dotfilesDir))
 			}
 
-			// check if git ssh command already exists so we can just wrap it
-			gitsshCmd := os.Getenv("GIT_SSH_COMMAND")
-			if gitsshCmd == "" {
-				gitsshCmd = "ssh"
-			}
-
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      promtText,
 				IsConfirm: true,
@@ -74,6 +67,12 @@ func dotfiles() *cobra.Command {
 			err = os.MkdirAll(gitCmdDir, 0750)
 			if err != nil {
 				return xerrors.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
+			}
+
+			// check if git ssh command already exists so we can just wrap it
+			gitsshCmd := os.Getenv("GIT_SSH_COMMAND")
+			if gitsshCmd == "" {
+				gitsshCmd = "ssh"
 			}
 
 			// clone or pull repo
@@ -161,6 +160,7 @@ func dotfiles() *cobra.Command {
 					to := filepath.Join(home, df)
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), fmt.Sprintf("Symlinking %s to %s...\n", from, to))
 					// if file already exists at destination remove it
+					// this behavior matches `ln -f`
 					_, err := os.Lstat(to)
 					if err == nil {
 						err := os.Remove(to)
