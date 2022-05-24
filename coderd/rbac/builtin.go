@@ -234,7 +234,7 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 		removed = append(removed, roleName)
 	}
 
-	return
+	return added, removed
 }
 
 // roleName is a quick helper function to return
