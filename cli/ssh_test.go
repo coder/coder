@@ -87,8 +87,11 @@ func TestSSH(t *testing.T) {
 		t.Cleanup(func() {
 			_ = agentCloser.Close()
 		})
+
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
+		// Wait before closing agent to give `coder ssh` time to exit cleanly.
+		time.Sleep(3 * time.Second)
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
