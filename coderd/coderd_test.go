@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestMain(m *testing.M) {
@@ -47,13 +49,32 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "fetch org")
 
 	// Setup some data in the database.
-	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					// Return a workspace resource
+					Resources: []*proto.Resource{{
+						Name: "some",
+						Type: "example",
+						Agents: []*proto.Agent{{
+							Id:   "something",
+							Auth: &proto.Agent_Token{},
+						}},
+					}},
+				},
+			},
+		}},
+	})
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 	require.NoError(t, err, "upload file")
+	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err, "workspace resources")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -78,6 +99,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 
+		// Has it's own auth
+		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
+
 		// All workspaceagents endpoints do not use rbac
 		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":    {NoAuthorize: true},
@@ -94,10 +118,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/workspaceresources/{workspaceresource}": {NoAuthorize: true},
-
-		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
-
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
@@ -151,6 +171,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"PUT:/api/v2/workspaces/{workspace}/autostop": {
 			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceresources/{workspaceresource}": {
+			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
 		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel": {
@@ -267,6 +291,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
+			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
+			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
