@@ -5,7 +5,7 @@ import { reach, StringSchema } from "yup"
 import * as API from "../../api/api"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
-import { history, render } from "../../testHelpers/renderHelpers"
+import { history, render, renderWithAuth } from "../../testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 import { Language, validationSchema } from "./CreateWorkspacePageView"
 
@@ -24,7 +24,7 @@ describe("CreateWorkspacePage", () => {
   })
 
   it("renders", async () => {
-    render(<CreateWorkspacePage />)
+    renderWithAuth(<CreateWorkspacePage />)
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
   })
