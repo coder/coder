@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func dotfiles() *cobra.Command {
@@ -123,6 +124,9 @@ func dotfiles() *cobra.Command {
 
 				for _, s := range scripts {
 					_, _ = fmt.Fprint(cmd.OutOrStdout(), fmt.Sprintf("\nRunning %s...\n", s))
+					// it is safe to use a variable command here because it's from
+					// a filtered list of pre-approved install scripts
+					// nolint:gosec
 					c := exec.CommandContext(cmd.Context(), fmt.Sprintf("./%s", s))
 					c.Dir = dotfilesDir
 					out, err := c.CombinedOutput()
