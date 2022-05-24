@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestMain(m *testing.M) {
@@ -34,6 +35,7 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	authorizer := &fakeAuthorizer{}
 	srv, client, _ := coderdtest.NewWithServer(t, &coderdtest.Options{
@@ -50,6 +52,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	require.NoError(t, err, "upload file")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -121,8 +125,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
-		"POST:/api/v2/files":                       {NoAuthorize: true},
-		"GET:/api/v2/files/{hash}":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaces/{workspace}/watch": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -184,6 +186,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 
+		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
+		"GET:/api/v2/files/{fileHash}": {AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash)},
+
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
@@ -220,6 +226,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
