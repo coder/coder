@@ -8,12 +8,16 @@ name: chromatic
 
 on:
   push:
+    paths:
+      - site/**
     branches:
       - main
     tags:
       - "*"
 
   pull_request:
+    paths:
+      - site/**
 
 jobs:
   deploy:
