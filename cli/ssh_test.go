@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -63,7 +64,7 @@ func TestSSH(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		pty.ExpectMatch("Waiting")
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -133,7 +134,7 @@ func TestSSH(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{

@@ -45,7 +45,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		matches := []string{
 			"Confirm create", "yes",
@@ -126,7 +126,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer done()
 			err := cmd.ExecuteContext(cmdCtx)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
 		<-cmdCtx.Done()
@@ -149,7 +149,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		matches := []string{
 			"Specify a name", "my-workspace",
@@ -187,7 +187,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		matches := []string{
@@ -231,7 +231,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		matches := []string{
@@ -272,7 +272,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.EqualError(t, err, "Parameter value absent in parameter file for \"region\"!")
+			assert.EqualError(t, err, "Parameter value absent in parameter file for \"region\"!")
 		}()
 		<-doneChan
 		removeTmpDirUntilSuccess(t, tempDir)
