@@ -73,7 +73,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
-		tGo(t, func() {
+		cmdDone := tGo(t, func() {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		})
@@ -90,14 +90,13 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		// Wait before closing agent to give `coder ssh` time to exit cleanly.
-		time.Sleep(3 * time.Second)
+		<-cmdDone
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
 
-		tGoContext(t, func(ctx context.Context) {
+		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -118,7 +117,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetIn(clientOutput)
 		cmd.SetOut(serverInput)
 		cmd.SetErr(io.Discard)
-		tGo(t, func() {
+		cmdDone := tGo(t, func() {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		})
@@ -143,6 +142,8 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
+
+		<-cmdDone
 	})
 	//nolint:paralleltest // Disabled due to use of t.Setenv.
 	t.Run("ForwardAgent", func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
 
-		tGoContext(t, func(ctx context.Context) {
+		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -179,7 +180,7 @@ func TestSSH(t *testing.T) {
 		l, err := net.Listen("unix", agentSock)
 		require.NoError(t, err)
 		defer l.Close()
-		tGo(t, func() {
+		_ = tGo(t, func() {
 			for {
 				fd, err := l.Accept()
 				if err != nil {
@@ -205,7 +206,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(io.Discard)
-		tGo(t, func() {
+		cmdDone := tGo(t, func() {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		})
@@ -223,43 +224,51 @@ func TestSSH(t *testing.T) {
 
 		// And we're done.
 		pty.WriteLine("exit")
+		<-cmdDone
 	})
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be
 // canceled on test completion and wait until fn has finished executing.
+// Done and cancel are returned for optionally waiting until completion
+// or early cancellation.
 //
 // NOTE(mafredri): This could be moved to a helper library.
-func tGoContext(t *testing.T, fn func(context.Context)) {
+func tGoContext(t *testing.T, fn func(context.Context)) (done <-chan struct{}, cancel context.CancelFunc) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+	doneC := make(chan struct{})
 	t.Cleanup(func() {
 		cancel()
 		<-done
 	})
 	go func() {
 		fn(ctx)
-		close(done)
+		close(doneC)
 	}()
+
+	return doneC, cancel
 }
 
 // tGo runs fn in a goroutine and waits until fn has completed before
-// test completion.
+// test completion. Done is returned for optionally waiting for fn to
+// exit.
 //
 // NOTE(mafredri): This could be moved to a helper library.
-func tGo(t *testing.T, fn func()) {
+func tGo(t *testing.T, fn func()) (done <-chan struct{}) {
 	t.Helper()
 
-	done := make(chan struct{})
+	doneC := make(chan struct{})
 	t.Cleanup(func() {
-		<-done
+		<-doneC
 	})
 	go func() {
 		fn()
-		close(done)
+		close(doneC)
 	}()
+
+	return doneC
 }
 
 type stdioConn struct {
