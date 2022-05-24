@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -25,7 +26,17 @@ func TestCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--tz", "US/Central",
+			"--autostart-minute", "0",
+			"--autostart-hour", "*/2",
+			"--autostart-day-of-week", "MON-FRI",
+			"--ttl", "8h",
+		}
+		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -45,6 +56,60 @@ func TestCreate(t *testing.T) {
 			pty.ExpectMatch(match)
 			pty.WriteLine(value)
 		}
+		<-doneChan
+	})
+
+	t.Run("CreateErrInvalidTz", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--tz", "invalid",
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
+		}()
+		<-doneChan
+	})
+
+	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--ttl", "0s",
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.EqualError(t, err, "TTL must be at least 1 minute")
+		}()
 		<-doneChan
 	})
 

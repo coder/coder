@@ -6,9 +6,10 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
 import React from "react"
-import { WorkspaceResource } from "../../api/typesGenerated"
+import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
+import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
@@ -17,14 +18,16 @@ const Language = {
   agentsLabel: "Agents",
   agentLabel: "Agent",
   statusLabel: "Status",
+  accessLabel: "Access",
 }
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
   getResourcesError?: Error
+  workspace: Workspace
 }
 
-export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError }) => {
+export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
@@ -39,6 +42,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
               <TableCell>{Language.resourceLabel}</TableCell>
               <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
               <TableCell>{Language.statusLabel}</TableCell>
+              <TableCell>{Language.accessLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -55,7 +59,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                   return (
                     <TableRow>
                       <TableCell className={styles.resourceNameCell}>{resource.name}</TableCell>
-                      <TableCell colSpan={2}></TableCell>
+                      <TableCell colSpan={3}></TableCell>
                     </TableRow>
                   )
                 }
@@ -77,6 +81,15 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
                         {getDisplayAgentStatus(theme, agent).status}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      {agent.status === "connected" && (
+                        <TerminalLink
+                          workspaceName={workspace.name}
+                          agentName={agent.name}
+                          userName={workspace.owner_name}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 )

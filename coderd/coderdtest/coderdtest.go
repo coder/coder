@@ -389,11 +389,19 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID) codersdk.Workspace {
-	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.CreateWorkspaceRequest{
-		TemplateID: templateID,
-		Name:       randomUsername(),
-	})
+// To customize the defaults, pass a mutator func.
+func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+	t.Helper()
+	req := codersdk.CreateWorkspaceRequest{
+		TemplateID:        templateID,
+		Name:              randomUsername(),
+		AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
+		TTL:               ptr(8 * time.Hour),
+	}
+	for _, mutator := range mutators {
+		mutator(&req)
+	}
+	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
 	require.NoError(t, err)
 	return workspace
 }
@@ -589,4 +597,8 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+func ptr[T any](x T) *T {
+	return &x
 }

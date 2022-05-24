@@ -11,3 +11,4 @@
 | Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) |     [Kira-Pilot](https://github.com/Kira-Pilot) |
 | David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |           [dwahler](https://github.com/dwahler) |
 | Abhineet Jain       | 05/16/2022 |  05/16/2022   | [Coder](https://github.com/coder) | [abhineetjain](https://github.com/abhineetjain) |
+| Lucy Satheesan      | 05/23/2022 |  05/23/2022   | [Coder](https://github.com/coder) |                   [oxy](https://github.com/oxy) |
