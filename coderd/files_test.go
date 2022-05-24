@@ -50,7 +50,7 @@ func TestDownload(t *testing.T) {
 		_, _, err := client.Download(context.Background(), "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 
 	t.Run("Insert", func(t *testing.T) {

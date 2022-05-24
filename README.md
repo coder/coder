@@ -8,15 +8,22 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Provision remote development environments with Terraform.
+Team-wide CLI for spawning up dev servers on demand, powered by Terraform.
 
 ![Kubernetes workspace in Coder v2](./docs/screenshot.png)
 
 ## Highlights
 
-- Automate development environments for Linux, Windows, and macOS
-- Start writing code with a single command
-- Get started quickly using one of the [examples](./examples) provided
+Workspaces:
+- Code on powerful servers: leverage cloud GPU, GPU, and network speeds
+- Use the `coder` CLI: connect via SSH, VS Code, and JetBrains
+- Self-serve workspaces: start from team-wide templates (see below)
+
+Templates:
+- Manage the infrastructure behind workspaces with standard Terraform (`.hcl` files)
+- Use any OS and architecture: Mac, Windows, Linux, VM, Kubernetes, ARM, etc
+- Auto-shutdown or update workspaces when they're not in use!
+
 
 ## Installing Coder
 

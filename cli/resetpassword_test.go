@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -41,7 +42,7 @@ func TestResetPassword(t *testing.T) {
 	go func() {
 		defer close(serverDone)
 		err = serverCmd.ExecuteContext(ctx)
-		require.ErrorIs(t, err, context.Canceled)
+		assert.ErrorIs(t, err, context.Canceled)
 	}()
 	var client *codersdk.Client
 	require.Eventually(t, func() bool {
@@ -73,7 +74,7 @@ func TestResetPassword(t *testing.T) {
 	go func() {
 		defer close(cmdDone)
 		err = resetCmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	matches := []struct {

@@ -201,6 +201,8 @@ run:
   concurrency: 4
   skip-dirs:
     - node_modules
+  skip-files:
+    - scripts/rules.go
   timeout: 5m
 
 # Over time, add more and more linters from

@@ -39,7 +39,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
-          <Link component={RouterLink} to="/templates">
+          <Link underline="none" component={RouterLink} to="/workspaces/new">
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
         </div>
