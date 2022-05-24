@@ -47,6 +47,9 @@ func List() ([]Example, error) {
 		}
 
 		for _, dir := range dirs {
+			if !dir.IsDir() {
+				continue
+			}
 			exampleID := dir.Name()
 			// Each one of these is a example!
 			readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))

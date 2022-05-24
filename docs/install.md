@@ -52,10 +52,13 @@ Coder](https://github.com/coder/coder/releases) installed.
    coder templates init
    ```
 
+   Choose the "Develop in Docker" example to generate a sample template in the
+   `docker` subdirectory.
+
 1. Navigate into the new directory and create a new template:
 
     ```console
-    cd examples/docker
+    cd docker
     coder templates create
     ```
 
