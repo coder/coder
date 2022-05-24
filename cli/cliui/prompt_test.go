@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/cliui"
@@ -27,7 +28,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			msgChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
@@ -44,7 +45,7 @@ func TestPrompt(t *testing.T) {
 				Text:      "Example",
 				IsConfirm: true,
 			}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
@@ -80,7 +81,7 @@ func TestPrompt(t *testing.T) {
 				cliui.AllowSkipPrompt(cmd)
 				cmd.SetArgs([]string{"-y"})
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			doneChan <- resp
 		}()
 
@@ -101,7 +102,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
@@ -117,7 +118,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
@@ -133,7 +134,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")

@@ -7,7 +7,7 @@ import { TabPanel } from "../TabPanel/TabPanel"
 
 export const Language = {
   accountLabel: "Account",
-  sshKeysLabel: "SSH Keys",
+  sshKeysLabel: "SSH keys",
   settingsLabel: "Settings",
 }
 

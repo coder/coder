@@ -76,6 +76,10 @@ export const MockCancelingProvisionerJob = {
   ...MockProvisionerJob,
   status: "canceling" as TypesGen.ProvisionerJobStatus,
 }
+export const MockCanceledProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceled" as TypesGen.ProvisionerJobStatus,
+}
 export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
 
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
@@ -163,6 +167,10 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
+}
+export const MockCanceledWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob },
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,

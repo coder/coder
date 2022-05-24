@@ -57,7 +57,7 @@ func TestServer(t *testing.T) {
 				return false
 			}
 			accessURL, err := url.Parse(rawURL)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			client = codersdk.New(accessURL)
 			return true
 		}, 15*time.Second, 25*time.Millisecond)

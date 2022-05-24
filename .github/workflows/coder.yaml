@@ -171,7 +171,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install goreleaser
-        uses: jaxxstorm/action-install-gh-release@v1.6.0
+        uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -240,7 +240,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install goreleaser
-        uses: jaxxstorm/action-install-gh-release@v1.6.0
+        uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -335,7 +335,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - uses: goreleaser/goreleaser-action@v2
+      - uses: goreleaser/goreleaser-action@v3
         with:
           install-only: true
 
@@ -354,15 +354,22 @@ jobs:
         run: make -B site/out/index.html
 
       - name: Build Release
-        uses: goreleaser/goreleaser-action@v2.9.1
+        uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
           args: release --snapshot --rm-dist --skip-sign
 
       - uses: actions/upload-artifact@v3
         with:
-          name: coder_linux_amd64.deb
-          path: ./dist/coder_*_linux_amd64.deb
+          name: coder_windows_amd64.zip
+          path: ./dist/coder_*_windows_amd64.zip
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coder_linux_amd64.tar.gz
+          path: ./dist/coder_*_linux_amd64.tar.gz
+          retention-days: 7
 
       - name: Install Release
         run: |
@@ -460,7 +467,7 @@ jobs:
         with:
           node-version: "14"
 
-      - uses: goreleaser/goreleaser-action@v2
+      - uses: goreleaser/goreleaser-action@v3
         with:
           install-only: true
 
