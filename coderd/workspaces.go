@@ -30,13 +30,7 @@ import (
 
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		return
-	}
-
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 
@@ -108,7 +102,6 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OrganizationID: organization.ID,
 		Deleted:        false,
@@ -123,17 +116,10 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	for _, ws := range workspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
+	// Rbac filter
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -146,7 +132,6 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 // workspaces returns all workspaces a user can read.
 // Optional filters with query params
 func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
-	roles := httpmw.UserRoles(r)
 	apiKey := httpmw.APIKey(r)
 
 	// Empty strings mean no filter
@@ -186,24 +171,18 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerID = userID
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	allWorkspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces for user: %s", err),
 		})
 		return
 	}
-	for _, ws := range allWorkspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	// Only return workspaces the user can read
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -215,7 +194,6 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OwnerID: owner.ID,
 		Deleted: false,
@@ -230,17 +208,10 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	for _, ws := range workspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
+	// Only return workspaces the user can read
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -278,8 +249,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 

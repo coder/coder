@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/cliui"
@@ -21,7 +22,7 @@ func TestSelect(t *testing.T) {
 			resp, err := newSelect(ptty, cliui.SelectOptions{
 				Options: []string{"First", "Second"},
 			})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			msgChan <- resp
 		}()
 		require.Equal(t, "First", <-msgChan)

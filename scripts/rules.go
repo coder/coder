@@ -10,6 +10,7 @@
 // You run one of the following commands to execute your go rules only:
 //   golangci-lint run
 //   golangci-lint run --disable-all --enable=gocritic
+// Note: don't forget to run `golangci-lint cache clean`!
 package gorules
 
 import (
@@ -40,4 +41,31 @@ func databaseImport(m dsl.Matcher) {
 	m.Match("database.$_").
 		Report("Do not import any database types into codersdk").
 		Where(m.File().PkgPath.Matches("github.com/coder/coder/codersdk"))
+}
+
+// doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
+// functions that may themselves call t.FailNow in goroutines outside
+// the main test goroutine. See testing.go:834 for why.
+//nolint:unused,deadcode,varnamelen
+func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
+	m.Import("testing")
+	m.Match(`
+	go func($*_){
+		$*_
+		$require.$_($*_)
+		$*_
+	}($*_)`).
+		At(m["require"]).
+		Where(m["require"].Text == "require").
+		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
+
+	m.Match(`
+	go func($*_){
+		$*_
+		$t.$fail($*_)
+		$*_
+	}($*_)`).
+		At(m["fail"]).
+		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
+		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }

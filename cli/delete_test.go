@@ -1,9 +1,10 @@
 package cli_test
 
 import (
+	"io"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -29,7 +30,10 @@ func TestDelete(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			// When running with the race detector on, we sometimes get an EOF.
+			if err != nil {
+				assert.ErrorIs(t, err, io.EOF)
+			}
 		}()
 		pty.ExpectMatch("Cleaning Up")
 		<-doneChan

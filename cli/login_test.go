@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -35,7 +36,7 @@ func TestLogin(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := root.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		matches := []string{
@@ -71,7 +72,7 @@ func TestLogin(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := root.ExecuteContext(ctx)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 		}()
 
 		matches := []string{
@@ -106,7 +107,7 @@ func TestLogin(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := root.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
@@ -131,7 +132,7 @@ func TestLogin(t *testing.T) {
 			defer close(doneChan)
 			err := root.ExecuteContext(ctx)
 			// An error is expected in this case, since the login wasn't successful:
-			require.Error(t, err)
+			assert.Error(t, err)
 		}()
 
 		pty.ExpectMatch("Paste your token here:")

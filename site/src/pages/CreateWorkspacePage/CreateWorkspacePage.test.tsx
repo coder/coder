@@ -5,9 +5,16 @@ import { reach, StringSchema } from "yup"
 import * as API from "../../api/api"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
-import { history, render } from "../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 import { Language, validationSchema } from "./CreateWorkspacePageView"
+
+const renderCreateWorkspacePage = () => {
+  return renderWithAuth(<CreateWorkspacePage />, {
+    route: "/workspaces/new?template=" + MockTemplate.name,
+    path: "/workspaces/new",
+  })
+}
 
 const fillForm = async ({ name = "example" }: { name?: string }) => {
   const nameField = await screen.findByLabelText(Language.nameLabel)
@@ -19,25 +26,21 @@ const fillForm = async ({ name = "example" }: { name?: string }) => {
 const nameSchema = reach(validationSchema, "name") as StringSchema
 
 describe("CreateWorkspacePage", () => {
-  beforeEach(() => {
-    history.replace("/templates/" + MockTemplate.name + "/new")
-  })
-
   it("renders", async () => {
-    render(<CreateWorkspacePage />)
+    renderCreateWorkspacePage()
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
   })
 
   it("shows validation error message", async () => {
-    render(<CreateWorkspacePage />)
+    renderCreateWorkspacePage()
     await fillForm({ name: "$$$" })
     const errorMessage = await screen.findByText(Language.nameMatches)
     expect(errorMessage).toBeDefined()
   })
 
   it("succeeds", async () => {
-    render(<CreateWorkspacePage />)
+    renderCreateWorkspacePage()
     // You have to spy the method before it is used.
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
     await fillForm({ name: "test" })
