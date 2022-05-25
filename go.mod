@@ -40,7 +40,7 @@ replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-
 replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.20220409183554-83c0904cec69+incompatible
 
 require (
-	cdr.dev/slog v1.4.1
+	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.6.1
 	github.com/AlecAivazis/survey/v2 v2.3.4
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
