@@ -41,8 +41,8 @@ func TestDotfiles(t *testing.T) {
 
 		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
 		c.Dir = testRepo
-		err = c.Run()
-		assert.NoError(t, err)
+		out, err := c.CombinedOutput()
+		assert.NoError(t, err, string(out))
 
 		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--home-dir", string(root), "-y", testRepo)
 		err = cmd.Execute()
