@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -17,7 +19,7 @@ import (
 
 func dotfiles() *cobra.Command {
 	var (
-		homeDir string
+		symlinkDir string
 	)
 	cmd := &cobra.Command{
 		Use:     "dotfiles [git_repo_url]",
@@ -28,11 +30,9 @@ func dotfiles() *cobra.Command {
 			var (
 				dotfilesRepoDir = "dotfiles"
 				gitRepo         = args[0]
-				cfgDir          = string(createConfig(cmd))
+				cfg             = createConfig(cmd)
+				cfgDir          = string(cfg)
 				dotfilesDir     = filepath.Join(cfgDir, dotfilesRepoDir)
-				subcommands     = []string{"clone", args[0], dotfilesRepoDir}
-				gitCmdDir       = cfgDir
-				promptText      = fmt.Sprintf("Cloning %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
 				// This follows the same pattern outlined by others in the market:
 				// https://github.com/coder/coder/pull/1696#issue-1245742312
 				installScriptSet = []string{
@@ -53,14 +53,49 @@ func dotfiles() *cobra.Command {
 				return xerrors.Errorf("checking dir %s: %w", dotfilesDir, err)
 			}
 
-			// if repo exists already do a git pull instead of clone
+			moved := false
+			if dotfilesExists {
+				du, err := cfg.DotfilesURL().Read()
+				if err != nil {
+					return xerrors.Errorf("reading dotfiles url config: %w", err)
+				}
+				// if the git url has changed we create a backup and clone fresh
+				if gitRepo != du {
+					backupDir := fmt.Sprintf("%s_backup_%s", dotfilesDir, time.Now().Format(time.RFC3339))
+					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:      fmt.Sprintf("The dotfiles URL has changed from %s to %s. Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
+						IsConfirm: true,
+					})
+					if err != nil {
+						return err
+					}
+
+					err = os.Rename(dotfilesDir, backupDir)
+					if err != nil {
+						return xerrors.Errorf("renaming dir %s: %w", dotfilesDir, err)
+					}
+					dotfilesExists = false
+					moved = true
+				}
+			}
+
+			var (
+				gitCmdDir   string
+				subcommands []string
+				promptText  string
+			)
 			if dotfilesExists {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Found dotfiles repository at %s\n", dotfilesDir)
 				gitCmdDir = dotfilesDir
 				subcommands = []string{"pull", "--ff-only"}
 				promptText = fmt.Sprintf("Pulling latest from %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
 			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Did not find dotfiles repository at %s\n", dotfilesDir)
+				if !moved {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Did not find dotfiles repository at %s\n", dotfilesDir)
+				}
+				gitCmdDir = cfgDir
+				subcommands = []string{"clone", args[0], dotfilesRepoDir}
+				promptText = fmt.Sprintf("Cloning %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
 			}
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
@@ -87,12 +122,16 @@ func dotfiles() *cobra.Command {
 			c := exec.CommandContext(cmd.Context(), "git", subcommands...)
 			c.Dir = gitCmdDir
 			c.Env = append(os.Environ(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, gitsshCmd))
-			out, err := c.CombinedOutput()
+			c.Stdout = cmd.OutOrStdout()
+			c.Stderr = cmd.ErrOrStderr()
+			err = c.Run()
 			if err != nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render(string(out)))
-				return err
+				if !dotfilesExists {
+					return err
+				}
+				// if the repo exists we soft fail the update operation and try to continue
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render("Failed to update repo, continuing..."))
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(out))
 
 			files, err := os.ReadDir(dotfilesDir)
 			if err != nil {
@@ -122,8 +161,8 @@ func dotfiles() *cobra.Command {
 					return err
 				}
 
-				if homeDir == "" {
-					homeDir, err = os.UserHomeDir()
+				if symlinkDir == "" {
+					symlinkDir, err = os.UserHomeDir()
 					if err != nil {
 						return xerrors.Errorf("getting user home: %w", err)
 					}
@@ -131,15 +170,20 @@ func dotfiles() *cobra.Command {
 
 				for _, df := range dotfiles {
 					from := filepath.Join(dotfilesDir, df)
-					to := filepath.Join(homeDir, df)
+					to := filepath.Join(symlinkDir, df)
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Symlinking %s to %s...\n", from, to)
-					// if file already exists at destination remove it
-					// this behavior matches `ln -f`
-					_, err := os.Lstat(to)
-					if err == nil {
-						err := os.Remove(to)
+
+					isRegular, err := isRegular(to)
+					if err != nil {
+						return xerrors.Errorf("checking symlink for %s: %w", to, err)
+					}
+					// move conflicting non-symlink files to file.ext.bak
+					if isRegular {
+						backup := fmt.Sprintf("%s.bak", to)
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moving %s to %s...\n", to, backup)
+						err = os.Rename(to, backup)
 						if err != nil {
-							return xerrors.Errorf("removing destination file %s: %w", to, err)
+							return xerrors.Errorf("renaming dir %s: %w", to, err)
 						}
 					}
 
@@ -167,32 +211,35 @@ func dotfiles() *cobra.Command {
 			// nolint:gosec
 			scriptCmd := exec.CommandContext(cmd.Context(), fmt.Sprintf("./%s", script))
 			scriptCmd.Dir = dotfilesDir
-			out, err = scriptCmd.CombinedOutput()
+			scriptCmd.Stdout = cmd.OutOrStdout()
+			scriptCmd.Stderr = cmd.ErrOrStderr()
+			err = scriptCmd.Run()
 			if err != nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render(string(out)))
 				return xerrors.Errorf("running %s: %w", script, err)
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(out))
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Dotfiles installation complete.")
 			return nil
 		},
 	}
 	cliui.AllowSkipPrompt(cmd)
-	cliflag.StringVarP(cmd.Flags(), &homeDir, "home-dir", "", "CODER_HOME_DIR", "", "Specifies the home directory for the dotfiles symlink destination. If empty will use $HOME.")
+	cliflag.StringVarP(cmd.Flags(), &symlinkDir, "symlink-dir", "", "CODER_SYMLINK_DIR", "", "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.")
 
 	return cmd
 }
 
 // dirExists checks if the dir already exists.
 func dirExists(name string) (bool, error) {
-	_, err := os.Stat(name)
+	fi, err := os.Stat(name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
 
 		return false, xerrors.Errorf("stat dir: %w", err)
+	}
+	if !fi.IsDir() {
+		return false, xerrors.New("exists but not a directory")
 	}
 
 	return true, nil
@@ -209,4 +256,16 @@ func findScript(scriptSet []string, files []fs.DirEntry) string {
 	}
 
 	return ""
+}
+
+func isRegular(to string) (bool, error) {
+	fi, err := os.Lstat(to)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("lstat %s: %w", to, err)
+	}
+
+	return fi.Mode().IsRegular(), nil
 }
