@@ -32,6 +32,7 @@ import (
 )
 
 func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+	t.Helper()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	agentToken := uuid.NewString()
