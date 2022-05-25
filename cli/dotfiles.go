@@ -63,7 +63,7 @@ func dotfiles() *cobra.Command {
 				if gitRepo != du {
 					backupDir := fmt.Sprintf("%s_backup_%s", dotfilesDir, time.Now().Format(time.RFC3339))
 					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-						Text:      fmt.Sprintf("The dotfiles URL has changed from \"%s\" to \"%s\".\n  Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
+						Text:      fmt.Sprintf("The dotfiles URL has changed from %q to %q.\n  Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
 						IsConfirm: true,
 					})
 					if err != nil {
