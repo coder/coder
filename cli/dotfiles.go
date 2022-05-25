@@ -133,6 +133,12 @@ func dotfiles() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render("Failed to update repo, continuing..."))
 			}
 
+			// save git repo url so we can detect changes next time
+			err = cfg.DotfilesURL().Write(gitRepo)
+			if err != nil {
+				return xerrors.Errorf("writing dotfiles url config: %w", err)
+			}
+
 			files, err := os.ReadDir(dotfilesDir)
 			if err != nil {
 				return xerrors.Errorf("reading files in dir %s: %w", dotfilesDir, err)
@@ -228,7 +234,7 @@ func dotfiles() *cobra.Command {
 	return cmd
 }
 
-// dirExists checks if the dir already exists.
+// dirExists checks if the path exists and is a directory.
 func dirExists(name string) (bool, error) {
 	fi, err := os.Stat(name)
 	if err != nil {
@@ -258,6 +264,7 @@ func findScript(scriptSet []string, files []fs.DirEntry) string {
 	return ""
 }
 
+// isRegular detects if the file exists and is not a symlink.
 func isRegular(to string) (bool, error) {
 	fi, err := os.Lstat(to)
 	if err != nil {
