@@ -91,7 +91,7 @@ require (
 	github.com/pion/transport v0.13.0
 	github.com/pion/turn/v2 v2.0.8
 	github.com/pion/udp v0.1.1
-	github.com/pion/webrtc/v3 v3.1.39
+	github.com/pion/webrtc/v3 v3.1.41
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/sftp v1.13.4
 	github.com/prometheus/client_golang v1.12.2
@@ -106,7 +106,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
+	golang.org/x/crypto v0.0.0-20220516162934-403b01795ae8
 	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
@@ -204,7 +204,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.7.0.20220408132554-2377ac4bc04c // indirect
-	github.com/pion/dtls/v2 v2.1.4 // indirect
+	github.com/pion/dtls/v2 v2.1.5 // indirect
 	github.com/pion/ice/v2 v2.2.6 // indirect
 	github.com/pion/interceptor v0.1.11 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
@@ -213,7 +213,7 @@ require (
 	github.com/pion/rtp v1.7.13 // indirect
 	github.com/pion/sctp v1.8.2 // indirect
 	github.com/pion/sdp/v3 v3.0.5 // indirect
-	github.com/pion/srtp/v2 v2.0.7 // indirect
+	github.com/pion/srtp/v2 v2.0.9 // indirect
 	github.com/pion/stun v0.3.5 // indirect
 	github.com/pires/go-proxyproto v0.6.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
