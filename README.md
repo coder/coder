@@ -32,33 +32,20 @@ Coder turns your cloud into a fleet of remote development servers.
 
 Coder workspaces are represented with Terraform. But, no Terraform knowledge is
 required to get started. We have a database of pre-made templates built into the
-product. Terraform empowers you to create
-environments on _anything_, including:
-
-- Cloud VMs
-- Kubernetes containers (including AKS, EKS, GKS)
-- Docker containers
-- Dedicated servers (Hetzner, OVH, etc.)
-- Linux, Windows and MacOS environments
-
-Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
-and whatever else Terraform lets you dream up.
+product.
 
 <p align="center">
   <img src="./docs/images/providers-compute.png">
 </p>
 
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+and whatever else Terraform lets you dream up.
+
 [Learn more about managing infrastructure.](./docs/templates.md)
 
 ## IDE Support
 
-Coder gives you a few ways of accessing your workspace:
-
-- `coder port-forward` a remote port to a local port
-- `coder ssh`
-- A URL interface to HTTP services
-
-With these methods, you can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 <p align="center">
   <img src="./docs/images/ide-icons.svg" height=72>
