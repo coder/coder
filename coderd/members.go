@@ -29,13 +29,13 @@ func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	added, removed := rbac.ChangeRoleSet(member.Roles, params.Roles)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
-		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
 			return
 		}
 	}
 	for _, roleName := range removed {
 		// Removing a role requires the delete permission.
-		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
 			return
 		}
 	}
