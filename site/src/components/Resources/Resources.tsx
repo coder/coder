@@ -79,7 +79,8 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                     )}
 
                     <TableCell className={styles.agentColumn}>
-                      <span style={{ color: theme.palette.text.secondary }}>{agent.name}</span>
+                      {agent.name}
+                      <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
@@ -142,5 +143,13 @@ const useStyles = makeStyles((theme) => ({
       height: 16,
       marginRight: theme.spacing(1.5),
     },
+  },
+
+  operatingSystem: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
+    display: "block",
+    textTransform: "capitalize",
   },
 }))

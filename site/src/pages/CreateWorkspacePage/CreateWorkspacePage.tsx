@@ -1,25 +1,13 @@
-import { useActor, useMachine } from "@xstate/react"
-import React, { useContext } from "react"
+import { useMachine } from "@xstate/react"
+import React from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Template } from "../../api/typesGenerated"
+import { useOrganizationID } from "../../hooks/useOrganizationID"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
-import { XServiceContext } from "../../xServices/StateContext"
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
-const useOrganizationId = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState] = useActor(xServices.authXService)
-  const organizationId = authState.context.me?.organization_ids[0]
-
-  if (!organizationId) {
-    throw new Error("No organization ID found")
-  }
-
-  return organizationId
-}
-
 const CreateWorkspacePage: React.FC = () => {
-  const organizationId = useOrganizationId()
+  const organizationId = useOrganizationID()
   const [searchParams] = useSearchParams()
   const preSelectedTemplateName = searchParams.get("template")
   const navigate = useNavigate()
