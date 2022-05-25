@@ -39,7 +39,6 @@ export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
-  | { type: "RETRY" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
@@ -136,9 +135,8 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  RETRY: [{ cond: "triedToStart", target: "requestingStart" }, { target: "requestingStop" }],
                   UPDATE: "refreshingTemplate",
-                  CANCEL: "requestingCancel"
+                  CANCEL: "requestingCancel",
                 },
               },
               requestingStart: {
@@ -182,9 +180,9 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignCancellationMessage", "displayCancellationError"]
-                  }
-                }
+                    actions: ["assignCancellationMessage", "displayCancellationError"],
+                  },
+                },
               },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
@@ -314,12 +312,14 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: undefined,
         }),
-      assignCancellationMessage: (_, event) => assign({
-        cancellationMessage: event.data
-      }),
-      clearCancellationMessage: (_) => assign({
-        cancellationMessage: undefined
-      }),
+      assignCancellationMessage: (_, event) =>
+        assign({
+          cancellationMessage: event.data,
+        }),
+      clearCancellationMessage: (_) =>
+        assign({
+          cancellationMessage: undefined,
+        }),
       displayCancellationError: (context) => {
         displayError(context.cancellationMessage)
       },
@@ -400,7 +400,6 @@ export const workspaceMachine = createMachine(
       }),
     },
     guards: {
-      triedToStart: (context) => context.workspace?.latest_build.transition === "start",
       hasMoreBuilds: (_) => false,
     },
     services: {

@@ -86,46 +86,6 @@ describe("Workspace Page", () => {
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
     await testButton(Language.start, startWorkspaceMock)
   })
-  it("requests a start job when the user presses Retry after trying to start", async () => {
-    // Use a workspace that failed during start
-    server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockFailedWorkspace,
-            latest_build: {
-              ...MockFailedWorkspace.latest_build,
-              transition: "start",
-            },
-          }),
-        )
-      }),
-    )
-    const startWorkSpaceMock = jest.spyOn(api, "startWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
-    await testButton(Language.retry, startWorkSpaceMock)
-  })
-  it("requests a stop job when the user presses Retry after trying to stop", async () => {
-    // Use a workspace that failed during stop
-    server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockFailedWorkspace,
-            latest_build: {
-              ...MockFailedWorkspace.latest_build,
-              transition: "stop",
-            },
-          }),
-        )
-      }),
-    )
-    const stopWorkspaceMock = jest
-      .spyOn(api, "stopWorkspace")
-      .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    await testButton(Language.retry, stopWorkspaceMock)
-  })
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
     server.use(
