@@ -28,6 +28,7 @@ type Workspace struct {
 	Name              string         `json:"name"`
 	AutostartSchedule string         `json:"autostart_schedule"`
 	TTL               *time.Duration `json:"ttl"`
+	Deadline          time.Time      `json:"deadline"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.

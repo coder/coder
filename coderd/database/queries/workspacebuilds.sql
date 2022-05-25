@@ -101,10 +101,11 @@ INSERT INTO
 		transition,
 		initiator_id,
 		job_id,
-		provisioner_state
+		provisioner_state,
+		deadline
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: UpdateWorkspaceBuildByID :exec
 UPDATE

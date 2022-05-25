@@ -82,7 +82,7 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:34:6
+// From codersdk/workspaces.go:35:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
   readonly transition: WorkspaceTransition
@@ -216,9 +216,9 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
-// From codersdk/workspaces.go:182:6
-export interface PutWorkspaceDeadlineRequest {
-  readonly stop_at: string
+// From codersdk/workspaces.go:183:6
+export interface PutExtendWorkspaceRequest {
+  readonly deadline: string
 }
 
 // From codersdk/roles.go:12:6
@@ -292,12 +292,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:141:6
+// From codersdk/workspaces.go:142:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:161:6
+// From codersdk/workspaces.go:162:6
 export interface UpdateWorkspaceTTLRequest {
   // This is likely an enum in an external package ("time.Duration")
   readonly ttl?: number
@@ -368,6 +368,7 @@ export interface Workspace {
   readonly autostart_schedule: string
   // This is likely an enum in an external package ("time.Duration")
   readonly ttl?: number
+  readonly deadline: string
 }
 
 // From codersdk/workspaceresources.go:31:6
@@ -428,14 +429,15 @@ export interface WorkspaceBuild {
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly job: ProvisionerJob
+  readonly deadline: string
 }
 
-// From codersdk/workspaces.go:64:6
+// From codersdk/workspaces.go:65:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:200:6
+// From codersdk/workspaces.go:201:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
   readonly Owner: string

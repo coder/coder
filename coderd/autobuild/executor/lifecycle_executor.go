@@ -88,18 +88,16 @@ func (e *Executor) runOnce(t time.Time) error {
 			switch priorHistory.Transition {
 			case database.WorkspaceTransitionStart:
 				validTransition = database.WorkspaceTransitionStop
-				if !ws.Ttl.Valid || ws.Ttl.Int64 == 0 {
-					e.log.Debug(e.ctx, "invalid or zero ws ttl, skipping",
+				if priorHistory.Deadline.IsZero() {
+					e.log.Debug(e.ctx, "latest workspace build has zero deadline, skipping",
 						slog.F("workspace_id", ws.ID),
-						slog.F("ttl", time.Duration(ws.Ttl.Int64)),
+						slog.F("workspace_build_id", priorHistory.ID),
 					)
 					continue
 				}
-				ttl := time.Duration(ws.Ttl.Int64)
-				// Measure TTL from the time the workspace finished building.
 				// Truncate to nearest minute for consistency with autostart
 				// behavior, and add one minute for padding.
-				nextTransition = priorHistory.UpdatedAt.Truncate(time.Minute).Add(ttl + time.Minute)
+				nextTransition = priorHistory.Deadline.Truncate(time.Minute)
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart
 				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
