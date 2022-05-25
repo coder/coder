@@ -391,6 +391,16 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		return err
 	}
 
+	if ssh.AgentRequested(session) {
+		l, err := ssh.NewAgentListener()
+		if err != nil {
+			return xerrors.Errorf("new agent listener: %w", err)
+		}
+		defer l.Close()
+		go ssh.ForwardAgentConnections(l, session)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
+	}
+
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
