@@ -69,8 +69,6 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
           icon={<PlayArrowRoundedIcon />}
           onClick={handleStart}
           label={Language.start}
-          loadingLabel={Language.starting}
-          isLoading={workspaceStatus === "starting"}
         />
       )}
       {canStop(workspaceStatus) && (
@@ -79,8 +77,6 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
           icon={<StopIcon />}
           onClick={handleStop}
           label={Language.stop}
-          loadingLabel={Language.stopping}
-          isLoading={workspaceStatus === "stopping"}
         />
       )}
       {canCancelJobs(workspaceStatus) && (
@@ -104,6 +100,6 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
-    width: theme.spacing(30),
+    width: theme.spacing(27),
   },
 }))
