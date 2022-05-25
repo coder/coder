@@ -182,7 +182,7 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
 
-export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockWorkspace, outdated: true }
+export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   architecture: "amd64",
