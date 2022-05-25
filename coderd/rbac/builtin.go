@@ -130,6 +130,12 @@ var (
 							ResourceID:   "*",
 						},
 						{
+							// All org members can read templates in the org
+							ResourceType: ResourceTemplate.Type,
+							Action:       ActionRead,
+							ResourceID:   "*",
+						},
+						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
 							ResourceID:   "*",

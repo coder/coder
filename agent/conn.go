@@ -36,7 +36,7 @@ type Conn struct {
 // be reconnected to via ID.
 func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error) {
 	channel, err := c.CreateChannel(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
-		Protocol: "reconnecting-pty",
+		Protocol: ProtocolReconnectingPTY,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("pty: %w", err)
@@ -47,7 +47,7 @@ func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error
 // SSH dials the built-in SSH server.
 func (c *Conn) SSH() (net.Conn, error) {
 	channel, err := c.CreateChannel(context.Background(), "ssh", &peer.ChannelOptions{
-		Protocol: "ssh",
+		Protocol: ProtocolSSH,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("dial: %w", err)
@@ -87,7 +87,7 @@ func (c *Conn) DialContext(ctx context.Context, network string, addr string) (ne
 	}
 
 	channel, err := c.CreateChannel(ctx, u.String(), &peer.ChannelOptions{
-		Protocol:  "dial",
+		Protocol:  ProtocolDial,
 		Unordered: strings.HasPrefix(network, "udp"),
 	})
 	if err != nil {

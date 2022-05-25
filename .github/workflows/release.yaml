@@ -83,7 +83,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: release --rm-dist
+          args: release --rm-dist --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
