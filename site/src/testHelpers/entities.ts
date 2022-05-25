@@ -506,3 +506,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
 ]
+
+export const MockCancellationMessage = {
+  message: "Job successfully canceled",
+}

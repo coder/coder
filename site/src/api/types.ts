@@ -12,3 +12,5 @@ export interface ReconnectingPTYRequest {
 }
 
 export type WorkspaceBuildTransition = "start" | "stop" | "delete"
+
+export type Message = { message: string }

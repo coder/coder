@@ -1,6 +1,7 @@
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
+import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
@@ -64,7 +65,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         cancelWorkspace: {
-          data: string
+          data: Types.Message
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined

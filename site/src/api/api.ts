@@ -1,4 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
+import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
@@ -161,7 +162,7 @@ export const startWorkspace = postWorkspaceBuild("start")
 export const stopWorkspace = postWorkspaceBuild("stop")
 export const deleteWorkspace = postWorkspaceBuild("delete")
 
-export const cancelWorkspaceBuild = async (workspaceBuildId: TypesGen.WorkspaceBuild["id"]): Promise<string> => {
+export const cancelWorkspaceBuild = async (workspaceBuildId: TypesGen.WorkspaceBuild["id"]): Promise<Types.Message> => {
   const response = await axios.patch(`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`)
   return response.data
 }
