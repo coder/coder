@@ -112,7 +112,6 @@ func TestListRoles(t *testing.T) {
 	})
 	require.NoError(t, err, "create org")
 
-	const notMember = "not a member of the organization"
 	const forbidden = "forbidden"
 
 	testCases := []struct {
