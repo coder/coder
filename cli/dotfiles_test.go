@@ -44,7 +44,7 @@ func TestDotfiles(t *testing.T) {
 		out, err := c.CombinedOutput()
 		assert.NoError(t, err, string(out))
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--home-dir", string(root), "-y", testRepo)
+		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
 		err = cmd.Execute()
 		assert.NoError(t, err)
 
@@ -77,7 +77,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		assert.NoError(t, err)
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--home-dir", string(root), "-y", testRepo)
+		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
 		err = cmd.Execute()
 		assert.NoError(t, err)
 
