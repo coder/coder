@@ -1,4 +1,3 @@
-import { ContextExclusionPlugin } from "webpack"
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
@@ -42,6 +41,7 @@ export type WorkspaceEvent =
   | { type: "STOP" }
   | { type: "RETRY" }
   | { type: "UPDATE" }
+  | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
   | { type: "REFRESH_TIMELINE" }
 
@@ -138,6 +138,7 @@ export const workspaceMachine = createMachine(
                   STOP: "requestingStop",
                   RETRY: [{ cond: "triedToStart", target: "requestingStart" }, { target: "requestingStop" }],
                   UPDATE: "refreshingTemplate",
+                  CANCEL: "requestingCancel"
                 },
               },
               requestingStart: {

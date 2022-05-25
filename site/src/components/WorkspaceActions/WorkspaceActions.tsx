@@ -5,6 +5,7 @@ import CloudDownloadIcon from "@material-ui/icons/CloudDownload"
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import ReplayIcon from "@material-ui/icons/Replay"
 import StopIcon from "@material-ui/icons/Stop"
+import CancelIcon from "@material-ui/icons/Cancel"
 import React from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
@@ -18,6 +19,7 @@ export const Language = {
   start: "Start workspace",
   starting: "Starting workspace",
   retry: "Retry",
+  cancel: "Cancel action",
   update: "Update workspace",
 }
 
@@ -28,12 +30,27 @@ export const Language = {
 const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
   ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
 
+/**
+ *  Jobs that are in progress (queued or pending) can be canceled.
+ * @param workspaceStatus WorkspaceStatus
+ * @returns boolean
+ */
+const canCancelJobs = (workspaceStatus: WorkspaceStatus) =>
+  ["starting", "stopping", "deleting"].includes(workspaceStatus)
+
+const canStart = (workspaceStatus: WorkspaceStatus) =>
+  ["stopped", "canceled", "error"].includes(workspaceStatus)
+
+const canStop = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "canceled", "error"].includes(workspaceStatus)
+
 export interface WorkspaceActionsProps {
   workspace: Workspace
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
   handleUpdate: () => void
+  handleCancel: () => void
 }
 
 export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
@@ -42,6 +59,7 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
   handleStop,
   handleRetry,
   handleUpdate,
+  handleCancel
 }) => {
   const styles = useStyles()
   const workspaceStatus = getWorkspaceStatus(workspace.latest_build)
@@ -51,17 +69,7 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
       <Link underline="none" component={RouterLink} to="edit">
         <Button variant="outlined">Settings</Button>
       </Link>
-      {(workspaceStatus === "started" || workspaceStatus === "stopping") && (
-        <WorkspaceActionButton
-          className={styles.actionButton}
-          icon={<StopIcon />}
-          onClick={handleStop}
-          label={Language.stop}
-          loadingLabel={Language.stopping}
-          isLoading={workspaceStatus === "stopping"}
-        />
-      )}
-      {(workspaceStatus === "stopped" || workspaceStatus === "starting") && (
+      {canStart(workspaceStatus) && (
         <WorkspaceActionButton
           className={styles.actionButton}
           icon={<PlayArrowRoundedIcon />}
@@ -71,11 +79,24 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
           isLoading={workspaceStatus === "starting"}
         />
       )}
-      {workspaceStatus === "error" && (
-        <Button className={styles.actionButton} startIcon={<ReplayIcon />} onClick={handleRetry}>
-          {Language.retry}
-        </Button>
+      {canStop(workspaceStatus) && (
+        <WorkspaceActionButton
+          className={styles.actionButton}
+          icon={<StopIcon />}
+          onClick={handleStop}
+          label={Language.stop}
+          loadingLabel={Language.stopping}
+          isLoading={workspaceStatus === "stopping"}
+        />
       )}
+      {canCancelJobs(workspaceStatus) &&
+        <WorkspaceActionButton
+          className={styles.actionButton}
+          icon={<CancelIcon />}
+          onClick={handleCancel}
+          label={Language.cancel}
+        />
+      }
       {workspace.outdated && canAcceptJobs(workspaceStatus) && (
         <Button className={styles.actionButton} startIcon={<CloudDownloadIcon />} onClick={handleUpdate}>
           {Language.update}

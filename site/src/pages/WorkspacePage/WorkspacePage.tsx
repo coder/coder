@@ -38,6 +38,7 @@ export const WorkspacePage: React.FC = () => {
             handleStop={() => workspaceSend("STOP")}
             handleRetry={() => workspaceSend("RETRY")}
             handleUpdate={() => workspaceSend("UPDATE")}
+            handleCancel={() => workspaceSend("CANCEL")}
             resources={resources}
             getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
             builds={builds}

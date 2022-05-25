@@ -5,8 +5,8 @@ import React from "react"
 
 export interface WorkspaceActionButtonProps {
   label: string
-  loadingLabel: string
-  isLoading: boolean
+  loadingLabel?: string
+  isLoading?: boolean
   icon: JSX.Element
   onClick: () => void
   className?: string

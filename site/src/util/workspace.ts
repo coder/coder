@@ -58,8 +58,8 @@ export const DisplayStatusLanguage = {
   stopped: "Stopped",
   deleting: "Deleting",
   deleted: "Deleted",
-  canceling: "Canceling",
-  canceled: "Canceled",
+  canceling: "Canceling action",
+  canceled: "Canceled action",
   failed: "Failed",
   queued: "Queued",
 }
