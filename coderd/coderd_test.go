@@ -46,6 +46,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		IncludeProvisionerD: true,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
+	// The provisioner will call to coderd and register itself. This is async,
+	// so we wait for it to occur.
 	require.Eventually(t, func() bool {
 		provisionerds, err := client.ProvisionerDaemons(ctx)
 		require.NoError(t, err)
