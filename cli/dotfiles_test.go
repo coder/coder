@@ -73,6 +73,42 @@ func TestDotfiles(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, string(b), "wow\n")
 	})
+	t.Run("SymlinkBackup", func(t *testing.T) {
+		_, root := clitest.New(t)
+		testRepo := testGitRepo(t, root)
+
+		// nolint:gosec
+		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0750)
+		assert.NoError(t, err)
+
+		// add a conflicting file at destination
+		// nolint:gosec
+		err = os.WriteFile(filepath.Join(string(root), ".bashrc"), []byte("backup"), 0750)
+		assert.NoError(t, err)
+
+		c := exec.Command("git", "add", ".bashrc")
+		c.Dir = testRepo
+		err = c.Run()
+		assert.NoError(t, err)
+
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c.Dir = testRepo
+		out, err := c.CombinedOutput()
+		assert.NoError(t, err, string(out))
+
+		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = cmd.Execute()
+		assert.NoError(t, err)
+
+		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
+		assert.NoError(t, err)
+		assert.Equal(t, string(b), "wow")
+
+		// check for backup file
+		b, err = os.ReadFile(filepath.Join(string(root), ".bashrc.bak"))
+		assert.NoError(t, err)
+		assert.Equal(t, string(b), "backup")
+	})
 }
 
 func testGitRepo(t *testing.T, root config.Root) string {
