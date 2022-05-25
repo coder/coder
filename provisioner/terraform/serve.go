@@ -15,7 +15,7 @@ import (
 )
 
 // This is the exact version of Terraform used internally
-// when Terraform is missing on the system
+// when Terraform is missing on the system.
 const terraformVersion = "1.1.9"
 
 var (
