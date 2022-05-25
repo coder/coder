@@ -1,8 +1,11 @@
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+
+dayjs.extend(relativeTime)
 
 const Language = {
   usedByLabel: "Used by",
