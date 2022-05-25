@@ -390,7 +390,7 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 			}
 		}
 
-		agents[resource.Address] = agent
+		agents[convertAddressToLabel(resource.Address)] = agent
 	}
 
 	for _, resource := range tfResources {
@@ -400,11 +400,10 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
 			continue
 		}
-		resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
 		resources = append(resources, &proto.Resource{
 			Name:   resource.Name,
 			Type:   resource.Type,
-			Agents: findAgents(resourceDependencies, agents, resourceKey),
+			Agents: findAgents(resourceDependencies, agents, convertAddressToLabel(resource.Address)),
 		})
 	}
 
@@ -485,8 +484,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			default:
 				agent.Auth = &proto.Agent_InstanceId{}
 			}
-			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
-			agents[resourceKey] = agent
+			agents[convertAddressToLabel(resource.Address)] = agent
 		}
 
 		// Manually associate agents with instance IDs.
@@ -529,8 +527,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
 				continue
 			}
-			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
-			resourceAgents := findAgents(resourceDependencies, agents, resourceKey)
+			resourceAgents := findAgents(resourceDependencies, agents, convertAddressToLabel(resource.Address))
 			for _, agent := range resourceAgents {
 				// Didn't use instance identity.
 				if agent.GetToken() != "" {
@@ -696,8 +693,8 @@ func findDependenciesWithLabels(graph *gographviz.Graph, nodeName string) []stri
 // findAgents recursively searches through resource dependencies
 // to find associated agents. Nested is required for indirect
 // dependency matching.
-func findAgents(resourceDependencies map[string][]string, agents map[string]*proto.Agent, resourceKey string) []*proto.Agent {
-	resourceNode, exists := resourceDependencies[resourceKey]
+func findAgents(resourceDependencies map[string][]string, agents map[string]*proto.Agent, resourceLabel string) []*proto.Agent {
+	resourceNode, exists := resourceDependencies[resourceLabel]
 	if !exists {
 		return []*proto.Agent{}
 	}
@@ -713,4 +710,10 @@ func findAgents(resourceDependencies map[string][]string, agents map[string]*pro
 		resourceAgents = append(resourceAgents, agent)
 	}
 	return resourceAgents
+}
+
+// convertAddressToLabel returns the Terraform address without the count
+// specifier. eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev.ec2_instance.dev"
+func convertAddressToLabel(address string) string {
+	return strings.Split(address, "[")[0]
 }

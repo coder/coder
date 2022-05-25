@@ -206,6 +206,7 @@ provider "coder" {
 		Name: "dryrun-resource-associated-with-agent",
 		Files: map[string]string{
 			"main.tf": provider + `
+			data "coder_workspace" "me" {}
 			resource "coder_agent" "A" {
 				count = 1
 				os = "linux"
@@ -216,7 +217,10 @@ provider "coder" {
 				startup_script = "code-server"
 			}
 			resource "null_resource" "A" {
-				count = length(coder_agent.A)
+				depends_on = [
+					coder_agent.A[0]
+				]
+				count = data.coder_workspace.me.start_count
 			}`,
 		},
 		Request: &proto.Provision_Request{
