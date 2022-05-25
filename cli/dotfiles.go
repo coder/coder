@@ -154,75 +154,75 @@ func dotfiles() *cobra.Command {
 			}
 
 			script := findScript(installScriptSet, files)
-			if script == "" {
-				if len(dotfiles) == 0 {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No install scripts or dotfiles found, nothing to do.")
-					return nil
-				}
-
+			if script != "" {
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "No install scripts found, symlinking dotfiles to home directory.\n\n  Continue?",
+					Text:      fmt.Sprintf("Running install script %s.\n\n  Continue?", script),
 					IsConfirm: true,
 				})
 				if err != nil {
 					return err
 				}
 
-				if symlinkDir == "" {
-					symlinkDir, err = os.UserHomeDir()
-					if err != nil {
-						return xerrors.Errorf("getting user home: %w", err)
-					}
-				}
-
-				for _, df := range dotfiles {
-					from := filepath.Join(dotfilesDir, df)
-					to := filepath.Join(symlinkDir, df)
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Symlinking %s to %s...\n", from, to)
-
-					isRegular, err := isRegular(to)
-					if err != nil {
-						return xerrors.Errorf("checking symlink for %s: %w", to, err)
-					}
-					// move conflicting non-symlink files to file.ext.bak
-					if isRegular {
-						backup := fmt.Sprintf("%s.bak", to)
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moving %s to %s...\n", to, backup)
-						err = os.Rename(to, backup)
-						if err != nil {
-							return xerrors.Errorf("renaming dir %s: %w", to, err)
-						}
-					}
-
-					err = os.Symlink(from, to)
-					if err != nil {
-						return xerrors.Errorf("symlinking %s to %s: %w", from, to, err)
-					}
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Running %s...\n", script)
+				// it is safe to use a variable command here because it's from
+				// a filtered list of pre-approved install scripts
+				// nolint:gosec
+				scriptCmd := exec.CommandContext(cmd.Context(), "sh", script)
+				scriptCmd.Dir = dotfilesDir
+				scriptCmd.Stdout = cmd.OutOrStdout()
+				scriptCmd.Stderr = cmd.ErrOrStderr()
+				err = scriptCmd.Run()
+				if err != nil {
+					return xerrors.Errorf("running %s: %w", script, err)
 				}
 
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Dotfiles installation complete.")
 				return nil
 			}
 
+			if len(dotfiles) == 0 {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No install scripts or dotfiles found, nothing to do.")
+				return nil
+			}
+
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Running install script %s.\n\n  Continue?", script),
+				Text:      "No install scripts found, symlinking dotfiles to home directory.\n\n  Continue?",
 				IsConfirm: true,
 			})
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Running %s...\n", script)
-			// it is safe to use a variable command here because it's from
-			// a filtered list of pre-approved install scripts
-			// nolint:gosec
-			scriptCmd := exec.CommandContext(cmd.Context(), "sh", script)
-			scriptCmd.Dir = dotfilesDir
-			scriptCmd.Stdout = cmd.OutOrStdout()
-			scriptCmd.Stderr = cmd.ErrOrStderr()
-			err = scriptCmd.Run()
-			if err != nil {
-				return xerrors.Errorf("running %s: %w", script, err)
+			if symlinkDir == "" {
+				symlinkDir, err = os.UserHomeDir()
+				if err != nil {
+					return xerrors.Errorf("getting user home: %w", err)
+				}
+			}
+
+			for _, df := range dotfiles {
+				from := filepath.Join(dotfilesDir, df)
+				to := filepath.Join(symlinkDir, df)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Symlinking %s to %s...\n", from, to)
+
+				isRegular, err := isRegular(to)
+				if err != nil {
+					return xerrors.Errorf("checking symlink for %s: %w", to, err)
+				}
+				// move conflicting non-symlink files to file.ext.bak
+				if isRegular {
+					backup := fmt.Sprintf("%s.bak", to)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moving %s to %s...\n", to, backup)
+					err = os.Rename(to, backup)
+					if err != nil {
+						return xerrors.Errorf("renaming dir %s: %w", to, err)
+					}
+				}
+
+				err = os.Symlink(from, to)
+				if err != nil {
+					return xerrors.Errorf("symlinking %s to %s: %w", from, to, err)
+				}
 			}
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Dotfiles installation complete.")
