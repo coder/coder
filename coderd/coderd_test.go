@@ -61,6 +61,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
+	organizationParam, err := client.CreateParameter(ctx, codersdk.ParameterOrganization, organization.ID, codersdk.CreateParameterRequest{
+		Name:              "test-param",
+		SourceValue:       "hello world",
+		SourceScheme:      codersdk.ParameterSourceSchemeData,
+		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+	})
+	require.NoError(t, err, "create org param")
+
 	// Setup some data in the database.
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -134,10 +142,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
-
-		"POST:/api/v2/parameters/{scope}/{id}":          {NoAuthorize: true},
-		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
-		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
 
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
@@ -268,6 +272,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
 		},
 
+		"POST:/api/v2/parameters/{scope}/{id}": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+		},
+		"GET:/api/v2/parameters/{scope}/{id}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+		},
+		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+		},
+
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
@@ -309,6 +326,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
+			// Only checking org scoped params here
+			route = strings.ReplaceAll(route, "{scope}", string(organizationParam.Scope))
+			route = strings.ReplaceAll(route, "{id}", organizationParam.ScopeID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")

@@ -183,7 +183,10 @@ func newRouter(options *Options, a *api) chi.Router {
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				authRolesMiddleware,
+			)
 			r.Post("/", a.postParameter)
 			r.Get("/", a.parameters)
 			r.Route("/{name}", func(r chi.Router) {

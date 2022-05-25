@@ -1283,11 +1283,10 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 	defer q.mutex.Unlock()
 
 	daemon := database.ProvisionerDaemon{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Provisioners:   arg.Provisioners,
+		ID:           arg.ID,
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
