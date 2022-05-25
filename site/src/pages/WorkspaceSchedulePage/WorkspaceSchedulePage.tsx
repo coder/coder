@@ -94,11 +94,11 @@ export const WorkspaceSchedulePage: React.FC = () => {
   if (!workspaceId) {
     navigate("/workspaces")
     return null
+  } else if (scheduleState.matches("idle") || scheduleState.matches("gettingWorkspace") || !workspace) {
+    return <FullScreenLoader />
   } else if (scheduleState.matches("error")) {
     return <ErrorSummary error={getWorkspaceError} retry={() => scheduleSend({ type: "GET_WORKSPACE", workspaceId })} />
-  } else if (!workspace) {
-    return <FullScreenLoader />
-  } else {
+  } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
         fieldErrors={formErrors}
@@ -112,9 +112,16 @@ export const WorkspaceSchedulePage: React.FC = () => {
             autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
           })
-          // TODO(Grey): navigation logic
         }}
       />
     )
+  } else if (scheduleState.matches("submitSuccess")) {
+    navigate(`/workspaces/${workspaceId}`)
+    return <FullScreenLoader />
+  } else {
+    // Theoretically impossible - log and bail
+    console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
+    navigate("/")
+    return null
   }
 }

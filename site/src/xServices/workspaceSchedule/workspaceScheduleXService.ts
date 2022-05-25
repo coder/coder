@@ -80,7 +80,7 @@ export const workspaceSchedule = createMachine(
           src: "submitSchedule",
           id: "submitSchedule",
           onDone: {
-            target: "idle",
+            target: "submitSuccess",
             actions: "displaySuccess",
           },
           onError: {
@@ -89,6 +89,11 @@ export const workspaceSchedule = createMachine(
           },
         },
         tags: "loading",
+      },
+      submitSuccess: {
+        on: {
+          SUBMIT_SCHEDULE: "submittingSchedule",
+        },
       },
       error: {
         on: {
