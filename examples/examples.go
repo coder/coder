@@ -159,6 +159,7 @@ func Archive(exampleID string) ([]byte, error) {
 				if err != nil {
 					return xerrors.Errorf("open file %s: %w", path, err)
 				}
+				defer file.Close()
 
 				err = tarWriter.WriteHeader(header)
 				if err != nil {
