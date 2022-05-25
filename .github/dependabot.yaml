@@ -55,7 +55,7 @@ updates:
           - version-update:semver-major
 
   - package-ecosystem: "terraform"
-    directory: "/examples"
+    directory: "/examples/templates"
     schedule:
       interval: "weekly"
       time: "06:00"

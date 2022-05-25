@@ -10,6 +10,6 @@ Clone this repository to create a project from any example listed here:
 
 ```sh
 git clone https://github.com/coder/coder
-cd examples/aws-macos
+cd examples/templates/aws-macos
 coder templates create
 ```

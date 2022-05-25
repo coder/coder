@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
+	"io"
+	"io/fs"
 	"path"
 	"sync"
 
@@ -13,8 +15,7 @@ import (
 )
 
 var (
-	//go:embed */*.md
-	//go:embed */*.tf
+	//go:embed templates
 	files embed.FS
 
 	examples      = make([]Example, 0)
@@ -29,20 +30,30 @@ type Example struct {
 	Markdown    string `json:"markdown"`
 }
 
+const rootDir = "templates"
+
 // List returns all embedded examples.
 func List() ([]Example, error) {
 	var returnError error
 	parseExamples.Do(func() {
-		dirs, err := files.ReadDir(".")
+		files, err := fs.Sub(files, rootDir)
+		if err != nil {
+			returnError = xerrors.Errorf("get example fs: %w", err)
+		}
+
+		dirs, err := fs.ReadDir(files, ".")
 		if err != nil {
 			returnError = xerrors.Errorf("read dir: %w", err)
 			return
 		}
 
 		for _, dir := range dirs {
+			if !dir.IsDir() {
+				continue
+			}
 			exampleID := dir.Name()
 			// Each one of these is a example!
-			readme, err := files.ReadFile(path.Join(dir.Name(), "README.md"))
+			readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
 			if err != nil {
 				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
 				return
@@ -110,54 +121,65 @@ func Archive(exampleID string) ([]byte, error) {
 			return nil, xerrors.Errorf("example with id %q not found", exampleID)
 		}
 
-		entries, err := files.ReadDir(exampleID)
+		exampleFiles, err := fs.Sub(files, path.Join(rootDir, exampleID))
 		if err != nil {
-			return nil, xerrors.Errorf("read dir: %w", err)
+			return nil, xerrors.Errorf("get example fs: %w", err)
 		}
 
 		var buffer bytes.Buffer
 		tarWriter := tar.NewWriter(&buffer)
 
-		for _, entry := range entries {
-			file, err := files.Open(path.Join(exampleID, entry.Name()))
+		err = fs.WalkDir(exampleFiles, ".", func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
-				return nil, xerrors.Errorf("open file: %w", err)
+				return err
 			}
 
-			info, err := file.Stat()
+			info, err := entry.Info()
 			if err != nil {
-				return nil, xerrors.Errorf("stat file: %w", err)
-			}
-
-			if info.IsDir() {
-				continue
-			}
-
-			data := make([]byte, info.Size())
-			_, err = file.Read(data)
-			if err != nil {
-				return nil, xerrors.Errorf("read data: %w", err)
+				return xerrors.Errorf("stat file: %w", err)
 			}
 
 			header, err := tar.FileInfoHeader(info, entry.Name())
 			if err != nil {
-				return nil, xerrors.Errorf("get file header: %w", err)
+				return xerrors.Errorf("get file header: %w", err)
 			}
 			header.Mode = 0644
 
-			err = tarWriter.WriteHeader(header)
-			if err != nil {
-				return nil, xerrors.Errorf("write file: %w", err)
-			}
+			if entry.IsDir() {
+				header.Name = path + "/"
 
-			_, err = tarWriter.Write(data)
-			if err != nil {
-				return nil, xerrors.Errorf("write: %w", err)
+				err = tarWriter.WriteHeader(header)
+				if err != nil {
+					return xerrors.Errorf("write file: %w", err)
+				}
+			} else {
+				header.Name = path
+
+				file, err := exampleFiles.Open(path)
+				if err != nil {
+					return xerrors.Errorf("open file %s: %w", path, err)
+				}
+				defer file.Close()
+
+				err = tarWriter.WriteHeader(header)
+				if err != nil {
+					return xerrors.Errorf("write file: %w", err)
+				}
+
+				_, err = io.Copy(tarWriter, file)
+				if err != nil {
+					return xerrors.Errorf("write: %w", err)
+				}
 			}
-		}
-		err = tarWriter.Flush()
+			return nil
+		})
 		if err != nil {
-			return nil, xerrors.Errorf("flush archive: %w", err)
+			return nil, xerrors.Errorf("walk example directory: %w", err)
+		}
+
+		err = tarWriter.Close()
+		if err != nil {
+			return nil, xerrors.Errorf("close archive: %w", err)
 		}
 
 		return buffer.Bytes(), nil
