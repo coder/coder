@@ -3080,7 +3080,8 @@ UPDATE
 	workspace_builds
 SET
 	updated_at = $2,
-	provisioner_state = $3
+	provisioner_state = $3,
+	deadline = $4
 WHERE
 	id = $1
 `
@@ -3089,10 +3090,16 @@ type UpdateWorkspaceBuildByIDParams struct {
 	ID               uuid.UUID `db:"id" json:"id"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
+	Deadline         time.Time `db:"deadline" json:"deadline"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID, arg.ID, arg.UpdatedAt, arg.ProvisionerState)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.ProvisionerState,
+		arg.Deadline,
+	)
 	return err
 }
 

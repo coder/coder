@@ -315,7 +315,7 @@ func New(options *Options) *API {
 					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspace)
-				r.Put("/deadline", api.putWorkspaceDeadline)
+				r.Put("/extend", api.putExtendWorkspace)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

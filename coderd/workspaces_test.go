@@ -617,27 +617,56 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 
 func TestWorkspaceExtendAutostop(t *testing.T) {
 	t.Parallel()
-	var (
-		ctx       = context.Background()
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		extend    = 90 * time.Minute
-	)
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx       = context.Background()
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			extend    = 90 * time.Minute
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
 
-	initTTL := time.Now()
-	req := codersdk.PutExtendWorkspaceRequest{
-		Deadline: initTTL.Add(extend),
-	}
-	err := client.PutExtendWorkspace(ctx, workspace.ID, req)
-	require.NoError(t, err, "failed to update workspace ttl")
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		req := codersdk.PutExtendWorkspaceRequest{
+			Deadline: workspace.LatestBuild.UpdatedAt.Add(extend),
+		}
+		err = client.PutExtendWorkspace(ctx, workspace.ID, req)
+		require.NoError(t, err, "failed to extend workspace")
 
-	updated, err := client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err, "failed to fetch updated workspace")
-	require.Equal(t, workspace.LatestBuild.Deadline.Add(extend), updated.LatestBuild.Deadline)
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "failed to fetch updated workspace")
+		require.Equal(t, workspace.LatestBuild.Deadline.Add(extend), updated.LatestBuild.Deadline)
+	})
+
+	t.Run("DeadlineZero", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx       = context.Background()
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
+
+		req := codersdk.PutExtendWorkspaceRequest{
+			Deadline: time.Time{},
+		}
+		err := client.PutExtendWorkspace(ctx, workspace.ID, req)
+		require.ErrorContains(t, err, "deadline: required", "failed to update workspace ttl")
+
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "failed to fetch updated workspace")
+		require.Equal(t, workspace.LatestBuild.Deadline, updated.LatestBuild.Deadline)
+	})
 }
 
 func TestWorkspaceWatcher(t *testing.T) {

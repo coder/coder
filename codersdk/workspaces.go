@@ -28,7 +28,6 @@ type Workspace struct {
 	Name              string         `json:"name"`
 	AutostartSchedule string         `json:"autostart_schedule"`
 	TTL               *time.Duration `json:"ttl"`
-	Deadline          time.Time      `json:"deadline"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -181,7 +180,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 // PutExtendWorkspaceRequest is a request to extend the deadline of
 // the active workspace build.
 type PutExtendWorkspaceRequest struct {
-	Deadline time.Time `json:"deadline" validate:"required, datetime=RFC3339"`
+	Deadline time.Time `json:"deadline" validate:"required"`
 }
 
 // PutExtendWorkspace updates the deadline for resources of the latest workspace build.
@@ -192,7 +191,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 		return xerrors.Errorf("extend workspace ttl: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
 		return readBodyAsError(res)
 	}
 	return nil

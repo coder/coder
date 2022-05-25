@@ -477,7 +477,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
-			BuildNumber:       1, // First build!
+			BuildNumber:       1,           // First build!
+			Deadline:          time.Time{}, // provisionerd will set this upon success
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -570,7 +571,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) putWorkspaceDeadline(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
@@ -597,6 +598,41 @@ func (api *API) putWorkspaceDeadline(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	newDeadline := req.Deadline.UTC()
+	if newDeadline.IsZero() {
+		// This should not be possible because the validation requires a non-zero value.
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("new deadline %q cannot be zero", newDeadline),
+		})
+		return
+	}
+
+	if newDeadline.Before(build.Deadline) {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("new deadline %q must be after existing deadline %q", newDeadline, build.Deadline),
+		})
+		return
+	}
+
+	if newDeadline == build.Deadline {
+		httpapi.Write(rw, http.StatusNotModified, httpapi.Response{})
+		return
+	}
+
+	if err := api.Database.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
+		ID:               build.ID,
+		UpdatedAt:        build.UpdatedAt,
+		ProvisionerState: build.ProvisionerState,
+		Deadline:         newDeadline,
+	}); err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{})
 }
 
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {

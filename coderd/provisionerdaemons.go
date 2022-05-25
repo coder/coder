@@ -473,6 +473,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
+			// We are explicitly not updating deadline here.
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace build state: %w", err)
@@ -544,6 +545,18 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		}
 
 		err = server.Database.InTx(func(db database.Store) error {
+			now := database.Now()
+			var workspaceDeadline time.Time
+			workspace, err := db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+			if err == nil {
+				if workspace.Ttl.Valid {
+					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
+				}
+			} else {
+				// Huh? Did the workspace get deleted?
+				// In any case, since this is just for the TTL, try and continue anyway.
+				server.Logger.Error(ctx, "fetch workspace for build", slog.F("workspace_build_id", workspaceBuild.ID), slog.F("workspace_id", workspaceBuild.WorkspaceID))
+			}
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
@@ -556,9 +569,10 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
 			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				Deadline:         now,
 				ID:               workspaceBuild.ID,
-				UpdatedAt:        database.Now(),
 				ProvisionerState: jobType.WorkspaceBuild.State,
+				UpdatedAt:        workspaceDeadline,
 			})
 			if err != nil {
 				return xerrors.Errorf("update workspace build: %w", err)

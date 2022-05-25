@@ -445,6 +445,7 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 		Transition:        codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:       workspaceBuild.InitiatorID,
 		Job:               job,
+		Deadline:          workspaceBuild.Deadline,
 	}
 }
 
