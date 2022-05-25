@@ -21,7 +21,6 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
@@ -75,23 +74,23 @@ func (c *coderD) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPC
 		Database:     c.options.Database,
 		Pubsub:       c.options.Pubsub,
 		Provisioners: daemon.Provisioners,
-		Logger:       c.options.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Logger:       c.options.Logger().Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
 		return nil, err
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if xerrors.Is(err, io.EOF) || xerrors.Is(err, context.Canceled) || ctx.Err() != nil {
 				return
 			}
-			c.options.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			c.options.Logger().Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
 	go func() {
 		err = server.Serve(ctx, serverSession)
 		if err != nil && !xerrors.Is(err, io.EOF) {
-			c.options.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+			c.options.Logger().Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		}
 		// close the sessions so we don't leak goroutines serving them.
 		_ = clientSession.Close()

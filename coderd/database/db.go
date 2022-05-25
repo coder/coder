@@ -22,6 +22,7 @@ type Store interface {
 	querier
 
 	InTx(func(Store) error) error
+	Close() error
 }
 
 // DBTX represents a database connection or transaction.
@@ -43,6 +44,10 @@ func New(sdb *sql.DB) Store {
 type sqlQuerier struct {
 	sdb *sql.DB
 	db  DBTX
+}
+
+func (q *sqlQuerier) Close() error {
+	return q.sdb.Close()
 }
 
 // InTx performs database operations inside a transaction.

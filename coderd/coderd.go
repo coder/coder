@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
-
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -35,7 +35,7 @@ import (
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
-	Logger    slog.Logger
+	logger    atomic.Value
 	Database  database.Store
 	Pubsub    database.Pubsub
 
@@ -57,6 +57,7 @@ type Options struct {
 }
 
 type CoderD interface {
+	SetLogger(logger slog.Logger)
 	Handler() http.Handler
 	CloseWait()
 
@@ -116,7 +117,7 @@ func newRouter(options *Options, a *api) chi.Router {
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			debugLogRequest(a.Logger),
+			debugLogRequest(a.Logger()),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
@@ -337,8 +338,6 @@ func newRouter(options *Options, a *api) chi.Router {
 		})
 	})
 
-	var _ = xerrors.New("test")
-
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r
 }
@@ -360,6 +359,20 @@ func (c *coderD) CloseWait() {
 
 func (c *coderD) Handler() http.Handler {
 	return c.router
+}
+
+func (o *Options) Logger() slog.Logger {
+	logger, _ := o.logger.Load().(slog.Logger)
+	return logger
+}
+
+func (c *coderD) SetLogger(logger slog.Logger) {
+	c.options.SetLogger(logger)
+}
+
+func (o *Options) SetLogger(logger slog.Logger) *Options {
+	o.logger.Store(logger)
+	return o
 }
 
 // API contains all route handlers. Only HTTP handlers should

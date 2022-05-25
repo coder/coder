@@ -96,7 +96,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		var logs []database.ProvisionerJobLog
 		err := json.Unmarshal(message, &logs)
 		if err != nil {
-			api.Logger.Warn(r.Context(), fmt.Sprintf("invalid provisioner job log on channel %q: %s", provisionerJobLogsChannel(job.ID), err.Error()))
+			api.Logger().Warn(r.Context(), fmt.Sprintf("invalid provisioner job log on channel %q: %s", provisionerJobLogsChannel(job.ID), err.Error()))
 			return
 		}
 
@@ -106,7 +106,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			default:
 				// If this overflows users could miss logs streaming. This can happen
 				// if a database request takes a long amount of time, and we get a lot of logs.
-				api.Logger.Warn(r.Context(), "provisioner job log overflowing channel")
+				api.Logger().Warn(r.Context(), "provisioner job log overflowing channel")
 			}
 		}
 	})
@@ -168,7 +168,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		case <-ticker.C:
 			job, err := api.Database.GetProvisionerJobByID(r.Context(), job.ID)
 			if err != nil {
-				api.Logger.Warn(r.Context(), "streaming job logs; checking if completed", slog.Error(err), slog.F("job_id", job.ID.String()))
+				api.Logger().Warn(r.Context(), "streaming job logs; checking if completed", slog.Error(err), slog.F("job_id", job.ID.String()))
 				continue
 			}
 			if job.CompletedAt.Valid {

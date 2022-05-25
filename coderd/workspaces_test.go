@@ -168,6 +168,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 func TestWorkspacesByOrganization(t *testing.T) {
 	t.Parallel()
+
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -175,6 +176,7 @@ func TestWorkspacesByOrganization(t *testing.T) {
 		_, err := client.WorkspacesByOrganization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
 	})
+
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})

@@ -81,7 +81,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
-		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
+		Logger:    api.Logger().Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
 	})
 	if err != nil {
@@ -173,7 +173,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Pubsub:    api.Pubsub,
-		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
+		Logger:    api.Logger().Named("peerbroker-proxy-listen"),
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
@@ -241,7 +241,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger().Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
@@ -314,12 +314,12 @@ func (api *api) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 		_ = wsConn.Close(websocket.StatusNormalClosure, "")
 	}()
 	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
-	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	api.Logger().Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
 	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
 	case <-r.Context().Done():
 	}
-	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	api.Logger().Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -400,7 +400,7 @@ func (api *api) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	go func() {
 		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
-			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
+			Logger:    api.Logger().Named("peerbroker-proxy-dial"),
 			Pubsub:    api.Pubsub,
 		})
 		_ = client.Close()

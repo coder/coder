@@ -19,8 +19,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/coder/coder/provisioner/echo"
-
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/google/go-github/v43/github"
@@ -50,6 +48,7 @@ import (
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -229,10 +228,9 @@ func server() *cobra.Command {
 					URLs: []string{stunServer},
 				})
 			}
-			options := &coderd.Options{
+			options := (&coderd.Options{
 				AccessURL:            accessURLParsed,
 				ICEServers:           iceServers,
-				Logger:               logger.Named("coderd"),
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
@@ -240,7 +238,7 @@ func server() *cobra.Command {
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
-			}
+			}).SetLogger(logger.Named("coderd"))
 
 			if oauth2GithubClientSecret != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations)

@@ -27,9 +27,9 @@ func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.A
 
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
-		logger := api.Logger
+		logger := api.Logger()
 		if xerrors.As(err, internalError) {
-			logger = api.Logger.With(slog.F("internal", internalError.Internal()))
+			logger = api.Logger().With(slog.F("internal", internalError.Internal()))
 		}
 		// Log information for debugging. This will be very helpful
 		// in the early days

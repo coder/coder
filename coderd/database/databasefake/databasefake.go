@@ -66,6 +66,10 @@ type fakeQuerier struct {
 	workspaces              []database.Workspace
 }
 
+func (*fakeQuerier) Close() error {
+	return nil
+}
+
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	return fn(q)

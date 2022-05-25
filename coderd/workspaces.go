@@ -581,7 +581,7 @@ func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		api.Logger.Warn(r.Context(), "accept websocket connection", slog.Error(err))
+		api.Logger().Warn(r.Context(), "accept websocket connection", slog.Error(err))
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "internal error")

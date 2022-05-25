@@ -25,8 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
@@ -46,6 +44,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -82,6 +81,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 	if options == nil {
 		options = &Options{}
 	}
+
 	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
@@ -89,6 +89,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
+
 	if options.AutobuildTicker == nil {
 		ticker := make(chan time.Time)
 		options.AutobuildTicker = ticker
@@ -144,10 +145,9 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 	require.NoError(t, err)
 
 	// We set the handler after server creation for the access URL.
-	coderDaemon := coderd.New(&coderd.Options{
+	coderDaemon := coderd.New((&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
-		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
 		Pubsub:                         pubsub,
 
@@ -159,16 +159,19 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
-	})
+	}).SetLogger(slogtest.Make(t, nil).Leveled(slog.LevelDebug)))
 	srv.Config.Handler = coderDaemon.Handler()
 	if options.IncludeProvisionerD {
+		// This is automatically closed.
 		_ = NewProvisionerDaemon(t, coderDaemon)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
 		coderDaemon.CloseWait()
+		coderDaemon.SetLogger(slog.Logger{})
 	})
 
 	return srv, codersdk.New(serverURL), coderDaemon
