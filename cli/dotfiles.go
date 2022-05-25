@@ -56,14 +56,14 @@ func dotfiles() *cobra.Command {
 			moved := false
 			if dotfilesExists {
 				du, err := cfg.DotfilesURL().Read()
-				if err != nil {
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					return xerrors.Errorf("reading dotfiles url config: %w", err)
 				}
 				// if the git url has changed we create a backup and clone fresh
 				if gitRepo != du {
 					backupDir := fmt.Sprintf("%s_backup_%s", dotfilesDir, time.Now().Format(time.RFC3339))
 					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-						Text:      fmt.Sprintf("The dotfiles URL has changed from %s to %s. Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
+						Text:      fmt.Sprintf("The dotfiles URL has changed from \"%s\" to \"%s\".\n  Coder will backup the existing repo to %s.\n\n  Continue?", du, gitRepo, backupDir),
 						IsConfirm: true,
 					})
 					if err != nil {
@@ -74,6 +74,7 @@ func dotfiles() *cobra.Command {
 					if err != nil {
 						return xerrors.Errorf("renaming dir %s: %w", dotfilesDir, err)
 					}
+					_, _ = fmt.Fprint(cmd.OutOrStdout(), "Done backup up dotfiles.\n")
 					dotfilesExists = false
 					moved = true
 				}
@@ -95,7 +96,7 @@ func dotfiles() *cobra.Command {
 				}
 				gitCmdDir = cfgDir
 				subcommands = []string{"clone", args[0], dotfilesRepoDir}
-				promptText = fmt.Sprintf("Cloning %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
+				promptText = fmt.Sprintf("Cloning %s into directory %s.\n\n  Continue?", gitRepo, dotfilesDir)
 			}
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
@@ -106,7 +107,7 @@ func dotfiles() *cobra.Command {
 				return err
 			}
 
-			// ensure config dir exists
+			// ensure command dir exists
 			err = os.MkdirAll(gitCmdDir, 0750)
 			if err != nil {
 				return xerrors.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
