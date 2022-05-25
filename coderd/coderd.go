@@ -170,6 +170,7 @@ func newRouter(options *Options, a *api) chi.Router {
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractUserParam(options.Database),
+						httpmw.ExtractOrganizationMemberParam(options.Database),
 					)
 					r.Put("/roles", a.putMemberRoles)
 				})
@@ -201,6 +202,7 @@ func newRouter(options *Options, a *api) chi.Router {
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 
@@ -289,6 +291,7 @@ func newRouter(options *Options, a *api) chi.Router {
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceResourceParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)

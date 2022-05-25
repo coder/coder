@@ -276,8 +276,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 		for orgID, roles := range orgRoles {
 			organizationID, err := uuid.Parse(orgID)
 			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
-			// TODO: @Emyrk add the member to the organization if they do not already belong.
-			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
+			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
 				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
 			require.NoError(t, err, "update org membership roles")
 		}

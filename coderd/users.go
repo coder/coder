@@ -431,28 +431,15 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	has := make(map[string]struct{})
-	for _, exists := range roles.Roles {
-		has[exists] = struct{}{}
-	}
-
-	for _, roleName := range params.Roles {
-		// If the user already has the role assigned, we don't need to check the permission
-		// to reassign it. Only run permission checks on the difference in the set of
-		// roles.
-		if _, ok := has[roleName]; ok {
-			delete(has, roleName)
-			continue
-		}
-
+	added, removed := rbac.ChangeRoleSet(roles.Roles, params.Roles)
+	for _, roleName := range added {
 		// Assigning a role requires the create permission.
 		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
 			return
 		}
 	}
-
-	// Any roles that were removed also need to be checked.
-	for roleName := range has {
+	for _, roleName := range removed {
+		// Removing a role requires the delete permission.
 		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
 			return
 		}

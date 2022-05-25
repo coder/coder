@@ -122,7 +122,7 @@ func TestOrganizationParam(t *testing.T) {
 		var (
 			db   = databasefake.New()
 			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
+			r, u = setupAuthentication(db)
 			rtr  = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
@@ -133,9 +133,12 @@ func TestOrganizationParam(t *testing.T) {
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", u.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationParam(db),
+			httpmw.ExtractOrganizationMemberParam(db),
 		)
 		rtr.Get("/", nil)
 		rtr.ServeHTTP(rw, r)
@@ -167,9 +170,12 @@ func TestOrganizationParam(t *testing.T) {
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
+			httpmw.ExtractUserParam(db),
+			httpmw.ExtractOrganizationMemberParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.OrganizationParam(r)
