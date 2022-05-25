@@ -87,9 +87,9 @@ export const AppRouter: React.FC = () => (
             <Route
               path="schedule"
               element={
-                <AuthAndFrame>
+                <RequireAuth>
                   <WorkspaceSchedulePage />
-                </AuthAndFrame>
+                </RequireAuth>
               }
             />
           </Route>
