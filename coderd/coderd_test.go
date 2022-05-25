@@ -139,13 +139,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
-
-		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
-
-		"GET:/api/v2/workspaces/{workspace}/watch": {NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/workspaces":       {NoAuthorize: true},
+		"POST:/api/v2/users/{user}/organizations":                    {NoAuthorize: true},
+		"GET:/api/v2/workspaces/{workspace}/watch":                   {NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}":                   {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
@@ -284,6 +281,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
 		},
+		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
@@ -326,6 +327,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
+			route = strings.ReplaceAll(route, "{templatename}", template.Name)
 			// Only checking org scoped params here
 			route = strings.ReplaceAll(route, "{scope}", string(organizationParam.Scope))
 			route = strings.ReplaceAll(route, "{id}", organizationParam.ScopeID.String())

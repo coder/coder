@@ -54,19 +54,6 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch scope {
-	case database.ParameterScopeWorkspace:
-	case database.ParameterScopeUser:
-	case database.ParameterScopeTemplate:
-	case database.ParameterScopeImportJob:
-	case database.ParameterScopeOrganization:
-	default:
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("scope %q unsupported", scope),
-		})
-		return
-	}
-
 	parameterValue, err := api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 		ID:                uuid.New(),
 		Name:              createRequest.Name,
@@ -237,7 +224,9 @@ func (api *api) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 			resource = rbac.ResourceUserData.WithID(user.ID.String()).WithOwner(user.ID.String())
 		}
 	case database.ParameterScopeImportJob:
-		// ??
+		// This scope does not make sense from this api.
+		// ImportJob params are created with the job, and the job id cannot
+		// be predicted.
 		err = xerrors.Errorf("ImportJob scope not supported")
 	default:
 		err = xerrors.Errorf("scope %q unsupported", scope)
