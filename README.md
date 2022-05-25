@@ -16,13 +16,14 @@ Coder turns your cloud into a fleet of remote development servers.
 
 **Code more**
 
-- Build and test faster, leveraging cloud CPUs, RAM, network speeds, etc.
-- Access your environment from anywhere on any client (even an iPad)
+- Build and test faster
+  - Leveraging cloud CPUs, RAM, network speeds, etc.
+- Access your environment from any place on any client (even an iPad)
 - Onboard instantly then stay up to date continuously
 
 **Manage less**
 
-- Ensure consistent development workspaces across your team
+- Ensure your entire team is using the same tools and resources
   - Rollout critical updates to your developers with one command
 - Automatically shut down expensive cloud resources
 - Keep your source code and data behind your firewall
