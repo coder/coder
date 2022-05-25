@@ -1,6 +1,6 @@
 #cloud-config
 users:
-  - name: coder
+  - name: ${username}
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
     groups: sudo
     shell: /bin/bash
@@ -9,7 +9,7 @@ packages:
 mounts:
   - [
       "LABEL=${home_volume_label}",
-      /home/coder,
+      "/home/${username}",
       auto,
       "defaults,uid=1000,gid=1000",
     ]
@@ -27,7 +27,7 @@ write_files:
       Wants=network-online.target
 
       [Service]
-      User=coder
+      User=${username}
       ExecStart=/opt/coder/init
       Environment=CODER_AGENT_TOKEN=${coder_agent_token}
       Restart=always
@@ -41,6 +41,6 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 runcmd:
-  - chown coder:coder /home/coder
+  - chown ${username}:${username} /home/${username}
   - systemctl enable coder-agent
   - systemctl start coder-agent
