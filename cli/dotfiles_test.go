@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,9 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, string(b), "wow")
 	})
 	t.Run("InstallScript", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("install scripts on windows require sh and aren't very practical")
+		}
 		_, root := clitest.New(t)
 		testRepo := testGitRepo(t, root)
 
