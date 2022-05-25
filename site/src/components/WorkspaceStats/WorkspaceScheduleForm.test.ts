@@ -10,6 +10,7 @@ const valid: WorkspaceScheduleFormValues = {
   saturday: false,
 
   startTime: "09:30",
+  timezone: "Canada/Eastern",
   ttl: 120,
 }
 
@@ -25,6 +26,7 @@ describe("validationSchema", () => {
       saturday: false,
 
       startTime: "",
+      timezone: "",
       ttl: 0,
     }
     const validate = () => validationSchema.validateSync(values)
@@ -98,5 +100,14 @@ describe("validationSchema", () => {
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
+  })
+
+  it("disallows an invalid timezone Canada/North", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      timezone: "Canada/North",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError(Language.errorTimezone)
   })
 })

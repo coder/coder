@@ -11,6 +11,7 @@ const validValues: WorkspaceScheduleFormValues = {
   friday: true,
   saturday: false,
   startTime: "09:30",
+  timezone: "Canada/Eastern",
   ttl: 120,
 }
 
@@ -28,6 +29,7 @@ describe("WorkspaceSchedulePage", () => {
           friday: false,
           saturday: false,
           startTime: "",
+          timezone: "",
           ttl: 0,
         },
         {
@@ -45,10 +47,11 @@ describe("WorkspaceSchedulePage", () => {
           friday: false,
           saturday: false,
           startTime: "16:20",
+          timezone: "Canada/Eastern",
           ttl: 120,
         },
         {
-          schedule: "20 16 * * 0",
+          schedule: "CRON_TZ=Canada/Eastern 20 16 * * 0",
         },
       ],
       [
@@ -62,10 +65,11 @@ describe("WorkspaceSchedulePage", () => {
           friday: true,
           saturday: false,
           startTime: "09:30",
+          timezone: "America/Central",
           ttl: 120,
         },
         {
-          schedule: "30 09 * * 1-5",
+          schedule: "CRON_TZ=America/Central 30 09 * * 1-5",
         },
       ],
       [
@@ -79,6 +83,7 @@ describe("WorkspaceSchedulePage", () => {
           friday: true,
           saturday: true,
           startTime: "09:00",
+          timezone: "",
           ttl: 60 * 8,
         },
         {
@@ -96,6 +101,7 @@ describe("WorkspaceSchedulePage", () => {
           friday: true,
           saturday: false,
           startTime: "16:20",
+          timezone: "",
           ttl: 60 * 3,
         },
         {

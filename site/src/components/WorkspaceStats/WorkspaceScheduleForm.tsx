@@ -4,8 +4,12 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
+import Link from "@material-ui/core/Link"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
+import dayjs from "dayjs"
+import timezone from "dayjs/plugin/timezone"
+import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
@@ -15,9 +19,16 @@ import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
 
+// REMARK: timezone plugin depends on UTC
+//
+// SEE: https://day.js.org/docs/en/timezone/timezone
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
   errorTime: "Invalid time",
+  errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
   dayMondayLabel: "Monday",
@@ -28,6 +39,7 @@ export const Language = {
   daySaturdayLabel: "Saturday",
   startTimeLabel: "Start time",
   startTimeHelperText: "Your workspace will automatically start at this time.",
+  timezoneLabel: "Timezone",
   ttlLabel: "Runtime (minutes)",
   ttlHelperText: "Your workspace will automatically shutdown after the runtime.",
 }
@@ -49,6 +61,7 @@ export interface WorkspaceScheduleFormValues {
   saturday: boolean
 
   startTime: string
+  timezone: string
   ttl: number
 }
 
@@ -91,6 +104,25 @@ export const validationSchema = Yup.object({
         return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
       }
     }),
+  timezone: Yup.string()
+    .ensure()
+    .test("is-timezone", Language.errorTimezone, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+
+      if (!parent.startTime) {
+        return true
+      } else {
+        // Unfortunately, there's not a good API on dayjs at this time for
+        // evaluating a timezone. Attempt to parse today in the supplied timezone
+        // and return as valid if the function doesn't throw.
+        try {
+          dayjs.tz(dayjs(), value)
+          return true
+        } catch (e) {
+          return false
+        }
+      }
+    }),
   ttl: Yup.number().min(0).integer(),
 })
 
@@ -113,6 +145,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
       saturday: false,
 
       startTime: "09:30",
+      timezone: "",
       ttl: 120,
     },
     onSubmit,
@@ -142,6 +175,24 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
             }}
             label={Language.startTimeLabel}
             type="time"
+            variant="standard"
+          />
+
+          <TextField
+            {...formHelpers(
+              "timezone",
+              <>
+                Timezone must be a valid{" "}
+                <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
+                  tz database name
+                </Link>
+              </>,
+            )}
+            disabled={form.isSubmitting || isLoading || !form.values.startTime}
+            InputLabelProps={{
+              shrink: true,
+            }}
+            label={Language.timezoneLabel}
             variant="standard"
           />
 

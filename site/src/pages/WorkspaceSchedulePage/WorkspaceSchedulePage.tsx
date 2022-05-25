@@ -22,7 +22,10 @@ export const formValuesToAutoStartRequest = (
 
   const [HH, mm] = values.startTime.split(":")
 
-  const makeCronString = (dow: string) => `${mm} ${HH} * * ${dow}`
+  // Note: Space after CRON_TZ if timezone is defined
+  const preparedTZ = values.timezone ? `CRON_TZ=${values.timezone} ` : ""
+
+  const makeCronString = (dow: string) => `${preparedTZ}${mm} ${HH} * * ${dow}`
 
   const days = [
     values.sunday,
