@@ -84,8 +84,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Should we allow reading the params of the resource if they can read the
-	// resource? Will this leak secrets?
+
 	if !api.Authorize(rw, r, rbac.ActionRead, obj) {
 		return
 	}

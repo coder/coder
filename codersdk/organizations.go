@@ -92,7 +92,7 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 // ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/provisionerdaemons"),
+		"/api/v2/provisionerdaemons",
 		nil,
 	)
 	if err != nil {
