@@ -146,7 +146,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
       startTime: "09:30",
       timezone: "",
-      ttl: 120,
+      ttl: 5,
     },
     onSubmit,
     validationSchema,
@@ -224,7 +224,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
           <TextField
             {...formHelpers("ttl", Language.ttlHelperText)}
             disabled={form.isSubmitting || isLoading}
-            inputProps={{ min: 0, step: 30 }}
+            inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
             variant="standard"
