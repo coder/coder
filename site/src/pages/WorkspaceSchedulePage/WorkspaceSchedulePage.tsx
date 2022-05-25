@@ -78,15 +78,12 @@ export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): Typ
   }
 }
 
-// TODO(Grey): React testing library for this
 export const WorkspaceSchedulePage: React.FC = () => {
   const navigate = useNavigate()
   const { workspace: workspaceQueryParam } = useParams()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
-
-  // TODO(Grey): Consume the formSubmissionErrors in WorkspaceScheduleForm
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
-  const { getWorkspaceError, workspace } = scheduleState.context
+  const { formErrors, getWorkspaceError, workspace } = scheduleState.context
 
   // Get workspace on mount and whenever workspaceId changes.
   // scheduleSend should not change.
@@ -104,6 +101,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   } else {
     return (
       <WorkspaceScheduleForm
+        fieldErrors={formErrors}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/workspaces/${workspaceId}`)

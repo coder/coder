@@ -9,6 +9,7 @@ import TextField from "@material-ui/core/TextField"
 import { useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
+import { FieldErrors } from "../../api/errors"
 import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -32,6 +33,7 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleFormProps {
+  fieldErrors?: FieldErrors
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -92,7 +94,12 @@ export const validationSchema = Yup.object({
   ttl: Yup.number().min(0).integer(),
 })
 
-export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ isLoading, onCancel, onSubmit }) => {
+export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
+  fieldErrors,
+  isLoading,
+  onCancel,
+  onSubmit,
+}) => {
   const styles = useStyles()
 
   const form = useFormik<WorkspaceScheduleFormValues>({
@@ -111,7 +118,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ is
     onSubmit,
     validationSchema,
   })
-  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form)
+  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, fieldErrors)
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
