@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,17 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		IncludeProvisionerD: true,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
-	organization, err := client.Organization(context.Background(), admin.OrganizationID)
+	require.Eventually(t, func() bool {
+		provisionerds, err := client.ProvisionerDaemons(ctx)
+		require.NoError(t, err)
+		return len(provisionerds) > 0
+	}, time.Second*10, time.Second)
+
+	provisionerds, err := client.ProvisionerDaemons(ctx)
+	require.NoError(t, err, "fetch provisioners")
+	require.Len(t, provisionerds, 1)
+
+	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
 	// Setup some data in the database.
@@ -118,7 +129,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
@@ -250,6 +260,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/templateversions/{templateversion}/schema": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/provisionerdaemons": {
+			StatusCode:   http.StatusOK,
+			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
 		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required

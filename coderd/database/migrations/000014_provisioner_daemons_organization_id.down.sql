@@ -1,0 +1,1 @@
+ALTER TABLE provisioner_daemons ADD COLUMN organization_id uuid;

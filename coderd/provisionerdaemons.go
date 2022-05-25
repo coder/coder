@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/tabbed/pqtype"
@@ -30,7 +32,7 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
-func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -44,6 +46,8 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
+	daemons = AuthorizeFilter(api, r, rbac.ActionRead, daemons)
+
 	httpapi.Write(rw, http.StatusOK, daemons)
 }
 

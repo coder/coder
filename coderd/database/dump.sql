@@ -194,7 +194,6 @@ CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
-    organization_id uuid,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL
 );

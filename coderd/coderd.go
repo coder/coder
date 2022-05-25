@@ -142,6 +142,13 @@ func newRouter(options *Options, a *api) chi.Router {
 			r.Get("/{hash}", a.fileByHash)
 			r.Post("/", a.postFile)
 		})
+		r.Route("/provisionerdaemons", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				authRolesMiddleware,
+			)
+			r.Get("/", a.provisionerDaemons)
+		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -149,7 +156,6 @@ func newRouter(options *Options, a *api) chi.Router {
 				authRolesMiddleware,
 			)
 			r.Get("/", a.organization)
-			r.Get("/provisionerdaemons", a.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", a.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
 				r.Post("/", a.postTemplateByOrganization)
