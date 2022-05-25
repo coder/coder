@@ -2750,7 +2750,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, name, icon, command, target FROM workspace_apps WHERE agent_id = $1
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -2769,7 +2769,8 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Name,
 			&i.Icon,
 			&i.Command,
-			&i.Target,
+			&i.Url,
+			&i.RelativePath,
 		); err != nil {
 			return nil, err
 		}
@@ -2785,7 +2786,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, name, icon, command, target FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ])
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -2804,7 +2805,8 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Name,
 			&i.Icon,
 			&i.Command,
-			&i.Target,
+			&i.Url,
+			&i.RelativePath,
 		); err != nil {
 			return nil, err
 		}
@@ -2828,20 +2830,22 @@ INSERT INTO
         name,
         icon,
         command,
-        target
+        url,
+        relative_path
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, agent_id, name, icon, command, target
+    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path
 `
 
 type InsertWorkspaceAppParams struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	CreatedAt time.Time      `db:"created_at" json:"created_at"`
-	AgentID   uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name      string         `db:"name" json:"name"`
-	Icon      string         `db:"icon" json:"icon"`
-	Command   sql.NullString `db:"command" json:"command"`
-	Target    sql.NullString `db:"target" json:"target"`
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name         string         `db:"name" json:"name"`
+	Icon         string         `db:"icon" json:"icon"`
+	Command      sql.NullString `db:"command" json:"command"`
+	Url          sql.NullString `db:"url" json:"url"`
+	RelativePath bool           `db:"relative_path" json:"relative_path"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -2852,7 +2856,8 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Name,
 		arg.Icon,
 		arg.Command,
-		arg.Target,
+		arg.Url,
+		arg.RelativePath,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -2862,7 +2867,8 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.Name,
 		&i.Icon,
 		&i.Command,
-		&i.Target,
+		&i.Url,
+		&i.RelativePath,
 	)
 	return i, err
 }

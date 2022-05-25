@@ -523,11 +523,12 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 		}
 
 		type appAttributes struct {
-			AgentID string `mapstructure:"agent_id"`
-			Name    string `mapstructure:"name"`
-			Icon    string `mapstructure:"icon"`
-			Target  string `mapstructure:"target"`
-			Command string `mapstructure:"command"`
+			AgentID      string `mapstructure:"agent_id"`
+			Name         string `mapstructure:"name"`
+			Icon         string `mapstructure:"icon"`
+			URL          string `mapstructure:"url"`
+			Command      string `mapstructure:"command"`
+			RelativePath bool   `mapstructure:"relative_path"`
 		}
 		// Associate Apps with agents.
 		for _, resource := range state.Values.RootModule.Resources {
@@ -548,10 +549,11 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:    attrs.Name,
-					Command: attrs.Command,
-					Target:  attrs.Target,
-					Icon:    attrs.Icon,
+					Name:         attrs.Name,
+					Command:      attrs.Command,
+					Url:          attrs.URL,
+					Icon:         attrs.Icon,
+					RelativePath: attrs.RelativePath,
 				})
 			}
 		}

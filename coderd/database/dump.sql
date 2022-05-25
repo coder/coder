@@ -288,7 +288,8 @@ CREATE TABLE workspace_apps (
     name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
     command character varying(65534),
-    target character varying(65534)
+    url character varying(65534),
+    relative_path boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_builds (

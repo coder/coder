@@ -52,7 +52,7 @@ func TestWorkspaceResource(t *testing.T) {
 		app := &proto.App{
 			Name:    "code-server",
 			Command: "some-command",
-			Target:  "http://localhost:3000",
+			Url:     "http://localhost:3000",
 			Icon:    "/code.svg",
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -88,6 +88,6 @@ func TestWorkspaceResource(t *testing.T) {
 		require.Equal(t, app.Command, got.Command)
 		require.Equal(t, app.Icon, got.Icon)
 		require.Equal(t, app.Name, got.Name)
-		require.Equal(t, app.Target, got.Target)
+		require.Equal(t, app.Url, got.AccessURL)
 	})
 }

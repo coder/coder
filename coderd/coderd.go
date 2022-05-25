@@ -34,10 +34,11 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	AccessURL   *url.URL
+	WildcardURL *url.URL
+	Logger      slog.Logger
+	Database    database.Store
+	Pubsub      database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.

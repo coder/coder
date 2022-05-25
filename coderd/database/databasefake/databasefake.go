@@ -1533,13 +1533,14 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	defer q.mutex.Unlock()
 
 	workspaceApp := database.WorkspaceApp{
-		ID:        arg.ID,
-		AgentID:   arg.AgentID,
-		CreatedAt: arg.CreatedAt,
-		Name:      arg.Name,
-		Icon:      arg.Icon,
-		Command:   arg.Command,
-		Target:    arg.Target,
+		ID:           arg.ID,
+		AgentID:      arg.AgentID,
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Icon:         arg.Icon,
+		Command:      arg.Command,
+		Url:          arg.Url,
+		RelativePath: arg.RelativePath,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil

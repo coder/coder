@@ -91,8 +91,9 @@ message Agent {
 message App {
     string name = 1;
     string command = 2;
-    string target = 3;
+    string url = 3;
     string icon = 4;
+    bool relative_path = 5;
 }
 
 // Resource represents created infrastructure.
