@@ -129,6 +129,12 @@ var (
 							Action:       ActionRead,
 							ResourceID:   "*",
 						},
+						{
+							// Can read available roles.
+							ResourceType: ResourceOrgRoleAssignment.Type,
+							ResourceID:   "*",
+							Action:       ActionRead,
+						},
 					},
 				},
 			}

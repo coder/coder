@@ -29,7 +29,7 @@ func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceRoleAssignment.InOrg(organization.ID)) {
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		return
 	}
 

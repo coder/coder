@@ -45,12 +45,18 @@ var (
 	// ResourceRoleAssignment might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
 	// allows granting/deleting **ALL** roles.
+	// Never has an owner or org.
 	//	create  = Assign roles
 	//	update  = ??
 	//	read	= View available roles to assign
 	//	delete	= Remove role
 	ResourceRoleAssignment = Object{
 		Type: "assign_role",
+	}
+
+	// ResourceOrgRoleAssignment is just like ResourceRoleAssignment but for organization roles.
+	ResourceOrgRoleAssignment = Object{
+		Type: "assign_org_role",
 	}
 
 	// ResourceAPIKey is owned by a user.
