@@ -39,6 +39,16 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		assert.NoError(t, err)
 
+		c = exec.Command("git", "config", "user.email", "ci@coder.com")
+		c.Dir = testRepo
+		err = c.Run()
+		assert.NoError(t, err)
+
+		c = exec.Command("git", "config", "user.name", "C I")
+		c.Dir = testRepo
+		err = c.Run()
+		assert.NoError(t, err)
+
 		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
 		c.Dir = testRepo
 		out, err := c.CombinedOutput()
@@ -68,6 +78,16 @@ func TestDotfiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		c = exec.Command("git", "add", "install.sh")
+		c.Dir = testRepo
+		err = c.Run()
+		assert.NoError(t, err)
+
+		c = exec.Command("git", "config", "user.email", "ci@coder.com")
+		c.Dir = testRepo
+		err = c.Run()
+		assert.NoError(t, err)
+
+		c = exec.Command("git", "config", "user.name", "C I")
 		c.Dir = testRepo
 		err = c.Run()
 		assert.NoError(t, err)
