@@ -223,6 +223,11 @@ func SiteRoles() []Role {
 	return roles
 }
 
+// ChangeRoleSet is a helper function that finds the difference of 2 sets of
+// roles. When setting a user's new roles, it is equivalent to adding and
+// removing roles. This set determines the changes, so that the appropriate
+// RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
+// "added" and "removed" roles respectively.
 func ChangeRoleSet(from []string, to []string) (added []string, removed []string) {
 	has := make(map[string]struct{})
 	for _, exists := range from {
