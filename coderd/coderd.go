@@ -208,6 +208,7 @@ func newRouter(options *Options, a *api) chi.Router {
 			r.Get("/parameters", a.templateVersionParameters)
 			r.Get("/resources", a.templateVersionResources)
 			r.Get("/logs", a.templateVersionLogs)
+			r.Post("/plan", a.templateVersionPlan)
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", a.firstUser)

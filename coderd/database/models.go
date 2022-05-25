@@ -179,6 +179,7 @@ type ProvisionerJobType string
 const (
 	ProvisionerJobTypeTemplateVersionImport ProvisionerJobType = "template_version_import"
 	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
+	ProvisionerJobTypeTemplateVersionPlan   ProvisionerJobType = "template_version_plan"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {

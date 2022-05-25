@@ -2211,7 +2211,7 @@ WHERE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
-		)	
+		)
 		ELSE true
 	END
 	-- Filter by status

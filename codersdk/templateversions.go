@@ -114,3 +114,25 @@ func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUI
 func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), after)
 }
+
+// TemplateVersionPlanRequest defines the request parameters for
+// TemplateVersionPlan.
+type TemplateVersionPlanRequest struct {
+	ParameterValues []CreateParameterRequest
+}
+
+// TemplateVersionPlan begins a dry-run provisioner job against the given
+// template version with the given parameter values.
+func (c *Client) TemplateVersionPlan(ctx context.Context, version uuid.UUID, req TemplateVersionPlanRequest) (ProvisionerJob, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/templateversions/%s/plan", version), req)
+	if err != nil {
+		return ProvisionerJob{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ProvisionerJob{}, readBodyAsError(res)
+	}
+
+	var job ProvisionerJob
+	return job, json.NewDecoder(res.Body).Decode(&job)
+}

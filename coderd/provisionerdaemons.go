@@ -107,6 +107,12 @@ type workspaceProvisionJob struct {
 	DryRun           bool      `json:"dry_run"`
 }
 
+// The input for a "template_version_plan" job.
+type templateVersionPlanJob struct {
+	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
+	ParameterValues   []database.ParameterValue `json:"parameter_values"`
+}
+
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
 	AccessURL    *url.URL
@@ -216,18 +222,15 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
-			}
-			protoParameters = append(protoParameters, converted)
+
+		// Convert types to their corresponding protobuf types.
+		protoParameters, err := convertComputedParameterValues(parameters)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
 		}
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
-			return nil, failJob(fmt.Sprint("convert workspace transition: %w", err))
+			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
@@ -243,6 +246,45 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceOwner:      owner.Username,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),
+				},
+			},
+		}
+	case database.ProvisionerJobTypeTemplateVersionPlan:
+		var input templateVersionPlanJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
+		}
+
+		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, input.TemplateVersionID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get template version: %s", err))
+		}
+
+		// Compute parameters for the plan to consume.
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			TemplateImportJobID:       templateVersion.JobID,
+			OrganizationID:            job.OrganizationID,
+			TemplateID:                templateVersion.TemplateID,
+			UserID:                    user.ID,
+			WorkspaceID:               uuid.NullUUID{},
+			AdditionalParameterValues: input.ParameterValues,
+		}, nil)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
+		}
+
+		// Convert types to their corresponding protobuf types.
+		protoParameters, err := convertComputedParameterValues(parameters)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
+		}
+
+		protoJob.Type = &proto.AcquiredJob_TemplatePlan_{
+			TemplatePlan: &proto.AcquiredJob_TemplatePlan{
+				ParameterValues: protoParameters,
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl: server.AccessURL.String(),
 				},
 			},
 		}
@@ -714,6 +756,19 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	default:
 		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
 	}
+}
+
+func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
+	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
+	for i, computedParameter := range parameters {
+		converted, err := convertComputedParameterValue(computedParameter)
+		if err != nil {
+			return nil, xerrors.Errorf("convert parameter: %w", err)
+		}
+		protoParameters[i] = converted
+	}
+
+	return protoParameters, nil
 }
 
 func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {

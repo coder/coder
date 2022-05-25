@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -144,6 +145,80 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, values)
+}
+
+func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	var req codersdk.TemplateVersionPlanRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Template version import job hasn't completed!",
+		})
+		return
+	}
+
+	// Convert parameters from request to parameters for the job
+	parameterValues := make([]database.ParameterValue, len(req.ParameterValues))
+	for i, v := range req.ParameterValues {
+		parameterValues[i] = database.ParameterValue{
+			ID:                uuid.Nil,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           uuid.Nil,
+			Name:              v.Name,
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       v.SourceValue,
+			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		}
+	}
+
+	// Marshal template version plan job with the parameters from the request.
+	input, err := json.Marshal(templateVersionPlanJob{
+		TemplateVersionID: templateVersion.ID,
+		ParameterValues:   parameterValues,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("marshal new provisioner job: %s", err),
+		})
+		return
+	}
+
+	// Create a plan job
+	jobID := uuid.New()
+	provisionerJob, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		ID:             jobID,
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		OrganizationID: organization.ID,
+		InitiatorID:    apiKey.UserID,
+		Provisioner:    job.Provisioner,
+		StorageMethod:  job.StorageMethod,
+		StorageSource:  job.StorageSource,
+		Type:           database.ProvisionerJobTypeTemplateVersionPlan,
+		Input:          input,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert provisioner job: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
 }
 
 func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {

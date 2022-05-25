@@ -13,11 +13,12 @@ import (
 
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
-	TemplateImportJobID uuid.UUID
-	OrganizationID      uuid.UUID
-	UserID              uuid.UUID
-	TemplateID          uuid.NullUUID
-	WorkspaceID         uuid.NullUUID
+	TemplateImportJobID       uuid.UUID
+	OrganizationID            uuid.UUID
+	UserID                    uuid.UUID
+	TemplateID                uuid.NullUUID
+	WorkspaceID               uuid.NullUUID
+	AdditionalParameterValues []database.ParameterValue
 }
 
 type ComputeOptions struct {
@@ -139,6 +140,14 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		})
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// Finally, any additional parameter values declared in the input
+	for _, v := range scope.AdditionalParameterValues {
+		err = compute.injectSingle(v, false)
+		if err != nil {
+			return nil, xerrors.Errorf("inject single parameter value: %w", err)
 		}
 	}
 

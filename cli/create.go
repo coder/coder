@@ -184,6 +184,32 @@ func create() *cobra.Command {
 				return err
 			}
 
+			// Run a plan with the given parameters to check correctness
+			planJob, err := client.TemplateVersionPlan(cmd.Context(), templateVersion.ID, codersdk.TemplateVersionPlanRequest{
+				ParameterValues: parameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("plan workspace: %w", err)
+			}
+			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					return planJob, nil
+				},
+				Cancel: func() error {
+					// TODO: workspace plan cancellation endpoint
+					return nil
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					// TODO: workspace plan log endpoint
+					return make(chan codersdk.ProvisionerJobLog), nil
+				},
+			})
+			if err != nil {
+				// TODO: reprompt for parameter values if we deem it to be a
+				// validation error
+				return xerrors.Errorf("error occurred during workspace plan: %w", err)
+			}
+
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm create?",
 				IsConfirm: true,
