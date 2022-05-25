@@ -77,7 +77,7 @@ export const formValuesToAutoStartRequest = (
 export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
-    ttl: values.ttl ? values.ttl * 60 * 1000 * 1_000_000 : undefined,
+    ttl: values.ttl ? values.ttl * 60 * 60 * 1000 * 1_000_000 : undefined,
   }
 }
 

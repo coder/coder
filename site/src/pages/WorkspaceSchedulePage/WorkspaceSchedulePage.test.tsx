@@ -129,7 +129,7 @@ describe("WorkspaceSchedulePage", () => {
         // 2 Hours = 7.2e+12 case
         {
           ...validValues,
-          ttl: 120,
+          ttl: 2,
         },
         {
           ttl: 7_200_000_000_000,
@@ -139,7 +139,7 @@ describe("WorkspaceSchedulePage", () => {
         // 8 hours = 2.88e+13 case
         {
           ...validValues,
-          ttl: 60 * 8,
+          ttl: 8,
         },
         {
           ttl: 28_800_000_000_000,
