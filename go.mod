@@ -65,7 +65,7 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.98.0
+	github.com/gohugoio/hugo v0.99.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
@@ -138,6 +138,8 @@ require (
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bep/godartsass v0.14.0 // indirect
+	github.com/bep/golibsass v1.1.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/bubbles v0.10.3 // indirect
@@ -226,9 +228,10 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
-	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
+	github.com/tdewolff/parse/v2 v2.5.29 // indirect
 	github.com/templexxx/cpufeat v0.0.0-20180724012125-cef66df7f161 // indirect
 	github.com/templexxx/xor v0.0.0-20191217153810-f85b25db303b // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
