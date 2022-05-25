@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
+	"io"
 	"io/fs"
 	"path"
 	"sync"
@@ -154,14 +155,9 @@ func Archive(exampleID string) ([]byte, error) {
 			} else {
 				header.Name = path
 
-				data := make([]byte, info.Size())
 				file, err := exampleFiles.Open(path)
 				if err != nil {
 					return xerrors.Errorf("open file %s: %w", path, err)
-				}
-				_, err = file.Read(data)
-				if err != nil {
-					return xerrors.Errorf("read data: %w", err)
 				}
 
 				err = tarWriter.WriteHeader(header)
@@ -169,7 +165,7 @@ func Archive(exampleID string) ([]byte, error) {
 					return xerrors.Errorf("write file: %w", err)
 				}
 
-				_, err = tarWriter.Write(data)
+				_, err = io.Copy(tarWriter, file)
 				if err != nil {
 					return xerrors.Errorf("write: %w", err)
 				}
