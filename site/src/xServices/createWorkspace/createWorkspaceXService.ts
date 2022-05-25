@@ -45,6 +45,12 @@ export const createWorkspaceMachine = createMachine(
       },
     },
     tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
+    on: {
+      SELECT_TEMPLATE: {
+        actions: ["assignSelectedTemplate"],
+        target: "gettingTemplateSchema",
+      },
+    },
     states: {
       gettingTemplates: {
         invoke: {
