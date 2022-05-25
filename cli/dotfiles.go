@@ -216,7 +216,7 @@ func dotfiles() *cobra.Command {
 			// it is safe to use a variable command here because it's from
 			// a filtered list of pre-approved install scripts
 			// nolint:gosec
-			scriptCmd := exec.CommandContext(cmd.Context(), fmt.Sprintf("./%s", script))
+			scriptCmd := exec.CommandContext(cmd.Context(), "sh", script)
 			scriptCmd.Dir = dotfilesDir
 			scriptCmd.Stdout = cmd.OutOrStdout()
 			scriptCmd.Stderr = cmd.ErrOrStderr()
