@@ -73,6 +73,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
+		negotiated:                      make(chan struct{}),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
 		settingEngine:                   opts.SettingEngine,
 	}
@@ -124,8 +125,7 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	negotiateMutex sync.Mutex
-	hasNegotiated  bool
+	negotiated chan struct{}
 
 	loggerValue   atomic.Value
 	settingEngine webrtc.SettingEngine
@@ -152,9 +152,6 @@ func (c *Conn) logger() slog.Logger {
 }
 
 func (c *Conn) init() error {
-	// The negotiation needed callback can take a little bit to execute!
-	c.negotiateMutex.Lock()
-
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
 		c.closedICEMutex.Lock()
@@ -290,11 +287,13 @@ func (c *Conn) negotiate() {
 	c.logger().Debug(context.Background(), "negotiating")
 	// ICE candidates cannot be added until SessionDescriptions have been
 	// exchanged between peers.
-	if c.hasNegotiated {
-		c.negotiateMutex.Lock()
-	}
-	c.hasNegotiated = true
-	defer c.negotiateMutex.Unlock()
+	defer func() {
+		select {
+		case <-c.negotiated:
+		default:
+			close(c.negotiated)
+		}
+	}()
 
 	if c.offerer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -368,8 +367,10 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
 	// This must occur in a goroutine to allow the SessionDescriptions
 	// to be exchanged first.
 	go func() {
-		c.negotiateMutex.Lock()
-		defer c.negotiateMutex.Unlock()
+		select {
+		case <-c.closed:
+		case <-c.negotiated:
+		}
 		if c.isClosed() {
 			return
 		}
@@ -604,6 +605,15 @@ func (c *Conn) CloseWithError(err error) error {
 	// Waits for all DataChannels to exit before officially labeling as closed.
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
+
+	// It's possible the connection can be closed before negotiation has
+	// began. In this case, we want to unlock the mutex to unblock any
+	// pending candidates being flushed.
+	select {
+	case <-c.negotiated:
+	default:
+		close(c.negotiated)
+	}
 
 	// Disable logging!
 	c.loggerValue.Store(slog.Logger{})
