@@ -14,8 +14,6 @@ describe("AdminDropdown", () => {
     it("opens the menu", async () => {
       await renderAndClick()
       expect(screen.getByText(Language.usersLabel)).toBeDefined()
-      expect(screen.getByText(Language.orgsLabel)).toBeDefined()
-      expect(screen.getByText(Language.settingsLabel)).toBeDefined()
     })
   })
 
@@ -26,23 +24,5 @@ describe("AdminDropdown", () => {
     usersLink?.click()
 
     expect(history.location.pathname).toEqual("/users")
-  })
-
-  it("links to the orgs page", async () => {
-    await renderAndClick()
-
-    const usersLink = screen.getByText(Language.orgsLabel).closest("a")
-    usersLink?.click()
-
-    expect(history.location.pathname).toEqual("/orgs")
-  })
-
-  it("links to the settings page", async () => {
-    await renderAndClick()
-
-    const usersLink = screen.getByText(Language.settingsLabel).closest("a")
-    usersLink?.click()
-
-    expect(history.location.pathname).toEqual("/settings")
   })
 })
