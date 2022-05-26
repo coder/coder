@@ -209,6 +209,55 @@ func TestExecutorAutostopOK(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
+func TestExecutorAutostopExtend(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+		})
+		// Given: we have a user with a workspace
+		workspace        = mustProvisionWorkspace(t, client)
+		originalDeadline = workspace.LatestBuild.Deadline
+	)
+	// Given: workspace is running
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, originalDeadline)
+
+	// Given: we extend the workspace deadline
+	err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: originalDeadline.Add(30 * time.Minute),
+	})
+	require.NoError(t, err, "extend workspace deadline")
+
+	// When: the autobuild executor ticks *after* the original deadline:
+	go func() {
+		tickCh <- originalDeadline.Add(time.Minute)
+	}()
+
+	// Then: nothing should happen
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+
+	// When: the autobuild executor ticks after the *new* deadline:
+	go func() {
+		tickCh <- ws.LatestBuild.Deadline.Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be stopped
+	<-time.After(5 * time.Second)
+	ws = mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+}
+
 func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	t.Parallel()
 
