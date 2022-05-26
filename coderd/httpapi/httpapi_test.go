@@ -76,7 +76,7 @@ func TestRead(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, v.Errors, 1)
 		require.Equal(t, "value", v.Errors[0].Field)
-		require.Equal(t, "Validation failed for tag \"required\" with value: ", v.Errors[0].Detail)
+		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Errors[0].Detail)
 	})
 }
 
