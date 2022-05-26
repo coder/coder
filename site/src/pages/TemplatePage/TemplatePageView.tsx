@@ -16,6 +16,9 @@ import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   createButton: "Create workspace",
+  noDescription: "No description",
+  readmeTitle: "README",
+  resourcesTitle: "Resources",
 }
 
 export interface TemplatePageViewProps {
@@ -44,7 +47,7 @@ export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
           </Typography>
 
           <Typography color="textSecondary" className={styles.subtitle}>
-            {template.description === "" ? "No description" : template.description}
+            {template.description === "" ? Language.noDescription : template.description}
           </Typography>
         </div>
 
@@ -57,10 +60,10 @@ export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
 
       <Stack spacing={3}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-        <WorkspaceSection title="Resources" contentsProps={{ className: styles.resourcesTableContents }}>
+        <WorkspaceSection title={Language.resourcesTitle} contentsProps={{ className: styles.resourcesTableContents }}>
           <TemplateResourcesTable resources={getStartedResources(templateResources)} />
         </WorkspaceSection>
-        <WorkspaceSection title="README" contentsProps={{ className: styles.readmeContents }}>
+        <WorkspaceSection title={Language.readmeTitle} contentsProps={{ className: styles.readmeContents }}>
           <div className={styles.markdownWrapper}>
             <ReactMarkdown
               components={{
