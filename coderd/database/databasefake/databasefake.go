@@ -1485,6 +1485,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
+		Deadline:          arg.Deadline,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
@@ -1693,6 +1694,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
+		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}

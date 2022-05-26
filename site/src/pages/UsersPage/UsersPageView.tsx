@@ -17,6 +17,7 @@ export interface UsersPageViewProps {
   error?: unknown
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
+  canCreateUser?: boolean
   isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
@@ -34,11 +35,13 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   error,
   isUpdatingUserRoles,
   canEditUsers,
+  canCreateUser,
   isLoading,
 }) => {
+  const newUserAction = canCreateUser ? { text: Language.newUserButton, onClick: openUserCreationDialog } : undefined
   return (
     <Stack spacing={4}>
-      <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
+      <Header title={Language.pageTitle} action={newUserAction} />
       <Margins>
         {error ? (
           <ErrorSummary error={error} />
