@@ -1,5 +1,5 @@
 import { FormikContextType, FormikErrors, getIn } from "formik"
-import React, { ChangeEvent, ChangeEventHandler, FocusEventHandler } from "react"
+import { ChangeEvent, ChangeEventHandler, FocusEventHandler, ReactNode } from "react"
 
 interface FormHelpers {
   name: string
@@ -8,12 +8,12 @@ interface FormHelpers {
   id: string
   value?: string | number
   error: boolean
-  helperText?: React.ReactNode
+  helperText?: ReactNode
 }
 
 export const getFormHelpers =
   <T,>(form: FormikContextType<T>, formErrors?: FormikErrors<T>) =>
-  (name: keyof T, HelperText: React.ReactNode = ""): FormHelpers => {
+  (name: keyof T, HelperText: ReactNode = ""): FormHelpers => {
     if (typeof name !== "string") {
       throw new Error(`name must be type of string, instead received '${typeof name}'`)
     }
