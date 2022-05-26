@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
@@ -55,7 +55,7 @@ func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertOrganizationMember(updatedUser))
 }
 
-func (api *api) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	// Enforce only site wide roles
 	for _, r := range args.GrantedRoles {
 		// Must be an org role for the org in the args

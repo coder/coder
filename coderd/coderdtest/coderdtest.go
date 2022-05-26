@@ -69,16 +69,14 @@ type Options struct {
 	IncludeProvisionerD bool
 }
 
-// New constructs an in-memory coderd instance and returns
-// the connected client.
+// New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	_, cli, _ := NewWithServer(t, options)
-	return cli
+	client, _ := NewWithAPI(t, options)
+	return client
 }
 
-// NewWithServer returns an in-memory coderd instance and
-// the HTTP server it started with.
-func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client, coderd.CoderD) {
+// NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
+func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -144,7 +142,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 	require.NoError(t, err)
 
 	// We set the handler after server creation for the access URL.
-	coderDaemon := coderd.New(&coderd.Options{
+	coderAPI := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -160,24 +158,24 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 	})
-	srv.Config.Handler = coderDaemon.Handler()
+	srv.Config.Handler = coderAPI.Handler
 	if options.IncludeProvisionerD {
-		_ = NewProvisionerDaemon(t, coderDaemon)
+		_ = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		coderDaemon.CloseWait()
+		coderAPI.Close()
 	})
 
-	return srv, codersdk.New(serverURL), coderDaemon
+	return codersdk.New(serverURL), coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
+func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	echoClient, echoServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -192,7 +190,7 @@ func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(coderDaemon.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,

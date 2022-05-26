@@ -18,7 +18,7 @@ import (
 )
 
 // Returns a single template.
-func (api *api) template(rw http.ResponseWriter, r *http.Request) {
+func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
@@ -44,7 +44,7 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
-func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(rw, r, rbac.ActionDelete, template) {
 		return
@@ -84,7 +84,7 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Create a new template in an organization.
-func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
 	organization := httpmw.OrganizationParam(r)
 	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
@@ -193,7 +193,7 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(rw, http.StatusCreated, template)
 }
 
-func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
 		OrganizationID: organization.ID,
@@ -230,7 +230,7 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
 }
 
-func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	templateName := chi.URLParam(r, "templatename")
 	template, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{

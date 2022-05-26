@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
 		return
@@ -36,7 +36,7 @@ func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
-func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, templateVersion) {
 		return
@@ -79,7 +79,7 @@ func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
 		return
@@ -122,7 +122,7 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiSchemas)
 }
 
-func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
@@ -163,7 +163,7 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusOK, values)
 }
 
-func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, template) {
 		return
@@ -221,7 +221,7 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(rw, http.StatusOK, apiVersion)
 }
 
-func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, template) {
 		return
@@ -258,7 +258,7 @@ func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
-func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, template) {
 		return
@@ -303,7 +303,7 @@ func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 }
 
 // Creates a new version of a template. An import job is queued to parse the storage method provided.
-func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 	var req codersdk.CreateTemplateVersionRequest
@@ -415,7 +415,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 // provisioned, each resource can have an agent that dials back to coderd.
 // The agents returned are informative of the template version, and do not
 // return agents associated with any particular workspace.
-func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
 		return
@@ -435,7 +435,7 @@ func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // template version. These logs are only associated with the template version,
 // and not any build logs for a workspace.
 // Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
-func (api *api) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
 		return

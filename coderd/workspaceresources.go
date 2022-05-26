@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspaceResource := httpmw.WorkspaceResourceParam(r)
 	workspace := httpmw.WorkspaceParam(r)
