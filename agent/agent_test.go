@@ -78,6 +78,7 @@ func TestAgent(t *testing.T) {
 		output, err := session.Output(command)
 		require.NoError(t, err)
 		ex, err := os.Executable()
+		t.Log(ex)
 		require.NoError(t, err)
 		require.True(t, strings.Contains(strings.TrimSpace(string(output)), ex), string(output), ex)
 	})
