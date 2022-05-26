@@ -363,6 +363,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// If using backslashes, it's unable to find the executable.
 	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`PATH=%s:%s`, os.Getenv("PATH"), executablePath))
 	// These prevent the user from having to specify _anything_ to successfully commit.
 	// Both author and committer must be set!
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
