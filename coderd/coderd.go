@@ -145,6 +145,7 @@ func New(options *Options) *API {
 				authRolesMiddleware,
 			)
 			r.Get("/", api.organization)
+			r.Post("/", api.postOrganizations)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
 				r.Post("/", api.postTemplateByOrganization)
@@ -250,7 +251,6 @@ func New(options *Options) *API {
 
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
-						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})

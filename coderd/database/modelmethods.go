@@ -26,3 +26,7 @@ func (o Organization) RBACObject() rbac.Object {
 func (d ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.WithID(d.ID.String())
 }
+
+func (f File) RBACObject() rbac.Object {
+	return rbac.ResourceFile.WithID(f.Hash).WithOwner(f.CreatedBy.String())
+}

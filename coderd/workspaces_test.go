@@ -81,7 +81,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
 
-	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 		Name: "default-test",
 	})
 	require.NoError(t, err, "create other org")
@@ -120,7 +120,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
-		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
