@@ -670,7 +670,13 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Clear the user's session cookie
-func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
+func (api *api) postLogout(rw http.ResponseWriter, r *http.Request) {
+	// Delete the session token from database
+	ok := api.deleteAPIKey(rw, r)
+	if !ok {
+		return
+	}
+
 	// Get a blank token cookie
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
@@ -741,6 +747,18 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		Secure:   api.SecureAuthCookie,
 	})
 	return sessionToken, true
+}
+
+func (api *api) deleteAPIKey(rw http.ResponseWriter, r *http.Request) bool {
+	apiKey := httpmw.APIKey(r)
+	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("delete api key: %s", err.Error()),
+		})
+		return false
+	}
+	return true
 }
 
 func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {

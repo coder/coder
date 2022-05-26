@@ -15,6 +15,19 @@ import (
 	"github.com/tabbed/pqtype"
 )
 
+const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
+DELETE
+FROM
+	api_keys
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteAPIKeyByID, id)
+	return err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
 	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry

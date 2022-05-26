@@ -38,3 +38,10 @@ SET
 	oauth_expiry = $6
 WHERE
 	id = $1;
+
+-- name: DeleteAPIKeyByID :exec
+DELETE
+FROM
+	api_keys
+WHERE
+	id = $1;

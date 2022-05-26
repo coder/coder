@@ -15,11 +15,16 @@ func logout() *cobra.Command {
 		Use:   "logout",
 		Short: "Remove the local authenticated session",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := createClient(cmd)
+			if err != nil {
+				return err
+			}
+
 			var isLoggedOut bool
 
 			config := createConfig(cmd)
 
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Are you sure you want to logout?",
 				IsConfirm: true,
 				Default:   "yes",
@@ -52,6 +57,11 @@ func logout() *cobra.Command {
 			// If the organization configuration file is absent, we still proceed
 			if err != nil && !os.IsNotExist(err) {
 				return xerrors.Errorf("remove organization file: %w", err)
+			}
+
+			err = client.Logout(cmd.Context())
+			if err != nil {
+				return xerrors.Errorf("logout: %w", err)
 			}
 
 			// If the user was already logged out, we show them a different message
