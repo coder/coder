@@ -14,8 +14,8 @@ import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 export interface WorkspaceProps {
   handleStart: () => void
   handleStop: () => void
-  handleRetry: () => void
   handleUpdate: () => void
+  handleCancel: () => void
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
@@ -28,8 +28,8 @@ export interface WorkspaceProps {
 export const Workspace: React.FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
-  handleRetry,
   handleUpdate,
+  handleCancel,
   workspace,
   resources,
   getResourcesError,
@@ -55,8 +55,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
-            handleRetry={handleRetry}
             handleUpdate={handleUpdate}
+            handleCancel={handleCancel}
           />
         </div>
       </div>

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -15,10 +13,11 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
@@ -35,7 +34,6 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createRequest) {
 		return
 	}
-
 	_, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
 		Scope:   scope,
 		ScopeID: scopeID,
@@ -75,7 +73,7 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
-func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
@@ -110,7 +108,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiParameterValues)
 }
 
-func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
@@ -203,7 +201,7 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 // is equivalent to updating/reading the associated resource.
 // This means "parameters" are not a new resource, but an extension of existing
 // ones.
-func (api *api) parameterRBACResource(rw http.ResponseWriter, r *http.Request, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, bool) {
+func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, bool) {
 	ctx := r.Context()
 	var resource rbac.Objecter
 	var err error
