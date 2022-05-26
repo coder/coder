@@ -521,7 +521,7 @@ func server() *cobra.Command {
 
 // createFirstUser creates the first user and sets a valid session.
 // Caller must call cleanup on server exit.
-func createFirstUser(log slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
+func createFirstUser(logger slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
 	if email == "" {
 		return nil, xerrors.New("email is empty")
 	}
@@ -546,7 +546,7 @@ func createFirstUser(log slog.Logger, cmd *cobra.Command, client *codersdk.Clien
 	}
 	client.SessionToken = token.SessionToken
 
-	oldUrl, err := cfg.URL().Read()
+	oldURL, err := cfg.URL().Read()
 	if err != nil {
 		return nil, xerrors.Errorf("write local url: %w", err)
 	}
@@ -557,31 +557,31 @@ func createFirstUser(log slog.Logger, cmd *cobra.Command, client *codersdk.Clien
 
 	// recover session data when server exits
 	cleanup := func() {
-		currentUrl, err := cfg.URL().Read()
+		currentURL, err := cfg.URL().Read()
 		if err != nil {
-			log.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
+			logger.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
 			return
 		}
 		currentSession, err := cfg.Session().Read()
 		if err != nil {
-			log.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
+			logger.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
 			return
 		}
 
 		// if it's changed since we wrote to it don't restore session
-		if currentUrl != client.URL.String() ||
+		if currentURL != client.URL.String() ||
 			currentSession != token.SessionToken {
 			return
 		}
 
-		err = cfg.URL().Write(oldUrl)
+		err = cfg.URL().Write(oldURL)
 		if err != nil {
-			log.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
+			logger.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
 			return
 		}
 		err = cfg.Session().Write(oldSession)
 		if err != nil {
-			log.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
+			logger.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
 			return
 		}
 	}
