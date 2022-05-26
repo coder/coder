@@ -446,7 +446,7 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 
 // UpdateUserOwnPassword updates a user's own password.
 func (c *Client) UpdateUserOwnPassword(ctx context.Context, req UpdateUserOwnPasswordRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/me/ownpassword"), req)
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/users/me/ownpassword", req)
 	if err != nil {
 		return err
 	}
