@@ -50,9 +50,18 @@ func (e *Executor) Run() {
 func (e *Executor) runOnce(t time.Time) error {
 	currentTick := t.Truncate(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
-		// XXX: if a workspace build is created when ttl != null and then ttl is unset,
-		//      autostop will still happen for this workspace build. Whether this is
-		//      expected behavior from a user's perspective is not yet known.
+		// TTL is set at the workspace level, and deadline at the workspace build level.
+		// When a workspace build is created, its deadline initially starts at zero.
+		// When provisionerd successfully completes a provision job, the deadline is
+		// set to now + TTL if the associated workspace has a TTL set. This deadline
+		// is what we compare against when performing autostop operations, rounded down
+		// to the minute.
+		//
+		// NOTE: Currently, if a workspace build is created with a given TTL and then
+		//       the user either changes or unsets the TTL, the deadline for the workspace
+		//       build will not have changed. So, autostop will still happen at the
+		//       original TTL value from when the workspace build was created.
+		//       Whether this is expected behavior from a user's perspective is not yet known.
 		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)
