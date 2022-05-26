@@ -112,7 +112,7 @@ func TestListRoles(t *testing.T) {
 	})
 	require.NoError(t, err, "create org")
 
-	const notMember = "not a member of the organization"
+	const forbidden = "forbidden"
 
 	testCases := []struct {
 		Name            string
@@ -141,7 +141,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			AuthorizedError: notMember,
+			AuthorizedError: forbidden,
 		},
 		// Org admin
 		{
@@ -163,7 +163,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			AuthorizedError: notMember,
+			AuthorizedError: forbidden,
 		},
 		// Admin
 		{

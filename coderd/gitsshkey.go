@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
@@ -57,7 +57,7 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
@@ -81,7 +81,7 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	agent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {

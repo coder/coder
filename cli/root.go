@@ -70,6 +70,7 @@ func Root() *cobra.Command {
 		configSSH(),
 		create(),
 		delete(),
+		dotfiles(),
 		gitssh(),
 		list(),
 		login(),

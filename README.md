@@ -8,22 +8,48 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Team-wide CLI for spawning up dev servers on demand, powered by Terraform.
+Coder turns your cloud into a fleet of remote development servers.
 
-![Kubernetes workspace in Coder v2](./docs/screenshot.png)
+<p align="center">
+  <img src="./docs/images/hero-image.png">
+</p>
 
-## Highlights
+**Code more**
 
-Workspaces:
-- Code on powerful servers: leverage cloud GPU, GPU, and network speeds
-- Use the `coder` CLI: connect via SSH, VS Code, and JetBrains
-- Self-serve workspaces: start from team-wide templates (see below)
+- Build and test faster
+  - Leveraging cloud CPUs, RAM, network speeds, etc.
+- Access your environment from any place on any client (even an iPad)
+- Onboard instantly then stay up to date continuously
 
-Templates:
-- Manage the infrastructure behind workspaces with standard Terraform (`.hcl` files)
-- Use any OS and architecture: Mac, Windows, Linux, VM, Kubernetes, ARM, etc
-- Auto-shutdown or update workspaces when they're not in use!
+**Manage less**
 
+- Ensure your entire team is using the same tools and resources
+  - Rollout critical updates to your developers with one command
+- Automatically shut down expensive cloud resources
+- Keep your source code and data behind your firewall
+
+## How it works
+
+Coder workspaces are represented with Terraform. But, no Terraform knowledge is
+required to get started. We have a database of pre-made templates built into the
+product.
+
+<p align="center">
+  <img src="./docs/images/providers-compute.png">
+</p>
+
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+and whatever else Terraform lets you dream up.
+
+[Learn more about managing infrastructure.](./docs/templates.md)
+
+## IDE Support
+
+You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+
+<p align="center">
+  <img src="./docs/images/ide-icons.svg" height=72>
+</p>
 
 ## Installing Coder
 

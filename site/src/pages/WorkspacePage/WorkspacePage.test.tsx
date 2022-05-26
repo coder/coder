@@ -6,6 +6,7 @@ import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
 import {
   MockBuilds,
+  MockCanceledWorkspace,
   MockCancelingWorkspace,
   MockDeletedWorkspace,
   MockDeletingWorkspace,
@@ -86,45 +87,16 @@ describe("Workspace Page", () => {
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
     await testButton(Language.start, startWorkspaceMock)
   })
-  it("requests a start job when the user presses Retry after trying to start", async () => {
-    // Use a workspace that failed during start
+  it("requests cancellation when the user presses Cancel", async () => {
     server.use(
       rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockFailedWorkspace,
-            latest_build: {
-              ...MockFailedWorkspace.latest_build,
-              transition: "start",
-            },
-          }),
-        )
+        return res(ctx.status(200), ctx.json(MockStartingWorkspace))
       }),
     )
-    const startWorkSpaceMock = jest.spyOn(api, "startWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
-    await testButton(Language.retry, startWorkSpaceMock)
-  })
-  it("requests a stop job when the user presses Retry after trying to stop", async () => {
-    // Use a workspace that failed during stop
-    server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockFailedWorkspace,
-            latest_build: {
-              ...MockFailedWorkspace.latest_build,
-              transition: "stop",
-            },
-          }),
-        )
-      }),
-    )
-    const stopWorkspaceMock = jest
-      .spyOn(api, "stopWorkspace")
-      .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    await testButton(Language.retry, stopWorkspaceMock)
+    const cancelWorkspaceMock = jest
+      .spyOn(api, "cancelWorkspaceBuild")
+      .mockImplementation(() => Promise.resolve({ message: "job canceled" }))
+    await testButton(Language.cancel, cancelWorkspaceMock)
   })
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
@@ -152,6 +124,9 @@ describe("Workspace Page", () => {
   })
   it("shows the Canceling status when the workspace is canceling", async () => {
     await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
+  })
+  it("shows the Canceled status when the workspace is canceling", async () => {
+    await testStatus(MockCanceledWorkspace, DisplayStatusLanguage.canceled)
   })
   it("shows the Deleting status when the workspace is deleting", async () => {
     await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
