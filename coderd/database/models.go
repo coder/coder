@@ -505,6 +505,7 @@ type WorkspaceBuild struct {
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline          time.Time           `db:"deadline" json:"deadline"`
 }
 
 type WorkspaceResource struct {
