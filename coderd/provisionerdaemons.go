@@ -550,7 +550,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			workspace, err := db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if err == nil {
 				if workspace.Ttl.Valid {
-					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
+					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64)).Truncate(time.Minute)
 				}
 			} else {
 				// Huh? Did the workspace get deleted?
@@ -569,8 +569,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
 			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				Deadline:         workspaceDeadline,
 				ID:               workspaceBuild.ID,
+				Deadline:         workspaceDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})

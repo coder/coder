@@ -98,8 +98,7 @@ func (e *Executor) runOnce(t time.Time) error {
 					)
 					continue
 				}
-				// Truncate to nearest minute for consistency with autostart
-				// behavior, and add one minute for padding.
+				// Truncate to nearest minute for consistency with autostart behavior
 				nextTransition = priorHistory.Deadline.Truncate(time.Minute)
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart

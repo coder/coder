@@ -574,8 +574,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
 		return
 	}
 
@@ -598,18 +597,19 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
-		newDeadline := req.Deadline.UTC()
+		newDeadline := req.Deadline.Truncate(time.Minute).UTC()
 		if newDeadline.IsZero() {
 			// This should not be possible because the struct validation field enforces a non-zero value.
 			code = http.StatusBadRequest
 			return xerrors.New("new deadline cannot be zero")
 		}
 
-		if newDeadline.Before(build.Deadline) {
+		if newDeadline.Before(build.Deadline) || newDeadline.Before(time.Now()) {
 			code = http.StatusBadRequest
 			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
 		}
 
+		// both newDeadline and build.Deadline are truncated to time.Minute
 		if newDeadline == build.Deadline {
 			code = http.StatusNotModified
 			return nil
