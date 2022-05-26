@@ -25,12 +25,13 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
-func (api *API) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -44,6 +45,8 @@ func (api *API) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
+	daemons = AuthorizeFilter(api, r, rbac.ActionRead, daemons)
+
 	httpapi.Write(rw, http.StatusOK, daemons)
 }
 

@@ -22,3 +22,7 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 func (o Organization) RBACObject() rbac.Object {
 	return rbac.ResourceOrganization.InOrg(o.ID).WithID(o.ID.String())
 }
+
+func (d ProvisionerDaemon) RBACObject() rbac.Object {
+	return rbac.ResourceProvisionerDaemon.WithID(d.ID.String())
+}

@@ -1076,7 +1076,7 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, organization_id, name, provisioners
+	id, created_at, updated_at, name, provisioners
 FROM
 	provisioner_daemons
 WHERE
@@ -1090,7 +1090,6 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrganizationID,
 		&i.Name,
 		pq.Array(&i.Provisioners),
 	)
@@ -1099,7 +1098,7 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, organization_id, name, provisioners
+	id, created_at, updated_at, name, provisioners
 FROM
 	provisioner_daemons
 `
@@ -1117,7 +1116,6 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.OrganizationID,
 			&i.Name,
 			pq.Array(&i.Provisioners),
 		); err != nil {
@@ -1139,27 +1137,24 @@ INSERT INTO
 	provisioner_daemons (
 		id,
 		created_at,
-		organization_id,
 		"name",
 		provisioners
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, organization_id, name, provisioners
+	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners
 `
 
 type InsertProvisionerDaemonParams struct {
-	ID             uuid.UUID         `db:"id" json:"id"`
-	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
-	OrganizationID uuid.NullUUID     `db:"organization_id" json:"organization_id"`
-	Name           string            `db:"name" json:"name"`
-	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ID           uuid.UUID         `db:"id" json:"id"`
+	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
+	Name         string            `db:"name" json:"name"`
+	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
 	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
 		arg.ID,
 		arg.CreatedAt,
-		arg.OrganizationID,
 		arg.Name,
 		pq.Array(arg.Provisioners),
 	)
@@ -1168,7 +1163,6 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrganizationID,
 		&i.Name,
 		pq.Array(&i.Provisioners),
 	)
