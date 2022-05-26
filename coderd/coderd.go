@@ -246,8 +246,11 @@ func New(options *Options) *API {
 =======
 					r.Get("/", a.userByName)
 					r.Put("/profile", a.putUserProfile)
+<<<<<<< HEAD
 					r.Put("/security", a.putUserSecurity)
 >>>>>>> fix: Add route for user to change own password
+=======
+>>>>>>> change to ownpassword
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
 						r.Put("/active", api.putUserStatus(database.UserStatusActive))
@@ -255,6 +258,7 @@ func New(options *Options) *API {
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
+					r.Put("/ownpassword", a.putUserOwnPassword)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)

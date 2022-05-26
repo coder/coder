@@ -311,7 +311,11 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
+<<<<<<< HEAD
 func (api *API) putUserSecurity(rw http.ResponseWriter, r *http.Request) {
+=======
+func (api *api) putUserOwnPassword(rw http.ResponseWriter, r *http.Request) {
+>>>>>>> change to ownpassword
 	user := httpmw.UserParam(r)
 
 	// this route is for the owning user so we need to check the old password
@@ -320,7 +324,7 @@ func (api *API) putUserSecurity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params codersdk.UpdateUserSecurityRequest
+	var params codersdk.UpdateUserOwnPasswordRequest
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
