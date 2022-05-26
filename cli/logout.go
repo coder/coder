@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -20,7 +21,7 @@ func logout() *cobra.Command {
 				return err
 			}
 
-			var isLoggedOut bool
+			var errors []error
 
 			config := createConfig(cmd)
 
@@ -33,43 +34,40 @@ func logout() *cobra.Command {
 				return err
 			}
 
-			err = config.URL().Delete()
+			err = client.Logout(cmd.Context())
 			if err != nil {
-				// Only throw error if the URL configuration file is present,
-				// otherwise the user is already logged out, and we proceed
-				if !os.IsNotExist(err) {
-					return xerrors.Errorf("remove URL file: %w", err)
-				}
-				isLoggedOut = true
+				errors = append(errors, xerrors.Errorf("logout api: %w", err))
+			}
+
+			err = config.URL().Delete()
+			// Only throw error if the URL configuration file is present,
+			// otherwise the user is already logged out, and we proceed
+			if err != nil && !os.IsNotExist(err) {
+				errors = append(errors, xerrors.Errorf("remove URL file: %w", err))
 			}
 
 			err = config.Session().Delete()
-			if err != nil {
-				// Only throw error if the session configuration file is present,
-				// otherwise the user is already logged out, and we proceed
-				if !os.IsNotExist(err) {
-					return xerrors.Errorf("remove session file: %w", err)
-				}
-				isLoggedOut = true
+			// Only throw error if the session configuration file is present,
+			// otherwise the user is already logged out, and we proceed
+			if err != nil && !os.IsNotExist(err) {
+				errors = append(errors, xerrors.Errorf("remove session file: %w", err))
 			}
 
 			err = config.Organization().Delete()
 			// If the organization configuration file is absent, we still proceed
 			if err != nil && !os.IsNotExist(err) {
-				return xerrors.Errorf("remove organization file: %w", err)
+				errors = append(errors, xerrors.Errorf("remove organization file: %w", err))
 			}
 
-			err = client.Logout(cmd.Context())
-			if err != nil {
-				return xerrors.Errorf("logout: %w", err)
+			if len(errors) > 0 {
+				var errorStringBuilder strings.Builder
+				for _, err := range errors {
+					_, _ = fmt.Fprint(&errorStringBuilder, "\t"+err.Error()+"\n")
+				}
+				errorString := strings.TrimRight(errorStringBuilder.String(), "\n")
+				return xerrors.New("Failed to log out.\n" + errorString)
 			}
-
-			// If the user was already logged out, we show them a different message
-			if isLoggedOut {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), notLoggedInMessage+"\n")
-			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Successfully logged out.\n")
-			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"You are no longer logged in. Try logging in using 'coder login <url>'.\n")
 			return nil
 		},
 	}
