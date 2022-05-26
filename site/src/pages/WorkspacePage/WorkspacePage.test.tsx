@@ -76,6 +76,10 @@ describe("Workspace Page", () => {
     const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
     await testButton(Language.stop, stopWorkspaceMock)
   })
+  it("requests a delete job when the user presses Delete", async () => {
+    const deleteWorkspaceMock = jest.spyOn(api, "deleteWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    await testButton(Language.delete, deleteWorkspaceMock)
+  })
   it("requests a start job when the user presses Start", async () => {
     server.use(
       rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {

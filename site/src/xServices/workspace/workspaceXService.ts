@@ -40,6 +40,7 @@ export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
+  | { type: "DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
@@ -136,6 +137,7 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
+                  DELETE: "requestingDelete",
                   UPDATE: "refreshingTemplate",
                   CANCEL: "requestingCancel",
                 },
@@ -160,6 +162,21 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError", "displayBuildError"],
+                  },
+                },
+              },
+              requestingDelete: {
+                entry: "clearBuildError",
+                invoke: {
+                  id: "deleteWorkspace",
+                  src: "deleteWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
@@ -426,6 +443,13 @@ export const workspaceMachine = createMachine(
           return await API.stopWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      deleteWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.deleteWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot delete workspace without workspace id")
         }
       },
       cancelWorkspace: async (context) => {
