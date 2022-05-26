@@ -11,7 +11,7 @@ import (
 )
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 
@@ -24,7 +24,7 @@ func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
@@ -37,7 +37,7 @@ func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
 }
 
-func (api *api) checkPermissions(rw http.ResponseWriter, r *http.Request) {
+func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser.WithOwner(user.ID.String())) {

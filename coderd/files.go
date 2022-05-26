@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	// This requires the site wide action to create files.
 	// Once created, a user can read their own files uploaded
@@ -74,7 +74,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
+func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
