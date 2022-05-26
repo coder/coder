@@ -2,7 +2,10 @@ package terraform
 
 import (
 	"context"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
@@ -17,6 +20,7 @@ import (
 // This is the exact version of Terraform used internally
 // when Terraform is missing on the system.
 const terraformVersion = "1.1.9"
+const versionDelimiter = "."
 
 var (
 	// The minimum version of Terraform supported by the provisioner.
@@ -45,7 +49,46 @@ type ServeOptions struct {
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
 		binaryPath, err := safeexec.LookPath("terraform")
+		var downloadTerraform bool
 		if err != nil {
+			downloadTerraform = true
+		} else {
+			// If the "coder" binary is in the same directory as
+			// the "terraform" binary, "terraform" is returned.
+			//
+			// We must resolve the absolute path for other processes
+			// to execute this properly!
+			absoluteBinary, err := filepath.Abs(binaryPath)
+			if err != nil {
+				return xerrors.Errorf("absolute: %w", err)
+			}
+			// Checking the installed version of Terraform.
+			output, err := exec.Command(absoluteBinary, "version").Output()
+			if err != nil {
+				return xerrors.Errorf("terraform version: %w", err)
+			}
+			// The output for `terraform version` is:
+			// Terraform v1.2.1
+			// on linux_amd64
+			versionRegex := regexp.MustCompile("Terraform v(.+)\n?.*")
+			match := versionRegex.FindStringSubmatch(string(output))
+			if match != nil {
+				// match[0] is the entire string.
+				// match[1] is the matched substring.
+				version := match[1]
+				terraformMinorVersion := strings.Join(strings.Split(terraformVersion, versionDelimiter)[:2], versionDelimiter)
+				if !strings.HasPrefix(version, terraformMinorVersion) {
+					downloadTerraform = true
+				}
+			} else {
+				// Download the required Terraform version when unable to determine the existing one.
+				downloadTerraform = true
+			}
+			if !downloadTerraform {
+				options.BinaryPath = absoluteBinary
+			}
+		}
+		if downloadTerraform {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
@@ -57,17 +100,6 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
 			options.BinaryPath = execPath
-		} else {
-			// If the "coder" binary is in the same directory as
-			// the "terraform" binary, "terraform" is returned.
-			//
-			// We must resolve the absolute path for other processes
-			// to execute this properly!
-			absoluteBinary, err := filepath.Abs(binaryPath)
-			if err != nil {
-				return xerrors.Errorf("absolute: %w", err)
-			}
-			options.BinaryPath = absoluteBinary
 		}
 	}
 	return provisionersdk.Serve(ctx, &server{
