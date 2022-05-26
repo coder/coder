@@ -2749,6 +2749,31 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1 AND name = $2
+`
+
+type GetWorkspaceAppByAgentIDAndNameParams struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	Name    string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg GetWorkspaceAppByAgentIDAndNameParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAppByAgentIDAndName, arg.AgentID, arg.Name)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.RelativePath,
+	)
+	return i, err
+}
+
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
 SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1
 `

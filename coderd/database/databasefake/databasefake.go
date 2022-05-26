@@ -1043,6 +1043,22 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 	return workspaceAgents, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, app := range q.workspaceApps {
+		if app.AgentID != arg.AgentID {
+			continue
+		}
+		if app.Name != arg.Name {
+			continue
+		}
+		return app, nil
+	}
+	return database.WorkspaceApp{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

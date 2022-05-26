@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/cipher"
 	"crypto/x509"
 	"fmt"
 	"net/http"
@@ -47,6 +48,7 @@ type Options struct {
 	// app. Specific routes may have their own limiters.
 	APIRateLimit         int
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
@@ -54,8 +56,10 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
-	Authorizer           rbac.Authorizer
 	TracerProvider       *sdktrace.TracerProvider
+	// WildcardCipher is used to encrypt session tokens so that authentication
+	// can be securely transferred to the wildcard host.
+	WildcardCipher cipher.AEAD
 }
 
 // New constructs a Coder API handler.
@@ -341,6 +345,8 @@ func New(options *Options) *API {
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
+
+	// /workspaceapps/auth
 
 	return api
 }

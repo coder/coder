@@ -1,6 +1,10 @@
 package codersdk
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id"`
@@ -13,4 +17,8 @@ type WorkspaceApp struct {
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon"`
+}
+
+func (c *Client) ProxyWorkspaceApplication(ctx context.Context) {
+
 }
