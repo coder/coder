@@ -32,7 +32,7 @@ export const extractTimezone = (raw: string, defaultTZ = DEFAULT_TIMEZONE): stri
 }
 
 /**
- * WeeklyFlag is an array represnting which days of the week are set or flagged
+ * WeeklyFlag is an array representing which days of the week are set or flagged
  *
  * @remarks
  *
