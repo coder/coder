@@ -14,6 +14,10 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
+// This is the exact version of Terraform used internally
+// when Terraform is missing on the system.
+const terraformVersion = "1.1.9"
+
 var (
 	// The minimum version of Terraform supported by the provisioner.
 	// Validation came out in 0.13.0, which was released August 10th, 2020.
@@ -45,7 +49,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
-				Version:    version.Must(version.NewVersion("1.1.7")),
+				Version:    version.Must(version.NewVersion(terraformVersion)),
 			}
 
 			execPath, err := installer.Install(ctx)

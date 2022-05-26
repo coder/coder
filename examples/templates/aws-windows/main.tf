@@ -88,6 +88,8 @@ resource "aws_instance" "dev" {
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    # Required if you are using our example policy, see template README
+    Coder_Provisioned = "true"
   }
 
 }

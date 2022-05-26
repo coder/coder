@@ -31,7 +31,6 @@ Started.args = {
   workspace: MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),
-  handleRetry: action("retry"),
   resources: [MockWorkspaceResource, MockWorkspaceResource2],
   builds: [MockWorkspaceBuild],
 }
