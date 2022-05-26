@@ -3,6 +3,7 @@ package cli_test
 import (
 	"os"
 	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -135,7 +136,12 @@ func TestLogout(t *testing.T) {
 		require.FileExists(t, string(config.Session()))
 
 		// Changing the permissions to throw error during deletion.
-		err := os.Chmod(string(config), 0500)
+		var err error
+		if runtime.GOOS == "windows" {
+			err = os.Chmod(string(config), 0400)
+		} else {
+			err = os.Chmod(string(config), 0500)
+		}
 		require.NoError(t, err)
 
 		logoutChan := make(chan struct{})
