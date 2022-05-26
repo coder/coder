@@ -10,13 +10,16 @@ export default {
 
 const Template: Story<UsersPageViewProps> = (args) => <UsersPageView {...args} />
 
-export const Ready = Template.bind({})
-Ready.args = {
+export const Admin = Template.bind({})
+Admin.args = {
   users: [MockUser, MockUser2],
   roles: MockSiteRoles,
+  canCreateUser: true,
+  canEditUsers: true,
 }
+
+export const Member = Template.bind({})
+Member.args = { ...Admin.args, canCreateUser: false, canEditUsers: false }
+
 export const Empty = Template.bind({})
-Empty.args = {
-  users: [],
-  roles: MockSiteRoles,
-}
+Empty.args = { ...Admin.args, users: [] }
