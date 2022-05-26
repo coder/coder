@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import dayjs from "dayjs"
 import React from "react"
 import * as Mocks from "../../testHelpers/renderHelpers"
 import { WorkspaceStats, WorkspaceStatsProps } from "../WorkspaceStats/WorkspaceStats"
@@ -11,66 +10,36 @@ export default {
 
 const Template: Story<WorkspaceStatsProps> = (args) => <WorkspaceStats {...args} />
 
-export const NoTTL = Template.bind({})
-NoTTL.args = {
+export const Start = Template.bind({})
+Start.args = {
   workspace: {
     ...Mocks.MockWorkspace,
-    ttl: undefined,
-  },
-}
-
-export const ShutdownSoon = Template.bind({})
-ShutdownSoon.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
       transition: "start",
-      updated_at: dayjs().subtract(1, "hour").toString(), // 1 hour ago
     },
-    ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours
   },
 }
 
-export const ShutdownLong = Template.bind({})
-ShutdownLong.args = {
+export const Stop = Template.bind({})
+Stop.args = {
   workspace: {
     ...Mocks.MockWorkspace,
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      transition: "stop",
+    },
+  },
+}
 
+export const Outdated = Template.bind({})
+Outdated.args = {
+  workspace: {
+    ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
       transition: "start",
-      updated_at: dayjs().toString(),
     },
-    ttl: 7 * 24 * 60 * 60 * 1000 * 1_000_000, // 7 days
-  },
-}
-
-export const WorkspaceOffShort = Template.bind({})
-WorkspaceOffShort.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      transition: "stop",
-      updated_at: dayjs().subtract(2, "days").toString(),
-    },
-    ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours
-  },
-}
-
-export const WorkspaceOffLong = Template.bind({})
-WorkspaceOffLong.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      transition: "stop",
-      updated_at: dayjs().subtract(2, "days").toString(),
-    },
-    ttl: 2 * 365 * 24 * 60 * 60 * 1000 * 1_000_000, // 2 years
+    outdated: true,
   },
 }
