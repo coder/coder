@@ -18,14 +18,14 @@ describe("NavbarView", () => {
 
   it("workspaces nav link has the correct href", async () => {
     render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
-    const userLink = await screen.findByText(navLanguage.workspaces)
-    expect((userLink as HTMLAnchorElement).href).toContain("/workspaces")
+    const workspacesLink = await screen.findByText(navLanguage.workspaces)
+    expect((workspacesLink as HTMLAnchorElement).href).toContain("/workspaces")
   })
 
   it("templates nav link has the correct href", async () => {
     render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
-    const userLink = await screen.findByText(navLanguage.templates)
-    expect((userLink as HTMLAnchorElement).href).toContain("/templates")
+    const templatesLink = await screen.findByText(navLanguage.templates)
+    expect((templatesLink as HTMLAnchorElement).href).toContain("/templates")
   })
 
   it("users nav link has the correct href", async () => {
