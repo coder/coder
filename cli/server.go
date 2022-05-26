@@ -336,10 +336,11 @@ func server() *cobra.Command {
 						return xerrors.Errorf("generate random admin password for dev: %w", err)
 					}
 				}
-				err = createFirstUser(cmd, client, config, devUserEmail, devUserPassword)
+				cleanupSession, err := createFirstUser(logger, cmd, client, config, devUserEmail, devUserPassword)
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
+				defer cleanupSession()
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
@@ -518,12 +519,14 @@ func server() *cobra.Command {
 	return root
 }
 
-func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) error {
+// createFirstUser creates the first user and sets a valid session.
+// Caller must call cleanup on server exit.
+func createFirstUser(log slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
 	if email == "" {
-		return xerrors.New("email is empty")
+		return nil, xerrors.New("email is empty")
 	}
 	if password == "" {
-		return xerrors.New("password is empty")
+		return nil, xerrors.New("password is empty")
 	}
 	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 		Email:            email,
@@ -532,26 +535,67 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 		OrganizationName: "acme-corp",
 	})
 	if err != nil {
-		return xerrors.Errorf("create first user: %w", err)
+		return nil, xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    email,
 		Password: password,
 	})
 	if err != nil {
-		return xerrors.Errorf("login with first user: %w", err)
+		return nil, xerrors.Errorf("login with first user: %w", err)
 	}
 	client.SessionToken = token.SessionToken
 
+	oldUrl, err := cfg.URL().Read()
+	if err != nil {
+		return nil, xerrors.Errorf("write local url: %w", err)
+	}
+	oldSession, err := cfg.Session().Read()
+	if err != nil {
+		return nil, xerrors.Errorf("write session token: %w", err)
+	}
+
+	// recover session data when server exits
+	cleanup := func() {
+		currentUrl, err := cfg.URL().Read()
+		if err != nil {
+			log.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
+			return
+		}
+		currentSession, err := cfg.Session().Read()
+		if err != nil {
+			log.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
+			return
+		}
+
+		// if it's changed since we wrote to it don't restore session
+		if currentUrl != client.URL.String() ||
+			currentSession != token.SessionToken {
+			return
+		}
+
+		err = cfg.URL().Write(oldUrl)
+		if err != nil {
+			log.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
+			return
+		}
+		err = cfg.Session().Write(oldSession)
+		if err != nil {
+			log.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
+			return
+		}
+	}
+
 	err = cfg.URL().Write(client.URL.String())
 	if err != nil {
-		return xerrors.Errorf("write local url: %w", err)
+		return nil, xerrors.Errorf("write local url: %w", err)
 	}
 	err = cfg.Session().Write(token.SessionToken)
 	if err != nil {
-		return xerrors.Errorf("write session token: %w", err)
+		return nil, xerrors.Errorf("write session token: %w", err)
 	}
-	return nil
+
+	return cleanup, nil
 }
 
 // nolint:revive
