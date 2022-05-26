@@ -13,8 +13,5 @@ const Template: Story<WorkspaceScheduleFormProps> = (args) => <WorkspaceSchedule
 export const Example = Template.bind({})
 Example.args = {
   onCancel: () => action("onCancel"),
-  onSubmit: () => {
-    action("onSubmit")
-    return Promise.resolve()
-  },
+  onSubmit: () => action("onSubmit"),
 }
