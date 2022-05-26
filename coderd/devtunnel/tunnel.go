@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -33,7 +34,7 @@ func New(ctx context.Context, coderurl *url.URL) (string, <-chan error, error) {
 	cfg.ServerPort = 7000
 
 	// Ignore all logs from frp.
-	frplog.InitLog("file", "/dev/null", "error", 0, false)
+	frplog.InitLog("file", os.DevNull, "error", -1, false)
 
 	var (
 		id        = uuid.NewString()
