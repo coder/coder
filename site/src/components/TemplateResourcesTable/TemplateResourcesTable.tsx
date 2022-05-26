@@ -30,14 +30,10 @@ export const TemplateResourcesTable: React.FC<TemplateResourcesProps> = ({ resou
       </TableHead>
       <TableBody>
         {resources.map((resource) => {
-          {
-            /* We need to initialize the agents to display the resource */
-          }
+          // We need to initialize the agents to display the resource
           const agents = resource.agents ?? [null]
           return agents.map((agent, agentIndex) => {
-            {
-              /* If there is no agent, just display the resource name */
-            }
+            //  If there is no agent, just display the resource name
             if (!agent) {
               return (
                 <TableRow>
