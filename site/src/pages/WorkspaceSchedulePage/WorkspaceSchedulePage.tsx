@@ -9,6 +9,7 @@ import {
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceStats/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
+import { dowToWeeklyFlag, extractTimezone, stripTimezone } from "../../util/schedule"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 
 export const formValuesToAutoStartRequest = (
@@ -78,6 +79,51 @@ export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): Typ
   return {
     // minutes to nanoseconds
     ttl: values.ttl ? values.ttl * 60 * 60 * 1000 * 1_000_000 : undefined,
+  }
+}
+
+export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
+  const schedule = workspace.autostart_schedule
+
+  if (!schedule) {
+    return {
+      sunday: false,
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      startTime: "",
+      timezone: "",
+      ttl: 0,
+    }
+  }
+
+  const timezone = extractTimezone(schedule, "")
+  const cronString = stripTimezone(schedule)
+
+  // parts has the following format: "mm HH * * dow"
+  const parts = cronString.split(" ")
+
+  // -> we skip month and day-of-month
+  const mm = parts[0]
+  const HH = parts[1]
+  const dow = parts[4]
+
+  const weeklyFlags = dowToWeeklyFlag(dow)
+
+  return {
+    sunday: weeklyFlags[0],
+    monday: weeklyFlags[1],
+    tuesday: weeklyFlags[2],
+    wednesday: weeklyFlags[3],
+    thursday: weeklyFlags[4],
+    friday: weeklyFlags[5],
+    saturday: weeklyFlags[6],
+    startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
+    timezone,
+    ttl: workspace.ttl ? workspace.ttl / (1_000_000 * 1000 * 60 * 60) : 0,
   }
 }
 

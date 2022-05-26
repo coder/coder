@@ -1,6 +1,7 @@
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceStats/WorkspaceScheduleForm"
-import { formValuesToAutoStartRequest, formValuesToTTLRequest } from "./WorkspaceSchedulePage"
+import * as Mocks from "../../testHelpers/entities"
+import { formValuesToAutoStartRequest, formValuesToTTLRequest, workspaceToInitialValues } from "./WorkspaceSchedulePage"
 
 const validValues: WorkspaceScheduleFormValues = {
   sunday: false,
@@ -147,6 +148,75 @@ describe("WorkspaceSchedulePage", () => {
       ],
     ])(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
       expect(formValuesToTTLRequest(values)).toEqual(request)
+    })
+  })
+
+  describe("workspaceToInitialValues", () => {
+    it.each<[TypesGen.Workspace, WorkspaceScheduleFormValues]>([
+      // Empty case
+      [
+        {
+          ...Mocks.MockWorkspace,
+          autostart_schedule: "",
+          ttl: undefined,
+        },
+        {
+          sunday: false,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
+          saturday: false,
+          startTime: "",
+          timezone: "",
+          ttl: 0,
+        },
+      ],
+
+      // Basic case: 9:30 1-5 UTC running for 2 hours
+      [
+        {
+          ...Mocks.MockWorkspace,
+          autostart_schedule: "30 9 * * 1-5",
+          ttl: 7_200_000_000_000,
+        },
+        {
+          sunday: false,
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          startTime: "09:30",
+          timezone: "",
+          ttl: 2,
+        },
+      ],
+
+      // Complex case: 4:20 1 3-4 6 Canada/Eastern for 8 hours
+      [
+        {
+          ...Mocks.MockWorkspace,
+          autostart_schedule: "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
+          ttl: 28_800_000_000_000,
+        },
+        {
+          sunday: false,
+          monday: true,
+          tuesday: false,
+          wednesday: true,
+          thursday: true,
+          friday: false,
+          saturday: true,
+          startTime: "16:20",
+          timezone: "Canada/Eastern",
+          ttl: 8,
+        },
+      ],
+    ])(`workspaceToInitialValues(%p) returns %p`, (workspace, formValues) => {
+      expect(workspaceToInitialValues(workspace)).toEqual(formValues)
     })
   })
 })
