@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react"
 import React from "react"
 import { MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
-import { NavbarView } from "./NavbarView"
+import { Language as navLanguage, NavbarView } from "./NavbarView"
 
 describe("NavbarView", () => {
   const noop = () => {
@@ -14,6 +14,24 @@ describe("NavbarView", () => {
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
+  })
+
+  it("workspaces nav link has the correct href", async () => {
+    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    const userLink = await screen.findByText(navLanguage.workspaces)
+    expect((userLink as HTMLAnchorElement).href).toContain("/workspaces")
+  })
+
+  it("templates nav link has the correct href", async () => {
+    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    const userLink = await screen.findByText(navLanguage.templates)
+    expect((userLink as HTMLAnchorElement).href).toContain("/templates")
+  })
+
+  it("users nav link has the correct href", async () => {
+    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    const userLink = await screen.findByText(navLanguage.users)
+    expect((userLink as HTMLAnchorElement).href).toContain("/users")
   })
 
   it("renders profile picture for user", async () => {

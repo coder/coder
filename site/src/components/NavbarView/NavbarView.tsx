@@ -15,6 +15,12 @@ export interface NavbarViewProps {
   displayAdminDropdown: boolean
 }
 
+export const Language = {
+  workspaces: "Workspaces",
+  templates: "Templates",
+  users: "Users",
+}
+
 export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, displayAdminDropdown }) => {
   const styles = useStyles()
   return (
@@ -27,12 +33,17 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, display
         </ListItem>
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/workspaces">
-            Workspaces
+            {Language.workspaces}
           </NavLink>
         </ListItem>
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/templates">
-            Templates
+            {Language.templates}
+          </NavLink>
+        </ListItem>
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to="/users">
+            {Language.users}
           </NavLink>
         </ListItem>
       </List>
