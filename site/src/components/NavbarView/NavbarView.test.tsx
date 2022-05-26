@@ -10,26 +10,26 @@ describe("NavbarView", () => {
   }
   it("renders content", async () => {
     // When
-    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
   })
 
   it("workspaces nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
     const workspacesLink = await screen.findByText(navLanguage.workspaces)
     expect((workspacesLink as HTMLAnchorElement).href).toContain("/workspaces")
   })
 
   it("templates nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
     const templatesLink = await screen.findByText(navLanguage.templates)
     expect((templatesLink as HTMLAnchorElement).href).toContain("/templates")
   })
 
   it("users nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
     const userLink = await screen.findByText(navLanguage.users)
     expect((userLink as HTMLAnchorElement).href).toContain("/users")
   })
@@ -42,7 +42,7 @@ describe("NavbarView", () => {
     }
 
     // When
-    render(<NavbarView user={mockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={mockUser} onSignOut={noop} />)
 
     // Then
     // There should be a 'B' avatar!
