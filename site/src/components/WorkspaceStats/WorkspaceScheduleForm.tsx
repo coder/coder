@@ -46,6 +46,7 @@ export const Language = {
 
 export interface WorkspaceScheduleFormProps {
   fieldErrors?: FieldErrors
+  initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -128,6 +129,19 @@ export const validationSchema = Yup.object({
 
 export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
+  initialValues = {
+    sunday: false,
+    monday: true,
+    tuesday: true,
+    wednesday: true,
+    thursday: true,
+    friday: true,
+    saturday: false,
+
+    startTime: "09:30",
+    timezone: "",
+    ttl: 5,
+  },
   isLoading,
   onCancel,
   onSubmit,
@@ -135,19 +149,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
   const styles = useStyles()
 
   const form = useFormik<WorkspaceScheduleFormValues>({
-    initialValues: {
-      sunday: false,
-      monday: true,
-      tuesday: true,
-      wednesday: true,
-      thursday: true,
-      friday: true,
-      saturday: false,
-
-      startTime: "09:30",
-      timezone: "",
-      ttl: 5,
-    },
+    initialValues,
     onSubmit,
     validationSchema,
   })
