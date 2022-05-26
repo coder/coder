@@ -26,7 +26,7 @@ import (
 // 2. GET /logs?after=<timestamp>&follow
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
-func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	follow := r.URL.Query().Has("follow")
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
@@ -178,7 +178,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 }
 
-func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	if !job.CompletedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",

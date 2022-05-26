@@ -172,8 +172,9 @@ func TestAgent(t *testing.T) {
 		tempPath := filepath.Join(os.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
-			StartupScript: "echo " + content + " > " + tempPath,
+			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
 		}, 0)
+
 		var gotContent string
 		require.Eventually(t, func() bool {
 			content, err := os.ReadFile(tempPath)
@@ -202,6 +203,7 @@ func TestAgent(t *testing.T) {
 			// it seems like it could be either.
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
+
 		conn := setupAgent(t, agent.Metadata{}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100)
@@ -228,6 +230,7 @@ func TestAgent(t *testing.T) {
 				}
 			}
 		}
+
 		matchEchoCommand := func(line string) bool {
 			return strings.Contains(line, "echo test")
 		}

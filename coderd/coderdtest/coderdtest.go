@@ -78,7 +78,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 // NewWithServer returns an in-memory coderd instance and
 // the HTTP server it started with.
-func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client, coderd.CoderD) {
+func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -160,7 +160,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 	})
-	srv.Config.Handler = coderDaemon.Handler()
+	srv.Config.Handler = coderDaemon
 	if options.IncludeProvisionerD {
 		_ = NewProvisionerDaemon(t, coderDaemon)
 	}
@@ -168,7 +168,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		coderDaemon.CloseWait()
+		coderDaemon.Close()
 	})
 
 	return srv, codersdk.New(serverURL), coderDaemon
@@ -177,7 +177,7 @@ func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
+func NewProvisionerDaemon(t *testing.T, coderDaemon *coderd.API) io.Closer {
 	echoClient, echoServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -276,8 +276,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 		for orgID, roles := range orgRoles {
 			organizationID, err := uuid.Parse(orgID)
 			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
-			// TODO: @Emyrk add the member to the organization if they do not already belong.
-			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
+			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
 				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
 			require.NoError(t, err, "update org membership roles")
 		}

@@ -4,6 +4,6 @@ import (
 	"net/http"
 )
 
-func (api *api) proxyPath(rw http.ResponseWriter, r *http.Request) {
+func (api *API) proxyPath(rw http.ResponseWriter, r *http.Request) {
 
 }

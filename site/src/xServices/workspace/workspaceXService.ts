@@ -1,6 +1,7 @@
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
+import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
@@ -32,14 +33,15 @@ export interface WorkspaceContext {
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
+  cancellationMessage: string
 }
 
 export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
-  | { type: "RETRY" }
   | { type: "UPDATE" }
+  | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
   | { type: "REFRESH_TIMELINE" }
 
@@ -61,6 +63,9 @@ export const workspaceMachine = createMachine(
         }
         stopWorkspace: {
           data: TypesGen.WorkspaceBuild
+        }
+        cancelWorkspace: {
+          data: Types.Message
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
@@ -131,8 +136,8 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  RETRY: [{ cond: "triedToStart", target: "requestingStart" }, { target: "requestingStop" }],
                   UPDATE: "refreshingTemplate",
+                  CANCEL: "requestingCancel",
                 },
               },
               requestingStart: {
@@ -162,6 +167,21 @@ export const workspaceMachine = createMachine(
                   onError: {
                     target: "idle",
                     actions: ["assignBuildError", "displayBuildError"],
+                  },
+                },
+              },
+              requestingCancel: {
+                entry: "clearCancellationMessage",
+                invoke: {
+                  id: "cancelWorkspace",
+                  src: "cancelWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignCancellationMessage", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignCancellationMessage", "displayCancellationError"],
                   },
                 },
               },
@@ -293,6 +313,17 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: undefined,
         }),
+      assignCancellationMessage: (_, event) =>
+        assign({
+          cancellationMessage: event.data,
+        }),
+      clearCancellationMessage: (_) =>
+        assign({
+          cancellationMessage: undefined,
+        }),
+      displayCancellationError: (context) => {
+        displayError(context.cancellationMessage)
+      },
       assignRefreshWorkspaceError: (_, event) =>
         assign({
           refreshWorkspaceError: event.data,
@@ -312,6 +343,7 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
+      // Resources
       assignResources: assign({
         resources: (_, event) => event.data,
       }),
@@ -369,7 +401,6 @@ export const workspaceMachine = createMachine(
       }),
     },
     guards: {
-      triedToStart: (context) => context.workspace?.latest_build.transition === "start",
       hasMoreBuilds: (_) => false,
     },
     services: {
@@ -395,6 +426,13 @@ export const workspaceMachine = createMachine(
           return await API.stopWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      cancelWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+        } else {
+          throw Error("Cannot cancel workspace without build id")
         }
       },
       refreshWorkspace: async (context) => {

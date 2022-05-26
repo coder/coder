@@ -319,7 +319,7 @@ func server() *cobra.Command {
 					// These errors are typically noise like "TLS: EOF". Vault does similar:
 					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 					ErrorLog: log.New(io.Discard, "", 0),
-					Handler:  coderDaemon.Handler(),
+					Handler:  coderDaemon,
 					BaseContext: func(_ net.Listener) context.Context {
 						return shutdownConnsCtx
 					},
@@ -387,7 +387,7 @@ func server() *cobra.Command {
 			signal.Notify(stopChan, os.Interrupt)
 			select {
 			case <-cmd.Context().Done():
-				coderDaemon.CloseWait()
+				coderDaemon.Close()
 				return cmd.Context().Err()
 			case err := <-tunnelErrChan:
 				if err != nil {
@@ -395,7 +395,7 @@ func server() *cobra.Command {
 				}
 			case err := <-errCh:
 				shutdownConns()
-				coderDaemon.CloseWait()
+				coderDaemon.Close()
 				return err
 			case <-stopChan:
 			}
@@ -459,7 +459,7 @@ func server() *cobra.Command {
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
 			shutdownConns()
-			coderDaemon.CloseWait()
+			coderDaemon.Close()
 			return nil
 		},
 	}
@@ -555,7 +555,7 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 }
 
 // nolint:revive
-func newProvisionerDaemon(ctx context.Context, coderDaemon coderd.CoderD,
+func newProvisionerDaemon(ctx context.Context, coderDaemon *coderd.API,
 	logger slog.Logger, cacheDir string, errChan chan error, dev bool) (*provisionerd.Server, error) {
 	err := os.MkdirAll(cacheDir, 0700)
 	if err != nil {
