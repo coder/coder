@@ -23,6 +23,7 @@ export const UsersPage: React.FC = () => {
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
   const permissions = useSelector(xServices.authXService, selectPermissions)
   const canEditUsers = permissions && permissions.updateUsers
+  const canCreateUser = permissions && permissions.createUser
   const { roles } = rolesState.context
   // Is loading if
   // - permissions are not loaded or
@@ -70,6 +71,7 @@ export const UsersPage: React.FC = () => {
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
+        canCreateUser={canCreateUser}
       />
 
       <ConfirmDialog
