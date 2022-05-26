@@ -88,7 +88,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 60 * 8,
         },
         {
-          schedule: "00 09 * * 1-7",
+          schedule: "00 09 * * *",
         },
       ],
       [
