@@ -1,4 +1,7 @@
 import { useMachine } from "@xstate/react"
+import dayjs from "dayjs"
+import timezone from "dayjs/plugin/timezone"
+import utc from "dayjs/plugin/utc"
 import React, { useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -11,6 +14,12 @@ import {
 import { firstOrItem } from "../../util/array"
 import { dowToWeeklyFlag, extractTimezone, stripTimezone } from "../../util/schedule"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
+
+// REMARK: timezone plugin depends on UTC
+//
+// SEE: https://day.js.org/docs/en/timezone/timezone
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export const formValuesToAutoStartRequest = (
   values: WorkspaceScheduleFormValues,
@@ -101,7 +110,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     }
   }
 
-  const timezone = extractTimezone(schedule, "")
+  const timezone = extractTimezone(schedule, dayjs.tz.guess())
   const cronString = stripTimezone(schedule)
 
   // parts has the following format: "mm HH * * dow"
