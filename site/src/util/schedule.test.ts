@@ -25,6 +25,7 @@ describe("util/schedule", () => {
     it.each<[string, WeeklyFlag]>([
       // All days
       ["*", [true, true, true, true, true, true, true]],
+      ["0-6", [true, true, true, true, true, true, true]],
       ["1-7", [true, true, true, true, true, true, true]],
 
       // Single number modulo 7
