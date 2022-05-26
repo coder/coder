@@ -80,7 +80,7 @@ func TestAgent(t *testing.T) {
 		ex, err := os.Executable()
 		t.Log(ex)
 		require.NoError(t, err)
-		require.True(t, strings.Contains(strings.TrimSpace(string(output)), ex), string(output), ex)
+		require.True(t, strings.Contains(strings.TrimSpace(string(output)), filepath.Dir(ex)))
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {

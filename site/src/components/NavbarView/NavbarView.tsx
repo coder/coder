@@ -13,6 +13,12 @@ export interface NavbarViewProps {
   onSignOut: () => void
 }
 
+export const Language = {
+  workspaces: "Workspaces",
+  templates: "Templates",
+  users: "Users",
+}
+
 export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
   const styles = useStyles()
   return (
@@ -25,12 +31,17 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </ListItem>
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/workspaces">
-            Workspaces
+            {Language.workspaces}
           </NavLink>
         </ListItem>
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/templates">
-            Templates
+            {Language.templates}
+          </NavLink>
+        </ListItem>
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to="/users">
+            {Language.users}
           </NavLink>
         </ListItem>
       </List>
