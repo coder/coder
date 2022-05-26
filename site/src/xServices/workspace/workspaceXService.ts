@@ -40,7 +40,9 @@ export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
+  | { type: "ASK_DELETE" }
   | { type: "DELETE" }
+  | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
@@ -137,10 +139,16 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  DELETE: "requestingDelete",
+                  ASK_DELETE: "askingDelete",
                   UPDATE: "refreshingTemplate",
                   CANCEL: "requestingCancel",
                 },
+              },
+              askingDelete: {
+                on: {
+                  DELETE: "requestingDelete",
+                  CANCEL_DELETE: "idle"
+                }
               },
               requestingStart: {
                 entry: "clearBuildError",
