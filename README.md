@@ -57,7 +57,7 @@ We recommend installing [the latest
 release](https://github.com/coder/coder/releases) on a system with at least 1
 CPU core and 2 GB RAM:
 
-1. Download the release appropriate for your operating system
+1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
 1. Unzip the folder you just downloaded, and move the `coder` executable to a
    location that's on your `PATH`
 
