@@ -10,7 +10,7 @@ describe("NavbarView", () => {
   }
   it("renders content", async () => {
     // When
-    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
@@ -24,7 +24,7 @@ describe("NavbarView", () => {
     }
 
     // When
-    render(<NavbarView user={mockUser} onSignOut={noop} displayAdminDropdown />)
+    render(<NavbarView user={mockUser} onSignOut={noop} />)
 
     // Then
     // There should be a 'B' avatar!

@@ -5,17 +5,15 @@ import React from "react"
 import { NavLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
-import { AdminDropdown } from "../AdminDropdown/AdminDropdown"
 import { Logo } from "../Icons/Logo"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
-  displayAdminDropdown: boolean
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, displayAdminDropdown }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
   const styles = useStyles()
   return (
     <nav className={styles.root}>
@@ -37,7 +35,6 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, display
         </ListItem>
       </List>
       <div className={styles.fullWidth} />
-      {displayAdminDropdown && <AdminDropdown />}
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </nav>
   )
