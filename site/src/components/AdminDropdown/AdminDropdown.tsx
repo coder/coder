@@ -1,7 +1,6 @@
 import ListItem from "@material-ui/core/ListItem"
 import ListItemText from "@material-ui/core/ListItemText"
 import { fade, makeStyles, Theme } from "@material-ui/core/styles"
-import AdminIcon from "@material-ui/icons/SettingsOutlined"
 import React, { useState } from "react"
 import { navHeight } from "../../theme/constants"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
@@ -13,8 +12,6 @@ export const Language = {
   menuTitle: "Admin",
   usersLabel: "Users",
   usersDescription: "Manage users, roles, and permissions.",
-  settingsLabel: "Settings",
-  settingsDescription: "Configure authentication and more.",
 }
 
 const entries = [
@@ -23,12 +20,6 @@ const entries = [
     description: Language.usersDescription,
     path: "/users",
     Icon: UsersOutlinedIcon,
-  },
-  {
-    label: Language.settingsLabel,
-    description: Language.settingsDescription,
-    path: "/settings",
-    Icon: AdminIcon,
   },
 ]
 

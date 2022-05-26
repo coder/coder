@@ -8,7 +8,6 @@ import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
-import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
 import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
 import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import { TemplatePage } from "./pages/TemplatePage/TemplatePage"
@@ -133,14 +132,6 @@ export const AppRouter: React.FC = () => (
             }
           />
         </Route>
-        <Route
-          path="settings"
-          element={
-            <AuthAndFrame>
-              <SettingsPage />
-            </AuthAndFrame>
-          }
-        />
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />
