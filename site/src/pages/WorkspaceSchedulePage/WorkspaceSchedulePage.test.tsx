@@ -174,6 +174,27 @@ describe("WorkspaceSchedulePage", () => {
         },
       ],
 
+      // ttl-only case (2 hours)
+      [
+        {
+          ...Mocks.MockWorkspace,
+          autostart_schedule: "",
+          ttl: 7_200_000_000_000,
+        },
+        {
+          sunday: false,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
+          saturday: false,
+          startTime: "",
+          timezone: "",
+          ttl: 2,
+        },
+      ],
+
       // Basic case: 9:30 1-5 UTC running for 2 hours
       [
         {

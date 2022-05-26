@@ -84,6 +84,7 @@ export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): Typ
 
 export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
+  const ttl = workspace.ttl ? workspace.ttl / (1_000_000 * 1000 * 60 * 60) : 0
 
   if (!schedule) {
     return {
@@ -96,7 +97,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
       saturday: false,
       startTime: "",
       timezone: "",
-      ttl: 0,
+      ttl,
     }
   }
 
@@ -123,7 +124,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     saturday: weeklyFlags[6],
     startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
     timezone,
-    ttl: workspace.ttl ? workspace.ttl / (1_000_000 * 1000 * 60 * 60) : 0,
+    ttl,
   }
 }
 
