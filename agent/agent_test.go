@@ -79,7 +79,7 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		ex, err := os.Executable()
 		require.NoError(t, err)
-		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), ex), string(output))
+		require.True(t, strings.Contains(strings.TrimSpace(string(output)), ex), string(output), ex)
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {
