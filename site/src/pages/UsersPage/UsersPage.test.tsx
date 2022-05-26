@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { rest } from "msw"
 import React from "react"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
@@ -7,8 +8,11 @@ import { Language as ResetPasswordDialogLanguage } from "../../components/ResetP
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
 import { MockAuditorRole, MockUser, MockUser2, render } from "../../testHelpers/renderHelpers"
+import { server } from "../../testHelpers/server"
+import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
+import { Language as UsersViewLanguage } from "./UsersPageView"
 
 const suspendUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table
@@ -97,6 +101,32 @@ describe("Users Page", () => {
     render(<UsersPage />)
     const users = await screen.findAllByText(/.*@coder.com/)
     expect(users.length).toEqual(2)
+  })
+
+  it("shows 'New user' button to an authorized user", () => {
+    render(<UsersPage />)
+    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
+    expect(newUserButton).toBeDefined()
+  })
+
+  it("does not show 'New user' button to unauthorized user", () => {
+    server.use(
+      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+        const permissions = Object.keys(permissionsToCheck)
+        const response = permissions.reduce((obj, permission) => {
+          return {
+            ...obj,
+            [permission]: true,
+            createUser: false,
+          }
+        }, {})
+
+        return res(ctx.status(200), ctx.json(response))
+      }),
+    )
+    render(<UsersPage />)
+    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
+    expect(newUserButton).toBeNull()
   })
 
   describe("suspend user", () => {

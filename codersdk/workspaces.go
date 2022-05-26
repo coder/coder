@@ -177,6 +177,26 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 	return nil
 }
 
+// PutExtendWorkspaceRequest is a request to extend the deadline of
+// the active workspace build.
+type PutExtendWorkspaceRequest struct {
+	Deadline time.Time `json:"deadline" validate:"required"`
+}
+
+// PutExtendWorkspace updates the deadline for resources of the latest workspace build.
+func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutExtendWorkspaceRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/extend", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("extend workspace ttl: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 type WorkspaceFilter struct {
 	OrganizationID uuid.UUID
 	// Owner can be a user_id (uuid), "me", or a username

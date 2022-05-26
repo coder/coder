@@ -32,6 +32,7 @@ type WorkspaceBuild struct {
 	Transition        WorkspaceTransition `json:"transition"`
 	InitiatorID       uuid.UUID           `json:"initiator_id"`
 	Job               ProvisionerJob      `json:"job"`
+	Deadline          time.Time           `json:"deadline"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.

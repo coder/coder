@@ -131,6 +131,13 @@ func New(options *Options) *API {
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})
+		r.Route("/provisionerdaemons", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				authRolesMiddleware,
+			)
+			r.Get("/", api.provisionerDaemons)
+		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -138,7 +145,6 @@ func New(options *Options) *API {
 				authRolesMiddleware,
 			)
 			r.Get("/", api.organization)
-			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
 				r.Post("/", api.postTemplateByOrganization)
@@ -166,7 +172,7 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddleware, authRolesMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -309,6 +315,7 @@ func New(options *Options) *API {
 					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspace)
+				r.Put("/extend", api.putExtendWorkspace)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

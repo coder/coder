@@ -60,6 +60,7 @@
     "TCGETS",
     "tcpip",
     "TCSETS",
+    "templateversions",
     "testid",
     "tfexec",
     "tfjson",
