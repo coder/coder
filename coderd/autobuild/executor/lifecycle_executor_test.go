@@ -190,14 +190,14 @@ func TestExecutorAutostopOK(t *testing.T) {
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
-		ttl       = *workspace.TTL
 	)
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
 
-	// When: the autobuild executor ticks *after* the TTL:
+	// When: the autobuild executor ticks *after* the deadline:
 	go func() {
-		tickCh <- time.Now().UTC().Add(ttl + time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
 		close(tickCh)
 	}()
 

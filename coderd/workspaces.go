@@ -584,55 +584,54 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	var code = http.StatusOK
+
+	err := api.Database.InTx(func(s database.Store) error {
+		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		if build.Transition != database.WorkspaceTransitionStart {
+			code = http.StatusConflict
+			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
+		}
+
+		newDeadline := req.Deadline.UTC()
+		if newDeadline.IsZero() {
+			// This should not be possible because the struct validation field enforces a non-zero value.
+			code = http.StatusBadRequest
+			return xerrors.New("new deadline cannot be zero")
+		}
+
+		if newDeadline.Before(build.Deadline) {
+			code = http.StatusBadRequest
+			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
+		}
+
+		if newDeadline == build.Deadline {
+			code = http.StatusNotModified
+			return nil
+		}
+
+		if err := s.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			ProvisionerState: build.ProvisionerState,
+			Deadline:         newDeadline,
+		}); err != nil {
+			return xerrors.Errorf("update workspace build: %w", err)
+		}
+
+		return nil
+	})
+
+	var resp = httpapi.Response{}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get latest workspace build: %s", err),
-		})
-		return
+		resp.Message = err.Error()
 	}
-
-	if build.Transition != database.WorkspaceTransitionStart {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("workspace must be started, current status: %s", build.Transition),
-		})
-		return
-	}
-
-	newDeadline := req.Deadline.UTC()
-	if newDeadline.IsZero() {
-		// This should not be possible because the validation requires a non-zero value.
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("new deadline %q cannot be zero", newDeadline),
-		})
-		return
-	}
-
-	if newDeadline.Before(build.Deadline) {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("new deadline %q must be after existing deadline %q", newDeadline, build.Deadline),
-		})
-		return
-	}
-
-	if newDeadline == build.Deadline {
-		httpapi.Write(rw, http.StatusNotModified, httpapi.Response{})
-		return
-	}
-
-	if err := api.Database.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
-		ID:               build.ID,
-		UpdatedAt:        build.UpdatedAt,
-		ProvisionerState: build.ProvisionerState,
-		Deadline:         newDeadline,
-	}); err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{})
+	httpapi.Write(rw, code, resp)
 }
 
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {

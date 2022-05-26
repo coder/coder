@@ -569,10 +569,10 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
 			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				Deadline:         now,
+				Deadline:         workspaceDeadline,
 				ID:               workspaceBuild.ID,
 				ProvisionerState: jobType.WorkspaceBuild.State,
-				UpdatedAt:        workspaceDeadline,
+				UpdatedAt:        now,
 			})
 			if err != nil {
 				return xerrors.Errorf("update workspace build: %w", err)

@@ -1694,6 +1694,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
+		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}
