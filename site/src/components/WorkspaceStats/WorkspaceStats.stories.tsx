@@ -10,36 +10,7 @@ export default {
 
 const Template: Story<WorkspaceStatsProps> = (args) => <WorkspaceStats {...args} />
 
-export const Start = Template.bind({})
-Start.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      transition: "start",
-    },
-  },
-}
-
-export const Stop = Template.bind({})
-Stop.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      transition: "stop",
-    },
-  },
-}
-
-export const Outdated = Template.bind({})
-Outdated.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      transition: "start",
-    },
-    outdated: true,
-  },
+export const Example = Template.bind({})
+Example.args = {
+  workspace: Mocks.MockWorkspace,
 }
