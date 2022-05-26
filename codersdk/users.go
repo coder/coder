@@ -443,3 +443,16 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	var userAuth AuthMethods
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
+
+// UpdateUserOwnPassword updates a user's own password.
+func (c *Client) UpdateUserOwnPassword(ctx context.Context, req UpdateUserOwnPasswordRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/me/ownpassword"), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
+}
