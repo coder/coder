@@ -27,7 +27,7 @@ dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
-  errorTime: "Invalid time",
+  errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
