@@ -39,12 +39,16 @@ func TestRolePermissions(t *testing.T) {
 	otherOrgMember := authSubject{Name: "other_org_member", UserID: uuid.NewString(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg)}}
 	otherOrgAdmin := authSubject{Name: "other_org_admin", UserID: uuid.NewString(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg), rbac.RoleOrgAdmin(otherOrg)}}
 
-	allSubj := []authSubject{member, admin, orgMember, orgAdmin, otherOrgAdmin, otherOrgMember}
+	// requiredSubjects are required to be asserted in each test case. This is
+	// to make sure one is not forgotten.
+	requiredSubjects := []authSubject{member, admin, orgMember, orgAdmin, otherOrgAdmin, otherOrgMember}
 
 	testCases := []struct {
-		Name       string
-		Resource   rbac.Object
-		Actions    []rbac.Action
+		// Name the test case to better locate the failing test case.
+		Name     string
+		Resource rbac.Object
+		Actions  []rbac.Action
+		// Assertions must cover all subjects in 'requiredSubjects'
 		Assertions map[bool][]authSubject
 	}{
 		{
@@ -217,7 +221,7 @@ func TestRolePermissions(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			remainingSubjs := make(map[string]struct{})
-			for _, subj := range allSubj {
+			for _, subj := range requiredSubjects {
 				remainingSubjs[subj.Name] = struct{}{}
 			}
 
