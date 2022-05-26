@@ -151,6 +151,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         fieldErrors={formErrors}
+        initialValues={workspaceToInitialValues(workspace)}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/workspaces/${workspaceId}`)
