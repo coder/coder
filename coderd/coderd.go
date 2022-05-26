@@ -15,6 +15,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
+	"github.com/go-chi/cors"
+
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
@@ -106,6 +108,15 @@ func newRouter(options *Options, a *api) chi.Router {
 		httpmw.Prometheus,
 		tracing.HTTPMW(a.TracerProvider, "coderd.http"),
 	)
+
+	r.Route("/{user}/{workspaceagent}/{application}", func(r chi.Router) {
+		r.Use(
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			apiKeyMiddleware,
+			httpmw.ExtractUserParam(a.Database),
+			authRolesMiddleware,
+		)
+	})
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -319,6 +330,9 @@ func newRouter(options *Options, a *api) chi.Router {
 				})
 				r.Get("/watch", a.watchWorkspace)
 			})
+		})
+		r.Route("/wildcardauth", func(r chi.Router) {
+			r.Use(cors.Handler(cors.Options{}))
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(

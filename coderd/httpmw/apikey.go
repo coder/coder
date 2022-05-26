@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-// SessionTokenKey represents the name of the cookie or query paramater the API key is stored in.
+// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
 const SessionTokenKey = "session_token"
 
 type apiKeyContextKey struct{}
