@@ -162,7 +162,11 @@ func TestLogout(t *testing.T) {
 		<-logoutChan
 
 		// Setting the permissions back for cleanup.
-		err = os.Chmod(string(config), 0700)
+		if runtime.GOOS == "windows" {
+			err = os.Chmod(string(config), 0600)
+		} else {
+			err = os.Chmod(string(config), 0700)
+		}
 		require.NoError(t, err)
 	})
 }
