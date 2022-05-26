@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -45,7 +45,7 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
@@ -107,7 +107,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
 }
 
-func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
@@ -142,7 +142,7 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
 	var createBuild codersdk.CreateWorkspaceBuildRequest
@@ -310,7 +310,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
 }
 
-func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -362,7 +362,7 @@ func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -387,7 +387,7 @@ func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobResources(rw, r, job)
 }
 
-func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -412,7 +412,7 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func (api *api) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
