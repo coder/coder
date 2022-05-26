@@ -40,7 +40,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	ctx := context.Background()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client, _ := coderdtest.NewWithServer(t, &coderdtest.Options{
+	client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Authorizer:          authorizer,
 		IncludeProvisionerD: true,
 	})
@@ -267,8 +267,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		assertRoute[noTrailSlash] = v
 	}
 
-	c, _ := srv.Config.Handler.(*chi.Mux)
-	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err = chi.Walk(api.Handler, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()

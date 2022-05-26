@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	var createRequest codersdk.CreateParameterRequest
 	if !httpapi.Read(rw, r, &createRequest) {
 		return
@@ -63,7 +63,7 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
-func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
@@ -89,7 +89,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiParameterValues)
 }
 
-func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
