@@ -538,7 +538,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	})
 }
 
-func TestWorkspaceUpdateAutostop(t *testing.T) {
+func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
