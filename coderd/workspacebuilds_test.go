@@ -119,9 +119,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
+		client, coderAPI := coderdtest.NewWithAPI(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderDaemon)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		closeDaemon.Close()

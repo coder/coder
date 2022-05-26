@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) organization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceOrganization.

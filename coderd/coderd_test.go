@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestMain(m *testing.M) {
@@ -38,7 +40,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	ctx := context.Background()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client, _ := coderdtest.NewWithServer(t, &coderdtest.Options{
+	client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Authorizer:          authorizer,
 		IncludeProvisionerD: true,
 	})
@@ -47,13 +49,32 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "fetch org")
 
 	// Setup some data in the database.
-	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					// Return a workspace resource
+					Resources: []*proto.Resource{{
+						Name: "some",
+						Type: "example",
+						Agents: []*proto.Agent{{
+							Id:   "something",
+							Auth: &proto.Agent_Token{},
+						}},
+					}},
+				},
+			},
+		}},
+	})
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 	require.NoError(t, err, "upload file")
+	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err, "workspace resources")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -78,6 +99,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 
+		// Has it's own auth
+		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
+
 		// All workspaceagents endpoints do not use rbac
 		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":    {NoAuthorize: true},
@@ -94,11 +118,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/workspaceresources/{workspaceresource}": {NoAuthorize: true},
-
-		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
-
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
@@ -107,17 +126,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/parameters/{scope}/{id}":          {NoAuthorize: true},
 		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
-
-		"GET:/api/v2/templates/{template}/versions":                       {NoAuthorize: true},
-		"PATCH:/api/v2/templates/{template}/versions":                     {NoAuthorize: true},
-		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {NoAuthorize: true},
-
-		"GET:/api/v2/templateversions/{templateversion}":            {NoAuthorize: true},
-		"PATCH:/api/v2/templateversions/{templateversion}/cancel":   {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/logs":       {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/parameters": {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/resources":  {NoAuthorize: true},
-		"GET:/api/v2/templateversions/{templateversion}/schema":     {NoAuthorize: true},
 
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
@@ -164,6 +172,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
+		"GET:/api/v2/workspaceresources/{workspaceresource}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
 		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
@@ -199,12 +211,51 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{fileHash}": {AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash)},
+		"GET:/api/v2/files/{fileHash}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash),
+		},
+		"GET:/api/v2/templates/{template}/versions": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templates/{template}/versions": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/parameters": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/resources": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/schema": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	for k, v := range assertRoute {
@@ -216,8 +267,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		assertRoute[noTrailSlash] = v
 	}
 
-	c, _ := srv.Config.Handler.(*chi.Mux)
-	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err = chi.Walk(api.Handler, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()
@@ -240,6 +290,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
+			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
+			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")

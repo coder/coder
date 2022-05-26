@@ -41,7 +41,7 @@ variable "step3_certificate" {
   type        = string
   sensitive   = true
   description = <<-EOF
-  Use docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount to create a ServiceAccount for Coder and grab values.
+  Use docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount to create a ServiceAccount for Coder and grab values.
 
   Enter CA certificate
 
@@ -53,7 +53,7 @@ variable "step4_token" {
   type        = string
   sensitive   = true
   description = <<-EOF
-  Enter token (refer to docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount)
+  Enter token (refer to docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount)
 
   Leave blank if using ~/.kube/config (from step 1)
   EOF
@@ -63,7 +63,7 @@ variable "step5_coder_namespace" {
   type        = string
   sensitive   = true
   description = <<-EOF
-  Enter namespace (refer to docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount)
+  Enter namespace (refer to docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount)
 
   Leave blank if using ~/.kube/config (from step 1)
   EOF
