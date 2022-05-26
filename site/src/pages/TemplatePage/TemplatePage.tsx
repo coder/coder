@@ -2,7 +2,7 @@ import { useMachine } from "@xstate/react"
 import React from "react"
 import { useParams } from "react-router-dom"
 import { Loader } from "../../components/Loader/Loader"
-import { useOrganizationID } from "../../hooks/useOrganizationID"
+import { useOrganizationId } from "../../hooks/useOrganizationId"
 import { templateMachine } from "../../xServices/template/templateXService"
 import { TemplatePageView } from "./TemplatePageView"
 
@@ -17,7 +17,7 @@ const useTemplateName = () => {
 }
 
 export const TemplatePage: React.FC = () => {
-  const organizationId = useOrganizationID()
+  const organizationId = useOrganizationId()
   const templateName = useTemplateName()
   const [templateState] = useMachine(templateMachine, {
     context: {
