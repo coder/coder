@@ -373,6 +373,57 @@ func TestAgent(t *testing.T) {
 		require.ErrorContains(t, err, "no such file")
 		require.Nil(t, netConn)
 	})
+
+	t.Run("Netstat", func(t *testing.T) {
+		t.Parallel()
+
+		var ports []agent.NetstatPort
+		listen := func() {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = listener.Close()
+			})
+
+			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+			require.True(t, valid)
+
+			name, err := os.Executable()
+			require.NoError(t, err)
+
+			ports = append(ports, agent.NetstatPort{
+				Name: filepath.Base(name),
+				Port: uint16(tcpAddr.Port),
+			})
+		}
+
+		conn := setupAgent(t, agent.Metadata{}, 0)
+		netConn, err := conn.Netstat(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = netConn.Close()
+		})
+
+		decoder := json.NewDecoder(netConn)
+
+		expectNetstat := func() {
+			var res agent.NetstatResponse
+			err = decoder.Decode(&res)
+			require.NoError(t, err)
+
+			if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+				require.Subset(t, res.Ports, ports)
+			} else {
+				require.Equal(t, fmt.Sprintf("Port scanning is not supported on %s", runtime.GOOS), res.Error)
+			}
+		}
+
+		listen()
+		expectNetstat()
+
+		listen()
+		expectNetstat()
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
@@ -420,6 +471,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	}, &agent.Options{
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
+		NetstatInterval:        100 * time.Millisecond,
 	})
 	t.Cleanup(func() {
 		_ = client.Close()

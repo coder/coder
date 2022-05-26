@@ -112,6 +112,17 @@ func (c *Conn) DialContext(ctx context.Context, network string, addr string) (ne
 	return channel.NetConn(), nil
 }
 
+// Netstat returns a connection that serves a list of listening ports.
+func (c *Conn) Netstat(ctx context.Context) (net.Conn, error) {
+	channel, err := c.CreateChannel(ctx, "netstat", &peer.ChannelOptions{
+		Protocol: ProtocolNetstat,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("netsat: %w", err)
+	}
+	return channel.NetConn(), nil
+}
+
 func (c *Conn) Close() error {
 	_ = c.Negotiator.DRPCConn().Close()
 	return c.Conn.Close()

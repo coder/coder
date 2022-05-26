@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
+	"github.com/cakturk/go-netstat/netstat"
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
 	"github.com/pkg/sftp"
@@ -37,6 +38,7 @@ import (
 )
 
 const (
+	ProtocolNetstat         = "netstat"
 	ProtocolReconnectingPTY = "reconnecting-pty"
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
@@ -44,6 +46,7 @@ const (
 
 type Options struct {
 	ReconnectingPTYTimeout time.Duration
+	NetstatInterval        time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
@@ -65,10 +68,14 @@ func New(dialer Dialer, options *Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
+	if options.NetstatInterval == 0 {
+		options.NetstatInterval = 5 * time.Second
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
 		dialer:                 dialer,
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
+		netstatInterval:        options.NetstatInterval,
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
@@ -84,6 +91,8 @@ type agent struct {
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
+
+	netstatInterval time.Duration
 
 	connCloseWait sync.WaitGroup
 	closeCancel   context.CancelFunc
@@ -225,6 +234,8 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
 		case ProtocolDial:
 			go a.handleDial(ctx, channel.Label(), channel.NetConn())
+		case ProtocolNetstat:
+			go a.handleNetstat(ctx, channel.Label(), channel.NetConn())
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
@@ -359,12 +370,10 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if err != nil {
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
-	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`PATH=%s%c%s`, os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
-	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
+	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
 	// These prevent the user from having to specify _anything_ to successfully commit.
 	// Both author and committer must be set!
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
@@ -705,6 +714,87 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 	}
 
 	Bicopy(ctx, conn, nconn)
+}
+
+type NetstatPort struct {
+	Name string `json:"name"`
+	Port uint16 `json:"port"`
+}
+
+type NetstatResponse struct {
+	Ports []NetstatPort `json:"ports"`
+	Error string        `json:"error,omitempty"`
+	Took  time.Duration `json:"took"`
+}
+
+func (a *agent) handleNetstat(ctx context.Context, label string, conn net.Conn) {
+	write := func(resp NetstatResponse) error {
+		b, err := json.Marshal(resp)
+		if err != nil {
+			a.logger.Warn(ctx, "write netstat response", slog.F("label", label), slog.Error(err))
+			return xerrors.Errorf("marshal agent netstat response: %w", err)
+		}
+		_, err = conn.Write(b)
+		if err != nil {
+			a.logger.Warn(ctx, "write netstat response", slog.F("label", label), slog.Error(err))
+		}
+		return err
+	}
+
+	scan := func() ([]NetstatPort, error) {
+		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+			return nil, xerrors.New(fmt.Sprintf("Port scanning is not supported on %s", runtime.GOOS))
+		}
+
+		tabs, err := netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
+			return s.State == netstat.Listen
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		ports := []NetstatPort{}
+		for _, tab := range tabs {
+			ports = append(ports, NetstatPort{
+				Name: tab.Process.Name,
+				Port: tab.LocalAddr.Port,
+			})
+		}
+		return ports, nil
+	}
+
+	scanAndWrite := func() {
+		start := time.Now()
+		ports, err := scan()
+		response := NetstatResponse{
+			Ports: ports,
+			Took:  time.Since(start),
+		}
+		if err != nil {
+			response.Error = err.Error()
+		}
+		_ = write(response)
+	}
+
+	scanAndWrite()
+
+	// Using a timer instead of a ticker to ensure delay between calls otherwise
+	// if nestat took longer than the interval we would constantly run it.
+	timer := time.NewTimer(a.netstatInterval)
+	go func() {
+		defer conn.Close()
+		defer timer.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				scanAndWrite()
+				timer.Reset(a.netstatInterval)
+			}
+		}
+	}()
 }
 
 // isClosed returns whether the API is closed or not.
