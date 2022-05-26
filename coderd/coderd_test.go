@@ -139,6 +139,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/netstat":    {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 

@@ -501,3 +501,55 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 
 	return workspaceAgent, nil
 }
+
+// workspaceAgentNetstat sends listening ports as `agent.NetstatResponse` on an
+// interval.
+func (api *API) workspaceAgentNetstat(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspace agent: %s", err),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+			Message: fmt.Sprintf("agent must be in the connected state: %s", apiAgent.Status),
+		})
+		return
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+	defer func() {
+		_ = conn.Close(websocket.StatusNormalClosure, "ended")
+	}()
+	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
+	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
+		return
+	}
+	defer agentConn.Close()
+	ptNetConn, err := agentConn.Netstat(r.Context())
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
+		return
+	}
+	defer ptNetConn.Close()
+
+	agent.Bicopy(r.Context(), wsNetConn, ptNetConn)
+}

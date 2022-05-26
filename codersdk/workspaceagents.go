@@ -369,6 +369,36 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
+// WorkspaceAgentNetstat sends listening ports as `agent.NetstatResponse` on an
+// interval.
+func (c *Client) WorkspaceAgentNetstat(ctx context.Context, agentID uuid.UUID) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/netstat", agentID))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  httpmw.SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
+	}
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
 func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, path string) proxy.Dialer {
 	return turnconn.ProxyDialer(func() (net.Conn, error) {
 		turnURL, err := c.URL.Parse(path)

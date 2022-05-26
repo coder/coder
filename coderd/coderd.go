@@ -285,6 +285,7 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/netstat", api.workspaceAgentNetstat)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
