@@ -196,10 +196,13 @@ describe("WorkspaceSchedulePage", () => {
       ],
 
       // Basic case: 9:30 1-5 UTC running for 2 hours
+      //
+      // NOTE: We have to set CRON_TZ here because otherwise this test will
+      //       flake based off of where it runs!
       [
         {
           ...Mocks.MockWorkspace,
-          autostart_schedule: "30 9 * * 1-5",
+          autostart_schedule: "CRON_TZ=UTC 30 9 * * 1-5",
           ttl: 7_200_000_000_000,
         },
         {
@@ -211,7 +214,7 @@ describe("WorkspaceSchedulePage", () => {
           friday: true,
           saturday: false,
           startTime: "09:30",
-          timezone: "",
+          timezone: "UTC",
           ttl: 2,
         },
       ],
