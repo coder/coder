@@ -156,7 +156,9 @@ export const createWorkspaceMachine = createMachine(
         selectedTemplate: (_, event) => event.template,
       }),
       assignTemplateSchema: assign({
-        templateSchema: (_, event) => event.data,
+        // Only show parameters that are allowed to be override.
+        // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
+        templateSchema: (_, event) => event.data.filter((param) => param.allow_override_source),
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
