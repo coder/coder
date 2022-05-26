@@ -271,7 +271,6 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.AutostartSchedule = nil
 		})
-		ttl = *workspace.TTL
 	)
 
 	// Given: workspace is stopped
@@ -279,7 +278,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
-		tickCh <- time.Now().UTC().Add(ttl + time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
 		close(tickCh)
 	}()
 
@@ -313,7 +312,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
-		tickCh <- time.Now().UTC().Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
 		close(tickCh)
 	}()
 
@@ -401,7 +400,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
-func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
+func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -416,7 +415,7 @@ func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
 
 	// When: the autobuild executor ticks before the TTL
 	go func() {
-		tickCh <- time.Now().UTC()
+		tickCh <- workspace.LatestBuild.Deadline.Add(-1 * time.Minute)
 		close(tickCh)
 	}()
 
@@ -425,6 +424,38 @@ func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
 	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+}
+
+func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+	)
+
+	// Given: the user changes their mind and decides their workspace should not auto-stop
+	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTL: nil})
+	require.NoError(t, err)
+
+	// When: the autobuild executor ticks after the deadline
+	go func() {
+		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should still stop - sorry!
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {

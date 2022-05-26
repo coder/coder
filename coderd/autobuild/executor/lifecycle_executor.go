@@ -50,6 +50,9 @@ func (e *Executor) Run() {
 func (e *Executor) runOnce(t time.Time) error {
 	currentTick := t.Truncate(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
+		// XXX: if a workspace build is created when ttl != null and then ttl is unset,
+		//      autostop will still happen for this workspace build. Whether this is
+		//      expected behavior from a user's perspective is not yet known.
 		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)
