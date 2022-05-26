@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import React from "react"
 import * as api from "../../api/api"
@@ -76,9 +76,15 @@ describe("Workspace Page", () => {
     const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
     await testButton(Language.stop, stopWorkspaceMock)
   })
-  it("requests a delete job when the user presses Delete", async () => {
+  it("requests a delete job when the user presses Delete and confirms", async () => {
     const deleteWorkspaceMock = jest.spyOn(api, "deleteWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
-    await testButton(Language.delete, deleteWorkspaceMock)
+    await renderWorkspacePage()
+    const button = await screen.findByText(Language.delete)
+    await waitFor(() => fireEvent.click(button))
+    const confirmDialog = await screen.findByRole("dialog")
+    const confirmButton = within(confirmDialog).getByText("Delete")
+    await waitFor(() => fireEvent.click(confirmButton))
+    expect(deleteWorkspaceMock).toBeCalled()
   })
   it("requests a start job when the user presses Start", async () => {
     server.use(

@@ -147,8 +147,8 @@ export const workspaceMachine = createMachine(
               askingDelete: {
                 on: {
                   DELETE: "requestingDelete",
-                  CANCEL_DELETE: "idle"
-                }
+                  CANCEL_DELETE: "idle",
+                },
               },
               requestingStart: {
                 entry: "clearBuildError",
