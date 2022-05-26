@@ -12,7 +12,7 @@ interface FormHelpers {
 }
 
 export const getFormHelpers =
-  <T,>(form: FormikContextType<T>, formErrors?: FormikErrors<T>) =>
+  <T>(form: FormikContextType<T>, formErrors?: FormikErrors<T>) =>
   (name: keyof T, HelperText: ReactNode = ""): FormHelpers => {
     if (typeof name !== "string") {
       throw new Error(`name must be type of string, instead received '${typeof name}'`)
@@ -33,7 +33,7 @@ export const getFormHelpers =
   }
 
 export const onChangeTrimmed =
-  <T,>(form: FormikContextType<T>) =>
+  <T>(form: FormikContextType<T>) =>
   (event: ChangeEvent<HTMLInputElement>): void => {
     event.target.value = event.target.value.trim()
     form.handleChange(event)
