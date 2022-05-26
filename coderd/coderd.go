@@ -60,12 +60,6 @@ type Options struct {
 
 // New constructs a Coder API handler.
 func New(options *Options) *API {
-	r := chi.NewRouter()
-	api := &API{
-		Options: options,
-		router:  r,
-	}
-
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
@@ -81,6 +75,13 @@ func New(options *Options) *API {
 			panic(xerrors.Errorf("rego authorize panic: %w", err))
 		}
 	}
+
+	r := chi.NewRouter()
+	api := &API{
+		Options: options,
+		Handler: r,
+	}
+
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 	})
@@ -101,7 +102,7 @@ func New(options *Options) *API {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			apiKeyMiddleware,
-			httpmw.ExtractUserParam(a.Database),
+			httpmw.ExtractUserParam(api.Database),
 			authRolesMiddleware,
 		)
 	})
@@ -347,15 +348,9 @@ func New(options *Options) *API {
 type API struct {
 	*Options
 
-	router             chi.Router
+	Handler            chi.Router
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
-}
-
-// ServeHTTP fulfills the http.Handler interface to allow for the API
-// to be mounted without exposing the router.
-func (api *API) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	api.router.ServeHTTP(rw, r)
 }
 
 // Close waits for all WebSocket connections to drain before returning.
