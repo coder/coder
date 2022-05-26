@@ -41,7 +41,7 @@ func TestLogout(t *testing.T) {
 
 		pty.ExpectMatch("Are you sure you want to logout?")
 		pty.WriteLine("yes")
-		pty.ExpectMatch("You are no longer logged in. Try logging in using 'coder login <url>'.")
+		pty.ExpectMatch("You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
 	})
 	t.Run("SkipPrompt", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestLogout(t *testing.T) {
 			assert.NoFileExists(t, string(config.Session()))
 		}()
 
-		pty.ExpectMatch("You are no longer logged in. Try logging in using 'coder login <url>'.")
+		pty.ExpectMatch("You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
 	})
 	t.Run("NoURLFile", func(t *testing.T) {
