@@ -62,7 +62,17 @@ export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
         </WorkspaceSection>
         <WorkspaceSection title="README" contentsProps={{ className: styles.readmeContents }}>
           <div className={styles.markdownWrapper}>
-            <ReactMarkdown>{activeTemplateVersion.readme}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                a: ({ href, target, children }) => (
+                  <Link href={href} target={target}>
+                    {children}
+                  </Link>
+                ),
+              }}
+            >
+              {activeTemplateVersion.readme}
+            </ReactMarkdown>
           </div>
         </WorkspaceSection>
       </Stack>
