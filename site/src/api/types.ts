@@ -14,3 +14,14 @@ export interface ReconnectingPTYRequest {
 export type WorkspaceBuildTransition = "start" | "stop" | "delete"
 
 export type Message = { message: string }
+
+export interface NetstatPort {
+  name: string
+  port: number
+}
+
+export interface NetstatResponse {
+  readonly ports?: NetstatPort[]
+  readonly error?: string
+  readonly took?: number
+}
