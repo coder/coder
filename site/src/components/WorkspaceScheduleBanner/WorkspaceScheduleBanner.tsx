@@ -10,7 +10,7 @@ dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
 
 export const Language = {
-  bannerTitle: "Workspace Shutdown",
+  bannerTitle: "Workspace shutdown",
   bannerDetail: "Your workspace will shutdown soon.",
 }
 
