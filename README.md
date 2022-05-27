@@ -93,7 +93,7 @@ There are a few ways to run Coder:
   ```
 
   > macOS and Windows users: You'll need to write your own 
-  > configuration to run as a system service.
+  > configuration to run Coder as a system service.
 
 - See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g docker-compose)
 
