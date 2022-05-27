@@ -10,21 +10,12 @@ import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
 import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { Stack } from "../../components/Stack/Stack"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 
 export const Language = {
   templateLabel: "Template",
   nameLabel: "Name",
-  nameRequired: "Please enter a name.",
-  nameMatches: "Name must start with a-Z or 0-9 and can contain a-Z, 0-9 or -",
-  nameMax: "Name cannot be longer than 32 characters",
 }
-
-// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L40
-const maxLenName = 32
-
-// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L18
-const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/
 
 export interface CreateWorkspacePageViewProps {
   loadingTemplates: boolean
@@ -39,10 +30,7 @@ export interface CreateWorkspacePageViewProps {
 }
 
 export const validationSchema = Yup.object({
-  name: Yup.string()
-    .required(Language.nameRequired)
-    .matches(usernameRE, Language.nameMatches)
-    .max(maxLenName, Language.nameMax),
+  name: nameValidator(Language.nameLabel),
 })
 
 export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (props) => {

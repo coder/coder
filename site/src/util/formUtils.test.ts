@@ -1,5 +1,5 @@
 import { FormikContextType } from "formik/dist/types"
-import { getFormHelpers, onChangeTrimmed } from "./formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils"
 
 interface TestType {
   untouchedGoodField: string
@@ -34,6 +34,8 @@ const form = {
     }
   },
 } as unknown as FormikContextType<TestType>
+
+const nameSchema = nameValidator("name")
 
 describe("form util functions", () => {
   describe("getFormHelpers", () => {
@@ -92,6 +94,40 @@ describe("form util functions", () => {
       const event = { target: { value: " hello " } } as React.ChangeEvent<HTMLInputElement>
       onChangeTrimmed<TestType>(form)(event)
       expect(mockHandleChange).toHaveBeenCalledWith({ target: { value: "hello" } })
+    })
+  })
+
+  describe("nameValidator", () => {
+    it("allows a 1-letter name", () => {
+      const validate = () => nameSchema.validateSync("a")
+      expect(validate).not.toThrow()
+    })
+
+    it("allows a 32-letter name", () => {
+      const input = Array(32).fill("a").join("")
+      const validate = () => nameSchema.validateSync(input)
+      expect(validate).not.toThrow()
+    })
+
+    it("allows 'test-3' to be used as name", () => {
+      const validate = () => nameSchema.validateSync("test-3")
+      expect(validate).not.toThrow()
+    })
+
+    it("allows '3-test' to be used as a name", () => {
+      const validate = () => nameSchema.validateSync("3-test")
+      expect(validate).not.toThrow()
+    })
+
+    it("disallows a 33-letter name", () => {
+      const input = Array(33).fill("a").join("")
+      const validate = () => nameSchema.validateSync(input)
+      expect(validate).toThrow()
+    })
+
+    it("disallows a space", () => {
+      const validate = () => nameSchema.validateSync("test 3")
+      expect(validate).toThrow()
     })
   })
 })
