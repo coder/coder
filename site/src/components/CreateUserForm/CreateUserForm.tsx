@@ -4,7 +4,7 @@ import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 
@@ -15,7 +15,6 @@ export const Language = {
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
-  usernameRequired: "Please enter a username.",
   createUser: "Create",
   cancel: "Cancel",
 }
@@ -32,7 +31,7 @@ export interface CreateUserFormProps {
 const validationSchema = Yup.object({
   email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
   password: Yup.string().required(Language.passwordRequired),
-  username: Yup.string().required(Language.usernameRequired),
+  username: nameValidator(Language.usernameLabel),
 })
 
 export const CreateUserForm: React.FC<CreateUserFormProps> = ({
