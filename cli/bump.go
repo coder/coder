@@ -35,6 +35,11 @@ func bump() *cobra.Command {
 				}
 				bumpDuration = d
 			}
+
+			if bumpDuration < time.Minute {
+				return xerrors.New("minimum bump duration is 1 minute")
+			}
+
 			client, err := createClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)

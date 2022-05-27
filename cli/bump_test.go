@@ -90,7 +90,7 @@ func TestBump(t *testing.T) {
 
 		// When: we execute `coder bump workspace <number without units>`
 		err = cmd.ExecuteContext(ctx)
-		require.NoError(t, err, "unexpected error")
+		require.NoError(t, err)
 
 		// Then: the deadline of the latest build is updated assuming the units are minutes
 		updated, err := client.Workspace(ctx, workspace.ID)
@@ -174,5 +174,45 @@ func TestBump(t *testing.T) {
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Zero(t, updated.LatestBuild.Deadline)
+	})
+
+	t.Run("BumpMinimumDuration", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: we have a workspace with no deadline set
+		var (
+			err       error
+			ctx       = context.Background()
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			cmdArgs   = []string{"bump", workspace.Name, "59s"}
+			stdoutBuf = &bytes.Buffer{}
+		)
+
+		// Given: we wait for the workspace to build
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
+		require.WithinDuration(t, workspace.LatestBuild.Deadline, time.Now().Add(*workspace.TTL), time.Minute)
+		require.NoError(t, err)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		// When: we execute `coder bump workspace 59s`
+		err = cmd.ExecuteContext(ctx)
+
+		// Then: an error is reported and the deadline remains as before
+		require.ErrorContains(t, err, "minimum bump duration is 1 minute")
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.WithinDuration(t, workspace.LatestBuild.Deadline, updated.LatestBuild.Deadline, time.Minute)
 	})
 }
