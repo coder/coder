@@ -1,36 +1,47 @@
 import { useMachine } from "@xstate/react"
 import React from "react"
-import { useNavigate } from "react-router"
-import { useParams } from "react-router-dom"
-import { createWorkspace } from "../../api/api"
-import { templateMachine } from "../../xServices/template/templateXService"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { Template } from "../../api/typesGenerated"
+import { useOrganizationId } from "../../hooks/useOrganizationId"
+import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: React.FC = () => {
-  const { template } = useParams()
-  const [templateState] = useMachine(templateMachine, {
-    context: {
-      name: template,
+  const organizationId = useOrganizationId()
+  const [searchParams] = useSearchParams()
+  const preSelectedTemplateName = searchParams.get("template")
+  const navigate = useNavigate()
+  const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
+    context: { organizationId, preSelectedTemplateName },
+    actions: {
+      onCreateWorkspace: (_, event) => {
+        navigate("/workspaces/" + event.data.id)
+      },
     },
   })
-  const navigate = useNavigate()
-  const loading = templateState.hasTag("loading")
-  if (!templateState.context.template || !templateState.context.templateSchema) {
-    return null
-  }
 
   return (
     <CreateWorkspacePageView
-      template={templateState.context.template}
-      templateSchema={templateState.context.templateSchema}
-      loading={loading}
-      onCancel={() => navigate("/templates")}
-      onSubmit={async (req) => {
-        if (!templateState.context.template) {
-          throw new Error("template isn't valid")
-        }
-        const workspace = await createWorkspace(templateState.context.template.organization_id, req)
-        navigate("/workspaces/" + workspace.id)
+      loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
+      loadingTemplateSchema={createWorkspaceState.matches("gettingTemplateSchema")}
+      creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
+      templates={createWorkspaceState.context.templates}
+      selectedTemplate={createWorkspaceState.context.selectedTemplate}
+      templateSchema={createWorkspaceState.context.templateSchema}
+      onCancel={() => {
+        navigate(preSelectedTemplateName ? "/templates" : "/workspaces")
+      }}
+      onSubmit={(request) => {
+        send({
+          type: "CREATE_WORKSPACE",
+          request,
+        })
+      }}
+      onSelectTemplate={(template: Template) => {
+        send({
+          type: "SELECT_TEMPLATE",
+          template,
+        })
       }}
     />
   )

@@ -121,7 +121,9 @@ func TestCreate(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
-		clitest.SetupConfig(t, client, root)
+
+		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		clitest.SetupConfig(t, member, root)
 		cmdCtx, done := context.WithTimeout(context.Background(), time.Second*3)
 		go func() {
 			defer done()

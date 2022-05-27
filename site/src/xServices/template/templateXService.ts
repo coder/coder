@@ -1,167 +1,110 @@
 import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
+import { getTemplateByName, getTemplateVersion, getTemplateVersionResources } from "../../api/api"
+import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 
 interface TemplateContext {
-  name: string
-
-  organizations?: TypesGen.Organization[]
-  organizationsError?: Error | unknown
-  template?: TypesGen.Template
-  templateError?: Error | unknown
-  templateVersion?: TypesGen.TemplateVersion
-  templateVersionError?: Error | unknown
-  templateSchema?: TypesGen.ParameterSchema[]
-  templateSchemaError?: Error | unknown
+  organizationId: string
+  templateName: string
+  template?: Template
+  activeTemplateVersion?: TemplateVersion
+  templateResources?: WorkspaceResource[]
 }
 
 export const templateMachine = createMachine(
   {
-    tsTypes: {} as import("./templateXService.typegen").Typegen0,
     schema: {
       context: {} as TemplateContext,
       services: {} as {
-        getOrganizations: {
-          data: TypesGen.Organization[]
-        }
         getTemplate: {
-          data: TypesGen.Template
+          data: Template
         }
-        getTemplateVersion: {
-          data: TypesGen.TemplateVersion
+        getActiveTemplateVersion: {
+          data: TemplateVersion
         }
-        getTemplateSchema: {
-          data: TypesGen.ParameterSchema[]
+        getTemplateResources: {
+          data: WorkspaceResource[]
         }
       },
     },
-    id: "templateState",
-    initial: "gettingOrganizations",
+    tsTypes: {} as import("./templateXService.typegen").Typegen0,
+    initial: "gettingTemplate",
     states: {
-      gettingOrganizations: {
-        entry: "clearOrganizationsError",
-        invoke: {
-          src: "getOrganizations",
-          id: "getOrganizations",
-          onDone: [
-            {
-              actions: ["assignOrganizations", "clearOrganizationsError"],
-              target: "gettingTemplate",
-            },
-          ],
-          onError: [
-            {
-              actions: "assignOrganizationsError",
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
       gettingTemplate: {
-        entry: "clearTemplateError",
         invoke: {
           src: "getTemplate",
-          id: "getTemplate",
           onDone: {
-            target: "gettingTemplateVersion",
-            actions: ["assignTemplate", "clearTemplateError"],
-          },
-          onError: {
-            target: "error",
-            actions: "assignTemplateError",
-          },
-        },
-        tags: "loading",
-      },
-      gettingTemplateVersion: {
-        entry: "clearTemplateVersionError",
-        invoke: {
-          src: "getTemplateVersion",
-          id: "getTemplateVersion",
-          onDone: {
-            target: "gettingTemplateSchema",
-            actions: ["assignTemplateVersion", "clearTemplateVersionError"],
-          },
-          onError: {
-            target: "error",
-            actions: "assignTemplateVersionError",
+            actions: ["assignTemplate"],
+            target: "initialInfo",
           },
         },
       },
-      gettingTemplateSchema: {
-        entry: "clearTemplateSchemaError",
-        invoke: {
-          src: "getTemplateSchema",
-          id: "getTemplateSchema",
-          onDone: {
-            target: "done",
-            actions: ["assignTemplateSchema", "clearTemplateSchemaError"],
+      initialInfo: {
+        type: "parallel",
+        onDone: "loaded",
+        states: {
+          activeTemplateVersion: {
+            initial: "gettingActiveTemplateVersion",
+            states: {
+              gettingActiveTemplateVersion: {
+                invoke: {
+                  src: "getActiveTemplateVersion",
+                  onDone: {
+                    actions: ["assignActiveTemplateVersion"],
+                    target: "success",
+                  },
+                },
+              },
+              success: { type: "final" },
+            },
           },
-          onError: {
-            target: "error",
-            actions: "assignTemplateSchemaError",
+          templateResources: {
+            initial: "gettingTemplateResources",
+            states: {
+              gettingTemplateResources: {
+                invoke: {
+                  src: "getTemplateResources",
+                  onDone: {
+                    actions: ["assignTemplateResources"],
+                    target: "success",
+                  },
+                },
+              },
+              success: { type: "final" },
+            },
           },
         },
       },
-      done: {},
-      error: {},
+      loaded: {},
     },
   },
   {
+    services: {
+      getTemplate: (ctx) => getTemplateByName(ctx.organizationId, ctx.templateName),
+      getActiveTemplateVersion: (ctx) => {
+        if (!ctx.template) {
+          throw new Error("Template not loaded")
+        }
+
+        return getTemplateVersion(ctx.template.active_version_id)
+      },
+      getTemplateResources: (ctx) => {
+        if (!ctx.template) {
+          throw new Error("Template not loaded")
+        }
+
+        return getTemplateVersionResources(ctx.template.active_version_id)
+      },
+    },
     actions: {
-      assignOrganizations: assign({
-        organizations: (_, event) => event.data,
-      }),
-      assignOrganizationsError: assign({
-        organizationsError: (_, event) => event.data,
-      }),
-      clearOrganizationsError: assign((context) => ({
-        ...context,
-        organizationsError: undefined,
-      })),
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignTemplateError: assign({
-        templateError: (_, event) => event.data,
+      assignActiveTemplateVersion: assign({
+        activeTemplateVersion: (_, event) => event.data,
       }),
-      clearTemplateError: (context) => assign({ ...context, templateError: undefined }),
-      assignTemplateVersion: assign({
-        templateVersion: (_, event) => event.data,
+      assignTemplateResources: assign({
+        templateResources: (_, event) => event.data,
       }),
-      assignTemplateVersionError: assign({
-        templateVersionError: (_, event) => event.data,
-      }),
-      clearTemplateVersionError: (context) => assign({ ...context, templateVersionError: undefined }),
-      assignTemplateSchema: assign({
-        templateSchema: (_, event) => event.data,
-      }),
-      assignTemplateSchemaError: assign({
-        templateSchemaError: (_, event) => event.data,
-      }),
-      clearTemplateSchemaError: (context) => assign({ ...context, templateSchemaError: undefined }),
-    },
-    services: {
-      getOrganizations: API.getOrganizations,
-      getTemplate: async (context) => {
-        if (!context.organizations || context.organizations.length === 0) {
-          throw new Error("no organizations")
-        }
-        return API.getTemplateByName(context.organizations[0].id, context.name)
-      },
-      getTemplateVersion: async (context) => {
-        if (!context.template) {
-          throw new Error("no template")
-        }
-        return API.getTemplateVersion(context.template.active_version_id)
-      },
-      getTemplateSchema: async (context) => {
-        if (!context.templateVersion) {
-          throw new Error("no template version")
-        }
-        return API.getTemplateVersionSchema(context.templateVersion.id)
-      },
     },
   },
 )

@@ -8,15 +8,48 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Provision remote development environments with Terraform.
+Coder creates remote development machines so you can develop your code from anywhere
 
-![Kubernetes workspace in Coder v2](./docs/screenshot.png)
+<p align="center">
+  <img src="./docs/images/hero-image.png">
+</p>
 
-## Highlights
+**Code more**
 
-- Automate development environments for Linux, Windows, and macOS
-- Start writing code with a single command
-- Get started quickly using one of the [examples](./examples) provided
+- Build and test faster
+  - Leveraging cloud CPUs, RAM, network speeds, etc.
+- Access your environment from any place on any client (even an iPad)
+- Onboard instantly then stay up to date continuously
+
+**Manage less**
+
+- Ensure your entire team is using the same tools and resources
+  - Rollout critical updates to your developers with one command
+- Automatically shut down expensive cloud resources
+- Keep your source code and data behind your firewall
+
+## How it works
+
+Coder workspaces are represented with Terraform. But, no Terraform knowledge is
+required to get started. We have a database of pre-made templates built into the
+product.
+
+<p align="center">
+  <img src="./docs/images/providers-compute.png">
+</p>
+
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+and whatever else Terraform lets you dream up.
+
+[Learn more about managing infrastructure.](./docs/templates.md)
+
+## IDE Support
+
+You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+
+<p align="center">
+  <img src="./docs/images/ide-icons.svg" height=72>
+</p>
 
 ## Installing Coder
 
@@ -24,7 +57,7 @@ We recommend installing [the latest
 release](https://github.com/coder/coder/releases) on a system with at least 1
 CPU core and 2 GB RAM:
 
-1. Download the release appropriate for your operating system
+1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
 1. Unzip the folder you just downloaded, and move the `coder` executable to a
    location that's on your `PATH`
 
@@ -59,7 +92,7 @@ You can set up a temporary deployment, a production deployment, or a system serv
 > Use `coder --help` to get a complete list of flags and environment
 > variables.
 
-See the [installation guide](install.md) for additional ways to deploy Coder.
+See the [installation guide](./docs/install.md) for additional ways to deploy Coder.
 
 ## Creating your first template and workspace
 
@@ -120,4 +153,4 @@ Read the [contributing docs](./docs/CONTRIBUTING.md).
 
 ## Contributors
 
-Find our list of contributors [here](./CONTRIBUTORS.md).
+Find our list of contributors [here](./docs/CONTRIBUTORS.md).

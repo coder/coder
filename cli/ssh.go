@@ -15,6 +15,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
+	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
@@ -32,6 +33,7 @@ func ssh() *cobra.Command {
 	var (
 		stdio          bool
 		shuffle        bool
+		forwardAgent   bool
 		wsPollInterval time.Duration
 	)
 	cmd := &cobra.Command{
@@ -108,6 +110,17 @@ func ssh() *cobra.Command {
 				return err
 			}
 
+			if forwardAgent && os.Getenv("SSH_AUTH_SOCK") != "" {
+				err = gosshagent.ForwardToRemote(sshClient, os.Getenv("SSH_AUTH_SOCK"))
+				if err != nil {
+					return xerrors.Errorf("forward agent failed: %w", err)
+				}
+				err = gosshagent.RequestAgentForwarding(sshSession)
+				if err != nil {
+					return xerrors.Errorf("request agent forwarding failed: %w", err)
+				}
+			}
+
 			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
 			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -156,8 +169,9 @@ func ssh() *cobra.Command {
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 	_ = cmd.Flags().MarkHidden("shuffle")
+	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
+	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 
 	return cmd
 }

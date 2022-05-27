@@ -16,11 +16,16 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -32,8 +37,12 @@ func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
-func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -71,8 +80,12 @@ func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -110,9 +123,13 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiSchemas)
 }
 
-func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -147,7 +164,7 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusOK, values)
 }
 
-func (api *api) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 
@@ -220,7 +237,7 @@ func (api *api) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
 }
 
-func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
 	if !ok {
 		return
@@ -229,7 +246,7 @@ func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertProvisionerJob(job))
 }
 
-func (api *api) templateVersionPlanResources(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionPlanResources(rw http.ResponseWriter, r *http.Request) {
 	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
 	if !ok {
 		return
@@ -238,7 +255,7 @@ func (api *api) templateVersionPlanResources(rw http.ResponseWriter, r *http.Req
 	api.provisionerJobResources(rw, r, job)
 }
 
-func (api *api) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request) {
 	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
 	if !ok {
 		return
@@ -247,7 +264,7 @@ func (api *api) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func (api *api) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Request) {
 	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
 	if !ok {
 		return
@@ -338,8 +355,11 @@ func getTemplateVersionPlanJob(db database.Store, rw http.ResponseWriter, r *htt
 	return job, true
 }
 
-func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		return
+	}
 
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
@@ -393,8 +413,12 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(rw, http.StatusOK, apiVersion)
 }
 
-func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		return
+	}
+
 	templateVersionName := chi.URLParam(r, "templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(r.Context(), database.GetTemplateVersionByTemplateIDAndNameParams{
 		TemplateID: uuid.NullUUID{
@@ -426,12 +450,16 @@ func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
-func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, template) {
+		return
+	}
+
 	var req codersdk.UpdateActiveTemplateVersion
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
-	template := httpmw.TemplateParam(r)
 	version, err := api.Database.GetTemplateVersionByID(r.Context(), req.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
@@ -467,7 +495,7 @@ func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 }
 
 // Creates a new version of a template. An import job is queued to parse the storage method provided.
-func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 	var req codersdk.CreateTemplateVersionRequest
@@ -574,8 +602,17 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
 }
 
-func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
+// templateVersionResources returns the workspace agent resources associated
+// with a template version. A template can specify more than one resource to be
+// provisioned, each resource can have an agent that dials back to coderd.
+// The agents returned are informative of the template version, and do not
+// return agents associated with any particular workspace.
+func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -586,8 +623,16 @@ func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	api.provisionerJobResources(rw, r, job)
 }
 
-func (api *api) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
+// templateVersionLogs returns the logs returned by the provisioner for the given
+// template version. These logs are only associated with the template version,
+// and not any build logs for a workspace.
+// Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
+func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

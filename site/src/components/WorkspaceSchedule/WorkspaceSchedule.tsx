@@ -7,6 +7,7 @@ import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
+import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { extractTimezone, stripTimezone } from "../../util/schedule"
@@ -15,42 +16,44 @@ import { Stack } from "../Stack/Stack"
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
-const autoStartLabel = (schedule: string): string => {
-  const prefix = "Start"
-
-  if (schedule) {
-    return `${prefix} (${extractTimezone(schedule)})`
-  } else {
-    return prefix
-  }
-}
-
-const autoStartDisplay = (schedule: string): string => {
-  if (schedule) {
-    return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
-  }
-  return "Manual"
-}
-
-const autoStopDisplay = (workspace: Workspace): string => {
-  const latest = workspace.latest_build
-
-  if (!workspace.ttl || workspace.ttl < 1) {
-    return "Manual"
-  }
-
-  if (latest.transition === "start") {
-    const now = dayjs()
-    const updatedAt = dayjs(latest.updated_at)
-    const deadline = updatedAt.add(workspace.ttl / 1_000_000, "ms")
-    if (now.isAfter(deadline)) {
-      return "Workspace is shutting down now"
+const Language = {
+  autoStartDisplay: (schedule: string): string => {
+    if (schedule) {
+      return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
     }
-    return now.to(deadline)
-  }
+    return "Manual"
+  },
+  autoStartLabel: (schedule: string): string => {
+    const prefix = "Start"
 
-  const duration = dayjs.duration(workspace.ttl / 1_000_000, "milliseconds")
-  return `${duration.humanize()} after start`
+    if (schedule) {
+      return `${prefix} (${extractTimezone(schedule)})`
+    } else {
+      return prefix
+    }
+  },
+  autoStopDisplay: (workspace: Workspace): string => {
+    const latest = workspace.latest_build
+
+    if (!workspace.ttl || workspace.ttl < 1) {
+      return "Manual"
+    }
+
+    if (latest.transition === "start") {
+      const now = dayjs()
+      const updatedAt = dayjs(latest.updated_at)
+      const deadline = updatedAt.add(workspace.ttl / 1_000_000, "ms")
+      if (now.isAfter(deadline)) {
+        return "Workspace is shutting down now"
+      }
+      return now.to(deadline)
+    }
+
+    const duration = dayjs.duration(workspace.ttl / 1_000_000, "milliseconds")
+    return `${duration.humanize()} after start`
+  },
+  editScheduleLink: "Edit schedule",
+  schedule: "Schedule",
 }
 
 export interface WorkspaceScheduleProps {
@@ -65,18 +68,20 @@ export const WorkspaceSchedule: React.FC<WorkspaceScheduleProps> = ({ workspace 
       <Stack spacing={2}>
         <Typography variant="body1" className={styles.title}>
           <ScheduleIcon className={styles.scheduleIcon} />
-          Schedule
+          {Language.schedule}
         </Typography>
         <div>
-          <span className={styles.scheduleLabel}>{autoStartLabel(workspace.autostart_schedule)}</span>
-          <span className={styles.scheduleValue}>{autoStartDisplay(workspace.autostart_schedule)}</span>
+          <span className={styles.scheduleLabel}>{Language.autoStartLabel(workspace.autostart_schedule)}</span>
+          <span className={styles.scheduleValue}>{Language.autoStartDisplay(workspace.autostart_schedule)}</span>
         </div>
         <div>
           <span className={styles.scheduleLabel}>Shutdown</span>
-          <span className={styles.scheduleValue}>{autoStopDisplay(workspace)}</span>
+          <span className={styles.scheduleValue}>{Language.autoStopDisplay(workspace)}</span>
         </div>
         <div>
-          <Link className={styles.scheduleAction}>Edit schedule</Link>
+          <Link className={styles.scheduleAction} component={RouterLink} to={`/workspaces/${workspace.id}/schedule`}>
+            {Language.editScheduleLink}
+          </Link>
         </div>
       </Stack>
     </div>

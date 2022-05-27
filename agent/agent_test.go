@@ -68,6 +68,21 @@ func TestAgent(t *testing.T) {
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
+	t.Run("PATHHasCoder", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSHSession(t, agent.Metadata{})
+		command := "sh -c 'echo $PATH'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %PATH%"
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		ex, err := os.Executable()
+		t.Log(ex)
+		require.NoError(t, err)
+		require.True(t, strings.Contains(strings.TrimSpace(string(output)), filepath.Dir(ex)))
+	})
+
 	t.Run("SessionTTY", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
@@ -172,8 +187,9 @@ func TestAgent(t *testing.T) {
 		tempPath := filepath.Join(os.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
-			StartupScript: "echo " + content + " > " + tempPath,
+			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
 		}, 0)
+
 		var gotContent string
 		require.Eventually(t, func() bool {
 			content, err := os.ReadFile(tempPath)
@@ -202,6 +218,7 @@ func TestAgent(t *testing.T) {
 			// it seems like it could be either.
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
+
 		conn := setupAgent(t, agent.Metadata{}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100)
@@ -228,6 +245,7 @@ func TestAgent(t *testing.T) {
 				}
 			}
 		}
+
 		matchEchoCommand := func(line string) bool {
 			return strings.Contains(line, "echo test")
 		}

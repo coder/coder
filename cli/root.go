@@ -31,13 +31,14 @@ var (
 )
 
 const (
-	varURL          = "url"
-	varToken        = "token"
-	varAgentToken   = "agent-token"
-	varAgentURL     = "agent-url"
-	varGlobalConfig = "global-config"
-	varNoOpen       = "no-open"
-	varForceTty     = "force-tty"
+	varURL             = "url"
+	varToken           = "token"
+	varAgentToken      = "agent-token"
+	varAgentURL        = "agent-url"
+	varGlobalConfig    = "global-config"
+	varNoOpen          = "no-open"
+	varForceTty        = "force-tty"
+	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 )
 
 func init() {
@@ -69,6 +70,7 @@ func Root() *cobra.Command {
 		configSSH(),
 		create(),
 		delete(),
+		dotfiles(),
 		gitssh(),
 		list(),
 		login(),
@@ -117,7 +119,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+				return nil, xerrors.New(notLoggedInMessage)
 			}
 			return nil, err
 		}
@@ -132,7 +134,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+				return nil, xerrors.New(notLoggedInMessage)
 			}
 			return nil, err
 		}

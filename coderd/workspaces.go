@@ -28,15 +28,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		return
-	}
-
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 
@@ -106,9 +100,8 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
 }
 
-func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OrganizationID: organization.ID,
 		Deleted:        false,
@@ -123,17 +116,10 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	for _, ws := range workspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
+	// Rbac filter
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -145,8 +131,7 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 
 // workspaces returns all workspaces a user can read.
 // Optional filters with query params
-func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
-	roles := httpmw.UserRoles(r)
+func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	// Empty strings mean no filter
@@ -186,24 +171,18 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerID = userID
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	allWorkspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces for user: %s", err),
 		})
 		return
 	}
-	for _, ws := range allWorkspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	// Only return workspaces the user can read
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -213,9 +192,8 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OwnerID: owner.ID,
 		Deleted: false,
@@ -230,17 +208,10 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowedWorkspaces := make([]database.Workspace, 0)
-	for _, ws := range workspaces {
-		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
-		if err == nil {
-			allowedWorkspaces = append(allowedWorkspaces, ws)
-		}
-	}
+	// Only return workspaces the user can read
+	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -250,7 +221,7 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
@@ -278,8 +249,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 
@@ -310,7 +280,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 }
 
 // Create a new workspace for the currently authenticated user.
-func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(rw, r, &createWorkspace) {
 		return
@@ -507,7 +477,8 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
-			BuildNumber:       1, // First build!
+			BuildNumber:       1,           // First build!
+			Deadline:          time.Time{}, // provisionerd will set this upon success
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -532,7 +503,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template, user))
 }
 
-func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
@@ -569,7 +540,7 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
@@ -600,7 +571,70 @@ func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+		return
+	}
+
+	var req codersdk.PutExtendWorkspaceRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var code = http.StatusOK
+
+	err := api.Database.InTx(func(s database.Store) error {
+		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		if build.Transition != database.WorkspaceTransitionStart {
+			code = http.StatusConflict
+			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
+		}
+
+		newDeadline := req.Deadline.Truncate(time.Minute).UTC()
+		if newDeadline.IsZero() {
+			// This should not be possible because the struct validation field enforces a non-zero value.
+			code = http.StatusBadRequest
+			return xerrors.New("new deadline cannot be zero")
+		}
+
+		if newDeadline.Before(build.Deadline) || newDeadline.Before(time.Now()) {
+			code = http.StatusBadRequest
+			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
+		}
+
+		// both newDeadline and build.Deadline are truncated to time.Minute
+		if newDeadline == build.Deadline {
+			code = http.StatusNotModified
+			return nil
+		}
+
+		if err := s.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			ProvisionerState: build.ProvisionerState,
+			Deadline:         newDeadline,
+		}); err != nil {
+			return xerrors.Errorf("update workspace build: %w", err)
+		}
+
+		return nil
+	})
+
+	var resp = httpapi.Response{}
+	if err != nil {
+		resp.Message = err.Error()
+	}
+	httpapi.Write(rw, code, resp)
+}
+
+func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{

@@ -11,7 +11,11 @@ import (
 )
 
 func publickey() *cobra.Command {
-	return &cobra.Command{
+	var (
+		reset bool
+	)
+
+	cmd := &cobra.Command{
 		Use:     "publickey",
 		Aliases: []string{"pubkey"},
 		Short:   "Output your public key for Git operations",
@@ -19,6 +23,25 @@ func publickey() *cobra.Command {
 			client, err := createClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
+			}
+
+			if reset {
+				// Confirm prompt if using --reset. We don't want to accidentally
+				// reset our public key.
+				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: "Confirm regenerate a new sshkey for your workspaces? This will require updating the key " +
+						"on any services it is registered with. This action cannot be reverted.",
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Reset the public key, let the retrieve re-read it.
+				_, err = client.RegenerateGitSSHKey(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
 			}
 
 			key, err := client.GitSSHKey(cmd.Context(), codersdk.Me)
@@ -40,4 +63,8 @@ func publickey() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
+	cliui.AllowSkipPrompt(cmd)
+
+	return cmd
 }

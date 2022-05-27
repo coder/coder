@@ -18,7 +18,7 @@ import (
 
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
-func (api *api) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.AzureInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -36,7 +36,7 @@ func (api *api) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // AWS supports instance identity verification:
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
 // Using this, we can exchange a signed instance payload for an agent token.
-func (api *api) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.AWSInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -54,7 +54,7 @@ func (api *api) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
-func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -85,7 +85,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	api.handleAuthInstanceID(rw, r, claims.Google.ComputeEngine.InstanceID)
 }
 
-func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
+func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
