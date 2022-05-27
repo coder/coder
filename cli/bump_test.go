@@ -168,9 +168,9 @@ func TestBump(t *testing.T) {
 
 		// When: we execute `coder bump workspace``
 		err = cmd.ExecuteContext(ctx)
+		require.NoError(t, err)
 
 		// Then: nothing happens and the deadline remains unset
-		require.NoError(t, err)
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Zero(t, updated.LatestBuild.Deadline)
@@ -208,9 +208,9 @@ func TestBump(t *testing.T) {
 
 		// When: we execute `coder bump workspace 59s`
 		err = cmd.ExecuteContext(ctx)
+		require.ErrorContains(t, err, "minimum bump duration is 1 minute")
 
 		// Then: an error is reported and the deadline remains as before
-		require.ErrorContains(t, err, "minimum bump duration is 1 minute")
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.WithinDuration(t, workspace.LatestBuild.Deadline, updated.LatestBuild.Deadline, time.Minute)

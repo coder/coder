@@ -609,7 +609,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
 		}
 
-		// Disallow updates within than one minute
+		// Disallow updates within less than one minute
 		if withinDuration(newDeadline, build.Deadline, time.Minute) {
 			code = http.StatusNotModified
 			return nil
