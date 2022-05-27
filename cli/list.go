@@ -97,7 +97,7 @@ func list() *cobra.Command {
 				if workspace.TTL != nil {
 					autostopDisplay = durationDisplay(*workspace.TTL)
 					if has, ext := hasExtension(workspace); has {
-						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext))
+						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext.Round(time.Minute)))
 					}
 				}
 
@@ -131,8 +131,8 @@ func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
 	if ws.TTL == nil {
 		return false, 0
 	}
-	delta := ws.LatestBuild.Deadline.Add(-*ws.TTL).Sub(ws.LatestBuild.UpdatedAt).Round(time.Minute)
-	if delta <= 0 {
+	delta := ws.LatestBuild.Deadline.Add(-*ws.TTL).Sub(ws.LatestBuild.CreatedAt)
+	if delta < time.Minute {
 		return false, 0
 	}
 
