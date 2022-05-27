@@ -509,7 +509,6 @@ func TestTemplateVersionPlan(t *testing.T) {
 				logCount++
 			}
 			assert.GreaterOrEqual(t, logCount, 1, "unexpected log count")
-			return
 		}()
 
 		// Wait for the job to complete
