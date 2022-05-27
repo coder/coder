@@ -503,6 +503,7 @@ func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 }
 
 func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+	t.Helper()
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
 	if err != nil && strings.Contains(err.Error(), "status code 410") {
@@ -513,6 +514,7 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 }
 
 func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
+	t.Helper()
 	assert.Eventually(t, func() bool {
 		ws := mustWorkspace(t, client, workspace.ID)
 		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
@@ -523,10 +525,11 @@ func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Clie
 		}
 		// At this point a build has happened. Is it what we want?
 		return assert.Equal(t, expected, ws.LatestBuild.Transition)
-	}, 5*time.Second, 25*time.Millisecond)
+	}, 3*time.Second, 25*time.Millisecond)
 }
 
 func assertLatestTransitionWithNoEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
+	t.Helper()
 	assert.Never(t, func() bool {
 		ws := mustWorkspace(t, client, workspace.ID)
 		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
@@ -537,7 +540,7 @@ func assertLatestTransitionWithNoEventualBuild(t *testing.T, client *codersdk.Cl
 		}
 		// At this point a build should not have happened. Is the state still as expected?
 		return assert.Equal(t, expected, ws.LatestBuild.Transition)
-	}, 5*time.Second, 25*time.Millisecond)
+	}, 3*time.Second, 25*time.Millisecond)
 }
 
 func TestMain(m *testing.M) {
