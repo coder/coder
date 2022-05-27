@@ -138,11 +138,14 @@ func TestLogout(t *testing.T) {
 		// Changing the permissions to throw error during deletion.
 		var err error
 		if runtime.GOOS == "windows" {
-			err = os.Chmod(string(config), 0400)
+			err = os.Chmod(string(config.URL()), 0400)
+			require.NoError(t, err)
+			err = os.Chmod(string(config.Session()), 0400)
+			require.NoError(t, err)
 		} else {
 			err = os.Chmod(string(config), 0500)
+			require.NoError(t, err)
 		}
-		require.NoError(t, err)
 
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
@@ -161,13 +164,18 @@ func TestLogout(t *testing.T) {
 		pty.WriteLine("yes")
 		<-logoutChan
 
-		// Setting the permissions back for cleanup.
-		if runtime.GOOS == "windows" {
-			err = os.Chmod(string(config), 0600)
-		} else {
-			err = os.Chmod(string(config), 0700)
-		}
-		require.NoError(t, err)
+		t.Cleanup(func() {
+			// Setting the permissions back for cleanup.
+			if runtime.GOOS == "windows" {
+				err = os.Chmod(string(config.URL()), 0600)
+				require.NoError(t, err)
+				err = os.Chmod(string(config.Session()), 0600)
+				require.NoError(t, err)
+			} else {
+				err = os.Chmod(string(config), 0700)
+				require.NoError(t, err)
+			}
+		})
 	})
 }
 
