@@ -11,7 +11,7 @@ dayjs.extend(isSameOrBefore)
 
 export const Language = {
   bannerTitle: "Workspace shutdown",
-  bannerDetail: "Your workspace will shutdown soon.",
+  bannerDetail: "Your workspace is scheduled to automatically shut down soon.",
 }
 
 export interface WorkspaceScheduleBannerProps {
