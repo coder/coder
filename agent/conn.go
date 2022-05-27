@@ -34,8 +34,10 @@ type Conn struct {
 
 // ReconnectingPTY returns a connection serving a TTY that can
 // be reconnected to via ID.
-func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error) {
-	channel, err := c.CreateChannel(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
+//
+// The command is optional and defaults to start a shell.
+func (c *Conn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
+	channel, err := c.CreateChannel(context.Background(), fmt.Sprintf("%s:%d:%d:%s", id, height, width, command), &peer.ChannelOptions{
 		Protocol: ProtocolReconnectingPTY,
 	})
 	if err != nil {
