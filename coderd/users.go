@@ -254,19 +254,12 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Email:    params.Email,
 		Username: params.Username,
 	})
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
 		responseErrors := []httpapi.Error{}
-		if existentUser.Email == params.Email {
-			responseErrors = append(responseErrors, httpapi.Error{
-				Field:  "email",
-				Detail: "this value is already in use and should be unique",
-			})
-		}
 		if existentUser.Username == params.Username {
 			responseErrors = append(responseErrors, httpapi.Error{
 				Field:  "username",
@@ -288,7 +281,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
-		Email:     params.Email,
+		Email:     user.Email,
 		Username:  params.Username,
 		UpdatedAt: database.Now(),
 	})

@@ -259,32 +259,12 @@ func TestUpdateUserProfile(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.UpdateUserProfile(context.Background(), uuid.New().String(), codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
-			Email:    "newemail@coder.com",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		// Right now, we are raising a BAD request error because we don't support a
 		// user accessing other users info
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("ConflictingEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		existentUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-			Email:          "bruno@coder.com",
-			Username:       "bruno",
-			Password:       "password",
-			OrganizationID: user.OrganizationID,
-		})
-		_, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: "newusername",
-			Email:    existentUser.Email,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
 	t.Run("ConflictingUsername", func(t *testing.T) {
@@ -300,38 +280,22 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: existentUser.Username,
-			Email:    "newemail@coder.com",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdateUsernameAndEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: "newusername",
-			Email:    "newemail@coder.com",
-		})
-		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, "newusername")
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
-	})
-
 	t.Run("UpdateUsername", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		me, _ := client.User(context.Background(), codersdk.Me)
+		_, _ = client.User(context.Background(), codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: me.Username,
-			Email:    "newemail@coder.com",
+			Username: "newusername",
 		})
 		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, me.Username)
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
+		require.Equal(t, userProfile.Username, "newusername")
 	})
 }
 
