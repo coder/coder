@@ -2,6 +2,7 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { AxiosError } from "axios"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
@@ -48,7 +49,7 @@ type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 export interface AuthContext {
   getUserError?: Error | unknown
   getMethodsError?: Error | unknown
-  authError?: Error | unknown
+  authError?: Error | AxiosError | unknown
   updateProfileError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods

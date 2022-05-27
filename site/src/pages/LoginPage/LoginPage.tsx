@@ -6,6 +6,8 @@ import { Footer } from "../../components/Footer/Footer"
 import { SignInForm } from "../../components/SignInForm/SignInForm"
 import { retrieveRedirect } from "../../util/redirect"
 import { XServiceContext } from "../../xServices/StateContext"
+import { AxiosError } from "axios"
+import {isApiError} from "../../api/errors";
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -33,7 +35,11 @@ export const LoginPage: React.FC = () => {
   const [authState, authSend] = useActor(xServices.authXService)
   const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
-  const authErrorMessage = authState.context.authError ? (authState.context.authError as Error).message : undefined
+  //{
+  //     "message": "user is not active (status = \"suspended\"), contact an admin to reactivate your account"
+  // }
+
+  const authErrorMessage = isApiError(authState.context.authError) ? authState.context.authError.response.data.message : undefined
   const getMethodsError = authState.context.getMethodsError
     ? (authState.context.getMethodsError as Error).message
     : undefined

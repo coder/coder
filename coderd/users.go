@@ -632,15 +632,16 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "invalid email or password",
+			Message: "Incorrect email or password",
 		})
 		return
 	}
 
 	// If the user logged into a suspended account, reject the login request.
 	if user.Status != database.UserStatusActive {
+
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("user is not active (status = %q), contact an admin to reactivate your account", user.Status),
+			Message: "You are suspended, contact an admin to reactivate your account",
 		})
 		return
 	}
