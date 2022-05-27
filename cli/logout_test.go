@@ -138,9 +138,9 @@ func TestLogout(t *testing.T) {
 		// Changing the permissions to throw error during deletion.
 		var err error
 		if runtime.GOOS == "windows" {
-			err = os.Chmod(string(config.URL()), 0400)
+			err = os.Chmod(string(config.URL()), 0200)
 			require.NoError(t, err)
-			err = os.Chmod(string(config.Session()), 0400)
+			err = os.Chmod(string(config.Session()), 0200)
 			require.NoError(t, err)
 		} else {
 			err = os.Chmod(string(config), 0500)
