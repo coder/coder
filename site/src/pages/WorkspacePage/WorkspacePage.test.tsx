@@ -139,8 +139,12 @@ describe("Workspace Page", () => {
     it("shows the timeline build", async () => {
       await renderWorkspacePage()
       const table = await screen.findByTestId("builds-table")
-      const rows = table.querySelectorAll("tbody > tr")
-      expect(rows).toHaveLength(MockBuilds.length)
+
+      // Wait for the results to be loaded
+      await waitFor(async () => {
+        const rows = table.querySelectorAll("tbody > tr")
+        expect(rows).toHaveLength(MockBuilds.length)
+      })
     })
   })
 

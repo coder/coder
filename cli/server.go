@@ -68,10 +68,8 @@ func server() *cobra.Command {
 		pprofAddress          string
 		cacheDir              string
 		dev                   bool
-		devFirstEmail         string
-		devFirstPassword      string
-		devMemberEmail        string
-		devMemberPassword     string
+		devUserEmail          string
+		devUserPassword       string
 		postgresURL           string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
@@ -332,30 +330,19 @@ func server() *cobra.Command {
 			config := createConfig(cmd)
 
 			if dev {
-				if devFirstPassword == "" {
-					devFirstPassword, err = cryptorand.String(10)
+				if devUserPassword == "" {
+					devUserPassword, err = cryptorand.String(10)
 					if err != nil {
 						return xerrors.Errorf("generate random admin password for dev: %w", err)
 					}
 				}
-				if devMemberPassword == "" {
-					devMemberPassword, err = cryptorand.String(10)
-					if err != nil {
-						return xerrors.Errorf("generate random member password for dev: %w", err)
-					}
-				}
-
-				// Create first user with 1 additional user as a member of the same org.
-				err = createFirstUser(cmd, client, config, devFirstEmail, devFirstPassword, extraUsers{
-					Username: "member",
-					Email:    devMemberEmail,
-					Password: devMemberPassword,
-				})
+				restorePreviousSession, err := createFirstUser(logger, cmd, client, config, devUserEmail, devUserPassword)
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devFirstEmail)
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devFirstPassword)
+				defer restorePreviousSession()
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
@@ -488,10 +475,8 @@ func server() *cobra.Command {
 	// systemd uses the CACHE_DIRECTORY environment variable!
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflag.StringVarP(root.Flags(), &devFirstEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
-	cliflag.StringVarP(root.Flags(), &devFirstPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
-	cliflag.StringVarP(root.Flags(), &devMemberEmail, "dev-member-email", "", "CODER_DEV_MEMBER_EMAIL", "member@coder.com", "Specifies the member email to be used in dev mode (--dev)")
-	cliflag.StringVarP(root.Flags(), &devMemberPassword, "dev-member-password", "", "CODER_DEV_MEMBER_PASSWORD", "", "Specifies the member password to be used in dev mode (--dev) instead of a randomly generated one")
+	cliflag.StringVarP(root.Flags(), &devUserEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
+	cliflag.StringVarP(root.Flags(), &devUserPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
@@ -534,58 +519,79 @@ func server() *cobra.Command {
 	return root
 }
 
-type extraUsers struct {
-	Username string
-	Email    string
-	Password string
-}
-
-func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string, users ...extraUsers) error {
+// createFirstUser creates the first user and sets a valid session.
+// Caller must call restorePreviousSession on server exit.
+func createFirstUser(logger slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
 	if email == "" {
-		return xerrors.New("email is empty")
+		return nil, xerrors.New("email is empty")
 	}
 	if password == "" {
-		return xerrors.New("password is empty")
+		return nil, xerrors.New("password is empty")
 	}
-	first, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 		Email:            email,
 		Username:         "developer",
 		Password:         password,
 		OrganizationName: "acme-corp",
 	})
 	if err != nil {
-		return xerrors.Errorf("create first user: %w", err)
+		return nil, xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    email,
 		Password: password,
 	})
 	if err != nil {
-		return xerrors.Errorf("login with first user: %w", err)
+		return nil, xerrors.Errorf("login with first user: %w", err)
 	}
 	client.SessionToken = token.SessionToken
 
+	// capture the current session and if exists recover session on server exit
+	restorePreviousSession := func() {}
+	oldURL, _ := cfg.URL().Read()
+	oldSession, _ := cfg.Session().Read()
+	if oldURL != "" && oldSession != "" {
+		restorePreviousSession = func() {
+			currentURL, err := cfg.URL().Read()
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
+				return
+			}
+			currentSession, err := cfg.Session().Read()
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
+				return
+			}
+
+			// if it's changed since we wrote to it don't restore session
+			if currentURL != client.URL.String() ||
+				currentSession != token.SessionToken {
+				return
+			}
+
+			err = cfg.URL().Write(oldURL)
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
+				return
+			}
+			err = cfg.Session().Write(oldSession)
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
+				return
+			}
+		}
+	}
+
 	err = cfg.URL().Write(client.URL.String())
 	if err != nil {
-		return xerrors.Errorf("write local url: %w", err)
+		return nil, xerrors.Errorf("write local url: %w", err)
 	}
 	err = cfg.Session().Write(token.SessionToken)
 	if err != nil {
-		return xerrors.Errorf("write session token: %w", err)
+		return nil, xerrors.Errorf("write session token: %w", err)
 	}
 
-	for _, user := range users {
-		_, err := client.CreateUser(cmd.Context(), codersdk.CreateUserRequest{
-			Email:          user.Email,
-			Username:       user.Username,
-			Password:       user.Password,
-			OrganizationID: first.OrganizationID,
-		})
-		if err != nil {
-			return xerrors.Errorf("create extra user %q: %w", user.Email, err)
-		}
-	}
-	return nil
+	return restorePreviousSession, nil
 }
 
 // nolint:revive
@@ -642,16 +648,16 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `
-		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 		▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 		▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 		▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 		░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
 		  ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-		░ ░          ░ ░     ░       ░  ░   ░     
-		░                  ░                      		
+		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+		░ ░          ░ ░     ░       ░  ░   ░
+		░                  ░
 
 `)
 		return

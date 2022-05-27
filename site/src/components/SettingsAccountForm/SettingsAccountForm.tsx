@@ -3,7 +3,7 @@ import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
@@ -22,7 +22,7 @@ export const Language = {
 
 const validationSchema = Yup.object({
   email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
-  username: Yup.string().trim(),
+  username: nameValidator(Language.usernameLabel),
 })
 
 export type AccountFormErrors = FormikErrors<AccountFormValues>
