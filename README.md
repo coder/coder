@@ -92,7 +92,7 @@ There are a few ways to run Coder:
   sudo service coder restart
   ```
 
-  > OSX and Windows: You'll need to write your own 
+  > macOS and Windows users: You'll need to write your own 
   > configuration to run as a system service.
 
 - See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g docker-compose)
