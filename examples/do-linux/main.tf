@@ -13,7 +13,7 @@ terraform {
 
 variable "step1_do_token" {
   type        = string
-  description = "Enter token (refer to docs at ...)"
+  description = "Enter token (see documentation at https://docs.digitalocean.com/reference/api/create-personal-access-token/)"
   sensitive   = true
 
   validation {
@@ -24,7 +24,11 @@ variable "step1_do_token" {
 
 variable "step2_do_project_id" {
   type        = string
-  description = "Enter project ID (see e.g. doctl projects list)"
+  description = <<-EOF
+    Enter project ID
+
+      $ doctl projects list
+  EOF
   sensitive   = true
 
   validation {
@@ -33,7 +37,20 @@ variable "step2_do_project_id" {
   }
 }
 
+variable "step3_do_admin_ssh_key" {
+  type        = number
+  description = <<-EOF
+    Enter admin SSH key ID (some Droplet images require an SSH key to be set):
+
+    Note: Leaving this as zero will break Fedora images and notify root passwords via email.
+
+      $ doctl compute ssh-key list
+  EOF
+  sensitive   = true
+}
+
 variable "droplet_image" {
+  type        = string
   description = "Which Droplet image would you like to use for your workspace?"
   default     = "ubuntu-22-04-x64"
   validation {
@@ -43,7 +60,9 @@ variable "droplet_image" {
 }
 
 variable "droplet_size" {
+  type        = string
   description = "Which Droplet configuration would you like to use?"
+  default     = "s-1vcpu-1gb"
   validation {
     condition     = contains(["s-1vcpu-1gb", "s-1vcpu-2gb", "s-2vcpu-2gb", "s-2vcpu-4gb", "s-4vcpu-8gb", "s-8vcpu-16gb"], var.droplet_size)
     error_message = "Value must be s-1vcpu-1gb, s-1vcpu-2gb, s-2vcpu-2gb, s-2vcpu-4gb, s-4vcpu-8gb or s-8vcpu-16gb."
@@ -61,7 +80,9 @@ variable "home_volume_size" {
 }
 
 variable "region" {
+  type        = string
   description = "Which region would you like to use?"
+  default     = "ams3"
   validation {
     condition     = contains(["nyc1", "nyc2", "nyc3", "sfo1", "sfo2", "sfo3", "ams2", "ams3", "sgp1", "lon1", "fra1", "tor1", "blr1"], var.region)
     error_message = "Value must be nyc1, nyc2, nyc3, sfo1, sfo2, sfo3, ams2, ams3, sgp1, lon1, fra1, tor1 or blr1."
@@ -101,6 +122,8 @@ resource "digitalocean_droplet" "workspace" {
     init_script       = base64encode(coder_agent.dev.init_script)
     coder_agent_token = coder_agent.dev.token
   })
+  # Required to provision Fedora.
+  ssh_keys = concat([], var.step3_do_admin_ssh_key > 0 ? [var.step3_do_admin_ssh_key] : [])
 }
 
 # resource "digitalocean_project_resources" "project" {
