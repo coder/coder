@@ -13,7 +13,7 @@ import (
 
 const (
 	bumpDescriptionLong = `To extend the autostop deadline for a workspace.
-	If no unit is specified in the duration, we assume minutes.
+If no unit is specified in the duration, we assume minutes.
 	`
 	defaultBumpDuration = 90 * time.Minute
 )
