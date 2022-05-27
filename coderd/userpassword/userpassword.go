@@ -121,3 +121,19 @@ func hashWithSaltAndIter(password string, salt []byte, iter int) string {
 
 	return fmt.Sprintf("$%s$%d$%s$%s", hashScheme, iter, encSalt, encHash)
 }
+
+// Validate checks that the plain text password meets the minimum password requirements.
+// It returns properly formatted errors for detailed form validation on the client.
+func Validate(password string) error {
+	const (
+		minLength = 8
+		maxLength = 64
+	)
+	if len(password) < minLength {
+		return xerrors.Errorf("Password must be at least %d characters.", minLength)
+	}
+	if len(password) > maxLength {
+		return xerrors.Errorf("Password must be no more than %d characters.", maxLength)
+	}
+	return nil
+}

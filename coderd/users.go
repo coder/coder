@@ -355,6 +355,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user   = httpmw.UserParam(r)
+		apiKey = httpmw.APIKey(r)
 		params codersdk.UpdateUserPasswordRequest
 	)
 
@@ -364,6 +365,43 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	err := userpassword.Validate(params.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Errors: []httpapi.Error{
+				{
+					Field:  "password",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	// we want to require old_password field if the user is changing their
+	// own password. This is to prevent a compromised session from being able
+	// to change password and lock out the user.
+	if user.ID == apiKey.UserID {
+		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("compare user password: %s", err.Error()),
+			})
+			return
+		}
+		if !ok {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Errors: []httpapi.Error{
+					{
+						Field:  "old_password",
+						Detail: "Old password is incorrect.",
+					},
+				},
+			})
+			return
+		}
 	}
 
 	hashedPassword, err := userpassword.Hash(params.Password)
