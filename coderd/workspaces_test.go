@@ -651,7 +651,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: time.Time{},
 	})
-	require.ErrorContains(t, err, "deadline: required", "setting an empty deadline on a workspace should fail")
+	require.ErrorContains(t, err, "Validation failed for tag", "setting an empty deadline on a workspace should fail")
 
 	// Updating with an earlier time should also fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
