@@ -1,5 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
+import { MockUser } from "../../testHelpers/entities"
 import { UserProfileCard, UserProfileCardProps } from "./UserProfileCard"
 
 export default {
@@ -15,12 +16,7 @@ const Template: Story<UserProfileCardProps> = (args: UserProfileCardProps) => <U
 export const ExampleNoRoles = Template.bind({})
 ExampleNoRoles.args = {
   user: {
-    id: "1",
-    username: "CathyCoder",
-    email: "cathy@coder.com",
-    created_at: "dawn",
-    status: "active",
-    organization_ids: [],
+    ...MockUser,
     roles: [],
   },
 }
@@ -28,12 +24,7 @@ ExampleNoRoles.args = {
 export const ExampleOneRole = Template.bind({})
 ExampleOneRole.args = {
   user: {
-    id: "1",
-    username: "CathyCoder",
-    email: "cathy@coder.com",
-    created_at: "dawn",
-    status: "active",
-    organization_ids: [],
+    ...MockUser,
     roles: [{ name: "member", display_name: "Member" }],
   },
 }
@@ -41,12 +32,7 @@ ExampleOneRole.args = {
 export const ExampleThreeRoles = Template.bind({})
 ExampleThreeRoles.args = {
   user: {
-    id: "1",
-    username: "CathyCoder",
-    email: "cathy@coder.com",
-    created_at: "dawn",
-    status: "active",
-    organization_ids: [],
+    ...MockUser,
     roles: [
       { name: "admin", display_name: "Admin" },
       { name: "member", display_name: "Member" },

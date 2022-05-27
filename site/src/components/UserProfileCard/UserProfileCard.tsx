@@ -23,7 +23,7 @@ export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
       <ul className={styles.chipContainer}>
         {user.roles.map((role: Role) => (
           <li key={role.name} className={styles.chipStyles}>
-            <Chip label={role.display_name} />
+            <Chip classes={{ root: styles.chipRoot }} label={role.display_name} />
           </li>
         ))}
       </ul>
@@ -72,5 +72,8 @@ const useStyles = makeStyles((theme) => ({
   },
   chipStyles: {
     margin: theme.spacing(0.5),
+  },
+  chipRoot: {
+    backgroundColor: "#7057FF",
   },
 }))
