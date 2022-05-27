@@ -6,11 +6,11 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
-import { UserCell } from "../UserCell/UserCell"
 
 export const Language = {
   pageTitle: "Users",
@@ -60,7 +60,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           users.map((u) => (
             <TableRow key={u.id}>
               <TableCell>
-                <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
+                <AvatarData title={u.username} subtitle={u.email} />
               </TableCell>
               <TableCell>
                 {canEditUsers ? (
