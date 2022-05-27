@@ -156,6 +156,7 @@ func TestLogout(t *testing.T) {
 		go func() {
 			defer close(logoutChan)
 			err := logout.Execute()
+			assert.NotNil(t, err)
 			errRegex := regexp.MustCompile("Failed to log out.\n\tremove URL file: .+: permission denied\n\tremove session file: .+: permission denied")
 			assert.Regexp(t, errRegex, err.Error())
 		}()
