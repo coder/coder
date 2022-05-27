@@ -3,7 +3,7 @@ import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
@@ -28,10 +28,16 @@ export const Language = {
 
 const validationSchema = Yup.object({
   old_password: Yup.string().trim().required(Language.oldPasswordRequired),
-  password: Yup.string().trim().min(8, Language.passwordMinLength).max(64, Language.passwordMaxLength).required(Language.newPasswordRequired),
-  confirm_password: Yup.string().trim().test("passwords-match", Language.confirmPasswordMatch, function (value) {
-    return (this.parent as SecurityFormValues).password === value
-  })
+  password: Yup.string()
+    .trim()
+    .min(8, Language.passwordMinLength)
+    .max(64, Language.passwordMaxLength)
+    .required(Language.newPasswordRequired),
+  confirm_password: Yup.string()
+    .trim()
+    .test("passwords-match", Language.confirmPasswordMatch, function (value) {
+      return (this.parent as SecurityFormValues).password === value
+    }),
 })
 
 export type SecurityFormErrors = FormikErrors<SecurityFormValues>

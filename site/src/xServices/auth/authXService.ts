@@ -169,7 +169,7 @@ export const authMachine =
             data: TypesGen.User
           }
           updateSecurity: {
-            data: any
+            data: undefined
           }
           checkPermissions: {
             data: TypesGen.UserAuthorizationResponse

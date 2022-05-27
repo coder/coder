@@ -5,7 +5,7 @@ import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackba
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
-import { SecurityPage, Language } from "./SecurityPage"
+import { Language, SecurityPage } from "./SecurityPage"
 
 const renderPage = () => {
   return renderWithAuth(
@@ -19,7 +19,7 @@ const renderPage = () => {
 const newData = {
   old_password: "password1",
   password: "password2",
-  confirm_password: "password2"
+  confirm_password: "password2",
 }
 
 const fillAndSubmitForm = async () => {
@@ -33,9 +33,7 @@ const fillAndSubmitForm = async () => {
 describe("SecurityPage", () => {
   describe("when it is a success", () => {
     it("shows the success message", async () => {
-      jest.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
-        Promise.resolve(undefined),
-      )
+      jest.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
       const { user } = renderPage()
       await fillAndSubmitForm()
 

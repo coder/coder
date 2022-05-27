@@ -16,7 +16,9 @@ export const SecurityPage: React.FC = () => {
   const { me, updateSecurityError } = authState.context
   const hasError = !!updateSecurityError
   const formErrors =
-    hasError && isApiError(updateSecurityError) ? mapApiErrorToFieldErrors(updateSecurityError.response.data) : undefined
+    hasError && isApiError(updateSecurityError)
+      ? mapApiErrorToFieldErrors(updateSecurityError.response.data)
+      : undefined
   const hasUnknownError = hasError && !isApiError(updateSecurityError)
 
   if (!me) {
