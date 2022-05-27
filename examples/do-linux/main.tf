@@ -82,7 +82,7 @@ variable "home_volume_size" {
   default     = 20
   validation {
     condition     = var.home_volume_size >= 1
-    error_message = "Value must be greather than or equal to 1."
+    error_message = "Value must be greater than or equal to 1."
   }
 }
 
