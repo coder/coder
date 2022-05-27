@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 

@@ -72,8 +72,7 @@ func server() *cobra.Command {
 		devFirstPassword      string
 		devMemberEmail        string
 		devMemberPassword     string
-
-		postgresURL string
+		postgresURL           string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
 		oauth2GithubClientID             string
