@@ -311,74 +311,6 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
-func (api *API) putUserOwnPassword(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	// this route is for the owning user so we need to check the old password
-	// to protect against a compromised session being able to change the user's password.
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
-		return
-	}
-
-	var params codersdk.UpdateUserOwnPasswordRequest
-	if !httpapi.Read(rw, r, &params) {
-		return
-	}
-
-	ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("compare user password: %s", err.Error()),
-		})
-		return
-	}
-	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Errors: []httpapi.Error{
-				{
-					Field:  "old_password",
-					Detail: "Old password is incorrect.",
-				},
-			},
-		})
-		return
-	}
-
-	err = userpassword.Validate(params.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Errors: []httpapi.Error{
-				{
-					Field:  "password",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
-	}
-
-	hashedPassword, err := userpassword.Hash(params.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("hash password: %s", err.Error()),
-		})
-		return
-	}
-
-	err = api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
-		ID:             user.ID,
-		HashedPassword: []byte(hashedPassword),
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("put user password: %s", err.Error()),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusNoContent, nil)
-}
-
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		user := httpmw.UserParam(r)
@@ -423,16 +355,40 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user   = httpmw.UserParam(r)
+		apiKey = httpmw.APIKey(r)
 		params codersdk.UpdateUserPasswordRequest
 	)
 
-	// this route is for admins so we don't need to require an old password.
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithID(user.ID.String())) {
 		return
 	}
 
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	// we want to require old_password field if the user is changing their
+	// own password. This is to prevent a compromised session from being able
+	// to change password and lock out the user.
+	if user.ID == apiKey.UserID {
+		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("compare user password: %s", err.Error()),
+			})
+			return
+		}
+		if !ok {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Errors: []httpapi.Error{
+					{
+						Field:  "old_password",
+						Detail: "Old password is incorrect.",
+					},
+				},
+			})
+			return
+		}
 	}
 
 	err := userpassword.Validate(params.Password)

@@ -249,7 +249,6 @@ func New(options *Options) *API {
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
-					r.Put("/ownpassword", api.putUserOwnPassword)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
