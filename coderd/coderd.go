@@ -140,36 +140,41 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.provisionerDaemons)
 		})
-		r.Route("/organizations/{organization}", func(r chi.Router) {
+		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
 				authRolesMiddleware,
 			)
-			r.Get("/", api.organization)
-			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
-			r.Route("/templates", func(r chi.Router) {
-				r.Post("/", api.postTemplateByOrganization)
-				r.Get("/", api.templatesByOrganization)
-				r.Get("/{templatename}", api.templateByOrganizationAndName)
-			})
-			r.Route("/workspaces", func(r chi.Router) {
-				r.Post("/", api.postWorkspacesByOrganization)
-				r.Get("/", api.workspacesByOrganization)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspacename}", api.workspaceByOwnerAndName)
-					r.Get("/", api.workspacesByOwner)
+			r.Post("/", api.postOrganizations)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOrganizationParam(options.Database),
+				)
+				r.Get("/", api.organization)
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+				r.Route("/templates", func(r chi.Router) {
+					r.Post("/", api.postTemplateByOrganization)
+					r.Get("/", api.templatesByOrganization)
+					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-			})
-			r.Route("/members", func(r chi.Router) {
-				r.Get("/roles", api.assignableOrgRoles)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(
-						httpmw.ExtractUserParam(options.Database),
-						httpmw.ExtractOrganizationMemberParam(options.Database),
-					)
-					r.Put("/roles", api.putMemberRoles)
+				r.Route("/workspaces", func(r chi.Router) {
+					r.Post("/", api.postWorkspacesByOrganization)
+					r.Get("/", api.workspacesByOrganization)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
+						r.Get("/", api.workspacesByOwner)
+					})
+				})
+				r.Route("/members", func(r chi.Router) {
+					r.Get("/roles", api.assignableOrgRoles)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(
+							httpmw.ExtractUserParam(options.Database),
+							httpmw.ExtractOrganizationMemberParam(options.Database),
+						)
+						r.Put("/roles", api.putMemberRoles)
+					})
 				})
 			})
 		})
@@ -252,7 +257,6 @@ func New(options *Options) *API {
 
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
-						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})

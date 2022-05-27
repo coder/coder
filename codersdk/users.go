@@ -408,8 +408,8 @@ func (c *Client) OrganizationByName(ctx context.Context, user string, name strin
 }
 
 // CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, user string, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
+func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
 	if err != nil {
 		return Organization{}, err
 	}
