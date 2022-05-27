@@ -8,7 +8,6 @@ import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
 interface AccountFormValues {
-  email: string
   username: string
 }
 
@@ -23,7 +22,9 @@ const validationSchema = Yup.object({
 })
 
 export type AccountFormErrors = FormikErrors<AccountFormValues>
+
 export interface AccountFormProps {
+  email: string
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
@@ -32,6 +33,7 @@ export interface AccountFormProps {
 }
 
 export const AccountForm: React.FC<AccountFormProps> = ({
+  email,
   isLoading,
   onSubmit,
   initialValues,
@@ -49,15 +51,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          <TextField
-            {...getFieldHelpers("email")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="email"
-            fullWidth
-            label={Language.emailLabel}
-            variant="outlined"
-            disabled={true}
-          />
+          <TextField disabled fullWidth label={Language.emailLabel} value={email} variant="outlined" />
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}

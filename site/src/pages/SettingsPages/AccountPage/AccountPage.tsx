@@ -26,10 +26,11 @@ export const AccountPage: React.FC = () => {
   return (
     <Section title={Language.title}>
       <AccountForm
+        email={me.email}
         error={hasUnknownError ? Language.unknownError : undefined}
         formErrors={formErrors}
         isLoading={authState.matches("signedIn.profile.updatingProfile")}
-        initialValues={{ username: me.username, email: me.email }}
+        initialValues={{ username: me.username }}
         onSubmit={(data) => {
           authSend({
             type: "UPDATE_PROFILE",
