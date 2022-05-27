@@ -1,3 +1,4 @@
+
 terraform {
   required_providers {
     coder = {
@@ -12,9 +13,6 @@ terraform {
 }
 
 # Admin parameters
-
-# Comment this out if you are specifying a different docker
-# host on the "docker" provider below.
 variable "step1_docker_host_warning" {
   description = <<-EOF
   This template will use the Docker socket present on
@@ -31,12 +29,7 @@ variable "step1_docker_host_warning" {
   sensitive = true
 }
 variable "step2_arch" {
-  description = <<-EOF
-  arch: What archicture is your Docker host on?
-
-  note: codercom/enterprise-* images are only built for amd64
-  EOF
-
+  description = "arch: What architecture is your Docker host on?"
   validation {
     condition     = contains(["amd64", "arm64", "armv7"], var.step2_arch)
     error_message = "Value must be amd64, arm64, or armv7."
@@ -47,6 +40,7 @@ variable "step2_arch" {
 provider "docker" {
   host = "unix:///var/run/docker.sock"
 }
+
 provider "coder" {
 }
 
@@ -59,29 +53,48 @@ resource "coder_agent" "dev" {
 }
 
 variable "docker_image" {
-  description = "Which Docker image would you like to use for your workspace?"
-  # The codercom/enterprise-* images are only built for amd64
-  default = "codercom/enterprise-base:ubuntu"
+  description = "What Docker image would you like to use for your workspace?"
+  default     = "base"
+
+  # List of images available for the user to choose from.
+  # Delete this condition to give users free text input.
   validation {
-    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-intellij:ubuntu"], var.docker_image)
+    condition     = contains(["base", "java", "node"], var.docker_image)
     error_message = "Invalid Docker image!"
   }
 
+  # Prevents admin errors when the image is not found
+  validation {
+    condition     = fileexists("images/${var.docker_image}.Dockerfile")
+    error_message = "Invalid Docker image. The file does not exist in the images directory."
+  }
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-root"
+}
+
+resource "docker_image" "coder_image" {
+  name = "coder-base-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  build {
+    path       = "./images/"
+    dockerfile = "${var.docker_image}.Dockerfile"
+    tag        = ["coder-${var.docker_image}:v0.1"]
+  }
+
+  # Keep alive for other workspaces to use upon deletion
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = var.docker_image
+  image = docker_image.coder_image.latest
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  # Use the docker gateway if the access URL is 127.0.0.1
+  # Use the docker gateway if the access URL is 127.0.0.1 
   command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {

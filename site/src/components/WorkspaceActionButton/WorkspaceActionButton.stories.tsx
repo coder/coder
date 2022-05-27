@@ -14,14 +14,4 @@ export const Example = Template.bind({})
 Example.args = {
   icon: <PlayArrowRoundedIcon />,
   label: "Start workspace",
-  loadingLabel: "Starting workspace",
-  isLoading: false,
-}
-
-export const Loading = Template.bind({})
-Loading.args = {
-  icon: <PlayArrowRoundedIcon />,
-  label: "Start workspace",
-  loadingLabel: "Starting workspace",
-  isLoading: true,
 }

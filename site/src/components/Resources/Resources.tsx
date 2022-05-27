@@ -58,7 +58,10 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                 if (!agent) {
                   return (
                     <TableRow>
-                      <TableCell className={styles.resourceNameCell}>{resource.name}</TableCell>
+                      <TableCell className={styles.resourceNameCell}>
+                        {resource.name}
+                        <span className={styles.resourceType}>{resource.type}</span>
+                      </TableCell>
                       <TableCell colSpan={3}></TableCell>
                     </TableRow>
                   )
@@ -71,11 +74,13 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                     {agentIndex === 0 && (
                       <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
                         {resource.name}
+                        <span className={styles.resourceType}>{resource.type}</span>
                       </TableCell>
                     )}
 
                     <TableCell className={styles.agentColumn}>
-                      <span style={{ color: theme.palette.text.secondary }}>{agent.name}</span>
+                      {agent.name}
+                      <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
@@ -85,6 +90,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                     <TableCell>
                       {agent.status === "connected" && (
                         <TerminalLink
+                          className={styles.accessLink}
                           workspaceName={workspace.name}
                           agentName={agent.name}
                           userName={workspace.owner_name}
@@ -115,8 +121,35 @@ const useStyles = makeStyles((theme) => ({
     borderRight: `1px solid ${theme.palette.divider}`,
   },
 
+  resourceType: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
+    display: "block",
+  },
+
   // Adds some left spacing
   agentColumn: {
     paddingLeft: `${theme.spacing(2)}px !important`,
+  },
+
+  accessLink: {
+    color: theme.palette.text.secondary,
+    display: "flex",
+    alignItems: "center",
+
+    "& svg": {
+      width: 16,
+      height: 16,
+      marginRight: theme.spacing(1.5),
+    },
+  },
+
+  operatingSystem: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
+    display: "block",
+    textTransform: "capitalize",
   },
 }))

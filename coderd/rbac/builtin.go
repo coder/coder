@@ -68,6 +68,8 @@ var (
 					// All users can read all other users and know they exist.
 					ResourceUser:           {ActionRead},
 					ResourceRoleAssignment: {ActionRead},
+					// All users can see the provisioner daemons.
+					ResourceProvisionerDaemon: {ActionRead},
 				}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
@@ -134,6 +136,12 @@ var (
 							ResourceType: ResourceTemplate.Type,
 							Action:       ActionRead,
 							ResourceID:   "*",
+						},
+						{
+							// Can read available roles.
+							ResourceType: ResourceOrgRoleAssignment.Type,
+							ResourceID:   "*",
+							Action:       ActionRead,
 						},
 					},
 				},
@@ -215,6 +223,37 @@ func SiteRoles() []Role {
 		}
 	}
 	return roles
+}
+
+// ChangeRoleSet is a helper function that finds the difference of 2 sets of
+// roles. When setting a user's new roles, it is equivalent to adding and
+// removing roles. This set determines the changes, so that the appropriate
+// RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
+// "added" and "removed" roles respectively.
+func ChangeRoleSet(from []string, to []string) (added []string, removed []string) {
+	has := make(map[string]struct{})
+	for _, exists := range from {
+		has[exists] = struct{}{}
+	}
+
+	for _, roleName := range to {
+		// If the user already has the role assigned, we don't need to check the permission
+		// to reassign it. Only run permission checks on the difference in the set of
+		// roles.
+		if _, ok := has[roleName]; ok {
+			delete(has, roleName)
+			continue
+		}
+
+		added = append(added, roleName)
+	}
+
+	// Remaining roles are the ones removed/deleted.
+	for roleName := range has {
+		removed = append(removed, roleName)
+	}
+
+	return added, removed
 }
 
 // roleName is a quick helper function to return

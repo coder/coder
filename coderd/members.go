@@ -16,26 +16,28 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
-	// User is the user to modify
-	// TODO: Until rbac authorize is implemented, only be able to change your
-	//	own roles. This also means you can grant yourself whatever roles you want.
+func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
-	// TODO: @emyrk add proper `Authorize()` check here instead of a uuid match.
-	//	Proper authorize should check the granted roles are able to given within
-	//	the selected organization. Until then, allow anarchy
-	if apiKey.UserID != user.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "modifying other users is not supported at this time",
-		})
-		return
-	}
+	member := httpmw.OrganizationMemberParam(r)
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	added, removed := rbac.ChangeRoleSet(member.Roles, params.Roles)
+	for _, roleName := range added {
+		// Assigning a role requires the create permission.
+		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+			return
+		}
+	}
+	for _, roleName := range removed {
+		// Removing a role requires the delete permission.
+		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+			return
+		}
 	}
 
 	updatedUser, err := api.updateOrganizationMemberRoles(r.Context(), database.UpdateMemberRolesParams{
@@ -53,7 +55,7 @@ func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertOrganizationMember(updatedUser))
 }
 
-func (api *api) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	// Enforce only site wide roles
 	for _, r := range args.GrantedRoles {
 		// Must be an org role for the org in the args

@@ -28,12 +28,12 @@ func OrganizationParam(r *http.Request) database.Organization {
 func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 	organizationMember, ok := r.Context().Value(organizationMemberParamContextKey{}).(database.OrganizationMember)
 	if !ok {
-		panic("developer error: organization param middleware not provided")
+		panic("developer error: organization member param middleware not provided")
 	}
 	return organizationMember
 }
 
-// ExtractOrganizationParam grabs an organization and user membership from the "organization" URL parameter.
+// ExtractOrganizationParam grabs an organization from the "organization" URL parameter.
 // This middleware requires the API key middleware higher in the call stack for authentication.
 func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -56,11 +56,23 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
+			ctx := context.WithValue(r.Context(), organizationParamContextKey{}, organization)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
 
-			apiKey := APIKey(r)
+// ExtractOrganizationMemberParam grabs a user membership from the "organization" and "user" URL parameter.
+// This middleware requires the ExtractUser and ExtractOrganization middleware higher in the stack
+func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			organization := OrganizationParam(r)
+			user := UserParam(r)
+
 			organizationMember, err := db.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
 				OrganizationID: organization.ID,
-				UserID:         apiKey.UserID,
+				UserID:         user.ID,
 			})
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
@@ -74,9 +86,8 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
+			ctx := context.WithValue(r.Context(), organizationMemberParamContextKey{}, organizationMember)
 
-			ctx := context.WithValue(r.Context(), organizationParamContextKey{}, organization)
-			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, organizationMember)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

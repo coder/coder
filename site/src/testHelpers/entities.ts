@@ -88,7 +88,7 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   updated_at: "",
   job: MockProvisionerJob,
   name: "test-version",
-  readme: "",
+  readme: "## Instructions\nYou can add instructions here\n\n[Some link info](https://coder.com)",
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -124,6 +124,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_id: "test-workspace",
+  deadline: "2022-05-17T23:39:00.00Z",
 }
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -182,7 +183,7 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
 
-export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockWorkspace, outdated: true }
+export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   architecture: "amd64",
@@ -506,3 +507,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
 ]
+
+export const MockCancellationMessage = {
+  message: "Job successfully canceled",
+}

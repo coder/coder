@@ -14,9 +14,9 @@ func TestMain(m *testing.M) {
 
 func TestNew(t *testing.T) {
 	t.Parallel()
-	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
+	client, coderAPI := coderdtest.NewWithAPI(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	closer := coderdtest.NewProvisionerDaemon(t, coderDaemon)
+	closer := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)

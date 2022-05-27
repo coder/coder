@@ -31,6 +31,9 @@ export const handlers = [
   rest.get("/api/v2/templateversions/:templateVersionId/schema", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([]))
   }),
+  rest.get("/api/v2/templateversions/:templateVersionId/resources", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]))
+  }),
 
   // users
   rest.get("/api/v2/users", async (req, res, ctx) => {
@@ -129,5 +132,8 @@ export const handlers = [
   }),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))
+  }),
+  rest.patch("/api/v2/workspacebuilds/:workspaceBuildId/cancel", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockCancellationMessage))
   }),
 ]

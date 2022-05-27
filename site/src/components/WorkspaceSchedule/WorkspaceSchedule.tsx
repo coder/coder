@@ -7,6 +7,7 @@ import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
+import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { extractTimezone, stripTimezone } from "../../util/schedule"
@@ -78,7 +79,9 @@ export const WorkspaceSchedule: React.FC<WorkspaceScheduleProps> = ({ workspace 
           <span className={styles.scheduleValue}>{Language.autoStopDisplay(workspace)}</span>
         </div>
         <div>
-          <Link className={styles.scheduleAction}>{Language.editScheduleLink}</Link>
+          <Link className={styles.scheduleAction} component={RouterLink} to={`/workspaces/${workspace.id}/schedule`}>
+            {Language.editScheduleLink}
+          </Link>
         </div>
       </Stack>
     </div>

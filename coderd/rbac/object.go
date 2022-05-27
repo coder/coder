@@ -22,12 +22,20 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceTemplate CRUD. Org owner only.
+	//	create/delete = Make or delete a new template
+	//	update = Update the template, make new template versions
+	//	read = read the template and all versions associated
 	ResourceTemplate = Object{
 		Type: "template",
 	}
 
 	ResourceFile = Object{
 		Type: "file",
+	}
+
+	ResourceProvisionerDaemon = Object{
+		Type: "provisioner_daemon",
 	}
 
 	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
@@ -41,12 +49,18 @@ var (
 	// ResourceRoleAssignment might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
 	// allows granting/deleting **ALL** roles.
+	// Never has an owner or org.
 	//	create  = Assign roles
 	//	update  = ??
 	//	read	= View available roles to assign
 	//	delete	= Remove role
 	ResourceRoleAssignment = Object{
 		Type: "assign_role",
+	}
+
+	// ResourceOrgRoleAssignment is just like ResourceRoleAssignment but for organization roles.
+	ResourceOrgRoleAssignment = Object{
+		Type: "assign_org_role",
 	}
 
 	// ResourceAPIKey is owned by a user.
