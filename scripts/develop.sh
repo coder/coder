@@ -31,4 +31,3 @@ export CODER_DEV_ADMIN_PASSWORD=password
 	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || yes
 	wait
 )
-
