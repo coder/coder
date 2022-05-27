@@ -637,6 +637,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the user logged into a suspended account, reject the login request.
+	if user.Status != database.UserStatusActive {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("user is not active (status = %q), contact an admin to reactivate your account", user.Status),
+		})
+		return
+	}
+
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
