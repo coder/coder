@@ -6,21 +6,23 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import TextField from "@material-ui/core/TextField/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { getDisplayStatus } from "../../util/workspace"
+import React, { useCallback, useState } from "react"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
+  filterLabel: "Filter",
   createButton: "Create workspace",
   emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
 }
@@ -34,10 +36,40 @@ export interface WorkspacesPageViewProps {
 export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
+  const [filteredWorkspaces, setFilteredWorkspaces] = useState<TypesGen.Workspace[] | undefined>(props.workspaces)
+  const [query, setQuery] = useState<string>("owner:f0ssel")
+  const handleQueryChange = useCallback(() => {
+      setQuery((query) => query)
+
+      if (query.length && filteredWorkspaces?.length) {
+        const owners: string[] = []
+        const newWorkspacers: TypesGen.Workspace[] = []
+        const phrases = query.split(" ")
+        for (const p of phrases) {
+          if (p.startsWith("owner:")) {
+            owners.push(p.slice("owner:".length))
+          }
+        }
+
+        for (const w of filteredWorkspaces) {
+          for (const o of owners) {
+            if (o === w.owner_name) {
+              newWorkspacers.push(w)
+            }
+          }
+        }
+        setFilteredWorkspaces(newWorkspacers)
+      }
+  }, [query, filteredWorkspaces])
+
   return (
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
+          <TextField
+            onChange={handleQueryChange}
+            value={query}
+          />
           <Link underline="none" component={RouterLink} to="/workspaces/new">
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
@@ -53,7 +85,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
             </TableRow>
           </TableHead>
           <TableBody>
-            {!props.loading && !props.workspaces?.length && (
+            {!props.loading && !filteredWorkspaces?.length && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.welcome}>
@@ -67,7 +99,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                 </TableCell>
               </TableRow>
             )}
-            {props.workspaces?.map((workspace) => {
+            {filteredWorkspaces?.map((workspace) => {
               const status = getDisplayStatus(theme, workspace.latest_build)
               return (
                 <TableRow key={workspace.id}>
