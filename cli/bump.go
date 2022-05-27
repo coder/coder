@@ -13,8 +13,7 @@ import (
 
 const (
 	bumpDescriptionLong = `To extend the autostop deadline for a workspace.
-If no unit is specified in the duration, we assume minutes.
-	`
+If no unit is specified in the duration, we assume minutes.`
 	defaultBumpDuration = 90 * time.Minute
 )
 
@@ -22,7 +21,7 @@ func bump() *cobra.Command {
 	bumpCmd := &cobra.Command{
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: workspaceCommand,
-		Use:         "bump workspace [duration]",
+		Use:         "bump <workspace-name> [duration]",
 		Short:       "Extend the autostop deadline for a workspace.",
 		Long:        bumpDescriptionLong,
 		Example:     "coder bump my-workspace 90m",
