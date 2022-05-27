@@ -67,7 +67,7 @@ CPU core and 2 GB RAM:
     mv coder /usr/local/bin 
     ```
 
-    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) to add a folder to `PATH`
+    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) on adding a folder to `PATH`
 
 There are a few ways to run Coder:
 
