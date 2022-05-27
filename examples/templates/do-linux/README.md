@@ -4,7 +4,7 @@ description: Get started with Linux development on a Digital Ocean Droplet.
 tags: [cloud, digitalocean]
 ---
 
-# do-droplet-linux
+# do-linux
 
 This is an example for deploying workspaces as Digital Ocean Droplets.
 
