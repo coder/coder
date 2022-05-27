@@ -1,7 +1,6 @@
 import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
-import React from "react"
 import { NavLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"

@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { CodeBlock, CodeBlockProps } from "./CodeBlock"
 
 const sampleLines = `Successfully assigned coder/image-jcws7 to cluster-1

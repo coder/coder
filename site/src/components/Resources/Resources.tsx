@@ -5,7 +5,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
-import React from "react"
+import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
@@ -27,7 +27,7 @@ interface ResourcesProps {
   workspace: Workspace
 }
 
-export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
+export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 

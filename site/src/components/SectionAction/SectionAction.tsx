@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -11,7 +11,7 @@ const useStyles = makeStyles((theme) => ({
  * SectionAction is a content box that call to actions should be placed
  * within
  */
-export const SectionAction: React.FC = ({ children }) => {
+export const SectionAction: FC = ({ children }) => {
   const styles = useStyles()
   return <div className={styles.root}>{children}</div>
 }

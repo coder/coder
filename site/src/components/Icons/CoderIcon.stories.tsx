@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { CoderIcon } from "./CoderIcon"
 
 export default {

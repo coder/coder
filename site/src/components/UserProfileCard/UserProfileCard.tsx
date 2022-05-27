@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { UserAvatar } from "../UserAvatar/UserAvatar"
 
@@ -8,7 +8,7 @@ interface UserProfileCardProps {
   user: TypesGen.User
 }
 
-export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
+export const UserProfileCard: FC<UserProfileCardProps> = ({ user }) => {
   const styles = useStyles()
 
   return (

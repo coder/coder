@@ -1,6 +1,5 @@
 import { Story } from "@storybook/react"
 import dayjs from "dayjs"
-import React from "react"
 import * as Mocks from "../../testHelpers/entities"
 import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
 

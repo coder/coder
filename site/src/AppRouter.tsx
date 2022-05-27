@@ -1,4 +1,4 @@
-import React from "react"
+import { FC, lazy, Suspense } from "react"
 import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
@@ -18,12 +18,12 @@ import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPag
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
-const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
-const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
-const CreateWorkspacePage = React.lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
+const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
+const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
+const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 
-export const AppRouter: React.FC = () => (
-  <React.Suspense fallback={<></>}>
+export const AppRouter: FC = () => (
+  <Suspense fallback={<></>}>
     <Routes>
       <Route path="/">
         <Route
@@ -157,5 +157,5 @@ export const AppRouter: React.FC = () => (
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
-  </React.Suspense>
+  </Suspense>
 )

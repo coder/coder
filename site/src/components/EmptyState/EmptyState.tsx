@@ -1,14 +1,14 @@
 import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC, ReactNode } from "react"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string
   /** Longer optional description to display below the message */
   description?: string
-  cta?: React.ReactNode
+  cta?: ReactNode
 }
 
 /**
@@ -19,7 +19,7 @@ export interface EmptyStateProps {
  * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
  * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: React.FC<EmptyStateProps> = (props) => {
+export const EmptyState: FC<EmptyStateProps> = (props) => {
   const { message, description, cta, ...boxProps } = props
   const styles = useStyles()
 

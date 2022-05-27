@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { AvatarData, AvatarDataProps } from "./AvatarData"
 
 export default {

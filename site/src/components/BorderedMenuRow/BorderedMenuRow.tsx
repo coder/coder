@@ -2,7 +2,7 @@ import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import CheckIcon from "@material-ui/icons/Check"
-import React from "react"
+import { FC } from "react"
 import { NavLink } from "react-router-dom"
 import { ellipsizeText } from "../../util/ellipsizeText"
 import { Typography } from "../Typography/Typography"
@@ -26,7 +26,7 @@ interface BorderedMenuRowProps {
   onClick?: () => void
 }
 
-export const BorderedMenuRow: React.FC<BorderedMenuRowProps> = ({
+export const BorderedMenuRow: FC<BorderedMenuRowProps> = ({
   active,
   description,
   Icon,

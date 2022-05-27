@@ -1,9 +1,9 @@
 import { useMachine } from "@xstate/react"
-import React from "react"
+import { FC } from "react"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
-const WorkspacesPage: React.FC = () => {
+const WorkspacesPage: FC = () => {
   const [workspacesState] = useMachine(workspacesMachine)
 
   return (

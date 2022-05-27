@@ -1,6 +1,5 @@
 import Box from "@material-ui/core/Box"
 import { Story } from "@storybook/react"
-import React from "react"
 import { UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
 export default {

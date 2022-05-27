@@ -2,7 +2,7 @@ import IconButton from "@material-ui/core/IconButton"
 import Menu, { MenuProps } from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import MoreVertIcon from "@material-ui/icons/MoreVert"
-import React from "react"
+import { MouseEvent, useState } from "react"
 
 export interface TableRowMenuProps<TData> {
   data: TData
@@ -13,9 +13,9 @@ export interface TableRowMenuProps<TData> {
 }
 
 export const TableRowMenu = <T,>({ data, menuItems }: TableRowMenuProps<T>): JSX.Element => {
-  const [anchorEl, setAnchorEl] = React.useState<MenuProps["anchorEl"]>(null)
+  const [anchorEl, setAnchorEl] = useState<MenuProps["anchorEl"]>(null)
 
-  const handleClick = (event: React.MouseEvent) => {
+  const handleClick = (event: MouseEvent) => {
     setAnchorEl(event.currentTarget)
   }
 

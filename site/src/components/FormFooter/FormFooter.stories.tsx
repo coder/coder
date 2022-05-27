@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { FormFooter, FormFooterProps } from "./FormFooter"
 
 export default {

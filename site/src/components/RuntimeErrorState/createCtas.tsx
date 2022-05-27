@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import RefreshIcon from "@material-ui/icons/Refresh"
-import React from "react"
+import { ReactElement } from "react"
 import { CopyButton } from "../CopyButton/CopyButton"
 
 export const Language = {
@@ -12,7 +12,7 @@ export const Language = {
 /**
  * A wrapper component for a full-width copy button
  */
-const CopyStackButton = ({ text }: { text: string }): React.ReactElement => {
+const CopyStackButton = ({ text }: { text: string }): ReactElement => {
   const styles = useStyles()
 
   return (
@@ -28,7 +28,7 @@ const CopyStackButton = ({ text }: { text: string }): React.ReactElement => {
 /**
  * A button that reloads our application
  */
-const ReloadAppButton = (): React.ReactElement => {
+const ReloadAppButton = (): ReactElement => {
   const styles = useStyles()
 
   return (
@@ -47,7 +47,7 @@ const ReloadAppButton = (): React.ReactElement => {
 /**
  * createCtas generates an array of buttons to be used with our error boundary UI
  */
-export const createCtas = (codeBlock: string[]): React.ReactElement[] => {
+export const createCtas = (codeBlock: string[]): ReactElement[] => {
   // REMARK: we don't have to worry about key order changing
   // eslint-disable-next-line react/jsx-key
   return [<CopyStackButton text={codeBlock.join("\r\n")} />, <ReloadAppButton />]

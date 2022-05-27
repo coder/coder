@@ -1,7 +1,7 @@
 import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "../../util/combineClasses"
 
@@ -15,7 +15,7 @@ export interface TabSidebarProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabSidebar: React.FC<TabSidebarProps> = ({ menuItems }) => {
+export const TabSidebar: FC<TabSidebarProps> = ({ menuItems }) => {
   const styles = useStyles()
 
   return (

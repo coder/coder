@@ -4,7 +4,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
@@ -60,7 +60,7 @@ export interface SignInFormProps {
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
 }
 
-export const SignInForm: React.FC<SignInFormProps> = ({
+export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,

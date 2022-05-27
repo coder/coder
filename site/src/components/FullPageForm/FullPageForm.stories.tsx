@@ -1,7 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { Stack } from "../Stack/Stack"
 import { FullPageForm, FullPageFormProps } from "./FullPageForm"
