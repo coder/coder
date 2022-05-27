@@ -2078,7 +2078,9 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 const getAllUserRoles = `-- name: GetAllUserRoles :one
 SELECT
     -- username is returned just to help for logging purposes
-	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+    -- status is used to enforce 'suspended' users, as all roles are ignored
+    --	when suspended.
+	id, username, status, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
 FROM
 	users
 LEFT JOIN organization_members
@@ -2088,15 +2090,21 @@ WHERE
 `
 
 type GetAllUserRolesRow struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	Username string    `db:"username" json:"username"`
-	Roles    []string  `db:"roles" json:"roles"`
+	ID       uuid.UUID  `db:"id" json:"id"`
+	Username string     `db:"username" json:"username"`
+	Status   UserStatus `db:"status" json:"status"`
+	Roles    []string   `db:"roles" json:"roles"`
 }
 
 func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAllUserRoles, userID)
 	var i GetAllUserRolesRow
-	err := row.Scan(&i.ID, &i.Username, pq.Array(&i.Roles))
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Status,
+		pq.Array(&i.Roles),
+	)
 	return i, err
 }
 

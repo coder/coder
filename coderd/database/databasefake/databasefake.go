@@ -287,6 +287,7 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	return database.GetAllUserRolesRow{
 		ID:       userID,
 		Username: user.Username,
+		Status:   user.Status,
 		Roles:    roles,
 	}, nil
 }

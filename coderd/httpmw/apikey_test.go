@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -128,6 +130,7 @@ func TestAPIKey(t *testing.T) {
 			id, secret = randomAPIKeyParts()
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -139,6 +142,7 @@ func TestAPIKey(t *testing.T) {
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -155,6 +159,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -164,6 +169,7 @@ func TestAPIKey(t *testing.T) {
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -180,6 +186,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -190,6 +197,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -217,6 +225,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		q := r.URL.Query()
 		q.Add(httpmw.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
@@ -226,6 +235,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -248,6 +258,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -259,6 +270,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -281,6 +293,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -292,6 +305,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -314,6 +328,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -326,6 +341,7 @@ func TestAPIKey(t *testing.T) {
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -348,6 +364,7 @@ func TestAPIKey(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
@@ -360,6 +377,7 @@ func TestAPIKey(t *testing.T) {
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			OAuthExpiry:  database.Now().AddDate(0, 0, -1),
+			UserID:       user.ID,
 		})
 		require.NoError(t, err)
 		token := &oauth2.Token{
@@ -385,6 +403,20 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
 		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
 	})
+}
+
+func createUser(ctx context.Context, t *testing.T, db database.Store) database.User {
+	user, err := db.InsertUser(ctx, database.InsertUserParams{
+		ID:             uuid.New(),
+		Email:          "email@coder.com",
+		Username:       "username",
+		HashedPassword: []byte{},
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		RBACRoles:      []string{},
+	})
+	require.NoError(t, err, "create user")
+	return user
 }
 
 type oauth2Config struct {

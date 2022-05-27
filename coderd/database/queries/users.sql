@@ -135,7 +135,9 @@ WHERE
 -- name: GetAllUserRoles :one
 SELECT
     -- username is returned just to help for logging purposes
-	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+    -- status is used to enforce 'suspended' users, as all roles are ignored
+    --	when suspended.
+	id, username, status, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
 FROM
 	users
 LEFT JOIN organization_members

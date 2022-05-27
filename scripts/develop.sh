@@ -14,6 +14,8 @@ echo '== Without these binaries, workspaces will fail to start!'
 # Use static credentials for development
 export CODER_DEV_ADMIN_EMAIL=admin@coder.com
 export CODER_DEV_ADMIN_PASSWORD=password
+export CODER_DEV_MEMBER_EMAIL=member@coder.com
+export CODER_DEV_MEMBER_PASSWORD=password
 
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:

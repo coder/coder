@@ -68,9 +68,12 @@ func server() *cobra.Command {
 		pprofAddress          string
 		cacheDir              string
 		dev                   bool
-		devUserEmail          string
-		devUserPassword       string
-		postgresURL           string
+		devFirstEmail         string
+		devFirstPassword      string
+		devMemberEmail        string
+		devMemberPassword     string
+
+		postgresURL string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
 		oauth2GithubClientID             string
@@ -330,18 +333,30 @@ func server() *cobra.Command {
 			config := createConfig(cmd)
 
 			if dev {
-				if devUserPassword == "" {
-					devUserPassword, err = cryptorand.String(10)
+				if devFirstPassword == "" {
+					devFirstPassword, err = cryptorand.String(10)
 					if err != nil {
 						return xerrors.Errorf("generate random admin password for dev: %w", err)
 					}
 				}
-				err = createFirstUser(cmd, client, config, devUserEmail, devUserPassword)
+				if devMemberPassword == "" {
+					devMemberPassword, err = cryptorand.String(10)
+					if err != nil {
+						return xerrors.Errorf("generate random member password for dev: %w", err)
+					}
+				}
+
+				// Create first user with 1 additional user as a member of the same org.
+				err = createFirstUser(cmd, client, config, devFirstEmail, devFirstPassword, extraUsers{
+					Username: "member",
+					Email:    devMemberEmail,
+					Password: devMemberPassword,
+				})
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devFirstEmail)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devFirstPassword)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
@@ -474,8 +489,10 @@ func server() *cobra.Command {
 	// systemd uses the CACHE_DIRECTORY environment variable!
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflag.StringVarP(root.Flags(), &devUserEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
-	cliflag.StringVarP(root.Flags(), &devUserPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
+	cliflag.StringVarP(root.Flags(), &devFirstEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
+	cliflag.StringVarP(root.Flags(), &devFirstPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
+	cliflag.StringVarP(root.Flags(), &devMemberEmail, "dev-member-email", "", "CODER_DEV_MEMBER_EMAIL", "member@coder.com", "Specifies the member email to be used in dev mode (--dev)")
+	cliflag.StringVarP(root.Flags(), &devMemberPassword, "dev-member-password", "", "CODER_DEV_MEMBER_PASSWORD", "", "Specifies the member password to be used in dev mode (--dev) instead of a randomly generated one")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
@@ -518,14 +535,20 @@ func server() *cobra.Command {
 	return root
 }
 
-func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) error {
+type extraUsers struct {
+	Username string
+	Email    string
+	Password string
+}
+
+func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string, users ...extraUsers) error {
 	if email == "" {
 		return xerrors.New("email is empty")
 	}
 	if password == "" {
 		return xerrors.New("password is empty")
 	}
-	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+	first, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 		Email:            email,
 		Username:         "developer",
 		Password:         password,
@@ -550,6 +573,18 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	err = cfg.Session().Write(token.SessionToken)
 	if err != nil {
 		return xerrors.Errorf("write session token: %w", err)
+	}
+
+	for _, user := range users {
+		_, err := client.CreateUser(cmd.Context(), codersdk.CreateUserRequest{
+			Email:          user.Email,
+			Username:       user.Username,
+			Password:       user.Password,
+			OrganizationID: first.OrganizationID,
+		})
+		if err != nil {
+			return xerrors.Errorf("create extra user %q: %w", user.Email, err)
+		}
 	}
 	return nil
 }
