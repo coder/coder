@@ -86,19 +86,19 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                       // Return either suspend or activate depending on status
                       (u.status === "active"
                         ? [
-                          {
-                            label: Language.suspendMenuItem,
-                            onClick: onSuspendUser,
-                          },
-                        ]
+                            {
+                              label: Language.suspendMenuItem,
+                              onClick: onSuspendUser,
+                            },
+                          ]
                         : [
-                          {
-                            label: Language.activateMenuItem,
-                            // TODO: Activate user
-                            // eslint-disable-next-line @typescript-eslint/no-empty-function
-                            onClick: function () {},
-                          },
-                        ]
+                            {
+                              label: Language.activateMenuItem,
+                              // TODO: Activate user
+                              // eslint-disable-next-line @typescript-eslint/no-empty-function
+                              onClick: function () {},
+                            },
+                          ]
                       ).concat({
                         label: Language.resetPasswordMenuItem,
                         onClick: onResetUserPassword,
