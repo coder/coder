@@ -296,10 +296,7 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			if ttl > time.Minute {
 				title = fmt.Sprintf(`Workspace %s stopping soon`, ws.Name)
 				body = fmt.Sprintf(
-					`Your Coder workspace %s is scheduled to stop in %s`,
-					ws.Name,
-					deadline.Sub(now),
-				)
+					`Your Coder workspace %s is scheduled to stop in %s`, ws.Name, ttl)
 			} else {
 				title = fmt.Sprintf("Workspace %s stopping!", ws.Name)
 				body = fmt.Sprintf("Your Coder workspace %s is stopping any time now!", ws.Name)
