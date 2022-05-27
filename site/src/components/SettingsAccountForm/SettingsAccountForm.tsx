@@ -15,13 +15,10 @@ interface AccountFormValues {
 export const Language = {
   usernameLabel: "Username",
   emailLabel: "Email",
-  emailInvalid: "Please enter a valid email address.",
-  emailRequired: "Please enter an email address.",
   updateSettings: "Update settings",
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
   username: nameValidator(Language.usernameLabel),
 })
 
@@ -59,6 +56,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             fullWidth
             label={Language.emailLabel}
             variant="outlined"
+            disabled={true}
           />
           <TextField
             {...getFieldHelpers("username")}
