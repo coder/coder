@@ -8,8 +8,12 @@
 # Usage:
 # ./generate.sh <database type> <database type> ...
 
-
 set -euo pipefail
 
-cd "$(dirname "$0")" && cd "$(git rev-parse --show-toplevel)"
-go run ./scripts/auditgen ./coderd/database "$@"
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
+
+(
+	cd "$PROJECT_ROOT"
+	go run ./scripts/auditgen ./coderd/database "$@"
+)
