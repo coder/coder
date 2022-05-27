@@ -119,6 +119,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
+		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
