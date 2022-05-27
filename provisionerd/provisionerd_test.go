@@ -378,26 +378,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Complete{
 							Complete: &sdkproto.Provision_Complete{
-								Resources: []*sdkproto.Resource{
-									{
-										Name: "test-resource",
-										Type: "test_type",
-										Agents: []*sdkproto.Agent{
-											{
-												Id:              "test-id",
-												Name:            "test",
-												Env:             map[string]string{},
-												StartupScript:   "echo hi",
-												OperatingSystem: "linux",
-												Architecture:    "amd64",
-												Directory:       "/home/coder",
-												Auth: &sdkproto.Agent_Token{
-													Token: "test-token",
-												},
-											},
-										},
-									},
-								},
+								Resources: []*sdkproto.Resource{},
 							},
 						},
 					})
