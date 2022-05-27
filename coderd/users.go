@@ -107,19 +107,23 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	var (
 		searchName    = r.URL.Query().Get("search")
-		statusFilters = strings.Split(r.URL.Query().Get("status"), ",")
+		statusFilters = r.URL.Query().Get("status")
 	)
 
 	statuses := make([]database.UserStatus, 0)
-	for _, filter := range statusFilters {
-		switch database.UserStatus(filter) {
-		case database.UserStatusSuspended, database.UserStatusActive:
-			statuses = append(statuses, database.UserStatus(filter))
-		default:
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("%q is not a valid user status", filter),
-			})
-			return
+
+	if statusFilters != "" {
+		// Split on commas if present to account for it being a list
+		for _, filter := range strings.Split(statusFilters, ",") {
+			switch database.UserStatus(filter) {
+			case database.UserStatusSuspended, database.UserStatusActive:
+				statuses = append(statuses, database.UserStatus(filter))
+			default:
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("%q is not a valid user status", filter),
+				})
+				return
+			}
 		}
 	}
 
