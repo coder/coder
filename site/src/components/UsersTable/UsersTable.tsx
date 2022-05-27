@@ -65,9 +65,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
               <TableCell>
                 <AvatarData title={u.username} subtitle={u.email} />
               </TableCell>
-              <TableCell>
-                {u.status}
-              </TableCell>
+              <TableCell>{u.status}</TableCell>
               <TableCell>
                 {canEditUsers ? (
                   <RoleSelect
@@ -86,16 +84,25 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                     data={u}
                     menuItems={
                       // Return either suspend or activate depending on status
-                      (u.status == "active" ? [{
-                        label: Language.suspendMenuItem,
-                        onClick: onSuspendUser,
-                      }] : [{
-                          label: Language.activateMenuItem,
-                          onClick: onSuspendUser,
-                      }]).concat({
+                      (u.status == "active"
+                        ? [
+                            {
+                              label: Language.suspendMenuItem,
+                              onClick: onSuspendUser,
+                            },
+                          ]
+                        : [
+                            {
+                              label: Language.activateMenuItem,
+                              // TODO: Activate user
+                              onClick: function () {},
+                            },
+                          ]
+                      ).concat({
                         label: Language.resetPasswordMenuItem,
                         onClick: onResetUserPassword,
-                      })}
+                      })
+                    }
                   />
                 </TableCell>
               )}

@@ -1,8 +1,8 @@
+import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
-import { AxiosError } from "axios"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
