@@ -63,7 +63,7 @@ CPU core and 2 GB RAM:
 1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
     ```sh
-    # MacOS and Linux
+    # ex. MacOS and Linux
     mv coder /usr/local/bin 
     ```
 
