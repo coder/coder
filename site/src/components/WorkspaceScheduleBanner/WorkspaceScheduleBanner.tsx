@@ -10,8 +10,7 @@ dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
 
 export const Language = {
-  bannerTitle: "Workspace shutdown",
-  bannerDetail: "Your workspace is scheduled to automatically shut down soon.",
+  bannerTitle: "Your workspace is scheduled to automatically shut down soon.",
 }
 
 export interface WorkspaceScheduleBannerProps {
@@ -43,7 +42,6 @@ export const WorkspaceScheduleBanner: React.FC<WorkspaceScheduleBannerProps> = (
     return (
       <Alert severity="warning">
         <AlertTitle>{Language.bannerTitle}</AlertTitle>
-        {Language.bannerDetail}
       </Alert>
     )
   }
