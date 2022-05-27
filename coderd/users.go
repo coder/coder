@@ -359,7 +359,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		params codersdk.UpdateUserPasswordRequest
 	)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithID(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
 		return
 	}
 
