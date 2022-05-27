@@ -35,10 +35,6 @@ export const LoginPage: React.FC = () => {
   const [authState, authSend] = useActor(xServices.authXService)
   const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
-  //{
-  //     "message": "user is not active (status = \"suspended\"), contact an admin to reactivate your account"
-  // }
-
   const authErrorMessage = isApiError(authState.context.authError) ? authState.context.authError.response.data.message : undefined
   const getMethodsError = authState.context.getMethodsError
     ? (authState.context.getMethodsError as Error).message

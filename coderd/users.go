@@ -574,7 +574,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If the user logged into a suspended account, reject the login request.
 	if user.Status != database.UserStatusActive {
-
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "You are suspended, contact an admin to reactivate your account",
 		})
