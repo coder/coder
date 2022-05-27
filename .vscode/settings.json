@@ -97,7 +97,7 @@
   "go.lintTool": "golangci-lint",
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
-  "go.coverOnSave": false,
+  "go.coverOnSave": true,
   // The codersdk is used by coderd another other packages extensively.
   // To reduce redundancy in tests, it's covered by other packages.
   "go.testFlags": ["-short", "-coverpkg=./.,github.com/coder/coder/codersdk"],
