@@ -370,7 +370,8 @@ export const workspaceMachine = createMachine(
           const oldBuilds = context.builds
 
           if (!oldBuilds) {
-            throw new Error("Builds not loaded")
+            // This state is theoretically impossible, but helps TS
+            throw new Error("workspaceXService: failed to load workspace builds")
           }
 
           return [...oldBuilds, ...event.data]
