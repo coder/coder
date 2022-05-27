@@ -50,6 +50,7 @@ export interface AuthContext {
   getMethodsError?: Error | unknown
   authError?: Error | unknown
   updateProfileError?: Error | unknown
+  updateSecurityError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
@@ -64,6 +65,7 @@ export type AuthEvent =
   | { type: "SIGN_OUT" }
   | { type: "SIGN_IN"; email: string; password: string }
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
+  | { type: "UPDATE_SECURITY"; data: TypesGen.UpdateUserPasswordRequest }
   | { type: "GET_SSH_KEY" }
   | { type: "REGENERATE_SSH_KEY" }
   | { type: "CONFIRM_REGENERATE_SSH_KEY" }
@@ -145,6 +147,7 @@ export const authMachine =
         getUserError: undefined,
         authError: undefined,
         updateProfileError: undefined,
+        updateSecurityError: undefined,
         methods: undefined,
         getMethodsError: undefined,
       },
@@ -164,6 +167,9 @@ export const authMachine =
           }
           updateProfile: {
             data: TypesGen.User
+          }
+          updateSecurity: {
+            data: TypesGen.UpdateUserPasswordRequest
           }
           checkPermissions: {
             data: TypesGen.UserAuthorizationResponse
@@ -279,6 +285,9 @@ export const authMachine =
                     UPDATE_PROFILE: {
                       target: "updatingProfile",
                     },
+                    UPDATE_SECURITY: {
+                      target: "updatingSecurity",
+                    },
                   },
                 },
                 updatingProfile: {
@@ -344,6 +353,13 @@ export const authMachine =
           }
 
           return API.updateProfile(context.me.id, event.data)
+        },
+        updateSecurity: async (context, event) => {
+          if (!context.me) {
+            throw new Error("No current user found")
+          }
+
+          return API.updateUserPassword(context.me.id, event.data)
         },
         checkPermissions: async (context) => {
           if (!context.me) {

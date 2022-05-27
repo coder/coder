@@ -198,7 +198,7 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(expect.any(String), MockUser.id)
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {password: expect.any(String), old_password: ""})
       })
     })
 

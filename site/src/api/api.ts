@@ -223,8 +223,8 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
-export const updateUserPassword = async (password: string, userId: TypesGen.User["id"]): Promise<undefined> =>
-  axios.put(`/api/v2/users/${userId}/password`, { password })
+export const updateUserPassword = async (userId: TypesGen.User["id"], updatePassword: TypesGen.UpdateUserPasswordRequest): Promise<undefined> =>
+  axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
 export const getSiteRoles = async (): Promise<Array<TypesGen.Role>> => {
   const response = await axios.get<Array<TypesGen.Role>>(`/api/v2/users/roles`)
