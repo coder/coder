@@ -108,24 +108,4 @@ const useStyles = makeStyles((theme) => ({
       lineHeight: `${theme.spacing(3)}px`,
     },
   },
-  templateAvatar: {
-    borderRadius: 2,
-    marginRight: theme.spacing(1),
-    width: 24,
-    height: 24,
-    fontSize: 16,
-  },
-  templateLink: {
-    display: "flex",
-    flexDirection: "column",
-    color: theme.palette.text.primary,
-    textDecoration: "none",
-    "&:hover": {
-      textDecoration: "underline",
-    },
-    "& span": {
-      fontSize: 12,
-      color: theme.palette.text.secondary,
-    },
-  },
 }))
