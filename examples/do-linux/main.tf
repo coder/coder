@@ -42,11 +42,18 @@ variable "step3_do_admin_ssh_key" {
   description = <<-EOF
     Enter admin SSH key ID (some Droplet images require an SSH key to be set):
 
-    Note: Leaving this as zero will break Fedora images and notify root passwords via email.
+    Can be set to zero.
+
+    Note: Setting this to zero will break Fedora images and notify root passwords via email.
 
       $ doctl compute ssh-key list
   EOF
   sensitive   = true
+
+  validation {
+    condition     = var.step3_do_admin_ssh_key >= 0
+    error_message = "Invalid Digital Ocean SSH key ID, a number is required."
+  }
 }
 
 variable "droplet_image" {
