@@ -133,6 +133,7 @@ resource "digitalocean_droplet" "workspace" {
   ssh_keys = var.step3_do_admin_ssh_key > 0 ? [var.step3_do_admin_ssh_key] : []
 }
 
+# Temporarily disabled because it breaks SSH. (https://github.com/coder/coder/issues/1750)
 # resource "digitalocean_project_resources" "project" {
 #   project = var.step2_do_project_id
 #   # Workaround for terraform plan when using count.
