@@ -61,16 +61,18 @@ release](https://github.com/coder/coder/releases) on a system with at least 1
 CPU core and 2 GB RAM:
 
 1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
-1. Unzip the folder you just downloaded, and move the `coder` executable to a
-   location that's on your `PATH`
+1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
-> Make sure you have the appropriate credentials for your cloud provider (e.g.,
-> access key ID and secret access key for AWS).
+    ```sh
+    # ex. MacOS and Linux
+    mv coder /usr/local/bin 
+    ```
 
-You can set up a temporary deployment, a production deployment, or a system service:
+    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) on adding a folder to `PATH`
 
-- To set up a **temporary deployment**, start with dev mode (all data is in-memory and is
-  destroyed on exit):
+There are a few ways to run Coder:
+
+- To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
 
   ```bash
   coder server --dev
@@ -83,8 +85,7 @@ You can set up a temporary deployment, a production deployment, or a system serv
       coder server
   ```
 
-- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm`
-  (Fedora, CentOS, RHEL, SUSE):
+- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, CentOS, RHEL, SUSE):
 
   ```bash
   # Edit the configuration!
@@ -92,10 +93,12 @@ You can set up a temporary deployment, a production deployment, or a system serv
   sudo service coder restart
   ```
 
-> Use `coder --help` to get a complete list of flags and environment
-> variables.
+  > macOS and Windows users: You'll need to write your own 
+  > configuration to run Coder as a system service.
 
-See the [installation guide](./docs/install.md) for additional ways to deploy Coder.
+- See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g., docker-compose)
+
+Use `coder --help` to get a complete list of flags and environment variables.
 
 ## Creating your first template and workspace
 
