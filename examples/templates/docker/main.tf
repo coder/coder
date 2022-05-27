@@ -17,6 +17,8 @@ terraform {
 # host on the "docker" provider below.
 variable "step1_docker_host_warning" {
   description = <<-EOF
+  Is Docker running on the Coder host?
+
   This template will use the Docker socket present on
   the Coder host, which is not necessarily your local machine.
 

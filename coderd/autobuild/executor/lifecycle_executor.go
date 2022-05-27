@@ -88,7 +88,7 @@ func (e *Executor) runOnce(t time.Time) error {
 			}
 
 			if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
-				e.log.Warn(e.ctx, "last workspace build did not complete successfully, skipping",
+				e.log.Debug(e.ctx, "last workspace build did not complete successfully, skipping",
 					slog.F("workspace_id", ws.ID),
 					slog.F("error", priorJob.Error.String),
 				)
@@ -107,13 +107,14 @@ func (e *Executor) runOnce(t time.Time) error {
 					)
 					continue
 				}
-				// Truncate to nearest minute for consistency with autostart behavior
-				nextTransition = priorHistory.Deadline.Truncate(time.Minute)
+				// For stopping, do not truncate. This is inconsistent with autostart, but
+				// it ensures we will not stop too early.
+				nextTransition = priorHistory.Deadline
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart
 				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 				if err != nil {
-					e.log.Warn(e.ctx, "workspace has invalid autostart schedule, skipping",
+					e.log.Debug(e.ctx, "workspace has invalid autostart schedule, skipping",
 						slog.F("workspace_id", ws.ID),
 						slog.F("autostart_schedule", ws.AutostartSchedule.String),
 					)
