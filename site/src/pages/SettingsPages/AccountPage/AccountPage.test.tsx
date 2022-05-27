@@ -21,7 +21,7 @@ const newData = {
 }
 
 const fillAndSubmitForm = async () => {
-  await waitFor(() => screen.findByLabelText("Email"))
+  await waitFor(() => screen.findByLabelText("Username"))
   fireEvent.change(screen.getByLabelText("Username"), { target: { value: newData.username } })
   fireEvent.click(screen.getByText(AccountForm.Language.updateSettings))
 }
