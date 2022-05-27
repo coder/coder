@@ -119,6 +119,7 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 // CreateTemplateVersionPlanRequest defines the request parameters for
 // CreateTemplateVersionPlan.
 type CreateTemplateVersionPlanRequest struct {
+	WorkspaceName   string
 	ParameterValues []CreateParameterRequest
 }
 

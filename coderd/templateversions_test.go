@@ -505,16 +505,11 @@ func TestTemplateVersionPlan(t *testing.T) {
 			defer close(logsDone)
 
 			logCount := 0
-			for {
-				select {
-				case _, ok := <-logs:
-					if !ok {
-						assert.GreaterOrEqual(t, logCount, 1, "unexpected log count")
-						return
-					}
-					logCount++
-				}
+			for range logs {
+				logCount++
 			}
+			assert.GreaterOrEqual(t, logCount, 1, "unexpected log count")
+			return
 		}()
 
 		// Wait for the job to complete

@@ -113,6 +113,7 @@ type workspaceProvisionJob struct {
 // The input for a "template_version_plan" job.
 type templateVersionPlanJob struct {
 	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
+	WorkspaceName     string                    `json:"workspace_name"`
 	ParameterValues   []database.ParameterValue `json:"parameter_values"`
 }
 
@@ -287,7 +288,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			TemplatePlan: &proto.AcquiredJob_TemplatePlan{
 				ParameterValues: protoParameters,
 				Metadata: &sdkproto.Provision_Metadata{
-					CoderUrl: server.AccessURL.String(),
+					CoderUrl:      server.AccessURL.String(),
+					WorkspaceName: input.WorkspaceName,
 				},
 			},
 		}

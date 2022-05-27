@@ -213,6 +213,7 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 	// Marshal template version plan job with the parameters from the request.
 	input, err := json.Marshal(templateVersionPlanJob{
 		TemplateVersionID: templateVersion.ID,
+		WorkspaceName:     req.WorkspaceName,
 		ParameterValues:   parameterValues,
 	})
 	if err != nil {

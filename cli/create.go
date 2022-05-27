@@ -173,6 +173,7 @@ func create() *cobra.Command {
 			// Run a plan with the given parameters to check correctness
 			after := time.Now()
 			planJob, err := client.CreateTemplateVersionPlan(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionPlanRequest{
+				WorkspaceName:   workspaceName,
 				ParameterValues: parameters,
 			})
 			if err != nil {
