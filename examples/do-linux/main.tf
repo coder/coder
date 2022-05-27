@@ -37,24 +37,34 @@ variable "droplet_image" {
   description = "Which Droplet image would you like to use for your workspace?"
   default     = "ubuntu-22-04-x64"
   validation {
-    condition     = contains(["debian-11-x64", "fedora-36-x64", "ubuntu-22-04-x64"], var.droplet_image)
-    error_message = "Value must be debian-11-x64, fedora-36-x64 or ubuntu-22-04-x64."
+    condition     = contains(["ubuntu-22-04-x64", "ubuntu-20-04-x64", "fedora-36-x64", "fedora-35-x64", "debian-11-x64", "debian-10-x64", "centos-stream-9-x64", "centos-stream-8-x64", "rockylinux-8-x64", "rockylinux-8-4-x64"], var.droplet_image)
+    error_message = "Value must be ubuntu-22-04-x64, ubuntu-20-04-x64, fedora-36-x64, fedora-35-x64, debian-11-x64, debian-10-x64, centos-stream-9-x64, centos-stream-8-x64, rockylinux-8-x64 or rockylinux-8-4-x64."
   }
 }
 
 variable "droplet_size" {
   description = "Which Droplet configuration would you like to use?"
   validation {
-    condition     = contains(["s-1vcpu-1gb", "s-1vcpu-2gb", "s-2vcpu-2gb"], var.droplet_size)
-    error_message = "Value must be s-1vcpu-1gb, s-1vcpu-2gb or s-2vcpu-2gb."
+    condition     = contains(["s-1vcpu-1gb", "s-1vcpu-2gb", "s-2vcpu-2gb", "s-2vcpu-4gb", "s-4vcpu-8gb", "s-8vcpu-16gb"], var.droplet_size)
+    error_message = "Value must be s-1vcpu-1gb, s-1vcpu-2gb, s-2vcpu-2gb, s-2vcpu-4gb, s-4vcpu-8gb or s-8vcpu-16gb."
+  }
+}
+
+variable "home_volume_size" {
+  type        = number
+  description = "How large would you like your home volume to be (in GB)?"
+  default     = 20
+  validation {
+    condition     = var.home_volume_size >= 1
+    error_message = "Value must be greather than or equal to 1."
   }
 }
 
 variable "region" {
   description = "Which region would you like to use?"
   validation {
-    condition     = contains(["nyc1", "nyc3", "ams3"], var.region)
-    error_message = "Value must be nyc1, nyc3, or ams3."
+    condition     = contains(["nyc1", "nyc2", "nyc3", "sfo1", "sfo2", "sfo3", "ams2", "ams3", "sgp1", "lon1", "fra1", "tor1", "blr1"], var.region)
+    error_message = "Value must be nyc1, nyc2, nyc3, sfo1, sfo2, sfo3, ams2, ams3, sgp1, lon1, fra1, tor1 or blr1."
   }
 }
 
@@ -73,7 +83,7 @@ resource "coder_agent" "dev" {
 resource "digitalocean_volume" "home_volume" {
   region                   = var.region
   name                     = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
-  size                     = 20
+  size                     = var.home_volume_size
   initial_filesystem_type  = "ext4"
   initial_filesystem_label = "coder-home"
 }
