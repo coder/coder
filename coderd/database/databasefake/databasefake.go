@@ -126,6 +126,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, apiKey := range q.apiKeys {
+		if apiKey.ID != id {
+			continue
+		}
+		q.apiKeys[index] = q.apiKeys[len(q.apiKeys)-1]
+		q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetFileByHash(_ context.Context, hash string) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

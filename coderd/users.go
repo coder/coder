@@ -85,7 +85,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk this currently happens outside the database tx used to create
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
-	// Add the admin role to this first user
+	// Add the admin role to this first user.
 	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleAdmin(), rbac.RoleMember()},
 		ID:           user.ID,
@@ -109,7 +109,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		statusFilter = r.URL.Query().Get("status")
 	)
 
-	// Reading all users across the site
+	// Reading all users across the site.
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser) {
 		return
 	}
@@ -162,7 +162,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
-	// Create the user on the site
+	// Create the user on the site.
 	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceUser) {
 		return
 	}
@@ -446,11 +446,11 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only include ones we can read from RBAC
+	// Only include ones we can read from RBAC.
 	memberships = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
 
 	for _, mem := range memberships {
-		// If we can read the org member, include the roles
+		// If we can read the org member, include the roles.
 		if err == nil {
 			resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
 		}
@@ -460,7 +460,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
-	// User is the user to modify
+	// User is the user to modify.
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
 
@@ -508,7 +508,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 // updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
 // If an organization role is included, an error is returned.
 func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
-	// Enforce only site wide roles
+	// Enforce only site wide roles.
 	for _, r := range args.GrantedRoles {
 		if _, ok := rbac.IsOrgRole(r); ok {
 			return database.User{}, xerrors.Errorf("must only update site wide roles")
@@ -542,7 +542,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only return orgs the user can read
+	// Only return orgs the user can read.
 	organizations = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
 
 	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
@@ -623,7 +623,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Creates a new session key, used for logging in via the CLI
+// Creates a new session key, used for logging in via the CLI.
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
@@ -642,17 +642,28 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
 }
 
-// Clear the user's session cookie
-func (*API) postLogout(rw http.ResponseWriter, _ *http.Request) {
-	// Get a blank token cookie
+// Clear the user's session cookie.
+func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
+	// Get a blank token cookie.
 	cookie := &http.Cookie{
-		// MaxAge < 0 means to delete the cookie now
+		// MaxAge < 0 means to delete the cookie now.
 		MaxAge: -1,
 		Name:   httpmw.SessionTokenKey,
 		Path:   "/",
 	}
 
 	http.SetCookie(rw, cookie)
+
+	// Delete the session token from database.
+	apiKey := httpmw.APIKey(r)
+	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("delete api key: %s", err.Error()),
+		})
+		return
+	}
+
 	httpapi.Write(rw, http.StatusOK, httpapi.Response{
 		Message: "Logged out!",
 	})
@@ -734,7 +745,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			req.OrganizationID = organization.ID
 			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
 		}
-		// Always also be a member
+		// Always also be a member.
 		orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
 
 		params := database.InsertUserParams{
@@ -780,7 +791,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			UserID:         user.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			// By default give them membership to the organization
+			// By default give them membership to the organization.
 			Roles: orgRoles,
 		})
 		if err != nil {

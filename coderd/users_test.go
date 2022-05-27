@@ -2,15 +2,18 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -103,27 +106,71 @@ func TestPostLogin(t *testing.T) {
 func TestPostLogout(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ClearCookie", func(t *testing.T) {
+	// Checks that the cookie is cleared and the API Key is deleted from the database.
+	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		ctx := context.Background()
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		keyID := strings.Split(client.SessionToken, "-")[0]
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		require.NoError(t, err)
+		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
+
 		fullURL, err := client.URL.Parse("/api/v2/users/logout")
 		require.NoError(t, err, "Server URL should parse successfully")
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, fullURL.String(), nil)
-		require.NoError(t, err, "/logout request construction should succeed")
-
-		httpClient := &http.Client{}
-
-		response, err := httpClient.Do(req)
+		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
 		require.NoError(t, err, "/logout request should succeed")
-		response.Body.Close()
+		res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		cookies := response.Cookies()
+		cookies := res.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
-		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
+		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
+		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
+	})
+
+	t.Run("LogoutWithoutKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		keyID := strings.Split(client.SessionToken, "-")[0]
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		require.NoError(t, err)
+		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
+
+		// Setting a fake database without the API Key to be used by the API.
+		// The middleware that extracts the API key is already set to read
+		// from the original database.
+		dbWithoutKey := databasefake.New()
+		api.Database = dbWithoutKey
+
+		fullURL, err := client.URL.Parse("/api/v2/users/logout")
+		require.NoError(t, err, "Server URL should parse successfully")
+
+		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
+		require.NoError(t, err, "/logout request should succeed")
+		res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		cookies := res.Cookies()
+		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
+
+		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
+		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
 	})
 }
 

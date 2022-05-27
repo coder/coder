@@ -104,6 +104,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String())
 
 	// skipRoutes allows skipping routes from being checked.
+	skipRoutes := map[string]string{
+		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
+	}
+
 	type routeCheck struct {
 		NoAuthorize  bool
 		AssertAction rbac.Action
@@ -117,7 +121,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
-		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 
@@ -310,8 +313,20 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		assertRoute[noTrailSlash] = v
 	}
 
+	for k, v := range skipRoutes {
+		noTrailSlash := strings.TrimRight(k, "/")
+		if _, ok := skipRoutes[noTrailSlash]; ok && noTrailSlash != k {
+			t.Errorf("route %q & %q is declared twice", noTrailSlash, k)
+			t.FailNow()
+		}
+		skipRoutes[noTrailSlash] = v
+	}
+
 	err = chi.Walk(api.Handler, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
+		if _, ok := skipRoutes[strings.TrimRight(name, "/")]; ok {
+			return nil
+		}
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()
 			routeAssertions, ok := assertRoute[strings.TrimRight(name, "/")]

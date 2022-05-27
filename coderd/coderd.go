@@ -219,7 +219,6 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
-			r.Post("/logout", api.postLogout)
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
@@ -234,6 +233,7 @@ func New(options *Options) *API {
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
+				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.assignableSiteRoles)
