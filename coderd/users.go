@@ -367,6 +367,19 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err := userpassword.Validate(params.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Errors: []httpapi.Error{
+				{
+					Field:  "password",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
 	// we want to require old_password field if the user is changing their
 	// own password. This is to prevent a compromised session from being able
 	// to change password and lock out the user.
@@ -389,19 +402,6 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-	}
-
-	err := userpassword.Validate(params.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Errors: []httpapi.Error{
-				{
-					Field:  "password",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
 	}
 
 	hashedPassword, err := userpassword.Hash(params.Password)
