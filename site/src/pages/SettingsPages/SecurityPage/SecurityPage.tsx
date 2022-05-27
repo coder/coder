@@ -10,14 +10,14 @@ export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 
-export const AccountPage: React.FC = () => {
+export const SecurityPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
-  const { me, updateProfileError } = authState.context
-  const hasError = !!updateProfileError
+  const { me, updateSecurityError } = authState.context
+  const hasError = !!updateSecurityError
   const formErrors =
-    hasError && isApiError(updateProfileError) ? mapApiErrorToFieldErrors(updateProfileError.response.data) : undefined
-  const hasUnknownError = hasError && !isApiError(updateProfileError)
+    hasError && isApiError(updateSecurityError) ? mapApiErrorToFieldErrors(updateSecurityError.response.data) : undefined
+  const hasUnknownError = hasError && !isApiError(updateSecurityError)
 
   if (!me) {
     throw new Error("No current user found")
@@ -28,11 +28,11 @@ export const AccountPage: React.FC = () => {
       <SecurityForm
         error={hasUnknownError ? Language.unknownError : undefined}
         formErrors={formErrors}
-        isLoading={authState.matches("signedIn.profile.updatingProfile")}
+        isLoading={authState.matches("signedIn.security.updatingSecurity")}
         initialValues={{ old_password: "", password: "", confirm_password: "" }}
         onSubmit={(data) => {
           authSend({
-            type: "UPDATE_PASSWORD",
+            type: "UPDATE_SECURITY",
             data,
           })
         }}

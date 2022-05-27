@@ -5,6 +5,7 @@ import { displayError, displaySuccess } from "../../components/GlobalSnackbar/ut
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
+  successSecurityUpdate: "Updated password.",
   successRegenerateSSHKey: "SSH Key regenerated successfully",
   errorRegenerateSSHKey: "Error on regenerate the SSH Key",
 }
@@ -147,7 +148,6 @@ export const authMachine =
         getUserError: undefined,
         authError: undefined,
         updateProfileError: undefined,
-        updateSecurityError: undefined,
         methods: undefined,
         getMethodsError: undefined,
       },
@@ -169,7 +169,7 @@ export const authMachine =
             data: TypesGen.User
           }
           updateSecurity: {
-            data: TypesGen.UpdateUserPasswordRequest
+            data: any
           }
           checkPermissions: {
             data: TypesGen.UserAuthorizationResponse
@@ -285,9 +285,6 @@ export const authMachine =
                     UPDATE_PROFILE: {
                       target: "updatingProfile",
                     },
-                    UPDATE_SECURITY: {
-                      target: "updatingSecurity",
-                    },
                   },
                 },
                 updatingProfile: {
@@ -311,6 +308,41 @@ export const authMachine =
               },
             },
             ssh: sshState,
+            security: {
+              initial: "idle",
+              states: {
+                idle: {
+                  initial: "noError",
+                  states: {
+                    noError: {},
+                    error: {},
+                  },
+                  on: {
+                    UPDATE_SECURITY: {
+                      target: "updatingSecurity",
+                    },
+                  },
+                },
+                updatingSecurity: {
+                  entry: "clearUpdateSecurityError",
+                  invoke: {
+                    src: "updateSecurity",
+                    onDone: [
+                      {
+                        actions: ["notifySuccessSecurityUpdate"],
+                        target: "#authState.signedIn.security.idle.noError",
+                      },
+                    ],
+                    onError: [
+                      {
+                        actions: "assignUpdateSecurityError",
+                        target: "#authState.signedIn.security.idle.error",
+                      },
+                    ],
+                  },
+                },
+              },
+            },
           },
           on: {
             SIGN_OUT: {
@@ -414,6 +446,15 @@ export const authMachine =
         },
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
+        }),
+        clearUpdateSecurityError: assign({
+          updateSecurityError: (_) => undefined,
+        }),
+        notifySuccessSecurityUpdate: () => {
+          displaySuccess(Language.successSecurityUpdate)
+        },
+        assignUpdateSecurityError: assign({
+          updateSecurityError: (_, event) => event.data,
         }),
         assignPermissions: assign({
           // Setting event.data as Permissions to be more stricted. So we know

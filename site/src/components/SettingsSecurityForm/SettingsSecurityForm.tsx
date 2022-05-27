@@ -68,6 +68,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
             fullWidth
             label={Language.oldPasswordLabel}
             variant="outlined"
+            type="password"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -76,6 +77,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
             fullWidth
             label={Language.newPasswordLabel}
             variant="outlined"
+            type="password"
           />
           <TextField
             {...getFieldHelpers("confirm_password")}
@@ -84,6 +86,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
             fullWidth
             label={Language.confirmPasswordLabel}
             variant="outlined"
+            type="password"
           />
 
           {error && <FormHelperText error>{error}</FormHelperText>}
