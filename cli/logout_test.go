@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"runtime"
@@ -125,7 +126,7 @@ func TestLogout(t *testing.T) {
 
 		<-logoutChan
 	})
-	t.Run("ConfigDirectoryPermissionDenied", func(t *testing.T) {
+	t.Run("CannotDeleteFiles", func(t *testing.T) {
 		t.Parallel()
 
 		pty := ptytest.New(t)
@@ -135,29 +136,31 @@ func TestLogout(t *testing.T) {
 		require.FileExists(t, string(config.URL()))
 		require.FileExists(t, string(config.Session()))
 
-		// Changing the permissions to throw error during deletion.
 		var (
 			err         error
 			urlFile     *os.File
 			sessionFile *os.File
 		)
 		if runtime.GOOS == "windows" {
+			// Opening the files so Windows does not allow deleting them.
 			urlFile, err = os.Open(string(config.URL()))
 			require.NoError(t, err)
 			sessionFile, err = os.Open(string(config.Session()))
 			require.NoError(t, err)
 		} else {
+			// Changing the permissions to throw error during deletion.
 			err = os.Chmod(string(config), 0500)
 			require.NoError(t, err)
 		}
 		t.Cleanup(func() {
-			// Setting the permissions back for cleanup.
 			if runtime.GOOS == "windows" {
+				// Closing the opened files for cleanup.
 				err = urlFile.Close()
 				require.NoError(t, err)
 				err = sessionFile.Close()
 				require.NoError(t, err)
 			} else {
+				// Setting the permissions back for cleanup.
 				err = os.Chmod(string(config), 0700)
 				require.NoError(t, err)
 			}
@@ -173,7 +176,13 @@ func TestLogout(t *testing.T) {
 			defer close(logoutChan)
 			err := logout.Execute()
 			assert.NotNil(t, err)
-			errRegex := regexp.MustCompile("Failed to log out.\n\tremove URL file: .+: permission denied\n\tremove session file: .+: permission denied")
+			var errorMessage string
+			if runtime.GOOS == "windows" {
+				errorMessage = "The process cannot access the file because it is being used by another process."
+			} else {
+				errorMessage = "permission denied"
+			}
+			errRegex := regexp.MustCompile(fmt.Sprintf("Failed to log out.\n\tremove URL file: .+: %s\n\tremove session file: .+: %s", errorMessage, errorMessage))
 			assert.Regexp(t, errRegex, err.Error())
 		}()
 
