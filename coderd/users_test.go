@@ -221,7 +221,7 @@ func TestPostUsers(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
-		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
