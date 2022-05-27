@@ -50,8 +50,8 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       <TableHead>
         <TableRow>
           <TableCell>{Language.usernameLabel}</TableCell>
-          <TableCell>{Language.rolesLabel}</TableCell>
           <TableCell>{Language.statusLabel}</TableCell>
+          <TableCell>{Language.rolesLabel}</TableCell>
           {/* 1% is a trick to make the table cell width fit the content */}
           {canEditUsers && <TableCell width="1%" />}
         </TableRow>
