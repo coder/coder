@@ -4,7 +4,7 @@ INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	@echo "== This builds binaries for command-line usage."
 	@echo "== Use \"make build\" to embed the site."
 	goreleaser build --snapshot --rm-dist --single-target
@@ -24,7 +24,7 @@ dev:
 	./scripts/develop.sh
 .PHONY: dev
 
-dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
