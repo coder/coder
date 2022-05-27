@@ -208,7 +208,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
   test-go-postgres:
     name: "test/go/postgres"
@@ -291,7 +292,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
   deploy:
     name: "deploy"
@@ -421,7 +423,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork

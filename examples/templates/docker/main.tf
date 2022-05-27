@@ -32,7 +32,7 @@ variable "step1_docker_host_warning" {
 }
 variable "step2_arch" {
   description = <<-EOF
-  arch: What archicture is your Docker host on?
+  arch: What architecture is your Docker host on?
 
   note: codercom/enterprise-* images are only built for amd64
   EOF

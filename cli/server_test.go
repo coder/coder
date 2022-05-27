@@ -91,17 +91,19 @@ func TestServer(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			token, err = cfg.Session().Read()
-			return err == nil
+			return err == nil && token != ""
 		}, 15*time.Second, 25*time.Millisecond)
+
 		// Verify that authentication was properly set in dev-mode.
 		accessURL, err := cfg.URL().Read()
 		require.NoError(t, err)
 		parsed, err := url.Parse(accessURL)
 		require.NoError(t, err)
+
 		client := codersdk.New(parsed)
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
+		require.NoError(t, err, "token:", token)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)

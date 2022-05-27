@@ -391,12 +391,11 @@ type ParameterValue struct {
 }
 
 type ProvisionerDaemon struct {
-	ID             uuid.UUID         `db:"id" json:"id"`
-	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
-	UpdatedAt      sql.NullTime      `db:"updated_at" json:"updated_at"`
-	OrganizationID uuid.NullUUID     `db:"organization_id" json:"organization_id"`
-	Name           string            `db:"name" json:"name"`
-	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ID           uuid.UUID         `db:"id" json:"id"`
+	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
+	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
+	Name         string            `db:"name" json:"name"`
+	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
 type ProvisionerJob struct {
@@ -506,6 +505,7 @@ type WorkspaceBuild struct {
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline          time.Time           `db:"deadline" json:"deadline"`
 }
 
 type WorkspaceResource struct {

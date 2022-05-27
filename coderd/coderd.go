@@ -101,7 +101,6 @@ func New(options *Options) *API {
 				Message: "Route not found.",
 			})
 		})
-
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
@@ -112,6 +111,9 @@ func New(options *Options) *API {
 				Message: "👋",
 			})
 		})
+		// All CSP errors will be logged
+		r.Post("/csp/reports", api.logReportCSPViolations)
+
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
@@ -131,42 +133,53 @@ func New(options *Options) *API {
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/organizations/{organization}", func(r chi.Router) {
+		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
 				authRolesMiddleware,
 			)
-			r.Get("/", api.organization)
-			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
-			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
-			r.Route("/templates", func(r chi.Router) {
-				r.Post("/", api.postTemplateByOrganization)
-				r.Get("/", api.templatesByOrganization)
-				r.Get("/{templatename}", api.templateByOrganizationAndName)
-			})
-			r.Route("/workspaces", func(r chi.Router) {
-				r.Post("/", api.postWorkspacesByOrganization)
-				r.Get("/", api.workspacesByOrganization)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspacename}", api.workspaceByOwnerAndName)
-					r.Get("/", api.workspacesByOwner)
+			r.Get("/", api.provisionerDaemons)
+		})
+		r.Route("/organizations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				authRolesMiddleware,
+			)
+			r.Post("/", api.postOrganizations)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOrganizationParam(options.Database),
+				)
+				r.Get("/", api.organization)
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+				r.Route("/templates", func(r chi.Router) {
+					r.Post("/", api.postTemplateByOrganization)
+					r.Get("/", api.templatesByOrganization)
+					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-			})
-			r.Route("/members", func(r chi.Router) {
-				r.Get("/roles", api.assignableOrgRoles)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(
-						httpmw.ExtractUserParam(options.Database),
-						httpmw.ExtractOrganizationMemberParam(options.Database),
-					)
-					r.Put("/roles", api.putMemberRoles)
+				r.Route("/workspaces", func(r chi.Router) {
+					r.Post("/", api.postWorkspacesByOrganization)
+					r.Get("/", api.workspacesByOrganization)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
+						r.Get("/", api.workspacesByOwner)
+					})
+				})
+				r.Route("/members", func(r chi.Router) {
+					r.Get("/roles", api.assignableOrgRoles)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(
+							httpmw.ExtractUserParam(options.Database),
+							httpmw.ExtractOrganizationMemberParam(options.Database),
+						)
+						r.Put("/roles", api.putMemberRoles)
+					})
 				})
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddleware, authRolesMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -244,7 +257,6 @@ func New(options *Options) *API {
 
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
-						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
@@ -309,6 +321,7 @@ func New(options *Options) *API {
 					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspace)
+				r.Put("/extend", api.putExtendWorkspace)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

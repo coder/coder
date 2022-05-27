@@ -281,11 +281,18 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
+
 	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(rw, r, &createWorkspace) {
 		return
 	}
-	apiKey := httpmw.APIKey(r)
+
 	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -303,7 +310,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	organization := httpmw.OrganizationParam(r)
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("template is not in organization %q", organization.Name),
@@ -477,7 +484,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
-			BuildNumber:       1, // First build!
+			BuildNumber:       1,           // First build!
+			Deadline:          time.Time{}, // provisionerd will set this upon success
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -570,8 +578,74 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+		return
+	}
+
+	var req codersdk.PutExtendWorkspaceRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var code = http.StatusOK
+
+	err := api.Database.InTx(func(s database.Store) error {
+		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		if build.Transition != database.WorkspaceTransitionStart {
+			code = http.StatusConflict
+			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
+		}
+
+		newDeadline := req.Deadline.Truncate(time.Minute).UTC()
+		if newDeadline.IsZero() {
+			// This should not be possible because the struct validation field enforces a non-zero value.
+			code = http.StatusBadRequest
+			return xerrors.New("new deadline cannot be zero")
+		}
+
+		if newDeadline.Before(build.Deadline) || newDeadline.Before(time.Now()) {
+			code = http.StatusBadRequest
+			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
+		}
+
+		// both newDeadline and build.Deadline are truncated to time.Minute
+		if newDeadline == build.Deadline {
+			code = http.StatusNotModified
+			return nil
+		}
+
+		if err := s.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			ProvisionerState: build.ProvisionerState,
+			Deadline:         newDeadline,
+		}); err != nil {
+			return xerrors.Errorf("update workspace build: %w", err)
+		}
+
+		return nil
+	})
+
+	var resp = httpapi.Response{}
+	if err != nil {
+		resp.Message = err.Error()
+	}
+	httpapi.Write(rw, code, resp)
+}
+
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+		return
+	}
 
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Fix for Safari 15.1:

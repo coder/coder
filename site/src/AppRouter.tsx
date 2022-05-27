@@ -8,16 +8,15 @@ import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
-import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
-import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
 import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
 import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
+import { TemplatePage } from "./pages/TemplatePage/TemplatePage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
-import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
+import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
@@ -76,11 +75,11 @@ export const AppRouter: React.FC = () => (
               }
             />
             <Route
-              path="edit"
+              path="schedule"
               element={
-                <AuthAndFrame>
-                  <WorkspaceSettingsPage />
-                </AuthAndFrame>
+                <RequireAuth>
+                  <WorkspaceSchedulePage />
+                </RequireAuth>
               }
             />
           </Route>
@@ -92,6 +91,15 @@ export const AppRouter: React.FC = () => (
             element={
               <AuthAndFrame>
                 <TemplatesPage />
+              </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path=":template"
+            element={
+              <AuthAndFrame>
+                <TemplatePage />
               </AuthAndFrame>
             }
           />
@@ -115,22 +123,6 @@ export const AppRouter: React.FC = () => (
             }
           />
         </Route>
-        <Route
-          path="orgs"
-          element={
-            <AuthAndFrame>
-              <OrgsPage />
-            </AuthAndFrame>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <AuthAndFrame>
-              <SettingsPage />
-            </AuthAndFrame>
-          }
-        />
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />

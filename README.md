@@ -8,7 +8,10 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Coder turns your cloud into a fleet of remote development servers.
+Coder creates remote development machines so you can develop your code from anywhere.
+
+> **Note**:
+> Coder is in an alpha state, but any serious bugs are P1 for us so please report them.
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -57,7 +60,7 @@ We recommend installing [the latest
 release](https://github.com/coder/coder/releases) on a system with at least 1
 CPU core and 2 GB RAM:
 
-1. Download the release appropriate for your operating system
+1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
 1. Unzip the folder you just downloaded, and move the `coder` executable to a
    location that's on your `PATH`
 
@@ -147,10 +150,23 @@ coder templates update gcp-linux
   - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
 
+## Comparison
+
+Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](./docs/about.md#what-coder-is-not).
+
+| Tool                                                        | Type     | Delivery Model     | Cost                          | Environments                                                                                                                                               |
+| :---------------------------------------------------------- | :------- | :----------------- | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
+| [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
+| [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux containers                                                                                                                                           |
+
+---
+
+_As of 5/27/22_
+
 ## Contributing
 
 Read the [contributing docs](./docs/CONTRIBUTING.md).
-
-## Contributors
 
 Find our list of contributors [here](./docs/CONTRIBUTORS.md).

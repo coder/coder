@@ -606,15 +606,6 @@ func (c *Conn) CloseWithError(err error) error {
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
 
-	// It's possible the connection can be closed before negotiation has
-	// began. In this case, we want to unlock the mutex to unblock any
-	// pending candidates being flushed.
-	select {
-	case <-c.negotiated:
-	default:
-		close(c.negotiated)
-	}
-
 	// Disable logging!
 	c.loggerValue.Store(slog.Logger{})
 	logger.Sync()

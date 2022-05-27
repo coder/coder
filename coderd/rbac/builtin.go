@@ -68,6 +68,8 @@ var (
 					// All users can read all other users and know they exist.
 					ResourceUser:           {ActionRead},
 					ResourceRoleAssignment: {ActionRead},
+					// All users can see the provisioner daemons.
+					ResourceProvisionerDaemon: {ActionRead},
 				}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},

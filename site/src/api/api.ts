@@ -102,6 +102,11 @@ export const getTemplateVersionSchema = async (versionId: string): Promise<Types
   return response.data
 }
 
+export const getTemplateVersionResources = async (versionId: string): Promise<TypesGen.WorkspaceResource[]> => {
+  const response = await axios.get<TypesGen.WorkspaceResource[]>(`/api/v2/templateversions/${versionId}/resources`)
+  return response.data
+}
+
 export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data
@@ -214,7 +219,7 @@ export const updateProfile = async (
 }
 
 export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
-  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/suspend`)
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/suspend`)
   return response.data
 }
 
