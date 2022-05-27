@@ -8,7 +8,9 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Coder creates remote development machines so you can develop your code from anywhere
+Coder creates remote development machines so you can develop your code from anywhere.
+
+**Coder is in an alpha state.** But, any serious bugs are P1 for us so please report them.
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
