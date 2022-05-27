@@ -101,7 +101,6 @@ func New(options *Options) *API {
 				Message: "Route not found.",
 			})
 		})
-
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
@@ -112,6 +111,9 @@ func New(options *Options) *API {
 				Message: "👋",
 			})
 		})
+		// All CSP errors will be logged
+		r.Post("/csp/reports", api.logReportCSPViolations)
+
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
