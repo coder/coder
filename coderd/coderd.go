@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/cipher"
 	"crypto/x509"
 	"fmt"
 	"net/http"
@@ -36,11 +35,10 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	AccessURL   *url.URL
-	WildcardURL *url.URL
-	Logger      slog.Logger
-	Database    database.Store
-	Pubsub      database.Pubsub
+	AccessURL *url.URL
+	Logger    slog.Logger
+	Database  database.Store
+	Pubsub    database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -57,9 +55,6 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
-	// WildcardCipher is used to encrypt session tokens so that authentication
-	// can be securely transferred to the wildcard host.
-	WildcardCipher cipher.AEAD
 }
 
 // New constructs a Coder API handler.
@@ -109,6 +104,7 @@ func New(options *Options) *API {
 			httpmw.ExtractUserParam(api.Database),
 			authRolesMiddleware,
 		)
+		r.Get("/", api.workspaceAppsProxyPath)
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
