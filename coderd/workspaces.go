@@ -310,6 +310,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+	if !api.Authorize(rw, r, rbac.ActionCreate, database.Workspace{OrganizationID: organization.ID, OwnerID: apiKey.UserID}) {
+		return
+	}
 	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
 		OrganizationID: template.OrganizationID,
 		UserID:         apiKey.UserID,
