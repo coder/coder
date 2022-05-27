@@ -1,8 +1,13 @@
 package cli_test
 
 import (
+	"context"
+	"fmt"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -16,13 +21,22 @@ func TestCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--tz", "US/Central",
+			"--autostart-minute", "0",
+			"--autostart-hour", "*/2",
+			"--autostart-day-of-week", "MON-FRI",
+			"--ttl", "8h",
+		}
+		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -31,7 +45,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		matches := []string{
 			"Confirm create", "yes",
@@ -44,41 +58,87 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 	})
-	t.Run("CreateFromList", func(t *testing.T) {
+
+	t.Run("CreateErrInvalidTz", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--tz", "invalid",
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
+		}()
+		<-doneChan
+	})
+
+	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--ttl", "0s",
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.EqualError(t, err, "TTL must be at least 1 minute")
+		}()
+		<-doneChan
+	})
+
+	t.Run("CreateFromListWithSkip", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace")
-		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
+
+		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		clitest.SetupConfig(t, member, root)
+		cmdCtx, done := context.WithTimeout(context.Background(), time.Second*3)
 		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			require.NoError(t, err)
+			defer done()
+			err := cmd.ExecuteContext(cmdCtx)
+			assert.NoError(t, err)
 		}()
-		matches := []string{
-			"Confirm create", "yes",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
-		<-doneChan
+		// No pty interaction needed since we use the -y skip prompt flag
+		<-cmdCtx.Done()
+		require.ErrorIs(t, cmdCtx.Err(), context.Canceled)
 	})
+
 	t.Run("FromNothing", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -91,7 +151,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		matches := []string{
 			"Specify a name", "my-workspace",
@@ -105,36 +165,107 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 	})
+
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+
+		defaultValue := "something"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							AllowOverrideSource: true,
-							Name:                "region",
-							Description:         "description",
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "something",
-							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
+			Parse:           createTestParseResponseWithDefault(defaultValue),
+			Provision:       echo.ProvisionComplete,
+			ProvisionDryRun: echo.ProvisionComplete,
+		})
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		cmd, root := clitest.New(t, "create", "")
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"Specify a name", "my-workspace",
+			fmt.Sprintf("Enter a value (default: %q):", defaultValue), "bingo",
+			"Enter a value:", "boingo",
+			"Confirm create?", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		<-doneChan
+	})
+
+	t.Run("WithParameterFileContainingTheValue", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		defaultValue := "something"
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           createTestParseResponseWithDefault(defaultValue),
+			Provision:       echo.ProvisionComplete,
+			ProvisionDryRun: echo.ProvisionComplete,
+		})
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString("region: \"bingo\"\nusername: \"boingo\"")
+		cmd, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"Specify a name", "my-workspace",
+			"Confirm create?", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		<-doneChan
+		removeTmpDirUntilSuccess(t, tempDir)
+	})
+	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		defaultValue := "something"
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           createTestParseResponseWithDefault(defaultValue),
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "")
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString("zone: \"bananas\"")
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -143,19 +274,45 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.NoError(t, err)
+			assert.EqualError(t, err, "Parameter value absent in parameter file for \"region\"!")
 		}()
-		matches := []string{
-			"Specify a name", "my-workspace",
-			"Enter a value", "bananas",
-			"Confirm create?", "yes",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
 		<-doneChan
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
+}
+
+func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Response {
+	return []*proto.Parse_Response{{
+		Type: &proto.Parse_Response_Complete{
+			Complete: &proto.Parse_Complete{
+				ParameterSchemas: []*proto.ParameterSchema{
+					{
+						AllowOverrideSource: true,
+						Name:                "region",
+						Description:         "description 1",
+						DefaultSource: &proto.ParameterSource{
+							Scheme: proto.ParameterSource_DATA,
+							Value:  defaultValue,
+						},
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
+					},
+					{
+						AllowOverrideSource: true,
+						Name:                "username",
+						Description:         "description 2",
+						DefaultSource: &proto.ParameterSource{
+							Scheme: proto.ParameterSource_DATA,
+							// No default value
+							Value: "",
+						},
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
+					},
+				},
+			},
+		},
+	}}
 }

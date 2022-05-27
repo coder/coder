@@ -1,22 +1,17 @@
 import Box from "@material-ui/core/Box"
-import { Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
-import dayjs from "dayjs"
-import duration from "dayjs/plugin/duration"
-import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
-
-dayjs.extend(relativeTime)
-dayjs.extend(duration)
 
 export const Language = {
   emptyMessage: "No builds found",
@@ -27,19 +22,6 @@ export const Language = {
   statusLabel: "Status",
 }
 
-const getDurationInSeconds = (build: TypesGen.WorkspaceBuild) => {
-  let display = Language.inProgressLabel
-
-  if (build.job.started_at && build.job.completed_at) {
-    const startedAt = dayjs(build.job.started_at)
-    const completedAt = dayjs(build.job.completed_at)
-    const diff = completedAt.diff(startedAt, "seconds")
-    display = `${diff} seconds`
-  }
-
-  return display
-}
-
 export interface BuildsTableProps {
   builds?: TypesGen.WorkspaceBuild[]
   className?: string
@@ -48,9 +30,11 @@ export interface BuildsTableProps {
 export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) => {
   const isLoading = !builds
   const theme: Theme = useTheme()
+  const navigate = useNavigate()
+  const styles = useStyles()
 
   return (
-    <Table className={className}>
+    <Table className={className} data-testid="builds-table">
       <TableHead>
         <TableRow>
           <TableCell width="20%">{Language.actionLabel}</TableCell>
@@ -62,18 +46,35 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
       <TableBody>
         {isLoading && <TableLoader />}
         {builds &&
-          builds.map((b) => {
-            const status = getDisplayStatus(theme, b)
-            const duration = getDurationInSeconds(b)
+          builds.map((build) => {
+            const status = getDisplayStatus(theme, build)
+
+            const navigateToBuildPage = () => {
+              navigate(`/builds/${build.id}`)
+            }
 
             return (
-              <TableRow key={b.id} data-testid={`build-${b.id}`}>
-                <TableCell>{b.transition}</TableCell>
+              <TableRow
+                hover
+                key={build.id}
+                data-testid={`build-${build.id}`}
+                tabIndex={0}
+                onClick={navigateToBuildPage}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    navigateToBuildPage()
+                  }
+                }}
+                className={styles.clickableTableRow}
+              >
+                <TableCell>{build.transition}</TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{duration}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(build)}</span>
                 </TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{new Date(b.created_at).toLocaleString()}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>
+                    {new Date(build.created_at).toLocaleString()}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <span style={{ color: status.color }}>{status.status}</span>
@@ -95,3 +96,17 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
     </Table>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  clickableTableRow: {
+    cursor: "pointer",
+
+    "&:hover td": {
+      backgroundColor: theme.palette.background.default,
+    },
+
+    "&:focus": {
+      outline: `1px solid ${theme.palette.primary.dark}`,
+    },
+  },
+}))

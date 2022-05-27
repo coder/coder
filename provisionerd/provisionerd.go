@@ -630,6 +630,7 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 					Level:     msgType.Log.Level,
 					CreatedAt: time.Now().UTC().UnixMilli(),
 					Output:    msgType.Log.Output,
+					Stage:     "Parse parameters",
 				}},
 			})
 			if err != nil {
@@ -651,6 +652,13 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
 func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+	var stage string
+	switch metadata.WorkspaceTransition {
+	case sdkproto.WorkspaceTransition_START:
+		stage = "Detecting persistent resources"
+	case sdkproto.WorkspaceTransition_STOP:
+		stage = "Detecting ephemeral resources"
+	}
 	stream, err := provisioner.Provision(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
@@ -704,6 +712,7 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 					Level:     msgType.Log.Level,
 					CreatedAt: time.Now().UTC().UnixMilli(),
 					Output:    msgType.Log.Output,
+					Stage:     stage,
 				}},
 			})
 			if err != nil {
@@ -808,6 +817,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 					Level:     msgType.Log.Level,
 					CreatedAt: time.Now().UTC().UnixMilli(),
 					Output:    msgType.Log.Output,
+					Stage:     stage,
 				}},
 			})
 			if err != nil {

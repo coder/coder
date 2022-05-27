@@ -50,7 +50,19 @@ func (e *Executor) Run() {
 func (e *Executor) runOnce(t time.Time) error {
 	currentTick := t.Truncate(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
-		eligibleWorkspaces, err := db.GetWorkspacesAutostartAutostop(e.ctx)
+		// TTL is set at the workspace level, and deadline at the workspace build level.
+		// When a workspace build is created, its deadline initially starts at zero.
+		// When provisionerd successfully completes a provision job, the deadline is
+		// set to now + TTL if the associated workspace has a TTL set. This deadline
+		// is what we compare against when performing autostop operations, rounded down
+		// to the minute.
+		//
+		// NOTE: Currently, if a workspace build is created with a given TTL and then
+		//       the user either changes or unsets the TTL, the deadline for the workspace
+		//       build will not have changed. So, autostop will still happen at the
+		//       original TTL value from when the workspace build was created.
+		//       Whether this is expected behavior from a user's perspective is not yet known.
+		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)
 		}
@@ -84,21 +96,22 @@ func (e *Executor) runOnce(t time.Time) error {
 			}
 
 			var validTransition database.WorkspaceTransition
-			var sched *schedule.Schedule
+			var nextTransition time.Time
 			switch priorHistory.Transition {
 			case database.WorkspaceTransitionStart:
 				validTransition = database.WorkspaceTransitionStop
-				sched, err = schedule.Weekly(ws.AutostopSchedule.String)
-				if err != nil {
-					e.log.Warn(e.ctx, "workspace has invalid autostop schedule, skipping",
+				if priorHistory.Deadline.IsZero() {
+					e.log.Debug(e.ctx, "latest workspace build has zero deadline, skipping",
 						slog.F("workspace_id", ws.ID),
-						slog.F("autostart_schedule", ws.AutostopSchedule.String),
+						slog.F("workspace_build_id", priorHistory.ID),
 					)
 					continue
 				}
+				// Truncate to nearest minute for consistency with autostart behavior
+				nextTransition = priorHistory.Deadline.Truncate(time.Minute)
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart
-				sched, err = schedule.Weekly(ws.AutostartSchedule.String)
+				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 				if err != nil {
 					e.log.Warn(e.ctx, "workspace has invalid autostart schedule, skipping",
 						slog.F("workspace_id", ws.ID),
@@ -106,6 +119,9 @@ func (e *Executor) runOnce(t time.Time) error {
 					)
 					continue
 				}
+				// Round down to the nearest minute, as this is the finest granularity cron supports.
+				// Truncate is probably not necessary here, but doing it anyway to be sure.
+				nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
 			default:
 				e.log.Debug(e.ctx, "last transition not valid for autostart or autostop",
 					slog.F("workspace_id", ws.ID),
@@ -114,13 +130,10 @@ func (e *Executor) runOnce(t time.Time) error {
 				continue
 			}
 
-			// Round time down to the nearest minute, as this is the finest granularity cron supports.
-			// Truncate is probably not necessary here, but doing it anyway to be sure.
-			nextTransitionAt := sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
-			if currentTick.Before(nextTransitionAt) {
+			if currentTick.Before(nextTransition) {
 				e.log.Debug(e.ctx, "skipping workspace: too early",
 					slog.F("workspace_id", ws.ID),
-					slog.F("next_transition_at", nextTransitionAt),
+					slog.F("next_transition_at", nextTransition),
 					slog.F("transition", validTransition),
 					slog.F("current_tick", currentTick),
 				)

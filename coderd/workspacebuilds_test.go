@@ -17,9 +17,8 @@ import (
 
 func TestWorkspaceBuild(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -32,9 +31,8 @@ func TestWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -48,9 +46,8 @@ func TestWorkspaceBuilds(t *testing.T) {
 
 	t.Run("PaginateLimitOffset", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -87,9 +84,8 @@ func TestWorkspaceBuilds(t *testing.T) {
 
 func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		Provision: []*proto.Provision_Response{{
@@ -123,9 +119,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, coderAPI := coderdtest.NewWithAPI(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		closeDaemon.Close()
@@ -138,9 +134,8 @@ func TestWorkspaceBuildResources(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -177,9 +172,8 @@ func TestWorkspaceBuildResources(t *testing.T) {
 
 func TestWorkspaceBuildLogs(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	before := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -229,9 +223,8 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 
 func TestWorkspaceBuildState(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	wantState := []byte("some kinda state")
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,

@@ -6,14 +6,22 @@
 # SEE: https://www.chromatic.com/docs/ci
 name: chromatic
 
+# REMARK: We want Chromatic to run whenever anything in the FE or its deps
+#         change, including node_modules and generated code. Currently, all
+#         node_modules and generated code live in site. If any of these are
+#         hoisted, we'll want to adjust the paths filter to account for them.
 on:
   push:
+    paths:
+      - site/**
     branches:
       - main
     tags:
       - "*"
 
   pull_request:
+    paths:
+      - site/**
 
 jobs:
   deploy:
@@ -34,7 +42,7 @@ jobs:
       # storybook snapshots will require manual approval/review in order for
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
-        if: github.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
         uses: chromaui/action@v1
         with:
           buildScriptName: "storybook:build"
@@ -51,7 +59,7 @@ jobs:
       # commits, but it's good to be defensive in case, otherwise CI remains
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
         uses: chromaui/action@v1
         with:
           autoAcceptChanges: true

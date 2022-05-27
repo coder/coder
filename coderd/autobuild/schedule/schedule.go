@@ -55,6 +55,10 @@ func Weekly(raw string) (*Schedule, error) {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
+	if schedule.Location == time.Local {
+		return nil, xerrors.Errorf("schedules scoped to time.Local are not supported")
+	}
+
 	// Strip the leading CRON_TZ prefix so we just store the cron string.
 	// The timezone info is available in SpecSchedule.
 	cronStr := raw

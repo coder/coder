@@ -1,7 +1,9 @@
 package cli_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -14,9 +16,10 @@ func TestList(t *testing.T) {
 	t.Parallel()
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -24,17 +27,16 @@ func TestList(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		cmd, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
+		errC := make(chan error)
 		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			require.NoError(t, err)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		pty.ExpectMatch(workspace.Name)
 		pty.ExpectMatch("Running")
-		<-doneChan
+		cancelFunc()
+		require.NoError(t, <-errC)
 	})
 }

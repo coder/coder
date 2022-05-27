@@ -1,6 +1,7 @@
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
+import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
@@ -19,28 +20,28 @@ const Language = {
 export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
-  organization?: TypesGen.Organization
   build?: TypesGen.WorkspaceBuild
+  resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
-  getTemplateError?: Error | unknown
-  getOrganizationError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   // these are separate from getX errors because they don't make the page unusable
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
+  getResourcesError: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
+  cancellationMessage: string
 }
 
 export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
-  | { type: "RETRY" }
   | { type: "UPDATE" }
+  | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
   | { type: "REFRESH_TIMELINE" }
 
@@ -57,17 +58,20 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
-        getOrganization: {
-          data: TypesGen.Organization
-        }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
         stopWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
+        cancelWorkspace: {
+          data: Types.Message
+        }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
+        }
+        getResources: {
+          data: TypesGen.WorkspaceResource[]
         }
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
@@ -125,43 +129,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          breadcrumb: {
-            initial: "gettingTemplate",
-            states: {
-              gettingTemplate: {
-                invoke: {
-                  src: "getTemplate",
-                  id: "getTemplate",
-                  onDone: {
-                    target: "gettingOrganization",
-                    actions: ["assignTemplate", "clearGetTemplateError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetTemplateError",
-                  },
-                },
-                tags: "loading",
-              },
-              gettingOrganization: {
-                invoke: {
-                  src: "getOrganization",
-                  id: "getOrganization",
-                  onDone: {
-                    target: "ready",
-                    actions: ["assignOrganization", "clearGetOrganizationError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetOrganizationError",
-                  },
-                },
-                tags: "loading",
-              },
-              error: {},
-              ready: {},
-            },
-          },
           build: {
             initial: "idle",
             states: {
@@ -169,8 +136,8 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  RETRY: [{ cond: "triedToStart", target: "requestingStart" }, { target: "requestingStop" }],
                   UPDATE: "refreshingTemplate",
+                  CANCEL: "requestingCancel",
                 },
               },
               requestingStart: {
@@ -203,6 +170,21 @@ export const workspaceMachine = createMachine(
                   },
                 },
               },
+              requestingCancel: {
+                entry: "clearCancellationMessage",
+                invoke: {
+                  id: "cancelWorkspace",
+                  src: "cancelWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignCancellationMessage", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignCancellationMessage", "displayCancellationError"],
+                  },
+                },
+              },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
                 invoke: {
@@ -216,6 +198,25 @@ export const workspaceMachine = createMachine(
                     target: "idle",
                     actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
                   },
+                },
+              },
+            },
+          },
+          pollingResources: {
+            initial: "gettingResources",
+            states: {
+              gettingResources: {
+                entry: "clearGetResourcesError",
+                invoke: {
+                  id: "getResources",
+                  src: "getResources",
+                  onDone: { target: "waiting", actions: "assignResources" },
+                  onError: { target: "waiting", actions: "assignGetResourcesError" },
+                },
+              },
+              waiting: {
+                after: {
+                  5000: "gettingResources",
                 },
               },
             },
@@ -285,7 +286,6 @@ export const workspaceMachine = createMachine(
         assign({
           workspace: undefined,
           template: undefined,
-          organization: undefined,
           build: undefined,
         }),
       assignWorkspace: assign({
@@ -298,17 +298,6 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignGetTemplateError: assign({
-        getTemplateError: (_, event) => event.data,
-      }),
-      clearGetTemplateError: (context) => assign({ ...context, getTemplateError: undefined }),
-      assignOrganization: assign({
-        organization: (_, event) => event.data,
-      }),
-      assignGetOrganizationError: assign({
-        getOrganizationError: (_, event) => event.data,
-      }),
-      clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
       assignBuild: (_, event) =>
         assign({
           build: event.data,
@@ -324,6 +313,17 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: undefined,
         }),
+      assignCancellationMessage: (_, event) =>
+        assign({
+          cancellationMessage: event.data,
+        }),
+      clearCancellationMessage: (_) =>
+        assign({
+          cancellationMessage: undefined,
+        }),
+      displayCancellationError: (context) => {
+        displayError(context.cancellationMessage)
+      },
       assignRefreshWorkspaceError: (_, event) =>
         assign({
           refreshWorkspaceError: event.data,
@@ -342,6 +342,18 @@ export const workspaceMachine = createMachine(
       clearRefreshTemplateError: (_) =>
         assign({
           refreshTemplateError: undefined,
+        }),
+      // Resources
+      assignResources: assign({
+        resources: (_, event) => event.data,
+      }),
+      assignGetResourcesError: (_, event) =>
+        assign({
+          getResourcesError: event.data,
+        }),
+      clearGetResourcesError: (_) =>
+        assign({
+          getResourcesError: undefined,
         }),
       // Timeline
       assignBuilds: assign({
@@ -389,7 +401,6 @@ export const workspaceMachine = createMachine(
       }),
     },
     guards: {
-      triedToStart: (context) => context.workspace?.latest_build.transition === "start",
       hasMoreBuilds: (_) => false,
     },
     services: {
@@ -401,13 +412,6 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
-        }
-      },
-      getOrganization: async (context) => {
-        if (context.template) {
-          return await API.getOrganization(context.template.organization_id)
-        } else {
-          throw Error("Cannot get organization without template")
         }
       },
       startWorkspace: async (context) => {
@@ -424,11 +428,26 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot stop workspace without workspace id")
         }
       },
+      cancelWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+        } else {
+          throw Error("Cannot cancel workspace without build id")
+        }
+      },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
           return await API.getWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot refresh workspace without id")
+        }
+      },
+      getResources: async (context) => {
+        if (context.workspace) {
+          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
+          return resources
+        } else {
+          throw Error("Cannot fetch workspace resources without workspace")
         }
       },
       getBuilds: async (context) => {

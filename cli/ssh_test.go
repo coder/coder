@@ -1,18 +1,27 @@
 package cli_test
 
 import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"errors"
 	"io"
 	"net"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	gosshagent "golang.org/x/crypto/ssh/agent"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -22,49 +31,53 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
+func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+	t.Helper()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "dev",
+						Type: "google_compute_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: agentToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	return client, workspace, agentToken
+}
+
 func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "dev",
-							Type: "google_compute_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: agentToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
+		cmdDone := tGo(t, func() {
 			err := cmd.Execute()
-			require.NoError(t, err)
-		}()
+			assert.NoError(t, err)
+		})
 		pty.ExpectMatch("Waiting")
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		agentClient := codersdk.New(client.URL)
@@ -75,40 +88,16 @@ func TestSSH(t *testing.T) {
 		t.Cleanup(func() {
 			_ = agentCloser.Close()
 		})
+
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		<-doneChan
+		<-cmdDone
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "dev",
-							Type: "google_compute_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: agentToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		go func() {
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
+
+		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -117,25 +106,22 @@ func TestSSH(t *testing.T) {
 			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			})
-			t.Cleanup(func() {
-				_ = agentCloser.Close()
-			})
-		}()
+			<-ctx.Done()
+			_ = agentCloser.Close()
+		})
 
 		clientOutput, clientInput := io.Pipe()
 		serverOutput, serverInput := io.Pipe()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		cmd.SetIn(clientOutput)
 		cmd.SetOut(serverInput)
 		cmd.SetErr(io.Discard)
-		go func() {
-			defer close(doneChan)
+		cmdDone := tGo(t, func() {
 			err := cmd.Execute()
-			require.NoError(t, err)
-		}()
+			assert.NoError(t, err)
+		})
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
 			Reader: serverOutput,
@@ -157,8 +143,135 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
-		<-doneChan
+
+		<-cmdDone
 	})
+	//nolint:paralleltest // Disabled due to use of t.Setenv.
+	t.Run("ForwardAgent", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		client, workspace, agentToken := setupWorkspaceForSSH(t)
+
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			agentClient := codersdk.New(client.URL)
+			agentClient.SessionToken = agentToken
+			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			})
+			<-ctx.Done()
+			_ = agentCloser.Close()
+		})
+
+		// Generate private key.
+		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		kr := gosshagent.NewKeyring()
+		kr.Add(gosshagent.AddedKey{
+			PrivateKey: privateKey,
+		})
+
+		// Start up ssh agent listening on unix socket.
+		tmpdir := t.TempDir()
+		agentSock := filepath.Join(tmpdir, "agent.sock")
+		l, err := net.Listen("unix", agentSock)
+		require.NoError(t, err)
+		defer l.Close()
+		_ = tGo(t, func() {
+			for {
+				fd, err := l.Accept()
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						t.Logf("accept error: %v", err)
+					}
+					return
+				}
+
+				err = gosshagent.ServeAgent(kr, fd)
+				if !errors.Is(err, io.EOF) {
+					assert.NoError(t, err)
+				}
+			}
+		})
+
+		t.Setenv("SSH_AUTH_SOCK", agentSock)
+		cmd, root := clitest.New(t,
+			"ssh",
+			workspace.Name,
+			"--forward-agent",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		cmd.SetErr(io.Discard)
+		cmdDone := tGo(t, func() {
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		})
+
+		// Ensure that SSH_AUTH_SOCK is set.
+		// Linux: /tmp/auth-agent3167016167/listener.sock
+		// macOS: /var/folders/ng/m1q0wft14hj0t3rtjxrdnzsr0000gn/T/auth-agent3245553419/listener.sock
+		pty.WriteLine("env")
+		pty.ExpectMatch("SSH_AUTH_SOCK=")
+		// Ensure that ssh-add lists our key.
+		pty.WriteLine("ssh-add -L")
+		keys, err := kr.List()
+		require.NoError(t, err)
+		pty.ExpectMatch(keys[0].String())
+
+		// And we're done.
+		pty.WriteLine("exit")
+		<-cmdDone
+	})
+}
+
+// tGoContext runs fn in a goroutine passing a context that will be
+// canceled on test completion and wait until fn has finished executing.
+// Done and cancel are returned for optionally waiting until completion
+// or early cancellation.
+//
+// NOTE(mafredri): This could be moved to a helper library.
+func tGoContext(t *testing.T, fn func(context.Context)) (done <-chan struct{}, cancel context.CancelFunc) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	doneC := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	go func() {
+		fn(ctx)
+		close(doneC)
+	}()
+
+	return doneC, cancel
+}
+
+// tGo runs fn in a goroutine and waits until fn has completed before
+// test completion. Done is returned for optionally waiting for fn to
+// exit.
+//
+// NOTE(mafredri): This could be moved to a helper library.
+func tGo(t *testing.T, fn func()) (done <-chan struct{}) {
+	t.Helper()
+
+	doneC := make(chan struct{})
+	t.Cleanup(func() {
+		<-doneC
+	})
+	go func() {
+		fn()
+		close(doneC)
+	}()
+
+	return doneC
 }
 
 type stdioConn struct {

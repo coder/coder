@@ -15,25 +15,26 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
+	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
-	"github.com/coder/coder/coderd/autobuild/schedule"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
-var autostopPollInterval = 30 * time.Second
+var workspacePollInterval = time.Minute
 var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
 func ssh() *cobra.Command {
 	var (
-		stdio   bool
-		shuffle bool
+		stdio          bool
+		shuffle        bool
+		forwardAgent   bool
+		wsPollInterval time.Duration
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -109,6 +110,17 @@ func ssh() *cobra.Command {
 				return err
 			}
 
+			if forwardAgent && os.Getenv("SSH_AUTH_SOCK") != "" {
+				err = gosshagent.ForwardToRemote(sshClient, os.Getenv("SSH_AUTH_SOCK"))
+				if err != nil {
+					return xerrors.Errorf("forward agent failed: %w", err)
+				}
+				err = gosshagent.RequestAgentForwarding(sshSession)
+				if err != nil {
+					return xerrors.Errorf("request agent forwarding failed: %w", err)
+				}
+			}
+
 			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
 			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -158,6 +170,8 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
 	_ = cmd.Flags().MarkHidden("shuffle")
+	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
+	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 
 	return cmd
 }
@@ -193,7 +207,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 		}
 	}
 
-	if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
+	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
@@ -202,7 +216,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	}
-	if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
+	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
@@ -254,14 +268,14 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
 	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
 	condition := notifyCondition(ctx, client, workspace.ID, lock)
-	return notify.Notify(condition, autostopPollInterval, autostopNotifyCountdown...)
+	return notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
 }
 
 // Notify the user if the workspace is due to shutdown.
 func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lock *flock.Flock) notify.Condition {
 	return func(now time.Time) (deadline time.Time, callback func()) {
 		// Keep trying to regain the lock.
-		locked, err := lock.TryLockContext(ctx, autostopPollInterval)
+		locked, err := lock.TryLockContext(ctx, workspacePollInterval)
 		if err != nil || !locked {
 			return time.Time{}, nil
 		}
@@ -271,16 +285,11 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.AutostopSchedule == "" {
+		if ws.TTL == nil || *ws.TTL == 0 {
 			return time.Time{}, nil
 		}
 
-		sched, err := schedule.Weekly(ws.AutostopSchedule)
-		if err != nil {
-			return time.Time{}, nil
-		}
-
-		deadline = sched.Next(now)
+		deadline = ws.LatestBuild.UpdatedAt.Add(*ws.TTL)
 		callback = func() {
 			ttl := deadline.Sub(now)
 			var title, body string

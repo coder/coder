@@ -20,6 +20,7 @@ import (
 	"github.com/pion/udp"
 	"github.com/pion/webrtc/v3"
 	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
@@ -65,6 +66,21 @@ func TestAgent(t *testing.T) {
 		output, err := session.Output(command)
 		require.NoError(t, err)
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
+	})
+
+	t.Run("PATHHasCoder", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSHSession(t, agent.Metadata{})
+		command := "sh -c 'echo $PATH'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %PATH%"
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		ex, err := os.Executable()
+		t.Log(ex)
+		require.NoError(t, err)
+		require.True(t, strings.Contains(strings.TrimSpace(string(output)), filepath.Dir(ex)))
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {
@@ -119,7 +135,7 @@ func TestAgent(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			conn, err := local.Accept()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			_ = conn.Close()
 			close(done)
 		}()
@@ -171,8 +187,9 @@ func TestAgent(t *testing.T) {
 		tempPath := filepath.Join(os.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
-			StartupScript: "echo " + content + " > " + tempPath,
+			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
 		}, 0)
+
 		var gotContent string
 		require.Eventually(t, func() bool {
 			content, err := os.ReadFile(tempPath)
@@ -201,6 +218,7 @@ func TestAgent(t *testing.T) {
 			// it seems like it could be either.
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
+
 		conn := setupAgent(t, agent.Metadata{}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100)
@@ -227,6 +245,7 @@ func TestAgent(t *testing.T) {
 				}
 			}
 		}
+
 		matchEchoCommand := func(line string) bool {
 			return strings.Contains(line, "echo test")
 		}
@@ -367,7 +386,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 				return
 			}
 			ssh, err := agentConn.SSH()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			go io.Copy(conn, ssh)
 			go io.Copy(ssh, conn)
 		}
@@ -409,7 +428,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	})
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := api.NegotiateConnection(context.Background())
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil),
 	})
@@ -444,13 +463,13 @@ func testAccept(t *testing.T, c net.Conn) {
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
-	require.NoError(t, err, "read payload")
-	require.Equal(t, len(payload), n, "read payload length does not match")
-	require.Equal(t, payload, b[:n])
+	assert.NoError(t, err, "read payload")
+	assert.Equal(t, len(payload), n, "read payload length does not match")
+	assert.Equal(t, payload, b[:n])
 }
 
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
-	require.NoError(t, err, "write payload")
-	require.Equal(t, len(payload), n, "payload length does not match")
+	assert.NoError(t, err, "write payload")
+	assert.Equal(t, len(payload), n, "payload length does not match")
 }

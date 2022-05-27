@@ -9,8 +9,19 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+)
 
-	"github.com/coder/coder/coderd/database"
+type ProvisionerStorageMethod string
+
+const (
+	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
+)
+
+type ProvisionerType string
+
+const (
+	ProvisionerTypeEcho      ProvisionerType = "echo"
+	ProvisionerTypeTerraform ProvisionerType = "terraform"
 )
 
 // Organization is the JSON representation of a Coder organization.
@@ -26,9 +37,9 @@ type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
 	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
-	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	StorageSource string                            `json:"storage_source" validate:"required"`
-	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource string                   `json:"storage_source" validate:"required"`
+	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
@@ -54,8 +65,10 @@ type CreateTemplateRequest struct {
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
 type CreateWorkspaceRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
-	Name       string    `json:"name" validate:"username,required"`
+	TemplateID        uuid.UUID      `json:"template_id" validate:"required"`
+	Name              string         `json:"name" validate:"username,required"`
+	AutostartSchedule *string        `json:"autostart_schedule"`
+	TTL               *time.Duration `json:"ttl"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
@@ -77,9 +90,9 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 }
 
 // ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
-func (c *Client) ProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
+func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
+		"/api/v2/provisionerdaemons",
 		nil,
 	)
 	if err != nil {

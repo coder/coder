@@ -2,23 +2,14 @@ archives:
   - id: coder-linux
     builds: [coder-linux]
     format: tar.gz
-    files:
-      - src: docs/README.md
-        dst: README.md
 
   - id: coder-darwin
     builds: [coder-darwin]
     format: zip
-    files:
-      - src: docs/README.md
-        dst: README.md
 
   - id: coder-windows
     builds: [coder-windows]
     format: zip
-    files:
-      - src: docs/README.md
-        dst: README.md
 
 before:
   hooks:
@@ -153,6 +144,9 @@ docker_manifests:
 
 release:
   ids: [coder-linux, coder-darwin, coder-windows, packages]
+  footer: |
+    ## Container Image
+    - `docker pull ghcr.io/coder/coder:{{ .Tag }}`
 
 signs:
   - ids: [coder-darwin]

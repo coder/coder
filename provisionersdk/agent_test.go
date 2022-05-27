@@ -49,8 +49,11 @@ func TestAgentScript(t *testing.T) {
 		output, err := exec.Command("sh", "-c", script).CombinedOutput()
 		t.Log(string(output))
 		require.NoError(t, err)
+		// Ignore debug output from `set -x`, we're only interested in the last line.
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		lastLine := lines[len(lines)-1]
 		// Because we use the "echo" binary, we should expect the arguments provided
 		// as the response to executing our script.
-		require.Equal(t, "agent", strings.TrimSpace(string(output)))
+		require.Equal(t, "agent", lastLine)
 	})
 }

@@ -22,7 +22,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		token := uuid.New()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: token.String(),
 		})
 		return r, token

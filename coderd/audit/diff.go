@@ -123,6 +123,22 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 
 		return leftStr, rightStr, true
 
+	case sql.NullInt64:
+		var leftInt64Ptr *int64
+		var rightInt64Ptr *int64
+		if !typed.Valid {
+			leftInt64Ptr = nil
+		} else {
+			leftInt64Ptr = ptr(typed.Int64)
+		}
+
+		rightInt64Ptr = ptr(right.(sql.NullInt64).Int64)
+		if !right.(sql.NullInt64).Valid {
+			rightInt64Ptr = nil
+		}
+
+		return leftInt64Ptr, rightInt64Ptr, true
+
 	default:
 		return left, right, false
 	}
@@ -146,4 +162,8 @@ func derefPointer(ptr reflect.Value) reflect.Value {
 	}
 
 	return ptr
+}
+
+func ptr[T any](x T) *T {
+	return &x
 }

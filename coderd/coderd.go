@@ -15,7 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
-	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/monitoring"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -53,13 +54,11 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
 	Authorizer           rbac.Authorizer
+	TracerProvider       *sdktrace.TracerProvider
 }
 
-// New constructs the Coder API into an HTTP handler.
-//
-// A wait function is returned to handle awaiting closure of hijacked HTTP
-// requests.
-func New(options *Options) (http.Handler, func()) {
+// New constructs a Coder API handler.
+func New(options *Options) *API {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
@@ -75,17 +74,18 @@ func New(options *Options) (http.Handler, func()) {
 			panic(xerrors.Errorf("rego authorize panic: %w", err))
 		}
 	}
-	api := &api{
+
+	r := chi.NewRouter()
+	api := &API{
 		Options: options,
+		Handler: r,
 	}
+
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 	})
-
 	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
-
-	r := chi.NewRouter()
 
 	r.Use(
 		func(next http.Handler) http.Handler {
@@ -94,7 +94,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		},
 		httpmw.Prometheus(options.Monitor),
-		chitrace.Middleware(),
+		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {
@@ -103,7 +103,6 @@ func New(options *Options) (http.Handler, func()) {
 				Message: "Route not found.",
 			})
 		})
-
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
@@ -114,6 +113,9 @@ func New(options *Options) (http.Handler, func()) {
 				Message: "👋",
 			})
 		})
+		// All CSP errors will be logged
+		r.Post("/csp/reports", api.logReportCSPViolations)
+
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
@@ -125,6 +127,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
@@ -132,41 +135,53 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/organizations/{organization}", func(r chi.Router) {
+		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
 				authRolesMiddleware,
 			)
-			r.Get("/", api.organization)
-			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
-			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
-			r.Route("/templates", func(r chi.Router) {
-				r.Post("/", api.postTemplateByOrganization)
-				r.Get("/", api.templatesByOrganization)
-				r.Get("/{templatename}", api.templateByOrganizationAndName)
-			})
-			r.Route("/workspaces", func(r chi.Router) {
-				r.Post("/", api.postWorkspacesByOrganization)
-				r.Get("/", api.workspacesByOrganization)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspace}", api.workspaceByOwnerAndName)
-					r.Get("/", api.workspacesByOwner)
+			r.Get("/", api.provisionerDaemons)
+		})
+		r.Route("/organizations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				authRolesMiddleware,
+			)
+			r.Post("/", api.postOrganizations)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOrganizationParam(options.Database),
+				)
+				r.Get("/", api.organization)
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+				r.Route("/templates", func(r chi.Router) {
+					r.Post("/", api.postTemplateByOrganization)
+					r.Get("/", api.templatesByOrganization)
+					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-			})
-			r.Route("/members", func(r chi.Router) {
-				r.Get("/roles", api.assignableOrgRoles)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(
-						httpmw.ExtractUserParam(options.Database),
-					)
-					r.Put("/roles", api.putMemberRoles)
+				r.Route("/workspaces", func(r chi.Router) {
+					r.Post("/", api.postWorkspacesByOrganization)
+					r.Get("/", api.workspacesByOrganization)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
+						r.Get("/", api.workspacesByOwner)
+					})
+				})
+				r.Route("/members", func(r chi.Router) {
+					r.Get("/roles", api.assignableOrgRoles)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(
+							httpmw.ExtractUserParam(options.Database),
+							httpmw.ExtractOrganizationMemberParam(options.Database),
+						)
+						r.Put("/roles", api.putMemberRoles)
+					})
 				})
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddleware, authRolesMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -176,6 +191,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 			)
 
@@ -190,6 +206,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 
@@ -199,11 +216,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
-		})
-		r.Route("/provisionerdaemons", func(r chi.Router) {
-			r.Route("/me", func(r chi.Router) {
-				r.Get("/listen", api.provisionerDaemonsListen)
-			})
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
@@ -239,8 +251,6 @@ func New(options *Options) (http.Handler, func()) {
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
-					r.Get("/organizations", api.organizationsByUser)
-					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
@@ -249,7 +259,6 @@ func New(options *Options) (http.Handler, func()) {
 
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
-						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
@@ -285,6 +294,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceResourceParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -309,14 +319,17 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)
 				})
-				r.Route("/autostop", func(r chi.Router) {
-					r.Put("/", api.putWorkspaceAutostop)
+				r.Route("/ttl", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceTTL)
 				})
+				r.Get("/watch", api.watchWorkspace)
+				r.Put("/extend", api.putExtendWorkspace)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -328,20 +341,23 @@ func New(options *Options) (http.Handler, func()) {
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
-	return r, func() {
-		api.websocketWaitMutex.Lock()
-		api.websocketWaitGroup.Wait()
-		api.websocketWaitMutex.Unlock()
-	}
+
+	return api
 }
 
-// API contains all route handlers. Only HTTP handlers should
-// be added to this struct for code clarity.
-type api struct {
+type API struct {
 	*Options
 
+	Handler            chi.Router
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
+}
+
+// Close waits for all WebSocket connections to drain before returning.
+func (api *API) Close() {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Wait()
+	api.websocketWaitMutex.Unlock()
 }
 
 func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {

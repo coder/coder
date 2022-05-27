@@ -59,6 +59,20 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_, err := client.CreateTemplate(context.Background(), uuid.New(), codersdk.CreateTemplateRequest{
+			Name:      "test",
+			VersionID: uuid.New(),
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+	})
+
 	t.Run("NoVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -146,9 +160,8 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("Workspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

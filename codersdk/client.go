@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -34,6 +35,14 @@ type Client struct {
 }
 
 type requestOption func(*http.Request)
+
+func queryParam(k, v string) requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set(k, v)
+		r.URL.RawQuery = q.Encode()
+	}
+}
 
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
@@ -63,7 +72,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.AddCookie(&http.Cookie{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	})
 	if body != nil {
@@ -80,10 +89,50 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
+// dialWebsocket opens a dialWebsocket connection on that path provided.
+// The caller is responsible for closing the dialWebsocket.Conn.
+func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Conn, error) {
+	serverURL, err := c.URL.Parse(path)
+	if err != nil {
+		return nil, xerrors.Errorf("parse path: %w", err)
+	}
+
+	apiURL, err := url.Parse(serverURL.String())
+	if err != nil {
+		return nil, xerrors.Errorf("parse server url: %w", err)
+	}
+	apiURL.Scheme = "ws"
+	if serverURL.Scheme == "https" {
+		apiURL.Scheme = "wss"
+	}
+	apiURL.Path = path
+	q := apiURL.Query()
+	q.Add(httpmw.SessionTokenKey, c.SessionToken)
+	apiURL.RawQuery = q.Encode()
+
+	//nolint:bodyclose
+	conn, _, err := websocket.Dial(ctx, apiURL.String(), &websocket.DialOptions{
+		HTTPClient: c.HTTPClient,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("dial websocket: %w", err)
+	}
+
+	return conn, nil
+}
+
 // readBodyAsError reads the response as an httpapi.Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
+
+	var helper string
+	if res.StatusCode == http.StatusUnauthorized {
+		// 401 means the user is not logged in
+		// 403 would mean that the user is not authorized
+		helper = "Try logging in using 'coder login <url>'."
+	}
+
 	if strings.HasPrefix(contentType, "text/plain") {
 		resp, err := io.ReadAll(res.Body)
 		if err != nil {
@@ -94,6 +143,7 @@ func readBodyAsError(res *http.Response) error {
 			Response: httpapi.Response{
 				Message: string(resp),
 			},
+			Helper: helper,
 		}
 	}
 
@@ -105,6 +155,7 @@ func readBodyAsError(res *http.Response) error {
 			// If no body is sent, we'll just provide the status code.
 			return &Error{
 				statusCode: res.StatusCode,
+				Helper:     helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
@@ -112,6 +163,7 @@ func readBodyAsError(res *http.Response) error {
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
+		Helper:     helper,
 	}
 }
 
@@ -121,6 +173,8 @@ type Error struct {
 	httpapi.Response
 
 	statusCode int
+
+	Helper string
 }
 
 func (e *Error) StatusCode() int {
@@ -130,6 +184,9 @@ func (e *Error) StatusCode() int {
 func (e *Error) Error() string {
 	var builder strings.Builder
 	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
+	if e.Helper != "" {
+		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
+	}
 	for _, err := range e.Errors {
 		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
 	}

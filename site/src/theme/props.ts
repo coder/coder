@@ -38,4 +38,7 @@ export const props = {
     textColor: "primary",
     indicatorColor: "primary",
   },
+  MuiPaper: {
+    elevation: 0,
+  },
 } as ComponentsProps

@@ -1,11 +1,13 @@
 {
   "cSpell.words": [
+    "buildname",
     "circbuf",
     "cliflag",
     "cliui",
     "coderd",
     "coderdtest",
     "codersdk",
+    "cronstrue",
     "devel",
     "drpc",
     "drpcconn",
@@ -13,6 +15,7 @@
     "drpcserver",
     "Dsts",
     "fatih",
+    "Formik",
     "goarch",
     "gographviz",
     "goleak",
@@ -20,6 +23,7 @@
     "gsyslog",
     "hashicorp",
     "hclsyntax",
+    "httpapi",
     "httpmw",
     "idtoken",
     "Iflag",
@@ -51,14 +55,18 @@
     "rpty",
     "sdkproto",
     "Signup",
+    "sourcemapped",
     "stretchr",
     "TCGETS",
     "tcpip",
     "TCSETS",
+    "templateversions",
+    "testid",
     "tfexec",
     "tfjson",
     "tfstate",
     "trimprefix",
+    "typegen",
     "unconvert",
     "Untar",
     "VMID",
@@ -76,7 +84,7 @@
       },
       {
         "match": "provisionerd/proto/provisionerd.proto",
-        "cmd": "make provisionerd/proto/provisionerd.pb.go",
+        "cmd": "make provisionerd/proto/provisionerd.pb.go"
       }
     ]
   },
@@ -104,5 +112,5 @@
   },
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib",
+  "typescript.tsdk": "./site/node_modules/typescript/lib"
 }

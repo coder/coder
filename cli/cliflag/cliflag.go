@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/pflag"
 )
@@ -81,6 +82,23 @@ func BoolVarP(flagset *pflag.FlagSet, ptr *bool, name string, shorthand string, 
 	}
 
 	flagset.BoolVarP(ptr, name, shorthand, valb, fmtUsage(usage, env))
+}
+
+// DurationVarP sets a time.Duration flag on the given flag set.
+func DurationVarP(flagset *pflag.FlagSet, ptr *time.Duration, name string, shorthand string, env string, def time.Duration, usage string) {
+	val, ok := os.LookupEnv(env)
+	if !ok || val == "" {
+		flagset.DurationVarP(ptr, name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	valb, err := time.ParseDuration(val)
+	if err != nil {
+		flagset.DurationVarP(ptr, name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	flagset.DurationVarP(ptr, name, shorthand, valb, fmtUsage(usage, env))
 }
 
 func fmtUsage(u string, env string) string {

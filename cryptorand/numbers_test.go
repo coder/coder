@@ -175,3 +175,14 @@ func TestBool(t *testing.T) {
 	require.True(t, percentage > 48, "expected more than 48 percent of values to be true")
 	require.True(t, percentage < 52, "expected less than 52 percent of values to be true")
 }
+
+func TestDuration(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 20; i++ {
+		v, err := cryptorand.Duration()
+		require.NoError(t, err, "unexpected error from Duration")
+		t.Logf("value: %v <- random?", v)
+		require.True(t, v >= 0.0, "values must be positive")
+	}
+}

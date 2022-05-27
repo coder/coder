@@ -3,7 +3,6 @@ package clitest_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
@@ -25,8 +24,7 @@ func TestCli(t *testing.T) {
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())
 	go func() {
-		err := cmd.Execute()
-		require.NoError(t, err)
+		_ = cmd.Execute()
 	}()
 	pty.ExpectMatch("coder")
 }

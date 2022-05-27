@@ -1,6 +1,5 @@
 import Avatar from "@material-ui/core/Avatar"
 import Box from "@material-ui/core/Box"
-import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -8,7 +7,6 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
@@ -22,13 +20,12 @@ import { firstLetter } from "../../util/firstLetter"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create Template",
   developerCount: (ownerCount: number): string => {
     return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
-  usedByLabel: "Used By",
-  lastUpdatedLabel: "Last Updated",
+  usedByLabel: "Used by",
+  lastUpdatedLabel: "Last updated",
   emptyViewCreateCTA: "Create a template",
   emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
@@ -43,11 +40,8 @@ export interface TemplatesPageViewProps {
 export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
   return (
-    <Stack spacing={4}>
+    <Stack spacing={4} className={styles.root}>
       <Margins>
-        <div className={styles.actions}>
-          {props.canCreateTemplate && <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>}
-        </div>
         <Table>
           <TableHead>
             <TableRow>
@@ -77,13 +71,13 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
               </TableRow>
             )}
             {props.templates?.map((template) => (
-              <TableRow key={template.id} className={styles.templateRow}>
+              <TableRow key={template.id}>
                 <TableCell>
                   <Box alignItems="center" display="flex">
                     <Avatar variant="square" className={styles.templateAvatar}>
                       {firstLetter(template.name)}
                     </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
+                    <Link component={RouterLink} to={`/templates/${template.name}`} className={styles.templateLink}>
                       <b>{template.name}</b>
                       <span>{template.description}</span>
                     </Link>
@@ -92,7 +86,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
 
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
-                <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -103,15 +97,8 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
 }
 
 const useStyles = makeStyles((theme) => ({
-  actions: {
+  root: {
     marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-    display: "flex",
-    height: theme.spacing(6),
-
-    "& button": {
-      marginLeft: "auto",
-    },
   },
   welcome: {
     paddingTop: theme.spacing(12),
@@ -125,12 +112,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  templateRow: {
-    "& > td": {
-      paddingTop: theme.spacing(2),
-      paddingBottom: theme.spacing(2),
     },
   },
   templateAvatar: {

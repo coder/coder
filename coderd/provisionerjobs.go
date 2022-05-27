@@ -26,7 +26,7 @@ import (
 // 2. GET /logs?after=<timestamp>&follow
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
-func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	follow := r.URL.Query().Has("follow")
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
@@ -87,7 +87,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			logs = []database.ProvisionerJobLog{}
 		}
 
-		httpapi.Write(rw, http.StatusOK, logs)
+		httpapi.Write(rw, http.StatusOK, convertProvisionerJobLogs(logs))
 		return
 	}
 
@@ -178,7 +178,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 }
 
-func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	if !job.CompletedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
@@ -232,12 +232,20 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	httpapi.Write(rw, http.StatusOK, apiResources)
 }
 
+func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {
+	sdk := make([]codersdk.ProvisionerJobLog, 0, len(provisionerJobLogs))
+	for _, log := range provisionerJobLogs {
+		sdk = append(sdk, convertProvisionerJobLog(log))
+	}
+	return sdk
+}
+
 func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
 	return codersdk.ProvisionerJobLog{
 		ID:        provisionerJobLog.ID,
 		CreatedAt: provisionerJobLog.CreatedAt,
-		Source:    provisionerJobLog.Source,
-		Level:     provisionerJobLog.Level,
+		Source:    codersdk.LogSource(provisionerJobLog.Source),
+		Level:     codersdk.LogLevel(provisionerJobLog.Level),
 		Stage:     provisionerJobLog.Stage,
 		Output:    provisionerJobLog.Output,
 	}

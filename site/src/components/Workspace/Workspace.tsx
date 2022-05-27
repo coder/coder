@@ -2,21 +2,23 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { WorkspaceStatus } from "../../util/workspace"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Resources } from "../Resources/Resources"
+import { Stack } from "../Stack/Stack"
+import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
-import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
+import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export interface WorkspaceProps {
-  organization?: TypesGen.Organization
-  workspace: TypesGen.Workspace
-  template?: TypesGen.Template
   handleStart: () => void
   handleStop: () => void
-  handleRetry: () => void
   handleUpdate: () => void
-  workspaceStatus: WorkspaceStatus
+  handleCancel: () => void
+  workspace: TypesGen.Workspace
+  resources?: TypesGen.WorkspaceResource[]
+  getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
 }
 
@@ -24,84 +26,91 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: React.FC<WorkspaceProps> = ({
-  workspace,
   handleStart,
   handleStop,
-  handleRetry,
   handleUpdate,
-  workspaceStatus,
+  handleCancel,
+  workspace,
+  resources,
+  getResourcesError,
   builds,
 }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
-      <div className={styles.vertical}>
-        <WorkspaceStatusBar
-          workspace={workspace}
-          handleStart={handleStart}
-          handleStop={handleStop}
-          handleRetry={handleRetry}
-          handleUpdate={handleUpdate}
-          workspaceStatus={workspaceStatus}
-        />
-        <div className={styles.horizontal}>
-          <div className={styles.sidebarContainer}>
-            <WorkspaceSection title="Applications">
-              <Placeholder />
-            </WorkspaceSection>
-            <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
-            <WorkspaceSection title="Dev URLs">
-              <Placeholder />
-            </WorkspaceSection>
-            <WorkspaceSection title="Resources">
-              <Placeholder />
-            </WorkspaceSection>
-          </div>
-          <div className={styles.timelineContainer}>
-            <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
-              <BuildsTable builds={builds} className={styles.timelineTable} />
-            </WorkspaceSection>
-          </div>
+      <div className={styles.header}>
+        <div>
+          <Typography variant="h4" className={styles.title}>
+            {workspace.name}
+          </Typography>
+
+          <Typography color="textSecondary" className={styles.subtitle}>
+            {workspace.owner_name}
+          </Typography>
+        </div>
+
+        <div className={styles.headerActions}>
+          <WorkspaceActions
+            workspace={workspace}
+            handleStart={handleStart}
+            handleStop={handleStop}
+            handleUpdate={handleUpdate}
+            handleCancel={handleCancel}
+          />
         </div>
       </div>
+
+      <Stack direction="row" spacing={3} className={styles.layout}>
+        <Stack spacing={3} className={styles.main}>
+          <WorkspaceStats workspace={workspace} />
+          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+            <BuildsTable builds={builds} className={styles.timelineTable} />
+          </WorkspaceSection>
+        </Stack>
+
+        <Stack spacing={3} className={styles.sidebar}>
+          <WorkspaceSchedule workspace={workspace} />
+        </Stack>
+      </Stack>
     </div>
   )
 }
 
-/**
- * Temporary placeholder component until we have the sections implemented
- * Can be removed once the Workspace page has all the necessary sections
- */
-const Placeholder: React.FC = () => {
-  return (
-    <div style={{ textAlign: "center", opacity: "0.5" }}>
-      <Typography variant="caption">Not yet implemented</Typography>
-    </div>
-  )
-}
-
-export const useStyles = makeStyles(() => {
+export const useStyles = makeStyles((theme) => {
   return {
     root: {
       display: "flex",
       flexDirection: "column",
     },
-    horizontal: {
+    header: {
+      paddingTop: theme.spacing(5),
+      paddingBottom: theme.spacing(5),
+      fontFamily: MONOSPACE_FONT_FAMILY,
       display: "flex",
-      flexDirection: "row",
+      alignItems: "center",
     },
-    vertical: {
-      display: "flex",
-      flexDirection: "column",
+    headerActions: {
+      marginLeft: "auto",
     },
-    sidebarContainer: {
-      display: "flex",
-      flexDirection: "column",
-      flex: "0 0 350px",
+    title: {
+      fontWeight: 600,
+      fontFamily: "inherit",
     },
-    timelineContainer: {
-      flex: 1,
+    subtitle: {
+      fontFamily: "inherit",
+      marginTop: theme.spacing(0.5),
+    },
+    layout: {
+      alignItems: "flex-start",
+    },
+    main: {
+      width: "100%",
+    },
+    sidebar: {
+      width: theme.spacing(32),
+      flexShrink: 0,
     },
     timelineContents: {
       margin: 0,

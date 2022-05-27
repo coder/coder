@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -90,9 +90,9 @@ func TestProvisionerJob(t *testing.T) {
 		go func() {
 			<-test.Next
 			currentProcess, err := os.FindProcess(os.Getpid())
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			err = currentProcess.Signal(os.Interrupt)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobCanceled
@@ -150,7 +150,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 		defer close(done)
 		err := cmd.ExecuteContext(context.Background())
 		if err != nil {
-			require.ErrorIs(t, err, cliui.Canceled)
+			assert.ErrorIs(t, err, cliui.Canceled)
 		}
 	}()
 	t.Cleanup(func() {

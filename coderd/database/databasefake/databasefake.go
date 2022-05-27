@@ -363,14 +363,14 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesAutostartAutostop(_ context.Context) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	workspaces := make([]database.Workspace, 0)
 	for _, ws := range q.workspaces {
 		if ws.AutostartSchedule.String != "" {
 			workspaces = append(workspaces, ws)
-		} else if ws.AutostopSchedule.String != "" {
+		} else if ws.Ttl.Valid {
 			workspaces = append(workspaces, ws)
 		}
 	}
@@ -499,7 +499,7 @@ func (q *fakeQuerier) GetLatestWorkspaceResources(ctx context.Context) ([]databa
 			buildNumbers[workspaceBuild.WorkspaceID] = workspaceBuild.BuildNumber
 		}
 	}
-	
+
 	// Get resources for each latest build.
 	resources := make([]database.WorkspaceResource, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
@@ -1329,11 +1329,10 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 	defer q.mutex.Unlock()
 
 	daemon := database.ProvisionerDaemon{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Provisioners:   arg.Provisioners,
+		ID:           arg.ID,
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
@@ -1502,13 +1501,15 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		OwnerID:        arg.OwnerID,
-		OrganizationID: arg.OrganizationID,
-		TemplateID:     arg.TemplateID,
-		Name:           arg.Name,
+		ID:                arg.ID,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		OwnerID:           arg.OwnerID,
+		OrganizationID:    arg.OrganizationID,
+		TemplateID:        arg.TemplateID,
+		Name:              arg.Name,
+		AutostartSchedule: arg.AutostartSchedule,
+		Ttl:               arg.Ttl,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
@@ -1530,6 +1531,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
+		Deadline:          arg.Deadline,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
@@ -1712,7 +1714,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.UpdateWorkspaceAutostopParams) error {
+func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1720,7 +1722,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.Up
 		if workspace.ID != arg.ID {
 			continue
 		}
-		workspace.AutostopSchedule = arg.AutostopSchedule
+		workspace.Ttl = arg.Ttl
 		q.workspaces[index] = workspace
 		return nil
 	}
@@ -1738,6 +1740,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
+		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}

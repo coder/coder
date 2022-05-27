@@ -17,8 +17,8 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-// AuthCookie represents the name of the cookie the API key is stored in.
-const AuthCookie = "session_token"
+// SessionTokenKey represents the name of the cookie or query paramater the API key is stored in.
+const SessionTokenKey = "session_token"
 
 type apiKeyContextKey struct{}
 
@@ -43,18 +43,24 @@ type OAuth2Configs struct {
 func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(AuthCookie)
+			var cookieValue string
+			cookie, err := r.Cookie(SessionTokenKey)
 			if err != nil {
+				cookieValue = r.URL.Query().Get(SessionTokenKey)
+			} else {
+				cookieValue = cookie.Value
+			}
+			if cookieValue == "" {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("%q cookie must be provided", AuthCookie),
+					Message: fmt.Sprintf("%q cookie or query parameter must be provided", SessionTokenKey),
 				})
 				return
 			}
-			parts := strings.Split(cookie.Value, "-")
+			parts := strings.Split(cookieValue, "-")
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("invalid %q cookie api key format", AuthCookie),
+					Message: fmt.Sprintf("invalid %q cookie api key format", SessionTokenKey),
 				})
 				return
 			}
@@ -63,13 +69,13 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("invalid %q cookie api key id", AuthCookie),
+					Message: fmt.Sprintf("invalid %q cookie api key id", SessionTokenKey),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("invalid %q cookie api key secret", AuthCookie),
+					Message: fmt.Sprintf("invalid %q cookie api key secret", SessionTokenKey),
 				})
 				return
 			}

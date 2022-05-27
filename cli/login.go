@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"runtime"
 	"strings"
 
@@ -164,14 +165,16 @@ func login() *cobra.Command {
 					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
 
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates create"))+"\n")
+					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}
 
 			sessionToken, _ := cmd.Flags().GetString(varToken)
 			if sessionToken == "" {
 				authURL := *serverURL
-				authURL.Path = serverURL.Path + "/cli-auth"
+				// Don't use filepath.Join, we don't want to use the os separator
+				// for a url.
+				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
 				if err := openURL(cmd, authURL.String()); err != nil {
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {

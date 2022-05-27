@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/provisioner/terraform"
@@ -33,7 +34,7 @@ func TestParse(t *testing.T) {
 				Listener: server,
 			},
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 

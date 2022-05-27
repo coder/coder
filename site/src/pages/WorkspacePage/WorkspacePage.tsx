@@ -1,5 +1,5 @@
-import { useActor, useSelector } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { useMachine } from "@xstate/react"
+import React, { useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -7,19 +7,14 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
-import { getWorkspaceStatus } from "../../util/workspace"
-import { XServiceContext } from "../../xServices/StateContext"
+import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
 
-  const xServices = useContext(XServiceContext)
-  const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
-  const { workspace, getWorkspaceError, getTemplateError, getOrganizationError, builds } = workspaceState.context
-  const workspaceStatus = useSelector(xServices.workspaceXService, (state) => {
-    return getWorkspaceStatus(state.context.workspace?.latest_build)
-  })
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
+  const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -30,7 +25,7 @@ export const WorkspacePage: React.FC = () => {
   }, [workspaceId, workspaceSend])
 
   if (workspaceState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
+    return <ErrorSummary error={getWorkspaceError} />
   } else if (!workspace) {
     return <FullScreenLoader />
   } else {
@@ -41,9 +36,10 @@ export const WorkspacePage: React.FC = () => {
             workspace={workspace}
             handleStart={() => workspaceSend("START")}
             handleStop={() => workspaceSend("STOP")}
-            handleRetry={() => workspaceSend("RETRY")}
             handleUpdate={() => workspaceSend("UPDATE")}
-            workspaceStatus={workspaceStatus}
+            handleCancel={() => workspaceSend("CANCEL")}
+            resources={resources}
+            getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
             builds={builds}
           />
         </Stack>

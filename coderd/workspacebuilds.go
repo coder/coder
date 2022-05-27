@@ -15,11 +15,25 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -31,8 +45,13 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
 
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
@@ -88,8 +107,13 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
 }
 
-func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
 	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndName(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndNameParams{
 		WorkspaceID: workspace.ID,
@@ -118,13 +142,32 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
 	}
+
+	// Rbac action depends on the transition
+	var action rbac.Action
+	switch createBuild.Transition {
+	case codersdk.WorkspaceTransitionDelete:
+		action = rbac.ActionDelete
+	case codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop:
+		action = rbac.ActionUpdate
+	default:
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("transition not supported: %q", createBuild.Transition),
+		})
+		return
+	}
+	if !api.Authorize(rw, r, action, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	if createBuild.TemplateVersionID == uuid.Nil {
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
@@ -248,7 +291,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Name:              namesgenerator.GetRandomName(1),
 			ProvisionerState:  state,
 			InitiatorID:       apiKey.UserID,
-			Transition:        createBuild.Transition,
+			Transition:        database.WorkspaceTransition(createBuild.Transition),
 			JobID:             provisionerJob.ID,
 		})
 		if err != nil {
@@ -267,8 +310,21 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
 }
 
-func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -306,8 +362,21 @@ func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -318,8 +387,21 @@ func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobResources(rw, r, job)
 }
 
-func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -330,8 +412,20 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func (*api) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
@@ -348,9 +442,10 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 		TemplateVersionID: workspaceBuild.TemplateVersionID,
 		BuildNumber:       workspaceBuild.BuildNumber,
 		Name:              workspaceBuild.Name,
-		Transition:        workspaceBuild.Transition,
+		Transition:        codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:       workspaceBuild.InitiatorID,
 		Job:               job,
+		Deadline:          workspaceBuild.Deadline,
 	}
 }
 
@@ -359,7 +454,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
 		JobID:      resource.JobID,
-		Transition: resource.Transition,
+		Transition: codersdk.WorkspaceTransition(resource.Transition),
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Agents:     agents,

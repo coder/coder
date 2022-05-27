@@ -19,10 +19,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AzureCertificates: certificates,
+			AzureCertificates:   certificates,
+			IncludeProvisionerD: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -49,13 +49,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		cmd, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		errC := make(chan error)
 		go func() {
-			// A linting error occurs for weakly typing the context value here,
-			// but it seems reasonable for a one-off test.
-			// nolint
-			ctx = context.WithValue(ctx, "azure-client", metadataClient)
-			err := cmd.ExecuteContext(ctx)
-			require.NoError(t, err)
+			// A linting error occurs for weakly typing the context value here.
+			//nolint // The above seems reasonable for a one-off test.
+			ctx := context.WithValue(ctx, "azure-client", metadataClient)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
@@ -66,6 +65,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		_, err = dialer.Ping()
 		require.NoError(t, err)
 		cancelFunc()
+		err = <-errC
+		require.NoError(t, err)
 	})
 
 	t.Run("AWS", func(t *testing.T) {
@@ -73,10 +74,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AWSCertificates: certificates,
+			AWSCertificates:     certificates,
+			IncludeProvisionerD: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -103,13 +104,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		cmd, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		errC := make(chan error)
 		go func() {
-			// A linting error occurs for weakly typing the context value here,
-			// but it seems reasonable for a one-off test.
-			// nolint
-			ctx = context.WithValue(ctx, "aws-client", metadataClient)
-			err := cmd.ExecuteContext(ctx)
-			require.NoError(t, err)
+			// A linting error occurs for weakly typing the context value here.
+			//nolint // The above seems reasonable for a one-off test.
+			ctx := context.WithValue(ctx, "aws-client", metadataClient)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
@@ -120,6 +120,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		_, err = dialer.Ping()
 		require.NoError(t, err)
 		cancelFunc()
+		err = <-errC
+		require.NoError(t, err)
 	})
 
 	t.Run("GoogleCloud", func(t *testing.T) {
@@ -128,9 +130,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
+			IncludeProvisionerD:  true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -157,13 +159,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		cmd, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		errC := make(chan error)
 		go func() {
-			// A linting error occurs for weakly typing the context value here,
-			// but it seems reasonable for a one-off test.
-			// nolint
-			ctx = context.WithValue(ctx, "gcp-client", metadata)
-			err := cmd.ExecuteContext(ctx)
-			require.NoError(t, err)
+			// A linting error occurs for weakly typing the context value here.
+			//nolint // The above seems reasonable for a one-off test.
+			ctx := context.WithValue(ctx, "gcp-client", metadata)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
@@ -174,5 +175,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		_, err = dialer.Ping()
 		require.NoError(t, err)
 		cancelFunc()
+		err = <-errC
+		require.NoError(t, err)
 	})
 }

@@ -10,14 +10,20 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/codersdk"
 )
 
 func create() *cobra.Command {
 	var (
-		workspaceName string
-		templateName  string
+		autostartMinute string
+		autostartHour   string
+		autostartDow    string
+		parameterFile   string
+		templateName    string
+		ttl             time.Duration
+		tzName          string
+		workspaceName   string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -52,6 +58,20 @@ func create() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			}
+
+			tz, err := time.LoadLocation(tzName)
+			if err != nil {
+				return xerrors.Errorf("Invalid workspace autostart timezone: %w", err)
+			}
+			schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tz.String(), autostartMinute, autostartHour, autostartDow)
+			_, err = schedule.Weekly(schedSpec)
+			if err != nil {
+				return xerrors.Errorf("invalid workspace autostart schedule: %w", err)
+			}
+
+			if ttl == 0 {
+				return xerrors.Errorf("TTL must be at least 1 minute")
 			}
 
 			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
@@ -117,24 +137,34 @@ func create() *cobra.Command {
 				return err
 			}
 
-			printed := false
+			// parameterMapFromFile can be nil if parameter file is not specified
+			var parameterMapFromFile map[string]string
+			if parameterFile != "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+				parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
+				if err != nil {
+					return err
+				}
+			}
+
+			disclaimerPrinted := false
 			parameters := make([]codersdk.CreateParameterRequest, 0)
 			for _, parameterSchema := range parameterSchemas {
 				if !parameterSchema.AllowOverrideSource {
 					continue
 				}
-				if !printed {
+				if !disclaimerPrinted {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-					printed = true
+					disclaimerPrinted = true
 				}
-				value, err := cliui.ParameterSchema(cmd, parameterSchema)
+				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 				if err != nil {
 					return err
 				}
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					Name:              parameterSchema.Name,
-					SourceValue:       value,
-					SourceScheme:      database.ParameterSourceSchemeData,
+					SourceValue:       parameterValue,
+					SourceScheme:      codersdk.ParameterSourceSchemeData,
 					DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				})
 			}
@@ -164,9 +194,11 @@ func create() *cobra.Command {
 
 			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
-				TemplateID:      template.ID,
-				Name:            workspaceName,
-				ParameterValues: parameters,
+				TemplateID:        template.ID,
+				Name:              workspaceName,
+				AutostartSchedule: &schedSpec,
+				TTL:               &ttl,
+				ParameterValues:   parameters,
 			})
 			if err != nil {
 				return err
@@ -194,6 +226,13 @@ func create() *cobra.Command {
 		},
 	}
 
+	cliui.AllowSkipPrompt(cmd)
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
+	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
+	cliflag.StringVarP(cmd.Flags(), &autostartMinute, "autostart-minute", "", "CODER_WORKSPACE_AUTOSTART_MINUTE", "0", "Specify the minute(s) at which the workspace should autostart (e.g. 0).")
+	cliflag.StringVarP(cmd.Flags(), &autostartHour, "autostart-hour", "", "CODER_WORKSPACE_AUTOSTART_HOUR", "9", "Specify the hour(s) at which the workspace should autostart (e.g. 9).")
+	cliflag.StringVarP(cmd.Flags(), &autostartDow, "autostart-day-of-week", "", "CODER_WORKSPACE_AUTOSTART_DOW", "MON-FRI", "Specify the days(s) on which the workspace should autostart (e.g. MON,TUE,WED,THU,FRI)")
+	cliflag.StringVarP(cmd.Flags(), &tzName, "tz", "", "TZ", "", "Specify your timezone location for workspace autostart (e.g. US/Central).")
+	cliflag.DurationVarP(cmd.Flags(), &ttl, "ttl", "", "CODER_WORKSPACE_TTL", 8*time.Hour, "Specify a time-to-live (TTL) for the workspace (e.g. 8h).")
 	return cmd
 }

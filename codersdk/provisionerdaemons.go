@@ -2,25 +2,41 @@ package codersdk
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
-	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
 )
 
-type ProvisionerDaemon database.ProvisionerDaemon
+type LogSource string
+
+const (
+	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
+	LogSourceProvisioner       LogSource = "provisioner"
+)
+
+type LogLevel string
+
+const (
+	LogLevelTrace LogLevel = "trace"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+)
+
+type ProvisionerDaemon struct {
+	ID           uuid.UUID         `json:"id"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    sql.NullTime      `json:"updated_at"`
+	Name         string            `json:"name"`
+	Provisioners []ProvisionerType `json:"provisioners"`
+}
 
 // ProvisionerJobStaus represents the at-time state of a job.
 type ProvisionerJobStatus string
@@ -54,41 +70,12 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID          `json:"id"`
-	CreatedAt time.Time          `json:"created_at"`
-	Source    database.LogSource `json:"log_source"`
-	Level     database.LogLevel  `json:"log_level"`
-	Stage     string             `json:"stage"`
-	Output    string             `json:"output"`
-}
-
-// ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
-func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse("/api/v2/provisionerdaemons/me/listen")
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: c.HTTPClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
-	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
-	}
-	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Source    LogSource `json:"log_source"`
+	Level     LogLevel  `json:"log_level"`
+	Stage     string    `json:"stage"`
+	Output    string    `json:"output"`
 }
 
 // provisionerJobLogsBefore provides log output that occurred before a time.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -180,6 +181,45 @@ func TestCliflag(t *testing.T) {
 
 		cliflag.BoolVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetBool(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+	})
+
+	t.Run("DurationDefault", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+		require.Contains(t, flagset.FlagUsages(), usage)
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+	})
+
+	t.Run("DurationEnvVar", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		envValue, _ := cryptorand.Duration()
+		t.Setenv(env, envValue.String())
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
+		require.NoError(t, err)
+		require.Equal(t, envValue, got)
+	})
+
+	t.Run("DurationFailParse", func(t *testing.T) {
+		var ptr time.Duration
+		flagset, name, shorthand, env, usage := randomFlag()
+		envValue, _ := cryptorand.String(10)
+		t.Setenv(env, envValue)
+		def, _ := cryptorand.Duration()
+
+		cliflag.DurationVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetDuration(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 	})

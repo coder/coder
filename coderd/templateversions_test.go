@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -38,9 +37,9 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		templateID := uuid.New()
 		_, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			TemplateID:    templateID,
-			StorageMethod: database.ProvisionerStorageMethodFile,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
-			Provisioner:   database.ProvisionerTypeEcho,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -52,9 +51,9 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			StorageMethod: database.ProvisionerStorageMethodFile,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
-			Provisioner:   database.ProvisionerTypeEcho,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -74,14 +73,14 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 		_, err = client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			StorageMethod: database.ProvisionerStorageMethodFile,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
-			Provisioner:   database.ProvisionerTypeEcho,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 			ParameterValues: []codersdk.CreateParameterRequest{{
 				Name:              "example",
 				SourceValue:       "value",
-				SourceScheme:      database.ParameterSourceSchemeData,
-				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+				SourceScheme:      codersdk.ParameterSourceSchemeData,
+				DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 			}},
 		})
 		require.NoError(t, err)
@@ -92,9 +91,8 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("AlreadyCompleted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
@@ -104,9 +102,8 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -131,9 +128,8 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -174,9 +170,8 @@ func TestTemplateVersionSchema(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
@@ -198,6 +193,35 @@ func TestTemplateVersionSchema(t *testing.T) {
 		require.NotNil(t, schemas)
 		require.Len(t, schemas, 1)
 	})
+	t.Run("ListContains", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: []*proto.Parse_Response{{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                 "example",
+							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							ValidationValueType:  "string",
+							ValidationCondition:  `contains(["first", "second"], var.example)`,
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
+				},
+			}},
+			Provision: echo.ProvisionComplete,
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		schemas, err := client.TemplateVersionSchema(context.Background(), version.ID)
+		require.NoError(t, err)
+		require.NotNil(t, schemas)
+		require.Len(t, schemas, 1)
+		require.Equal(t, []string{"first", "second"}, schemas[0].ValidationContains)
+	})
 }
 
 func TestTemplateVersionParameters(t *testing.T) {
@@ -214,9 +238,8 @@ func TestTemplateVersionParameters(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
@@ -260,9 +283,8 @@ func TestTemplateVersionResources(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -296,9 +318,8 @@ func TestTemplateVersionResources(t *testing.T) {
 
 func TestTemplateVersionLogs(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	before := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -432,10 +453,9 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerD: true})
 	// Prepare database.
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -450,8 +470,8 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		templateVersion, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			TemplateID:    template.ID,
 			StorageSource: file.Hash,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 

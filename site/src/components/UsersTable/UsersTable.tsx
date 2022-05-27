@@ -8,10 +8,8 @@ import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
-import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
-import { TableTitle } from "../TableTitle/TableTitle"
 import { UserCell } from "../UserCell/UserCell"
 
 export const Language = {
@@ -28,6 +26,8 @@ export interface UsersTableProps {
   users?: TypesGen.User[]
   roles?: TypesGen.Role[]
   isUpdatingUserRoles?: boolean
+  canEditUsers?: boolean
+  isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
@@ -40,52 +40,57 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onResetUserPassword,
   onUpdateUserRoles,
   isUpdatingUserRoles,
+  canEditUsers,
+  isLoading,
 }) => {
-  const isLoading = !users || !roles
-
   return (
     <Table>
       <TableHead>
-        <TableTitle title={Language.usersTitle} />
-        <TableHeaderRow>
-          <TableCell size="small">{Language.usernameLabel}</TableCell>
-          <TableCell size="small">{Language.rolesLabel}</TableCell>
+        <TableRow>
+          <TableCell>{Language.usernameLabel}</TableCell>
+          <TableCell>{Language.rolesLabel}</TableCell>
           {/* 1% is a trick to make the table cell width fit the content */}
-          <TableCell size="small" width="1%" />
-        </TableHeaderRow>
+          {canEditUsers && <TableCell width="1%" />}
+        </TableRow>
       </TableHead>
       <TableBody>
         {isLoading && <TableLoader />}
-        {users &&
-          roles &&
+        {!isLoading &&
+          users &&
           users.map((u) => (
             <TableRow key={u.id}>
               <TableCell>
                 <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
               </TableCell>
               <TableCell>
-                <RoleSelect
-                  roles={roles}
-                  selectedRoles={u.roles}
-                  loading={isUpdatingUserRoles}
-                  onChange={(roles) => onUpdateUserRoles(u, roles)}
-                />
+                {canEditUsers ? (
+                  <RoleSelect
+                    roles={roles ?? []}
+                    selectedRoles={u.roles}
+                    loading={isUpdatingUserRoles}
+                    onChange={(roles) => onUpdateUserRoles(u, roles)}
+                  />
+                ) : (
+                  <>{u.roles.map((r) => r.display_name).join(", ")}</>
+                )}
               </TableCell>
-              <TableCell>
-                <TableRowMenu
-                  data={u}
-                  menuItems={[
-                    {
-                      label: Language.suspendMenuItem,
-                      onClick: onSuspendUser,
-                    },
-                    {
-                      label: Language.resetPasswordMenuItem,
-                      onClick: onResetUserPassword,
-                    },
-                  ]}
-                />
-              </TableCell>
+              {canEditUsers && (
+                <TableCell>
+                  <TableRowMenu
+                    data={u}
+                    menuItems={[
+                      {
+                        label: Language.suspendMenuItem,
+                        onClick: onSuspendUser,
+                      },
+                      {
+                        label: Language.resetPasswordMenuItem,
+                        onClick: onResetUserPassword,
+                      },
+                    ]}
+                  />
+                </TableCell>
+              )}
             </TableRow>
           ))}
 

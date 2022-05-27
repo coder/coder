@@ -122,7 +122,7 @@ func TestPostLogout(t *testing.T) {
 		cookies := response.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.AuthCookie, "Cookie should be the auth cookie")
+		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
 		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
 	})
 }
@@ -173,8 +173,8 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
+		org, err := other.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -328,42 +328,64 @@ func TestUpdateUserPassword(t *testing.T) {
 
 func TestGrantRoles(t *testing.T) {
 	t.Parallel()
+
+	requireStatusCode := func(t *testing.T, err error, statusCode int) {
+		t.Helper()
+		var e *codersdk.Error
+		require.ErrorAs(t, err, &e, "error is codersdk error")
+		require.Equal(t, statusCode, e.StatusCode(), "correct status code")
+	}
+
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		admin := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, admin)
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		memberUser, err := member.User(ctx, codersdk.Me)
+		require.NoError(t, err, "member user")
 
-		_, err := admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
 		})
 		require.Error(t, err, "org role in site")
+		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateUserRoles(ctx, uuid.New().String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
 		})
 		require.Error(t, err, "user does not exist")
+		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "site role in org")
+		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "role in org without membership")
+		requireStatusCode(t, err, http.StatusNotFound)
 
 		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "member cannot change other's roles")
+		requireStatusCode(t, err, http.StatusForbidden)
+
+		_, err = member.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change any roles")
+		requireStatusCode(t, err, http.StatusForbidden)
 
 		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "member cannot change other's org roles")
+		requireStatusCode(t, err, http.StatusForbidden)
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
@@ -607,9 +629,8 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "test@coder.com",
 			Username:       "someone",

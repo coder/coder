@@ -29,7 +29,7 @@ func TestUserParam(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 

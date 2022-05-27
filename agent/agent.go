@@ -21,9 +21,12 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
+	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
-
+	"github.com/pkg/sftp"
 	"go.uber.org/atomic"
+	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
@@ -31,12 +34,12 @@ import (
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/pty"
 	"github.com/coder/retry"
+)
 
-	"github.com/pkg/sftp"
-
-	"github.com/gliderlabs/ssh"
-	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
+const (
+	ProtocolReconnectingPTY = "reconnecting-pty"
+	ProtocolSSH             = "ssh"
+	ProtocolDial            = "dial"
 )
 
 type Options struct {
@@ -174,17 +177,25 @@ func (*agent) runStartupScript(ctx context.Context, script string) error {
 	defer func() {
 		_ = writer.Close()
 	}()
+
 	caller := "-c"
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
+
 	cmd := exec.CommandContext(ctx, shell, caller, script)
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	err = cmd.Run()
 	if err != nil {
+		// cmd.Run does not return a context canceled error, it returns "signal: killed".
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		return xerrors.Errorf("run: %w", err)
 	}
+
 	return nil
 }
 
@@ -208,11 +219,11 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 		}
 
 		switch channel.Protocol() {
-		case "ssh":
+		case ProtocolSSH:
 			go a.sshServer.HandleConn(channel.NetConn())
-		case "reconnecting-pty":
+		case ProtocolReconnectingPTY:
 			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
-		case "dial":
+		case ProtocolDial:
 			go a.handleDial(ctx, channel.Label(), channel.NetConn())
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
@@ -348,10 +359,12 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if err != nil {
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
+	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`PATH=%s%c%s`, os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
-	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
+	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
 	// These prevent the user from having to specify _anything_ to successfully commit.
 	// Both author and committer must be set!
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
@@ -378,6 +391,16 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
+	}
+
+	if ssh.AgentRequested(session) {
+		l, err := ssh.NewAgentListener()
+		if err != nil {
+			return xerrors.Errorf("new agent listener: %w", err)
+		}
+		defer l.Close()
+		go ssh.ForwardAgentConnections(l, session)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
 	}
 
 	sshPty, windowSize, isPty := session.Pty()
@@ -478,8 +501,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", id))
 		}
 
-		// Default to buffer 64KB.
-		circularBuffer, err := circbuf.NewBuffer(64 * 1024)
+		// Default to buffer 64KiB.
+		circularBuffer, err := circbuf.NewBuffer(64 << 10)
 		if err != nil {
 			a.logger.Warn(ctx, "create circular buffer", slog.Error(err))
 			return

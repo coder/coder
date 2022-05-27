@@ -13,11 +13,12 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
 // Returns a single template.
-func (api *api) template(rw http.ResponseWriter, r *http.Request) {
+func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
@@ -30,6 +31,11 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		return
+	}
+
 	count := uint32(0)
 	if len(workspaceCounts) > 0 {
 		count = uint32(workspaceCounts[0].Count)
@@ -38,8 +44,11 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
-func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionDelete, template) {
+		return
+	}
 
 	workspaces, err := api.Database.GetWorkspacesByTemplateID(r.Context(), database.GetWorkspacesByTemplateIDParams{
 		TemplateID: template.ID,
@@ -75,12 +84,16 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Create a new template in an organization.
-func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		return
+	}
+
 	if !httpapi.Read(rw, r, &createTemplate) {
 		return
 	}
-	organization := httpmw.OrganizationParam(r)
 	_, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -158,9 +171,9 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeTemplate,
 				ScopeID:           dbTemplate.ID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -180,7 +193,7 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(rw, http.StatusCreated, template)
 }
 
-func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
 		OrganizationID: organization.ID,
@@ -194,7 +207,12 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+
+	// Filter templates based on rbac permissions
+	templates = AuthorizeFilter(api, r, rbac.ActionRead, templates)
+
 	templateIDs := make([]uuid.UUID, 0, len(templates))
+
 	for _, template := range templates {
 		templateIDs = append(templateIDs, template.ID)
 	}
@@ -212,7 +230,7 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
 }
 
-func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	templateName := chi.URLParam(r, "templatename")
 	template, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
@@ -230,6 +248,10 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template by organization and name: %s", err),
 		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
 		return
 	}
 
@@ -278,7 +300,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32) cod
 		UpdatedAt:           template.UpdatedAt,
 		OrganizationID:      template.OrganizationID,
 		Name:                template.Name,
-		Provisioner:         template.Provisioner,
+		Provisioner:         codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:     template.ActiveVersionID,
 		WorkspaceOwnerCount: workspaceOwnerCount,
 		Description:         template.Description,

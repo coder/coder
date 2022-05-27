@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -39,6 +38,11 @@ func configSSH() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Populate your SSH config with Host entries for all of your workspaces",
+		Example: `
+  - You can use -o (or --ssh-option) so set SSH options to be used for all your
+    workspaces.
+
+    ` + cliui.Styles.Code.Render("$ coder config-ssh -o ForwardAgent=yes"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -86,7 +90,7 @@ func configSSH() *cobra.Command {
 						return err
 					}
 					for _, resource := range resources {
-						if resource.Transition != database.WorkspaceTransitionStart {
+						if resource.Transition != codersdk.WorkspaceTransitionStart {
 							continue
 						}
 						for _, agent := range resource.Agents {

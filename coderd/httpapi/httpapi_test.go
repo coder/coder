@@ -58,7 +58,7 @@ func TestRead(t *testing.T) {
 
 		var validate toValidate
 		require.True(t, httpapi.Read(rw, r, &validate))
-		require.Equal(t, validate.Value, "hi")
+		require.Equal(t, "hi", validate.Value)
 	})
 
 	t.Run("ValidateFailure", func(t *testing.T) {
@@ -75,8 +75,8 @@ func TestRead(t *testing.T) {
 		err := json.NewDecoder(rw.Body).Decode(&v)
 		require.NoError(t, err)
 		require.Len(t, v.Errors, 1)
-		require.Equal(t, v.Errors[0].Field, "value")
-		require.Equal(t, v.Errors[0].Detail, "required")
+		require.Equal(t, "value", v.Errors[0].Field)
+		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Errors[0].Detail)
 	})
 }
 
@@ -140,7 +140,7 @@ func TestReadUsername(t *testing.T) {
 			r := httptest.NewRequest("POST", "/", bytes.NewBuffer(data))
 
 			var validate toValidate
-			require.Equal(t, httpapi.Read(rw, r, &validate), testCase.Valid)
+			require.Equal(t, testCase.Valid, httpapi.Read(rw, r, &validate))
 		})
 	}
 }

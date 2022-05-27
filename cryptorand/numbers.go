@@ -3,6 +3,7 @@ package cryptorand
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -192,4 +193,14 @@ func Bool() (bool, error) {
 
 	// True if the least significant bit is 1
 	return i&1 == 1, nil
+}
+
+// Duration returns a random time.Duration value
+func Duration() (time.Duration, error) {
+	i, err := Int63()
+	if err != nil {
+		return time.Duration(0), err
+	}
+
+	return time.Duration(i), nil
 }

@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
@@ -27,13 +31,14 @@ var (
 )
 
 const (
-	varURL          = "url"
-	varToken        = "token"
-	varAgentToken   = "agent-token"
-	varAgentURL     = "agent-url"
-	varGlobalConfig = "global-config"
-	varNoOpen       = "no-open"
-	varForceTty     = "force-tty"
+	varURL             = "url"
+	varToken           = "token"
+	varAgentToken      = "agent-token"
+	varAgentURL        = "agent-url"
+	varGlobalConfig    = "global-config"
+	varNoOpen          = "no-open"
+	varForceTty        = "force-tty"
+	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 )
 
 func init() {
@@ -62,13 +67,14 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		autostart(),
-		autostop(),
 		configSSH(),
 		create(),
 		delete(),
+		dotfiles(),
 		gitssh(),
 		list(),
 		login(),
+		logout(),
 		publickey(),
 		resetPassword(),
 		server(),
@@ -78,6 +84,7 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
+		ttl(),
 		update(),
 		users(),
 		portForward(),
@@ -110,10 +117,14 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || rawURL == "" {
 		rawURL, err = root.URL().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New(notLoggedInMessage)
+			}
 			return nil, err
 		}
 	}
-	serverURL, err := url.Parse(rawURL)
+	serverURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return nil, err
 	}
@@ -121,11 +132,15 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || token == "" {
 		token, err = root.Session().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New(notLoggedInMessage)
+			}
 			return nil, err
 		}
 	}
 	client := codersdk.New(serverURL)
-	client.SessionToken = token
+	client.SessionToken = strings.TrimSpace(token)
 	return client, nil
 }
 
@@ -258,4 +273,10 @@ func versionTemplate() string {
 	template += "\r\n" + buildinfo.ExternalURL()
 	template += "\r\n"
 	return template
+}
+
+// FormatCobraError colorizes and adds "--help" docs to cobra commands.
+func FormatCobraError(err error, cmd *cobra.Command) string {
+	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
+	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }

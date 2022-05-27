@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -68,9 +67,9 @@ func templateUpdate() *cobra.Command {
 			before := time.Now()
 			templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
 				TemplateID:    template.ID,
-				StorageMethod: database.ProvisionerStorageMethodFile,
+				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				StorageSource: resp.Hash,
-				Provisioner:   database.ProvisionerType(provisioner),
+				Provisioner:   codersdk.ProvisionerType(provisioner),
 			})
 			if err != nil {
 				return err
@@ -109,6 +108,7 @@ func templateUpdate() *cobra.Command {
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
+	cliui.AllowSkipPrompt(cmd)
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {

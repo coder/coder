@@ -8,7 +8,7 @@ import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
   pageTitle: "Users",
-  newUserButton: "New User",
+  newUserButton: "New user",
 }
 
 export interface UsersPageViewProps {
@@ -16,6 +16,9 @@ export interface UsersPageViewProps {
   roles?: TypesGen.Role[]
   error?: unknown
   isUpdatingUserRoles?: boolean
+  canEditUsers?: boolean
+  canCreateUser?: boolean
+  isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
@@ -31,10 +34,14 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   onUpdateUserRoles,
   error,
   isUpdatingUserRoles,
+  canEditUsers,
+  canCreateUser,
+  isLoading,
 }) => {
+  const newUserAction = canCreateUser ? { text: Language.newUserButton, onClick: openUserCreationDialog } : undefined
   return (
     <Stack spacing={4}>
-      <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
+      <Header title={Language.pageTitle} action={newUserAction} />
       <Margins>
         {error ? (
           <ErrorSummary error={error} />
@@ -46,6 +53,8 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
             onResetUserPassword={onResetUserPassword}
             onUpdateUserRoles={onUpdateUserRoles}
             isUpdatingUserRoles={isUpdatingUserRoles}
+            canEditUsers={canEditUsers}
+            isLoading={isLoading}
           />
         )}
       </Margins>

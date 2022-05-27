@@ -14,11 +14,18 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
+	// This requires the site wide action to create files.
+	// Once created, a user can read their own files uploaded
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceFile) {
+		return
+	}
+
 	contentType := r.Header.Get("Content-Type")
 
 	switch contentType {
@@ -67,7 +74,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
+func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -77,9 +84,7 @@ func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "no file exists with that hash",
-		})
+		httpapi.Forbidden(rw)
 		return
 	}
 	if err != nil {
@@ -88,6 +93,12 @@ func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceFile.WithOwner(file.CreatedBy.String()).WithID(file.Hash)) {
+		return
+	}
+
 	rw.Header().Set("Content-Type", file.Mimetype)
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write(file.Data)

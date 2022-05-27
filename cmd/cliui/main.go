@@ -118,7 +118,7 @@ func main() {
 								log := codersdk.ProvisionerJobLog{
 									CreatedAt: time.Now(),
 									Output:    fmt.Sprintf("Some log %d", count),
-									Level:     database.LogLevelInfo,
+									Level:     codersdk.LogLevelInfo,
 								}
 								switch {
 								case count == 10:
@@ -133,7 +133,7 @@ func main() {
 									log.Stage = "Cleaning Up"
 								}
 								if count%5 == 0 {
-									log.Level = database.LogLevelWarn
+									log.Level = codersdk.LogLevelWarn
 								}
 								count++
 								if log.Output == "" && log.Stage == "" {
@@ -188,15 +188,15 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			disconnected := database.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Transition: database.WorkspaceTransitionStop,
+				Transition: codersdk.WorkspaceTransitionStop,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_instance",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
@@ -207,7 +207,7 @@ func main() {
 					Architecture:    "amd64",
 				}},
 			}, {
-				Transition: database.WorkspaceTransitionStart,
+				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "kubernetes_pod",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{

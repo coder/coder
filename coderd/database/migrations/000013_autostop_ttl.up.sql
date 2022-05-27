@@ -1,0 +1,2 @@
+ALTER TABLE ONLY workspaces DROP COLUMN autostop_schedule;
+ALTER TABLE ONLY workspaces ADD COLUMN ttl BIGINT DEFAULT NULL;

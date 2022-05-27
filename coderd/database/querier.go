@@ -72,7 +72,7 @@ type querier interface {
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, deleted bool) ([]Workspace, error)
-	GetWorkspacesAutostartAutostop(ctx context.Context) ([]Workspace, error)
+	GetWorkspacesAutostart(ctx context.Context) ([]Workspace, error)
 	GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error)
 	GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error)
 	GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error)
@@ -111,9 +111,9 @@ type querier interface {
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
-	UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
+	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 }
 
 var _ querier = (*sqlQuerier)(nil)

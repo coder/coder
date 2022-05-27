@@ -27,9 +27,9 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, coderAPI := coderdtest.NewWithAPI(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+		daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
@@ -68,9 +68,9 @@ func TestWorkspaceAgent(t *testing.T) {
 
 func TestWorkspaceAgentListen(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client, coderAPI := coderdtest.NewWithAPI(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -118,9 +118,9 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 func TestWorkspaceAgentTURN(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client, coderAPI := coderdtest.NewWithAPI(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -179,9 +179,9 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	client := coderdtest.New(t, nil)
+	client, coderAPI := coderdtest.NewWithAPI(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,

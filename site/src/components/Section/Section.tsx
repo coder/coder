@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { fade } from "@material-ui/core/styles/colorManipulator"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
+import { combineClasses } from "../../util/combineClasses"
 import { SectionAction } from "../SectionAction/SectionAction"
 
 type SectionLayout = "fixed" | "fluid"
@@ -12,15 +13,24 @@ export interface SectionProps {
   toolbar?: React.ReactNode
   alert?: React.ReactNode
   layout?: SectionLayout
+  className?: string
   children?: React.ReactNode
 }
 
 type SectionFC = React.FC<SectionProps> & { Action: typeof SectionAction }
 
-export const Section: SectionFC = ({ title, description, toolbar, alert, children, layout = "fixed" }) => {
+export const Section: SectionFC = ({
+  title,
+  description,
+  toolbar,
+  alert,
+  className = "",
+  children,
+  layout = "fixed",
+}) => {
   const styles = useStyles({ layout })
   return (
-    <div className={styles.root}>
+    <div className={combineClasses([styles.root, className])}>
       <div className={styles.inner}>
         {(title || description) && (
           <div className={styles.header}>

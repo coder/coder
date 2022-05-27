@@ -194,7 +194,6 @@ CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
-    organization_id uuid,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL
 );
@@ -292,7 +291,8 @@ CREATE TABLE workspace_builds (
     transition workspace_transition NOT NULL,
     initiator_id uuid NOT NULL,
     provisioner_state bytea,
-    job_id uuid NOT NULL
+    job_id uuid NOT NULL,
+    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_resources (
@@ -314,7 +314,7 @@ CREATE TABLE workspaces (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     autostart_schedule text,
-    autostop_schedule text
+    ttl bigint
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);

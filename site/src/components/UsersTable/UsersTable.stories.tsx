@@ -14,6 +14,14 @@ export const Example = Template.bind({})
 Example.args = {
   users: [MockUser, MockUser2],
   roles: MockSiteRoles,
+  canEditUsers: false,
+}
+
+export const Editable = Template.bind({})
+Editable.args = {
+  users: [MockUser, MockUser2],
+  roles: MockSiteRoles,
+  canEditUsers: true,
 }
 
 export const Empty = Template.bind({})

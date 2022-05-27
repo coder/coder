@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/coderd/database"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -27,20 +27,29 @@ type Workspace struct {
 	Outdated          bool           `json:"outdated"`
 	Name              string         `json:"name"`
 	AutostartSchedule string         `json:"autostart_schedule"`
-	AutostopSchedule  string         `json:"autostop_schedule"`
+	TTL               *time.Duration `json:"ttl"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID                    `json:"template_version_id,omitempty"`
-	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun            bool                         `json:"dry_run,omitempty"`
-	ProvisionerState  []byte                       `json:"state,omitempty"`
+	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
+	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun            bool                `json:"dry_run,omitempty"`
+	ProvisionerState  []byte              `json:"state,omitempty"`
 }
 
 // Workspace returns a single workspace.
 func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil)
+	return c.getWorkspace(ctx, id)
+}
+
+// DeletedWorkspace returns a single workspace that was deleted.
+func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+	return c.getWorkspace(ctx, id, queryParam("deleted", "true"))
+}
+
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -98,6 +107,36 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
+	if err != nil {
+		return nil, err
+	}
+	wc := make(chan Workspace, 256)
+
+	go func() {
+		defer close(wc)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var ws Workspace
+				err := wsjson.Read(ctx, conn, &ws)
+				if err != nil {
+					conn.Close(websocket.StatusInternalError, "failed to read workspace")
+					return
+				}
+				wc <- ws
+			}
+		}
+	}()
+
+	return wc, nil
+}
+
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
 	Schedule string `json:"schedule"`
@@ -118,21 +157,41 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	return nil
 }
 
-// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
-type UpdateWorkspaceAutostopRequest struct {
-	Schedule string `json:"schedule"`
+// UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
+type UpdateWorkspaceTTLRequest struct {
+	TTL *time.Duration `json:"ttl"`
 }
 
-// UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.
-// If the provided schedule is empty, autostop is disabled for the workspace.
-func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostopRequest) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+// UpdateWorkspaceTTL sets the ttl for workspace by id.
+// If the provided duration is nil, autostop is disabled for the workspace.
+func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req UpdateWorkspaceTTLRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace autostop: %w", err)
+		return xerrors.Errorf("update workspace ttl: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+// PutExtendWorkspaceRequest is a request to extend the deadline of
+// the active workspace build.
+type PutExtendWorkspaceRequest struct {
+	Deadline time.Time `json:"deadline" validate:"required"`
+}
+
+// PutExtendWorkspace updates the deadline for resources of the latest workspace build.
+func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutExtendWorkspaceRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/extend", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("extend workspace ttl: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
 		return readBodyAsError(res)
 	}
 	return nil
@@ -153,7 +212,7 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 			q.Set("organization_id", f.OrganizationID.String())
 		}
 		if f.Owner != "" {
-			q.Set("owner_id", f.Owner)
+			q.Set("owner", f.Owner)
 		}
 		r.URL.RawQuery = q.Encode()
 	}
