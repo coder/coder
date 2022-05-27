@@ -585,7 +585,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "Incorrect email or password",
+			Message: "Incorrect email or password.",
 		})
 		return
 	}
