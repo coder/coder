@@ -44,6 +44,7 @@ message FailedJob {
     }
     message TemplateImport {}
     message TemplatePlan {}
+
     string job_id = 1;
     string error = 2;
     oneof type {
@@ -66,6 +67,7 @@ message CompletedJob {
     message TemplatePlan {
         repeated provisioner.Resource resources = 1;
     }
+
     string job_id = 1;
     oneof type {
         WorkspaceBuild workspace_build = 2;

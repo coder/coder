@@ -147,12 +147,11 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusOK, values)
 }
 
-func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+func (api *api) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
-	organization := httpmw.OrganizationParam(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	var req codersdk.TemplateVersionPlanRequest
+	var req codersdk.CreateTemplateVersionPlanRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -203,7 +202,7 @@ func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 		ID:             jobID,
 		CreatedAt:      database.Now(),
 		UpdatedAt:      database.Now(),
-		OrganizationID: organization.ID,
+		OrganizationID: templateVersion.OrganizationID,
 		InitiatorID:    apiKey.UserID,
 		Provisioner:    job.Provisioner,
 		StorageMethod:  job.StorageMethod,
@@ -219,6 +218,124 @@ func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
+}
+
+func (api *api) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertProvisionerJob(job))
+}
+
+func (api *api) templateVersionPlanResources(rw http.ResponseWriter, r *http.Request) {
+	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobResources(rw, r, job)
+}
+
+func (api *api) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request) {
+	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobLogs(rw, r, job)
+}
+
+func (api *api) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Request) {
+	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	if !ok {
+		return
+	}
+
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled",
+		})
+		return
+	}
+
+	err := api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled",
+	})
+}
+
+func getTemplateVersionPlanJob(db database.Store, rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+		jobID           = chi.URLParam(r, "jobID")
+	)
+
+	jobUUID, err := uuid.Parse(jobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Job ID must be a valid UUID",
+		})
+		return database.ProvisionerJob{}, false
+	}
+
+	job, err := db.GetProvisionerJobByID(r.Context(), jobUUID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job by ID %q: %s", jobUUID.String(), err),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if job.Type != database.ProvisionerJobTypeTemplateVersionPlan {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	// TODO: real RBAC
+	if job.InitiatorID != apiKey.UserID {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+
+	// Verify that the template version is the one used in the request.
+	var input templateVersionPlanJob
+	err = json.Unmarshal(job.Input, &input)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("unmarshal job metadata: %s", err),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if input.TemplateVersionID != templateVersion.ID {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+
+	return job, true
 }
 
 func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {

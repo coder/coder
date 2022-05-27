@@ -628,6 +628,35 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
+	case *proto.CompletedJob_TemplatePlan_:
+		for _, resource := range jobType.TemplatePlan.Resources {
+			server.Logger.Info(ctx, "inserting template plan job resource",
+				slog.F("job_id", job.ID.String()),
+				slog.F("resource_name", resource.Name),
+				slog.F("resource_type", resource.Type))
+
+			err = insertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource)
+			if err != nil {
+				return nil, xerrors.Errorf("insert resource: %w", err)
+			}
+		}
+
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        jobID,
+			UpdatedAt: database.Now(),
+			CompletedAt: sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update provisioner job: %w", err)
+		}
+		server.Logger.Debug(ctx, "marked template plan job as completed", slog.F("job_id", jobID))
+		if err != nil {
+			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
 	default:
 		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
 			reflect.TypeOf(completed.Type).String())

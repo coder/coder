@@ -170,10 +170,39 @@ func create() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
-			resources, err := client.TemplateVersionResources(cmd.Context(), templateVersion.ID)
+			// Run a plan with the given parameters to check correctness
+			after := time.Now()
+			planJob, err := client.CreateTemplateVersionPlan(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionPlanRequest{
+				ParameterValues: parameters,
+			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("begin workspace plan: %w", err)
 			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
+			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					return client.TemplateVersionPlan(cmd.Context(), templateVersion.ID, planJob.ID)
+				},
+				Cancel: func() error {
+					return client.CancelTemplateVersionPlan(cmd.Context(), templateVersion.ID, planJob.ID)
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					return client.TemplateVersionPlanLogsAfter(cmd.Context(), templateVersion.ID, planJob.ID, after)
+				},
+				// Don't show log output for the plan unless there's an error.
+				Silent: true,
+			})
+			if err != nil {
+				// TODO: reprompt for parameter values if we deem it to be a
+				// validation error
+				return xerrors.Errorf("plan workspace: %w", err)
+			}
+
+			resources, err := client.TemplateVersionPlanResources(cmd.Context(), templateVersion.ID, planJob.ID)
+			if err != nil {
+				return xerrors.Errorf("get workspace plan resources: %w", err)
+			}
+
 			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspaceName,
 				// Since agent's haven't connected yet, hiding this makes more sense.
@@ -184,32 +213,6 @@ func create() *cobra.Command {
 				return err
 			}
 
-			// Run a plan with the given parameters to check correctness
-			planJob, err := client.TemplateVersionPlan(cmd.Context(), templateVersion.ID, codersdk.TemplateVersionPlanRequest{
-				ParameterValues: parameters,
-			})
-			if err != nil {
-				return xerrors.Errorf("plan workspace: %w", err)
-			}
-			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
-				Fetch: func() (codersdk.ProvisionerJob, error) {
-					return planJob, nil
-				},
-				Cancel: func() error {
-					// TODO: workspace plan cancellation endpoint
-					return nil
-				},
-				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-					// TODO: workspace plan log endpoint
-					return make(chan codersdk.ProvisionerJobLog), nil
-				},
-			})
-			if err != nil {
-				// TODO: reprompt for parameter values if we deem it to be a
-				// validation error
-				return xerrors.Errorf("error occurred during workspace plan: %w", err)
-			}
-
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm create?",
 				IsConfirm: true,
@@ -218,7 +221,6 @@ func create() *cobra.Command {
 				return err
 			}
 
-			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
@@ -230,7 +232,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, before)
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, after)
 			if err != nil {
 				return err
 			}

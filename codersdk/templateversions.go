@@ -115,15 +115,15 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), after)
 }
 
-// TemplateVersionPlanRequest defines the request parameters for
-// TemplateVersionPlan.
-type TemplateVersionPlanRequest struct {
+// CreateTemplateVersionPlanRequest defines the request parameters for
+// CreateTemplateVersionPlan.
+type CreateTemplateVersionPlanRequest struct {
 	ParameterValues []CreateParameterRequest
 }
 
-// TemplateVersionPlan begins a dry-run provisioner job against the given
+// CreateTemplateVersionPlan begins a dry-run provisioner job against the given
 // template version with the given parameter values.
-func (c *Client) TemplateVersionPlan(ctx context.Context, version uuid.UUID, req TemplateVersionPlanRequest) (ProvisionerJob, error) {
+func (c *Client) CreateTemplateVersionPlan(ctx context.Context, version uuid.UUID, req CreateTemplateVersionPlanRequest) (ProvisionerJob, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/templateversions/%s/plan", version), req)
 	if err != nil {
 		return ProvisionerJob{}, err
@@ -135,4 +135,60 @@ func (c *Client) TemplateVersionPlan(ctx context.Context, version uuid.UUID, req
 
 	var job ProvisionerJob
 	return job, json.NewDecoder(res.Body).Decode(&job)
+}
+
+// TemplateVersionPlan returns the current state of a template version plan job.
+func (c *Client) TemplateVersionPlan(ctx context.Context, version, job uuid.UUID) (ProvisionerJob, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/plan/%s", version, job), nil)
+	if err != nil {
+		return ProvisionerJob{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ProvisionerJob{}, readBodyAsError(res)
+	}
+
+	var j ProvisionerJob
+	return j, json.NewDecoder(res.Body).Decode(&j)
+}
+
+// TemplateVersionPlanResources returns the resources of a finished template
+// version plan job.
+func (c *Client) TemplateVersionPlanResources(ctx context.Context, version, job uuid.UUID) ([]WorkspaceResource, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/plan/%s/resources", version, job), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var resources []WorkspaceResource
+	return resources, json.NewDecoder(res.Body).Decode(&resources)
+}
+
+// TemplateVersionPlanLogsBefore returns logs for a template version plan that
+// occurred before a specific time.
+func (c *Client) TemplateVersionPlanLogsBefore(ctx context.Context, version, job uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/plan/%s/logs", version, job), before)
+}
+
+// TemplateVersionPlanLogsAfter streams logs for a template version plan that
+// occurred after a specific time.
+func (c *Client) TemplateVersionPlanLogsAfter(ctx context.Context, version, job uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/plan/%s/logs", version, job), after)
+}
+
+// CancelTemplateVersionPlan marks a template version plan job as canceled.
+func (c *Client) CancelTemplateVersionPlan(ctx context.Context, version, job uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s/plan/%s/cancel", version, job), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }
