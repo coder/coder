@@ -130,7 +130,7 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.dev.token
   })
   # Required to provision Fedora.
-  ssh_keys = concat([], var.step3_do_admin_ssh_key > 0 ? [var.step3_do_admin_ssh_key] : [])
+  ssh_keys = var.step3_do_admin_ssh_key > 0 ? [var.step3_do_admin_ssh_key] : []
 }
 
 # resource "digitalocean_project_resources" "project" {
