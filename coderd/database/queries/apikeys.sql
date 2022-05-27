@@ -22,10 +22,11 @@ INSERT INTO
 		oauth_access_token,
 		oauth_refresh_token,
 		oauth_id_token,
-		oauth_expiry
+		oauth_expiry,
+		scope
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

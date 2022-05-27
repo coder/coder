@@ -14,12 +14,12 @@ import (
 
 func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Action, objects []O) []O {
 	roles := httpmw.UserRoles(r)
-	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
+	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, string(roles.Scope), action, objects)
 }
 
 func (api *API) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserRoles(r)
-	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
+	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, string(roles.Scope), action, object.RBACObject())
 	if err != nil {
 		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: err.Error(),
@@ -35,6 +35,7 @@ func (api *API) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.A
 		// in the early days
 		logger.Warn(r.Context(), "unauthorized",
 			slog.F("roles", roles.Roles),
+			slog.F("scope", roles.Scope),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),
 			slog.F("route", r.URL.Path),

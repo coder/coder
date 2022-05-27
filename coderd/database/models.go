@@ -14,6 +14,27 @@ import (
 	"github.com/tabbed/pqtype"
 )
 
+type ApiKeyScope string
+
+const (
+	ApiKeyScopeAny      ApiKeyScope = "any"
+	ApiKeyScopeDevurls  ApiKeyScope = "devurls"
+	ApiKeyScopeAgent    ApiKeyScope = "agent"
+	ApiKeyScopeReadonly ApiKeyScope = "readonly"
+)
+
+func (e *ApiKeyScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ApiKeyScope(s)
+	case string:
+		*e = ApiKeyScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ApiKeyScope: %T", src)
+	}
+	return nil
+}
+
 type AuditAction string
 
 const (
@@ -292,18 +313,19 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID                string    `db:"id" json:"id"`
-	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	LastUsed          time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	LoginType         LoginType `db:"login_type" json:"login_type"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	ID                string      `db:"id" json:"id"`
+	HashedSecret      []byte      `db:"hashed_secret" json:"hashed_secret"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	LastUsed          time.Time   `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time   `db:"expires_at" json:"expires_at"`
+	CreatedAt         time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time   `db:"updated_at" json:"updated_at"`
+	LoginType         LoginType   `db:"login_type" json:"login_type"`
+	OAuthAccessToken  string      `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string      `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string      `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time   `db:"oauth_expiry" json:"oauth_expiry"`
+	Scope             ApiKeyScope `db:"scope" json:"scope"`
 }
 
 type AuditLog struct {

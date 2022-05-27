@@ -131,6 +131,7 @@ type UserAuthorizationObject struct {
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
+	Scope    string `json:"scope,omitempty"`
 }
 
 // LoginWithPasswordResponse contains a session token for the newly authenticated user.

@@ -99,12 +99,12 @@ func TestFilter(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			authorizer := fakeAuthorizer{
-				AuthFunc: func(_ context.Context, _ string, _ []string, _ rbac.Action, object rbac.Object) error {
+				AuthFunc: func(_ context.Context, _ string, _ []string, _ string, _ rbac.Action, object rbac.Object) error {
 					return c.Auth(object)
 				},
 			}
 
-			filtered := rbac.Filter(context.Background(), authorizer, "me", []string{}, rbac.ActionRead, c.List)
+			filtered := rbac.Filter(context.Background(), authorizer, "me", []string{}, rbac.ActionRead, rbac.ScopeAny, c.List)
 			require.ElementsMatch(t, c.Expected, filtered, "expect same list")
 			require.Equal(t, len(c.Expected), len(filtered), "same length list")
 		})

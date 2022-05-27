@@ -17,7 +17,7 @@ import (
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, scope
 FROM
 	api_keys
 WHERE
@@ -42,6 +42,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -60,25 +61,27 @@ INSERT INTO
 		oauth_access_token,
 		oauth_refresh_token,
 		oauth_id_token,
-		oauth_expiry
+		oauth_expiry,
+		scope
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, scope
 `
 
 type InsertAPIKeyParams struct {
-	ID                string    `db:"id" json:"id"`
-	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	LastUsed          time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	LoginType         LoginType `db:"login_type" json:"login_type"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	ID                string      `db:"id" json:"id"`
+	HashedSecret      []byte      `db:"hashed_secret" json:"hashed_secret"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	LastUsed          time.Time   `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time   `db:"expires_at" json:"expires_at"`
+	CreatedAt         time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time   `db:"updated_at" json:"updated_at"`
+	LoginType         LoginType   `db:"login_type" json:"login_type"`
+	OAuthAccessToken  string      `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string      `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string      `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time   `db:"oauth_expiry" json:"oauth_expiry"`
+	Scope             ApiKeyScope `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -95,6 +98,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.OAuthRefreshToken,
 		arg.OAuthIDToken,
 		arg.OAuthExpiry,
+		arg.Scope,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -110,6 +114,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.Scope,
 	)
 	return i, err
 }

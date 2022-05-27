@@ -7,9 +7,9 @@ import (
 )
 
 type fakeAuthorizer struct {
-	AuthFunc func(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error
+	AuthFunc func(ctx context.Context, subjectID string, roleNames []string, scopeName string, action rbac.Action, object rbac.Object) error
 }
 
-func (f fakeAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
-	return f.AuthFunc(ctx, subjectID, roleNames, action, object)
+func (f fakeAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scopeName string, action rbac.Action, object rbac.Object) error {
+	return f.AuthFunc(ctx, subjectID, roleNames, scopeName, action, object)
 }

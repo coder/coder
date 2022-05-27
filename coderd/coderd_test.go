@@ -369,6 +369,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 type authCall struct {
 	SubjectID string
 	Roles     []string
+	Scope     string
 	Action    rbac.Action
 	Object    rbac.Object
 }
@@ -378,10 +379,11 @@ type fakeAuthorizer struct {
 	AlwaysReturn error
 }
 
-func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scopeName string, action rbac.Action, object rbac.Object) error {
 	f.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
+		Scope:     scopeName,
 		Action:    action,
 		Object:    object,
 	}

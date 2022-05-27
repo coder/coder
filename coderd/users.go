@@ -637,9 +637,20 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scope := database.ApiKeyScopeAny
+	if loginWithPassword.Scope != "" {
+		scope, err = database.MakeApiKeyScope(loginWithPassword.Scope)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "invalid scope",
+			})
+		}
+	}
+
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
+		Scope:     scope,
 	})
 	if !created {
 		return
@@ -661,6 +672,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
+		Scope:     database.ApiKeyScopeAny,
 	})
 	if !created {
 		return
@@ -722,6 +734,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		OAuthRefreshToken: params.OAuthRefreshToken,
 		OAuthIDToken:      params.OAuthIDToken,
 		OAuthExpiry:       params.OAuthExpiry,
+		Scope:             params.Scope,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

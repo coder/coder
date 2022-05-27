@@ -237,7 +237,7 @@ func TestRolePermissions(t *testing.T) {
 					for _, subj := range subjs {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, action, c.Resource)
+						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAny, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

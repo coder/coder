@@ -209,6 +209,44 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("ValidWithScope", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = databasefake.New()
+			id, secret = randomAPIKeyParts()
+			hashed     = sha256.Sum256([]byte(secret))
+			r          = httptest.NewRequest("GET", "/", nil)
+			rw         = httptest.NewRecorder()
+		)
+		r.AddCookie(&http.Cookie{
+			Name:  httpmw.SessionTokenKey,
+			Value: fmt.Sprintf("%s-%s", id, secret),
+		})
+
+		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+			ID:           id,
+			HashedSecret: hashed[:],
+			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			Scope:        "agent",
+		})
+		require.NoError(t, err)
+		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.APIKey(r)
+			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+				Message: "it worked!",
+			})
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 	t.Run("QueryParameter", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -226,6 +264,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -259,6 +298,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -292,6 +332,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -326,6 +367,7 @@ func TestAPIKey(t *testing.T) {
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
@@ -360,6 +402,7 @@ func TestAPIKey(t *testing.T) {
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			OAuthExpiry:  database.Now().AddDate(0, 0, -1),
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 		token := &oauth2.Token{

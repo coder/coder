@@ -156,6 +156,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		OAuthAccessToken:  state.Token.AccessToken,
 		OAuthRefreshToken: state.Token.RefreshToken,
 		OAuthExpiry:       state.Token.Expiry,
+		Scope:             database.ApiKeyScopeAny,
 	})
 	if !created {
 		return

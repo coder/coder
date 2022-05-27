@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:151:6
+// From codersdk/users.go:152:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:146:6
+// From codersdk/users.go:147:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -100,7 +100,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:142:6
+// From codersdk/users.go:143:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -122,9 +122,10 @@ export interface GoogleInstanceIdentityToken {
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
+  readonly scope?: string
 }
 
-// From codersdk/users.go:137:6
+// From codersdk/users.go:138:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }

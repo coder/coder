@@ -10,7 +10,7 @@ import (
 )
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope string, action Action, object Object) error
 }
 
 // Filter takes in a list of objects, and will filter the list removing all
@@ -18,12 +18,12 @@ type Authorizer interface {
 // Filter does not allocate a new slice, and will use the existing one
 // passed in. This can cause memory leaks if the slice is held for a prolonged
 // period of time.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) []O {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope string, action Action, objects []O) []O {
 	filtered := make([]O, 0)
 
 	for i := range objects {
 		object := objects[i]
-		err := auth.ByRoleName(ctx, subjID, subjRoles, action, object.RBACObject())
+		err := auth.ByRoleName(ctx, subjID, subjRoles, scope, action, object.RBACObject())
 		if err == nil {
 			filtered = append(filtered, object)
 		}
@@ -63,7 +63,7 @@ type authSubject struct {
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope string, action Action, object Object) error {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
@@ -72,7 +72,13 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 		}
 		roles = append(roles, r)
 	}
-	return a.Authorize(ctx, subjectID, roles, action, object)
+	err := a.Authorize(ctx, subjectID, roles, action, object)
+	if err != nil {
+		return err
+	}
+
+	scopeRole := builtinScopes[scope]
+	return a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
 }
 
 // Authorize allows passing in custom Roles.

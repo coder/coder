@@ -1,6 +1,10 @@
 package database
 
-import "github.com/coder/coder/coderd/rbac"
+import (
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/rbac"
+)
 
 func (t Template) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.InOrg(t.OrganizationID).WithID(t.ID.String())
@@ -25,4 +29,21 @@ func (o Organization) RBACObject() rbac.Object {
 
 func (d ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.WithID(d.ID.String())
+}
+
+var validApiKeyScopes map[string]ApiKeyScope
+
+func init() {
+	validApiKeyScopes = make(map[string]ApiKeyScope)
+	for _, scope := range []ApiKeyScope{ApiKeyScopeAny, ApiKeyScopeAgent, ApiKeyScopeDevurls, ApiKeyScopeReadonly} {
+		validApiKeyScopes[string(scope)] = scope
+	}
+}
+
+func MakeApiKeyScope(v string) (ApiKeyScope, error) {
+	scope, ok := validApiKeyScopes[v]
+	if !ok {
+		return ApiKeyScope(""), xerrors.Errorf("invalid token scope: %s", v)
+	}
+	return scope, nil
 }
