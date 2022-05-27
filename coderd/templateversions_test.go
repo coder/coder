@@ -494,7 +494,7 @@ func TestTemplateVersionPlan(t *testing.T) {
 		// Fetch template version plan
 		newJob, err := client.TemplateVersionPlan(ctx, version.ID, job.ID)
 		require.NoError(t, err)
-		require.Equal(t, job, newJob)
+		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
 		logs, err := client.TemplateVersionPlanLogsAfter(ctx, version.ID, job.ID, after)

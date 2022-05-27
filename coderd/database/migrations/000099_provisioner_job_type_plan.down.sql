@@ -5,5 +5,5 @@
 DELETE FROM
     provisioner_jobs
 WHERE
-    provisioner_job_type = 'template_version_plan'
+    type = 'template_version_plan'
 ;
