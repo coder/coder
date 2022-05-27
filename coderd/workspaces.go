@@ -604,7 +604,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
-		newDeadline := req.Deadline.Truncate(time.Minute).UTC()
+		newDeadline := req.Deadline.UTC()
 		if newDeadline.IsZero() {
 			// This should not be possible because the struct validation field enforces a non-zero value.
 			code = http.StatusBadRequest
@@ -616,8 +616,8 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
 		}
 
-		// both newDeadline and build.Deadline are truncated to time.Minute
-		if newDeadline == build.Deadline {
+		// Disallow updates within less than one minute
+		if withinDuration(newDeadline, build.Deadline, time.Minute) {
 			code = http.StatusNotModified
 			return nil
 		}
@@ -786,6 +786,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			InitiatorID:       workspaceBuild.InitiatorID,
 			ProvisionerState:  workspaceBuild.ProvisionerState,
 			JobID:             workspaceBuild.JobID,
+			Deadline:          workspaceBuild.Deadline,
 		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
@@ -847,4 +848,13 @@ func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
 	}
 
 	return (*time.Duration)(&i.Int64)
+}
+
+func withinDuration(t1, t2 time.Time, d time.Duration) bool {
+	dt := t1.Sub(t2)
+	if dt < -d || dt > d {
+		return false
+	}
+
+	return true
 }

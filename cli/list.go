@@ -86,28 +86,6 @@ func list() *cobra.Command {
 				}
 
 				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
-				if duration > time.Hour {
-					duration = duration.Truncate(time.Hour)
-				}
-				if duration > time.Minute {
-					duration = duration.Truncate(time.Minute)
-				}
-				days := 0
-				for duration.Hours() > 24 {
-					days++
-					duration -= 24 * time.Hour
-				}
-				durationDisplay := duration.String()
-				if days > 0 {
-					durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
-				}
-				if strings.HasSuffix(durationDisplay, "m0s") {
-					durationDisplay = durationDisplay[:len(durationDisplay)-2]
-				}
-				if strings.HasSuffix(durationDisplay, "h0m") {
-					durationDisplay = durationDisplay[:len(durationDisplay)-2]
-				}
-
 				autostartDisplay := "-"
 				if workspace.AutostartSchedule != "" {
 					if sched, err := schedule.Weekly(workspace.AutostartSchedule); err == nil {
@@ -117,7 +95,10 @@ func list() *cobra.Command {
 
 				autostopDisplay := "-"
 				if workspace.TTL != nil {
-					autostopDisplay = workspace.TTL.String()
+					autostopDisplay = durationDisplay(*workspace.TTL)
+					if has, ext := hasExtension(workspace); has {
+						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext.Round(time.Minute)))
+					}
 				}
 
 				user := usersByID[workspace.OwnerID]
@@ -125,7 +106,7 @@ func list() *cobra.Command {
 					user.Username + "/" + workspace.Name,
 					workspace.TemplateName,
 					status,
-					durationDisplay,
+					durationDisplay(duration),
 					workspace.Outdated,
 					autostartDisplay,
 					autostopDisplay,
@@ -138,4 +119,48 @@ func list() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		"Specify a column to filter in the table.")
 	return cmd
+}
+
+func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
+	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+		return false, 0
+	}
+	if ws.LatestBuild.Deadline.IsZero() {
+		return false, 0
+	}
+	if ws.TTL == nil {
+		return false, 0
+	}
+	delta := ws.LatestBuild.Deadline.Add(-*ws.TTL).Sub(ws.LatestBuild.CreatedAt)
+	if delta < time.Minute {
+		return false, 0
+	}
+
+	return true, delta
+}
+
+func durationDisplay(d time.Duration) string {
+	duration := d
+	if duration > time.Hour {
+		duration = duration.Truncate(time.Hour)
+	}
+	if duration > time.Minute {
+		duration = duration.Truncate(time.Minute)
+	}
+	days := 0
+	for duration.Hours() > 24 {
+		days++
+		duration -= 24 * time.Hour
+	}
+	durationDisplay := duration.String()
+	if days > 0 {
+		durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
+	}
+	if strings.HasSuffix(durationDisplay, "m0s") {
+		durationDisplay = durationDisplay[:len(durationDisplay)-2]
+	}
+	if strings.HasSuffix(durationDisplay, "h0m") {
+		durationDisplay = durationDisplay[:len(durationDisplay)-2]
+	}
+	return durationDisplay
 }
