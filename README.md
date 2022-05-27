@@ -10,7 +10,8 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 
 Coder creates remote development machines so you can develop your code from anywhere.
 
-**Coder is in an alpha state.** But, any serious bugs are P1 for us so please report them.
+> **Note**:
+> Coder is in an alpha state. But, any serious bugs are P1 for us so please report them.
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
