@@ -126,8 +126,10 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	if !valid {
 		panic("dev error: default transport isn't a transport")
 	}
+
 	transport := defaultTransport.Clone()
 	transport.DialContext = conn.DialContext
 	proxy.Transport = transport
+	r.URL.Path = chi.URLParam(r, "*")
 	proxy.ServeHTTP(rw, r)
 }

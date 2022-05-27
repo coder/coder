@@ -104,7 +104,7 @@ func New(options *Options) *API {
 			httpmw.ExtractUserParam(api.Database),
 			authRolesMiddleware,
 		)
-		r.Get("/", api.workspaceAppsProxyPath)
+		r.Get("/*", api.workspaceAppsProxyPath)
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
