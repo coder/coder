@@ -6,7 +6,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { Role } from "../../api/typesGenerated"
 import { UserAvatar } from "../UserAvatar/UserAvatar"
 
-interface UserProfileCardProps {
+export interface UserProfileCardProps {
   user: TypesGen.User
 }
 
