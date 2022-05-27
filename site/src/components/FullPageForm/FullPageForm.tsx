@@ -23,7 +23,7 @@ export const FullPageForm: React.FC<FullPageFormProps> = ({ title, detail, onCan
   const styles = useStyles()
   return (
     <main className={styles.root}>
-      <Margins>
+      <Margins size="small">
         <FormTitle title={title} detail={detail} />
         <FormCloseButton onClose={onCancel} />
 

@@ -7,7 +7,6 @@ import * as TypesGen from "../../api/typesGenerated"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
 import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
-import { Margins } from "../../components/Margins/Margins"
 import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
@@ -85,67 +84,65 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
   }
 
   return (
-    <Margins>
-      <FullPageForm title="Create workspace" onCancel={props.onCancel}>
-        <form onSubmit={form.handleSubmit}>
-          {props.loadingTemplates && <Loader />}
+    <FullPageForm title="Create workspace" onCancel={props.onCancel}>
+      <form onSubmit={form.handleSubmit}>
+        {props.loadingTemplates && <Loader />}
 
-          <Stack>
-            {props.templates && (
+        <Stack>
+          {props.templates && (
+            <TextField
+              {...getFieldHelpers("template_id")}
+              disabled={form.isSubmitting}
+              onChange={handleTemplateChange}
+              autoFocus
+              fullWidth
+              label={Language.templateLabel}
+              variant="outlined"
+              select
+            >
+              {props.templates.map((template) => (
+                <MenuItem key={template.id} value={template.id}>
+                  {template.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {props.selectedTemplate && props.templateSchema && (
+            <>
               <TextField
-                {...getFieldHelpers("template_id")}
+                {...getFieldHelpers("name")}
                 disabled={form.isSubmitting}
-                onChange={handleTemplateChange}
+                onChange={onChangeTrimmed(form)}
                 autoFocus
                 fullWidth
-                label={Language.templateLabel}
+                label={Language.nameLabel}
                 variant="outlined"
-                select
-              >
-                {props.templates.map((template) => (
-                  <MenuItem key={template.id} value={template.id}>
-                    {template.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
+              />
 
-            {props.selectedTemplate && props.templateSchema && (
-              <>
-                <TextField
-                  {...getFieldHelpers("name")}
-                  disabled={form.isSubmitting}
-                  onChange={onChangeTrimmed(form)}
-                  autoFocus
-                  fullWidth
-                  label={Language.nameLabel}
-                  variant="outlined"
-                />
+              {props.templateSchema.length > 0 && (
+                <Stack>
+                  {props.templateSchema.map((schema) => (
+                    <ParameterInput
+                      disabled={form.isSubmitting}
+                      key={schema.id}
+                      onChange={(value) => {
+                        setParameterValues({
+                          ...parameterValues,
+                          [schema.name]: value,
+                        })
+                      }}
+                      schema={schema}
+                    />
+                  ))}
+                </Stack>
+              )}
 
-                {props.templateSchema.length > 0 && (
-                  <Stack>
-                    {props.templateSchema.map((schema) => (
-                      <ParameterInput
-                        disabled={form.isSubmitting}
-                        key={schema.id}
-                        onChange={(value) => {
-                          setParameterValues({
-                            ...parameterValues,
-                            [schema.name]: value,
-                          })
-                        }}
-                        schema={schema}
-                      />
-                    ))}
-                  </Stack>
-                )}
-
-                <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
-              </>
-            )}
-          </Stack>
-        </form>
-      </FullPageForm>
-    </Margins>
+              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
+            </>
+          )}
+        </Stack>
+      </form>
+    </FullPageForm>
   )
 }
