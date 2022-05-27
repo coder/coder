@@ -146,6 +146,18 @@ func TestLogout(t *testing.T) {
 			err = os.Chmod(string(config), 0500)
 			require.NoError(t, err)
 		}
+		t.Cleanup(func() {
+			// Setting the permissions back for cleanup.
+			if runtime.GOOS == "windows" {
+				err = os.Chmod(string(config.URL()), 0600)
+				require.NoError(t, err)
+				err = os.Chmod(string(config.Session()), 0600)
+				require.NoError(t, err)
+			} else {
+				err = os.Chmod(string(config), 0700)
+				require.NoError(t, err)
+			}
+		})
 
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
@@ -164,19 +176,6 @@ func TestLogout(t *testing.T) {
 		pty.ExpectMatch("Are you sure you want to logout?")
 		pty.WriteLine("yes")
 		<-logoutChan
-
-		t.Cleanup(func() {
-			// Setting the permissions back for cleanup.
-			if runtime.GOOS == "windows" {
-				err = os.Chmod(string(config.URL()), 0600)
-				require.NoError(t, err)
-				err = os.Chmod(string(config.Session()), 0600)
-				require.NoError(t, err)
-			} else {
-				err = os.Chmod(string(config), 0700)
-				require.NoError(t, err)
-			}
-		})
 	})
 }
 
