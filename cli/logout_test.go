@@ -136,11 +136,15 @@ func TestLogout(t *testing.T) {
 		require.FileExists(t, string(config.Session()))
 
 		// Changing the permissions to throw error during deletion.
-		var err error
+		var (
+			err         error
+			urlFile     *os.File
+			sessionFile *os.File
+		)
 		if runtime.GOOS == "windows" {
-			err = os.Chmod(string(config.URL()), 0000)
+			urlFile, err = os.Open(string(config.URL()))
 			require.NoError(t, err)
-			err = os.Chmod(string(config.Session()), 0000)
+			sessionFile, err = os.Open(string(config.Session()))
 			require.NoError(t, err)
 		} else {
 			err = os.Chmod(string(config), 0500)
@@ -149,9 +153,9 @@ func TestLogout(t *testing.T) {
 		t.Cleanup(func() {
 			// Setting the permissions back for cleanup.
 			if runtime.GOOS == "windows" {
-				err = os.Chmod(string(config.URL()), 0600)
+				err = urlFile.Close()
 				require.NoError(t, err)
-				err = os.Chmod(string(config.Session()), 0600)
+				err = sessionFile.Close()
 				require.NoError(t, err)
 			} else {
 				err = os.Chmod(string(config), 0700)
