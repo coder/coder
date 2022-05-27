@@ -2213,17 +2213,19 @@ WHERE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
-		)	
+		)
 		ELSE true
 	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN $3 :: text != '' THEN (
-			status = $3 :: user_status
+		WHEN cardinality($3 :: user_status[]) > 0 THEN (
+			status = ANY($3 :: user_status[])
 		)
-		ELSE true
+		ELSE
+		    -- Only show active by default
+		    status = 'active'
 	END
 	-- End of filters
 ORDER BY
@@ -2236,18 +2238,18 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
-	Search    string    `db:"search" json:"search"`
-	Status    string    `db:"status" json:"status"`
-	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
+	Search    string       `db:"search" json:"search"`
+	Status    []UserStatus `db:"status" json:"status"`
+	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
-		arg.Status,
+		pq.Array(arg.Status),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

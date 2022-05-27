@@ -101,17 +101,19 @@ WHERE
 		WHEN @search :: text != '' THEN (
 			email LIKE concat('%', @search, '%')
 			OR username LIKE concat('%', @search, '%')
-		)	
+		)
 		ELSE true
 	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN @status :: text != '' THEN (
-			status = @status :: user_status
+		WHEN cardinality(@status :: user_status[]) > 0 THEN (
+			status = ANY(@status :: user_status[])
 		)
-		ELSE true
+		ELSE
+		    -- Only show active by default
+		    status = 'active'
 	END
 	-- End of filters
 ORDER BY

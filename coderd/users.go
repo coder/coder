@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -105,9 +106,22 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	var (
-		searchName   = r.URL.Query().Get("search")
-		statusFilter = r.URL.Query().Get("status")
+		searchName    = r.URL.Query().Get("search")
+		statusFilters = strings.Split(r.URL.Query().Get("status"), ",")
 	)
+
+	statuses := make([]database.UserStatus, 0)
+	for _, filter := range statusFilters {
+		switch database.UserStatus(filter) {
+		case database.UserStatusSuspended, database.UserStatusActive:
+			statuses = append(statuses, database.UserStatus(filter))
+		default:
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("%q is not a valid user status", filter),
+			})
+			return
+		}
+	}
 
 	// Reading all users across the site
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser) {
@@ -124,7 +138,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
 		Search:    searchName,
-		Status:    statusFilter,
+		Status:    statuses,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusOK, []codersdk.User{})

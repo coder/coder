@@ -18,8 +18,10 @@ export const Language = {
   emptyMessage: "No users found",
   usernameLabel: "User",
   suspendMenuItem: "Suspend",
+  activateMenuItem: "Activate",
   resetPasswordMenuItem: "Reset password",
   rolesLabel: "Roles",
+  statusLabel: "Status",
 }
 
 export interface UsersTableProps {
@@ -49,6 +51,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
         <TableRow>
           <TableCell>{Language.usernameLabel}</TableCell>
           <TableCell>{Language.rolesLabel}</TableCell>
+          <TableCell>{Language.statusLabel}</TableCell>
           {/* 1% is a trick to make the table cell width fit the content */}
           {canEditUsers && <TableCell width="1%" />}
         </TableRow>
@@ -61,6 +64,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({
             <TableRow key={u.id}>
               <TableCell>
                 <AvatarData title={u.username} subtitle={u.email} />
+              </TableCell>
+              <TableCell>
+                {u.status}
               </TableCell>
               <TableCell>
                 {canEditUsers ? (
@@ -78,16 +84,18 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                 <TableCell>
                   <TableRowMenu
                     data={u}
-                    menuItems={[
-                      {
+                    menuItems={
+                      // Return either suspend or activate depending on status
+                      (u.status == "active" ? [{
                         label: Language.suspendMenuItem,
                         onClick: onSuspendUser,
-                      },
-                      {
+                      }] : [{
+                          label: Language.activateMenuItem,
+                          onClick: onSuspendUser,
+                      }]).concat({
                         label: Language.resetPasswordMenuItem,
                         onClick: onResetUserPassword,
-                      },
-                    ]}
+                      })}
                   />
                 </TableCell>
               )}
