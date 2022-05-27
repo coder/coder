@@ -1,10 +1,12 @@
+import Chip from "@material-ui/core/Chip"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { Role } from "../../api/typesGenerated"
 import { UserAvatar } from "../UserAvatar/UserAvatar"
 
-interface UserProfileCardProps {
+export interface UserProfileCardProps {
   user: TypesGen.User
 }
 
@@ -18,6 +20,13 @@ export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
       </div>
       <Typography className={styles.userName}>{user.username}</Typography>
       <Typography className={styles.userEmail}>{user.email}</Typography>
+      <ul className={styles.chipContainer}>
+        {user.roles.map((role: Role) => (
+          <li key={role.name} className={styles.chipStyles}>
+            <Chip classes={{ root: styles.chipRoot }} label={role.display_name} />
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -52,6 +61,19 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     letterSpacing: 0.2,
     color: theme.palette.text.secondary,
-    marginBottom: theme.spacing(1.5),
+  },
+  chipContainer: {
+    display: "flex",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    listStyle: "none",
+    margin: "0",
+    padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
+  },
+  chipStyles: {
+    margin: theme.spacing(0.5),
+  },
+  chipRoot: {
+    backgroundColor: "#7057FF",
   },
 }))
