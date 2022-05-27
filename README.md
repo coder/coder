@@ -71,7 +71,7 @@ CPU core and 2 GB RAM:
 
 There are a few ways to run Coder:
 
-- To run a **temporary deployment**, start with dev mode (all data is in-memory and is destroyed on exit):
+- To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
 
   ```bash
   coder server --dev
