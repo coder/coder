@@ -355,6 +355,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user   = httpmw.UserParam(r)
+		apiKey = httpmw.APIKey(r)
 		params codersdk.UpdateUserPasswordRequest
 	)
 
@@ -364,6 +365,43 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	err := userpassword.Validate(params.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Errors: []httpapi.Error{
+				{
+					Field:  "password",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	// we want to require old_password field if the user is changing their
+	// own password. This is to prevent a compromised session from being able
+	// to change password and lock out the user.
+	if user.ID == apiKey.UserID {
+		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("compare user password: %s", err.Error()),
+			})
+			return
+		}
+		if !ok {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Errors: []httpapi.Error{
+					{
+						Field:  "old_password",
+						Detail: "Old password is incorrect.",
+					},
+				},
+			})
+			return
+		}
 	}
 
 	hashedPassword, err := userpassword.Hash(params.Password)
@@ -537,71 +575,6 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
-}
-
-func (api *API) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	var req codersdk.CreateOrganizationRequest
-	if !httpapi.Read(rw, r, &req) {
-		return
-	}
-
-	// Create organization uses the organization resource without an OrgID.
-	// This means you need the site wide permission to make a new organization.
-	if !api.Authorize(rw, r, rbac.ActionCreate,
-		rbac.ResourceOrganization) {
-		return
-	}
-
-	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
-	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: "organization already exists with that name",
-		})
-		return
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization: %s", err.Error()),
-		})
-		return
-	}
-
-	var organization database.Organization
-	err = api.Database.InTx(func(db database.Store) error {
-		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      req.Name,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
-		})
-		if err != nil {
-			return xerrors.Errorf("create organization: %w", err)
-		}
-		_, err = api.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
-			OrganizationID: organization.ID,
-			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			Roles: []string{
-				// Also assign member role incase they get demoted from admin
-				rbac.RoleOrgMember(organization.ID),
-				rbac.RoleOrgAdmin(organization.ID),
-			},
-		})
-		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusCreated, convertOrganization(organization))
 }
 
 // Authenticates the user with an email and password.

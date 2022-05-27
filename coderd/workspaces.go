@@ -281,11 +281,18 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
+
 	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(rw, r, &createWorkspace) {
 		return
 	}
-	apiKey := httpmw.APIKey(r)
+
 	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -303,7 +310,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	organization := httpmw.OrganizationParam(r)
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("template is not in organization %q", organization.Name),
@@ -636,6 +643,9 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+		return
+	}
 
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Fix for Safari 15.1:

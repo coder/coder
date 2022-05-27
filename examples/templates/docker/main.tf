@@ -17,6 +17,8 @@ terraform {
 # host on the "docker" provider below.
 variable "step1_docker_host_warning" {
   description = <<-EOF
+  Is Docker running on the Coder host?
+
   This template will use the Docker socket present on
   the Coder host, which is not necessarily your local machine.
 
@@ -32,7 +34,7 @@ variable "step1_docker_host_warning" {
 }
 variable "step2_arch" {
   description = <<-EOF
-  arch: What archicture is your Docker host on?
+  arch: What architecture is your Docker host on?
 
   note: codercom/enterprise-* images are only built for amd64
   EOF

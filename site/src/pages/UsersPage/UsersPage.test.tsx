@@ -103,13 +103,13 @@ describe("Users Page", () => {
     expect(users.length).toEqual(2)
   })
 
-  it("shows 'New user' button to an authorized user", () => {
+  it("shows 'Create user' button to an authorized user", () => {
     render(<UsersPage />)
-    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
-    expect(newUserButton).toBeDefined()
+    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    expect(createUserButton).toBeDefined()
   })
 
-  it("does not show 'New user' button to unauthorized user", () => {
+  it("does not show 'Create user' button to unauthorized user", () => {
     server.use(
       rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
         const permissions = Object.keys(permissionsToCheck)
@@ -125,8 +125,8 @@ describe("Users Page", () => {
       }),
     )
     render(<UsersPage />)
-    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
-    expect(newUserButton).toBeNull()
+    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    expect(createUserButton).toBeNull()
   })
 
   describe("suspend user", () => {

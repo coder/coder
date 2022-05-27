@@ -4,7 +4,7 @@ INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	@echo "== This builds binaries for command-line usage."
 	@echo "== Use \"make build\" to embed the site."
 	goreleaser build --snapshot --rm-dist --single-target
@@ -24,7 +24,7 @@ dev:
 	./scripts/develop.sh
 .PHONY: dev
 
-dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
@@ -41,20 +41,37 @@ fmt/terraform: $(wildcard *.tf)
 	terraform fmt -recursive
 .PHONY: fmt/terraform
 
-fmt: fmt/prettier fmt/terraform
+fmt/shfmt: $(shell shfmt -f .)
+	@echo "--- shfmt"
+# Only do diff check in CI, errors on diff.
+ifdef CI
+	shfmt -d $(shell shfmt -f .)
+else
+	shfmt -w $(shell shfmt -f .)
+endif
+
+fmt: fmt/prettier fmt/terraform fmt/shfmt
 .PHONY: fmt
 
 gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
 
 install: build
+	mkdir -p $(INSTALL_DIR)
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
 	cp -r ./dist/coder-$(GOOS)_$(GOOS)_$(GOARCH)*/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
-lint:
+lint: lint/shellcheck lint/go
+
+lint/go:
 	golangci-lint run
-.PHONY: lint
+.PHONY: lint/go
+
+# Use shfmt to determine the shell files, takes editorconfig into consideration.
+lint/shellcheck: $(shell shfmt -f .)
+	@echo "--- shellcheck"
+	shellcheck $(shell shfmt -f .)
 
 peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \

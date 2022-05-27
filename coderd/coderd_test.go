@@ -119,6 +119,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
+		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -137,12 +138,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
-
-		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"POST:/api/v2/organizations/{organization}/workspaces":       {NoAuthorize: true},
-		"POST:/api/v2/users/{user}/organizations":                    {NoAuthorize: true},
-		"GET:/api/v2/workspaces/{workspace}/watch":                   {NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}":                   {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
@@ -285,11 +280,25 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
+		"POST:/api/v2/organizations/{organization}/workspaces": {
+			AssertAction: rbac.ActionCreate,
+			// No ID when creating
+			AssertObject: workspaceRBACObj.WithID(""),
+		},
+		"GET:/api/v2/workspaces/{workspace}/watch": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"POST:/api/v2/users/{user}/organizations/": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: rbac.ResourceOrganization,
+		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	for k, v := range assertRoute {

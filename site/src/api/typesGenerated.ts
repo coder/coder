@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:151:6
+// From codersdk/users.go:152:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:146:6
+// From codersdk/users.go:147:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -100,7 +100,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:142:6
+// From codersdk/users.go:143:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -118,13 +118,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:131:6
+// From codersdk/users.go:132:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:137:6
+// From codersdk/users.go:138:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -276,13 +276,14 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
-// From codersdk/users.go:71:6
+// From codersdk/users.go:72:6
 export interface UpdateRoles {
   readonly roles: string[]
 }
 
 // From codersdk/users.go:67:6
 export interface UpdateUserPasswordRequest {
+  readonly old_password: string
   readonly password: string
 }
 
@@ -319,13 +320,13 @@ export interface User {
   readonly roles: Role[]
 }
 
-// From codersdk/users.go:96:6
+// From codersdk/users.go:97:6
 export interface UserAuthorization {
   readonly object: UserAuthorizationObject
   readonly action: string
 }
 
-// From codersdk/users.go:112:6
+// From codersdk/users.go:113:6
 export interface UserAuthorizationObject {
   readonly resource_type: string
   readonly owner_id?: string
@@ -333,15 +334,15 @@ export interface UserAuthorizationObject {
   readonly resource_id?: string
 }
 
-// From codersdk/users.go:85:6
+// From codersdk/users.go:86:6
 export interface UserAuthorizationRequest {
   readonly checks: Record<string, UserAuthorization>
 }
 
-// From codersdk/users.go:80:6
+// From codersdk/users.go:81:6
 export type UserAuthorizationResponse = Record<string, boolean>
 
-// From codersdk/users.go:75:6
+// From codersdk/users.go:76:6
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>

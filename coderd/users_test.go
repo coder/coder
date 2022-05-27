@@ -174,7 +174,7 @@ func TestPostUsers(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
-		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -323,6 +323,36 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "newpassword",
 		})
 		require.NoError(t, err, "member should login successfully with the new password")
+	})
+	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		err := member.UpdateUserPassword(context.Background(), "me", codersdk.UpdateUserPasswordRequest{
+			OldPassword: "testpass",
+			Password:    "newpassword",
+		})
+		require.NoError(t, err, "member should be able to update own password")
+	})
+	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		err := member.UpdateUserPassword(context.Background(), "me", codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.Error(t, err, "member should not be able to update own password without providing old password")
+	})
+	t.Run("AdminCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		err := client.UpdateUserPassword(context.Background(), "me", codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.Error(t, err, "admin should not be able to update own password without providing old password")
 	})
 }
 

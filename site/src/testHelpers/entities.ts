@@ -88,7 +88,13 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   updated_at: "",
   job: MockProvisionerJob,
   name: "test-version",
-  readme: "## Instructions\nYou can add instructions here\n\n[Some link info](https://coder.com)",
+  readme: `---
+name:Template test
+---
+## Instructions
+You can add instructions here
+
+[Some link info](https://coder.com)`,
 }
 
 export const MockTemplate: TypesGen.Template = {

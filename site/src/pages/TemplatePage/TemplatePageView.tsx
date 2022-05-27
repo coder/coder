@@ -3,6 +3,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import frontMatter from "front-matter"
 import React from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
@@ -33,6 +34,7 @@ export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
   templateResources,
 }) => {
   const styles = useStyles()
+  const readme = frontMatter(activeTemplateVersion.readme)
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
@@ -74,7 +76,7 @@ export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
                 ),
               }}
             >
-              {activeTemplateVersion.readme}
+              {readme.body}
             </ReactMarkdown>
           </div>
         </WorkspaceSection>

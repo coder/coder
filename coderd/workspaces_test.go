@@ -81,7 +81,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
 
-	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 		Name: "default-test",
 	})
 	require.NoError(t, err, "create other org")
@@ -120,7 +120,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
-		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -651,7 +651,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: time.Time{},
 	})
-	require.ErrorContains(t, err, "deadline: required", "setting an empty deadline on a workspace should fail")
+	require.ErrorContains(t, err, "deadline: Validation failed for tag \"required\" with value: \"0001-01-01 00:00:00 +0000 UTC\"", "setting an empty deadline on a workspace should fail")
 
 	// Updating with an earlier time should also fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{

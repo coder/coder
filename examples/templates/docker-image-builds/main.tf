@@ -15,6 +15,8 @@ terraform {
 # Admin parameters
 variable "step1_docker_host_warning" {
   description = <<-EOF
+  Is Docker running on the Coder host?
+
   This template will use the Docker socket present on
   the Coder host, which is not necessarily your local machine.
 
@@ -29,7 +31,7 @@ variable "step1_docker_host_warning" {
   sensitive = true
 }
 variable "step2_arch" {
-  description = "arch: What archicture is your Docker host on?"
+  description = "arch: What architecture is your Docker host on?"
   validation {
     condition     = contains(["amd64", "arm64", "armv7"], var.step2_arch)
     error_message = "Value must be amd64, arm64, or armv7."

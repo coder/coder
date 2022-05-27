@@ -10,7 +10,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import {
   WorkspaceScheduleForm,
   WorkspaceScheduleFormValues,
-} from "../../components/WorkspaceStats/WorkspaceScheduleForm"
+} from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
 import { dowToWeeklyFlag, extractTimezone, stripTimezone } from "../../util/schedule"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"

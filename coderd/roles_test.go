@@ -107,7 +107,7 @@ func TestListRoles(t *testing.T) {
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
-	otherOrg, err := client.CreateOrganization(ctx, admin.UserID.String(), codersdk.CreateOrganizationRequest{
+	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 		Name: "other",
 	})
 	require.NoError(t, err, "create org")

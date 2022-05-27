@@ -44,6 +44,17 @@ jobs:
         with:
           version: v1.46.0
 
+  style-lint-shellcheck:
+    name: style/lint/shellcheck
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@1.1.0
+        with:
+          ignore: node_modules
+
   style-lint-typescript:
     name: "style/lint/typescript"
     timeout-minutes: 5
@@ -133,7 +144,12 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: "make --output-sync -j -B fmt"
+      - name: Install shfmt
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
+
+      - run: |
+          export PATH=${PATH}:$(go env GOPATH)/bin
+          make --output-sync -j -B fmt
 
   test-go:
     name: "test/go"
@@ -208,7 +224,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
   test-go-postgres:
     name: "test/go/postgres"
@@ -291,7 +308,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
   deploy:
     name: "deploy"
@@ -421,7 +439,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          fail_ci_if_error: true
+          # this flakes and sometimes fails the build 
+          fail_ci_if_error: false
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork

@@ -55,5 +55,10 @@ const useStyles = makeStyles((theme: Theme) => ({
     // Set a fixed width for the select. It avoids selects having different sizes
     // depending on how many roles they have selected.
     width: theme.spacing(25),
+    "& .MuiSelect-root": {
+      // Adjusting padding because it does not have label
+      paddingTop: theme.spacing(1.5),
+      paddingBottom: theme.spacing(1.5),
+    },
   },
 }))
