@@ -167,6 +167,15 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+	// We use the workspace RBAC check since we don't want to allow plans if the
+	// user can't create workspaces.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
 
 	var req codersdk.CreateTemplateVersionPlanRequest
 	if !httpapi.Read(rw, r, &req) {
@@ -238,7 +247,7 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 }
 
 func (api *API) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
-	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
 	if !ok {
 		return
 	}
@@ -247,7 +256,7 @@ func (api *API) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) templateVersionPlanResources(rw http.ResponseWriter, r *http.Request) {
-	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
 	if !ok {
 		return
 	}
@@ -256,7 +265,7 @@ func (api *API) templateVersionPlanResources(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request) {
-	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
 	if !ok {
 		return
 	}
@@ -265,8 +274,14 @@ func (api *API) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request)
 }
 
 func (api *API) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Request) {
-	job, ok := getTemplateVersionPlanJob(api.Database, rw, r)
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
 	if !ok {
+		return
+	}
+	if !api.Authorize(rw, r, rbac.ActionUpdate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
 		return
 	}
 
@@ -302,12 +317,14 @@ func (api *API) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func getTemplateVersionPlanJob(db database.Store, rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+func (api *API) fetchTemplateVersionPlanJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
 	var (
-		apiKey          = httpmw.APIKey(r)
 		templateVersion = httpmw.TemplateVersionParam(r)
 		jobID           = chi.URLParam(r, "jobID")
 	)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return database.ProvisionerJob{}, false
+	}
 
 	jobUUID, err := uuid.Parse(jobID)
 	if err != nil {
@@ -317,7 +334,7 @@ func getTemplateVersionPlanJob(db database.Store, rw http.ResponseWriter, r *htt
 		return database.ProvisionerJob{}, false
 	}
 
-	job, err := db.GetProvisionerJobByID(r.Context(), jobUUID)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), jobUUID)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
@@ -332,9 +349,9 @@ func getTemplateVersionPlanJob(db database.Store, rw http.ResponseWriter, r *htt
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
 	}
-	// TODO: real RBAC
-	if job.InitiatorID != apiKey.UserID {
-		httpapi.Forbidden(rw)
+	// Do a workspace resource check since it's basically a workspace plan.
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
 		return database.ProvisionerJob{}, false
 	}
 
@@ -645,12 +662,13 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
-		ID:         version.ID,
-		TemplateID: &version.TemplateID.UUID,
-		CreatedAt:  version.CreatedAt,
-		UpdatedAt:  version.UpdatedAt,
-		Name:       version.Name,
-		Job:        job,
-		Readme:     version.Readme,
+		ID:             version.ID,
+		TemplateID:     &version.TemplateID.UUID,
+		OrganizationID: version.OrganizationID,
+		CreatedAt:      version.CreatedAt,
+		UpdatedAt:      version.UpdatedAt,
+		Name:           version.Name,
+		Job:            job,
+		Readme:         version.Readme,
 	}
 }

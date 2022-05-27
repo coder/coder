@@ -12,13 +12,14 @@ import (
 
 // TemplateVersion represents a single version of a template.
 type TemplateVersion struct {
-	ID         uuid.UUID      `json:"id"`
-	TemplateID *uuid.UUID     `json:"template_id,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	Name       string         `json:"name"`
-	Job        ProvisionerJob `json:"job"`
-	Readme     string         `json:"readme"`
+	ID             uuid.UUID      `json:"id"`
+	TemplateID     *uuid.UUID     `json:"template_id,omitempty"`
+	OrganizationID uuid.UUID      `json:"organization_id,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	Name           string         `json:"name"`
+	Job            ProvisionerJob `json:"job"`
+	Readme         string         `json:"readme"`
 }
 
 // TemplateVersionParameter represents a computed parameter value.

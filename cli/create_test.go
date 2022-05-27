@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"testing"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
@@ -249,6 +252,7 @@ func TestCreate(t *testing.T) {
 		<-doneChan
 		removeTmpDirUntilSuccess(t, tempDir)
 	})
+
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -278,6 +282,50 @@ func TestCreate(t *testing.T) {
 		}()
 		<-doneChan
 		removeTmpDirUntilSuccess(t, tempDir)
+	})
+
+	t.Run("FailedPlan", func(t *testing.T) {
+		t.Parallel()
+		client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionDryRun: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Error: "test error",
+						},
+					},
+				},
+			},
+		})
+
+		// The template import job should end up failed, but we need it to be
+		// succeeded so the plan can begin.
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobFailed, version.Job.Status, "job is not failed")
+		err := api.Database.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID: version.Job.ID,
+			CompletedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+			UpdatedAt: time.Now(),
+			Error:     sql.NullString{},
+		})
+		require.NoError(t, err, "update provisioner job")
+
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		cmd, root := clitest.New(t, "create", "test")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		err = cmd.Execute()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "plan workspace")
 	})
 }
 

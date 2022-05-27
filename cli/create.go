@@ -193,8 +193,8 @@ func create() *cobra.Command {
 				Silent: true,
 			})
 			if err != nil {
-				// TODO: reprompt for parameter values if we deem it to be a
-				// validation error
+				// TODO (Dean): reprompt for parameter values if we deem it to
+				// be a validation error
 				return xerrors.Errorf("plan workspace: %w", err)
 			}
 

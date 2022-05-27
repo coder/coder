@@ -96,6 +96,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "upload file")
 	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 	require.NoError(t, err, "workspace resources")
+	templateVersionPlanJob, err := client.CreateTemplateVersionPlan(ctx, version.ID, codersdk.CreateTemplateVersionPlanRequest{
+		ParameterValues: []codersdk.CreateParameterRequest{},
+	})
+	require.NoError(t, err, "template version plan")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -264,6 +268,27 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
+		"POST:/api/v2/templateversions/{templateversion}/plan": {
+			// The first check is to read the template
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/plan/{templateversionplan}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/plan/{templateversionplan}/resources": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/plan/{templateversionplan}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templateversions/{templateversion}/plan/{templateversionplan}/cancel": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
 		"GET:/api/v2/provisionerdaemons": {
 			StatusCode:   http.StatusOK,
 			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
@@ -326,6 +351,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
+			route = strings.ReplaceAll(route, "{templateversionplan}", templateVersionPlanJob.ID.String())
 			route = strings.ReplaceAll(route, "{templatename}", template.Name)
 			// Only checking org scoped params here
 			route = strings.ReplaceAll(route, "{scope}", string(organizationParam.Scope))

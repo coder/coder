@@ -590,7 +590,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
-		p.failActiveJobf("template import provision for start: %s", err)
+		p.failActiveJobf("template import provision for stop: %s", err)
 		return
 	}
 
@@ -726,6 +726,14 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 				return nil, xerrors.Errorf("send job update: %w", err)
 			}
 		case *sdkproto.Provision_Response_Complete:
+			if msgType.Complete.Error != "" {
+				p.opts.Logger.Info(context.Background(), "dry-run provision failure",
+					slog.F("error", msgType.Complete.Error),
+				)
+
+				return nil, xerrors.New(msgType.Complete.Error)
+			}
+
 			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),

@@ -38,8 +38,7 @@ func Serve(ctx context.Context, options *provisionersdk.ServeOptions) error {
 // The echo provisioner serves as a dummy provisioner primarily
 // used for testing. It echos responses from JSON files in the
 // format %d.protobuf. It's used for testing.
-type echo struct {
-}
+type echo struct{}
 
 // Parse reads requests from the provided directory to stream responses.
 func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
