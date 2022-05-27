@@ -17,6 +17,7 @@ export interface WorkspaceProps {
   handleStop: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  handleOpenPortForward: (agent: TypesGen.WorkspaceAgent, anchorEl: HTMLElement) => void
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
@@ -31,6 +32,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleStop,
   handleUpdate,
   handleCancel,
+  handleOpenPortForward,
   workspace,
   resources,
   getResourcesError,
@@ -68,7 +70,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
           <WorkspaceStats workspace={workspace} />
 
-          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          <Resources
+            handleOpenPortForward={handleOpenPortForward}
+            resources={resources}
+            getResourcesError={getResourcesError}
+            workspace={workspace}
+          />
 
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />

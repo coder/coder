@@ -1,18 +1,21 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import CompareArrowsIcon from "@material-ui/icons/CompareArrows"
 import useTheme from "@material-ui/styles/useTheme"
 import React from "react"
-import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import { Workspace, WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
+  portForwardLabel: "Port forward",
   resources: "Resources",
   resourceLabel: "Resource",
   agentsLabel: "Agents",
@@ -22,12 +25,18 @@ const Language = {
 }
 
 interface ResourcesProps {
+  handleOpenPortForward: (agent: WorkspaceAgent, anchorEl: HTMLElement) => void
   resources?: WorkspaceResource[]
   getResourcesError?: Error
   workspace: Workspace
 }
 
-export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
+export const Resources: React.FC<ResourcesProps> = ({
+  handleOpenPortForward,
+  resources,
+  getResourcesError,
+  workspace,
+}) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
@@ -89,12 +98,22 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                     </TableCell>
                     <TableCell>
                       {agent.status === "connected" && (
-                        <TerminalLink
-                          className={styles.accessLink}
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                          userName={workspace.owner_name}
-                        />
+                        <>
+                          <TerminalLink
+                            className={styles.accessLink}
+                            workspaceName={workspace.name}
+                            agentName={agent.name}
+                            userName={workspace.owner_name}
+                          />
+                          <Button
+                            variant="text"
+                            className={styles.accessLink}
+                            onClick={(event) => handleOpenPortForward(agent, event.currentTarget)}
+                          >
+                            <CompareArrowsIcon />
+                            {Language.portForwardLabel}
+                          </Button>
+                        </>
                       )}
                     </TableCell>
                   </TableRow>
@@ -134,9 +153,16 @@ const useStyles = makeStyles((theme) => ({
   },
 
   accessLink: {
+    alignItems: "center",
     color: theme.palette.text.secondary,
     display: "flex",
-    alignItems: "center",
+    border: 0,
+    padding: 0,
+
+    "&:hover": {
+      backgroundColor: "unset",
+      textDecoration: "underline",
+    },
 
     "& svg": {
       width: 16,
