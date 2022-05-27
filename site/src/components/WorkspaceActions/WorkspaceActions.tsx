@@ -1,12 +1,10 @@
 import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import CancelIcon from "@material-ui/icons/Cancel"
 import CloudDownloadIcon from "@material-ui/icons/CloudDownload"
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import StopIcon from "@material-ui/icons/Stop"
 import React from "react"
-import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
@@ -60,9 +58,6 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 
   return (
     <Stack direction="row" spacing={1}>
-      <Link underline="none" component={RouterLink} to="edit">
-        <Button variant="outlined">Settings</Button>
-      </Link>
       {canStart(workspaceStatus) && (
         <WorkspaceActionButton
           className={styles.actionButton}

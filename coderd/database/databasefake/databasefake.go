@@ -1336,11 +1336,10 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 	defer q.mutex.Unlock()
 
 	daemon := database.ProvisionerDaemon{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Provisioners:   arg.Provisioners,
+		ID:           arg.ID,
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
@@ -1539,6 +1538,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
+		Deadline:          arg.Deadline,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
@@ -1765,6 +1765,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
+		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}

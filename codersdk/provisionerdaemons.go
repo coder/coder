@@ -31,12 +31,11 @@ const (
 )
 
 type ProvisionerDaemon struct {
-	ID             uuid.UUID         `json:"id"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      sql.NullTime      `json:"updated_at"`
-	OrganizationID uuid.NullUUID     `json:"organization_id"`
-	Name           string            `json:"name"`
-	Provisioners   []ProvisionerType `json:"provisioners"`
+	ID           uuid.UUID         `json:"id"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    sql.NullTime      `json:"updated_at"`
+	Name         string            `json:"name"`
+	Provisioners []ProvisionerType `json:"provisioners"`
 }
 
 // ProvisionerJobStaus represents the at-time state of a job.

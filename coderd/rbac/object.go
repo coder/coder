@@ -34,6 +34,10 @@ var (
 		Type: "file",
 	}
 
+	ResourceProvisionerDaemon = Object{
+		Type: "provisioner_daemon",
+	}
+
 	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
 	//	create/delete = make or delete organizations
 	// 	read = view org information (Can add user owner for read)
