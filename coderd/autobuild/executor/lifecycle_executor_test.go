@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,12 +50,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
+	// Then: the workspace should eventually be started
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
@@ -99,11 +96,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	}()
 
 	// Then: the workspace should be started using the previous template version, and not the updated version.
-	<-time.After(5 * time.Second)
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
 	require.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
 }
 
@@ -139,10 +133,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostartNotEnabled(t *testing.T) {
@@ -173,10 +164,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.NotEqual(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace not to be running")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostopOK(t *testing.T) {
@@ -202,11 +190,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 	}()
 
 	// Then: the workspace should be stopped
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostopExtend(t *testing.T) {
@@ -228,8 +212,9 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	require.NotZero(t, originalDeadline)
 
 	// Given: we extend the workspace deadline
+	newDeadline := originalDeadline.Add(30 * time.Minute)
 	err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: originalDeadline.Add(30 * time.Minute),
+		Deadline: newDeadline,
 	})
 	require.NoError(t, err, "extend workspace deadline")
 
@@ -238,24 +223,17 @@ func TestExecutorAutostopExtend(t *testing.T) {
 		tickCh <- originalDeadline.Add(time.Minute)
 	}()
 
-	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	// Then: nothing should happen and the workspace should stay running
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 
 	// When: the autobuild executor ticks after the *new* deadline:
 	go func() {
-		tickCh <- ws.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- newDeadline.Add(time.Minute)
 		close(tickCh)
 	}()
 
 	// Then: the workspace should be stopped
-	<-time.After(5 * time.Second)
-	ws = mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostopAlreadyStopped(t *testing.T) {
@@ -282,11 +260,8 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should not be stopped.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	// Then: the workspace should remain stopped and no build should happen.
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostopNotEnabled(t *testing.T) {
@@ -317,10 +292,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be stopped.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 }
 
 func TestExecutorWorkspaceDeleted(t *testing.T) {
@@ -355,10 +327,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionDelete)
 }
 
 func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
@@ -394,10 +363,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 }
 
 func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
@@ -420,10 +386,7 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
 }
 
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
@@ -451,11 +414,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	}()
 
 	// Then: the workspace should still stop - sorry!
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
@@ -492,23 +451,21 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		close(tickCh2)
 	}()
 
-	// Then: the workspace should be started
-	<-time.After(5 * time.Second)
+	// Then: the workspace should eventually be started
+	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+
 	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
 	builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: ws.ID})
 	require.NoError(t, err, "fetch list of workspace builds from primary")
 	// One build to start, one stop transition, and one autostart. No more.
-	require.Equal(t, codersdk.WorkspaceTransitionStart, builds[0].Transition)
-	require.Equal(t, codersdk.WorkspaceTransitionStop, builds[1].Transition)
-	require.Equal(t, codersdk.WorkspaceTransitionStart, builds[2].Transition)
-	require.Len(t, builds, 3, "unexpected number of builds for workspace from primary")
-
-	// Builds are returned most recent first.
-	require.True(t, builds[0].CreatedAt.After(builds[1].CreatedAt))
-	require.True(t, builds[1].CreatedAt.After(builds[2].CreatedAt))
+	if assert.Len(t, builds, 3, "unexpected number of builds for workspace from primary") {
+		assert.Equal(t, codersdk.WorkspaceTransitionStart, builds[0].Transition)
+		assert.Equal(t, codersdk.WorkspaceTransitionStop, builds[1].Transition)
+		assert.Equal(t, codersdk.WorkspaceTransitionStart, builds[2].Transition)
+		// Builds are returned most recent first.
+		require.True(t, builds[0].CreatedAt.After(builds[1].CreatedAt))
+		require.True(t, builds[1].CreatedAt.After(builds[2].CreatedAt))
+	}
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
@@ -553,6 +510,34 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
+}
+
+func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
+	assert.Eventually(t, func() bool {
+		ws := mustWorkspace(t, client, workspace.ID)
+		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
+			return false
+		}
+		if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobSucceeded {
+			return false
+		}
+		// At this point a build has happened. Is it what we want?
+		return assert.Equal(t, expected, ws.LatestBuild.Transition)
+	}, 5*time.Second, 25*time.Millisecond)
+}
+
+func assertLatestTransitionWithNoEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
+	assert.Never(t, func() bool {
+		ws := mustWorkspace(t, client, workspace.ID)
+		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
+			return false
+		}
+		if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobSucceeded {
+			return false
+		}
+		// At this point a build should not have happened. Is the state still as expected?
+		return assert.Equal(t, expected, ws.LatestBuild.Transition)
+	}, 5*time.Second, 25*time.Millisecond)
 }
 
 func TestMain(m *testing.M) {
