@@ -150,10 +150,23 @@ coder templates update gcp-linux
   - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
 
+## Comparison
+
+Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](./docs/about.md#what-coder-is-not).
+
+| Tool                                                        | Type     | Delivery Model     | Cost                          | Environments                                                                                                                                               |
+| :---------------------------------------------------------- | :------- | :----------------- | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
+| [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
+| [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux containers                                                                                                                                           |
+
+---
+
+_As of 5/27/22_
+
 ## Contributing
 
 Read the [contributing docs](./docs/CONTRIBUTING.md).
-
-## Contributors
 
 Find our list of contributors [here](./docs/CONTRIBUTORS.md).
