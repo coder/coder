@@ -33,6 +33,11 @@ export const getOverrides = (palette: PaletteOptions) => {
         },
       },
     },
+    MuiChip: {
+      root: {
+        backgroundColor: "#7057FF",
+      },
+    },
     MuiTableHead: {
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,

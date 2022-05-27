@@ -17,9 +17,53 @@ const Template: Story<UserDropdownProps> = (args: UserDropdownProps) => (
   </Box>
 )
 
-export const Example = Template.bind({})
-Example.args = {
-  user: { id: "1", username: "CathyCoder", email: "cathy@coder.com", created_at: "dawn" },
+export const ExampleNoRoles = Template.bind({})
+ExampleNoRoles.args = {
+  user: {
+    id: "1",
+    username: "CathyCoder",
+    email: "cathy@coder.com",
+    created_at: "dawn",
+    status: "active",
+    organization_ids: [],
+    roles: [],
+  },
+  onSignOut: () => {
+    return Promise.resolve()
+  },
+}
+
+export const ExampleOneRole = Template.bind({})
+ExampleNoRoles.args = {
+  user: {
+    id: "1",
+    username: "CathyCoder",
+    email: "cathy@coder.com",
+    created_at: "dawn",
+    status: "active",
+    organization_ids: [],
+    roles: [{ name: "member", display_name: "Member" }],
+  },
+  onSignOut: () => {
+    return Promise.resolve()
+  },
+}
+
+export const ExampleThreeRoles = Template.bind({})
+ExampleNoRoles.args = {
+  user: {
+    id: "1",
+    username: "CathyCoder",
+    email: "cathy@coder.com",
+    created_at: "dawn",
+    status: "active",
+    organization_ids: [],
+    roles: [
+      { name: "admin", display_name: "Admin" },
+      { name: "member", display_name: "Member" },
+      { name: "auditor", display_name: "Auditor" },
+    ],
+  },
   onSignOut: () => {
     return Promise.resolve()
   },
