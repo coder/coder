@@ -49,7 +49,7 @@ Templates often contain *parameters*. In Coder, there are two types of parameter
   are often cloud secrets, such as a `ServiceAccount` token, and are annotated
   with `sensitive =  true` in the template code.
 
-**User parameters** are set when a user creates a workspace. They are unique to
+- **User parameters** are set when a user creates a workspace. They are unique to
 each workspace, often personalization settings such as "preferred
 region" or "workspace image".
 
