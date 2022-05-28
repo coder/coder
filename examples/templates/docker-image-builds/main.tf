@@ -38,9 +38,20 @@ variable "step2_arch" {
   }
   sensitive = true
 }
+variable "step3_OS" {
+  description = <<-EOF
+  What operating system is your Coder host on?
+  EOF
+
+  validation {
+    condition     = contains(["MacOS", "Windows", "Linux"], var.step3_OS)
+    error_message = "Value must be MacOS, Windows, or Linux."
+  }
+  sensitive = true
+}
 
 provider "docker" {
-  host = "unix:///var/run/docker.sock"
+  host = var.step3_OS == "Windows" ? "npipe:////.//pipe//docker_engine" : "unix:///var/run/docker.sock"
 }
 
 provider "coder" {
