@@ -4,7 +4,7 @@ Templates define the infrastructure underlying workspaces. Each Coder deployment
 can have multiple templates for different workloads, such as ones for front-end
 development, Windows development, and so on.
 
-Coder manage templates, including sharing them and rolling out updates
+Coder manages templates, including sharing them and rolling out updates
 to everybody. Users can also manually update their workspaces.
 
 ## Manage templates
