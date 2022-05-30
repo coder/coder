@@ -347,10 +347,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		dbAutostartSchedule.String = *createWorkspace.AutostartSchedule
 	}
 
-	var dbTTL sql.NullInt64
-	if createWorkspace.TTL != nil && *createWorkspace.TTL > 0 {
-		dbTTL.Valid = true
-		dbTTL.Int64 = int64(*createWorkspace.TTL)
+	dbTTL, err := validWorkspaceTTL(createWorkspace.TTL)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "validate workspace ttl",
+			Errors: []httpapi.Error{
+				{
+					Field:  "ttl",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -559,14 +567,21 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbTTL sql.NullInt64
-	if req.TTL != nil && *req.TTL > 0 {
-		truncated := req.TTL.Truncate(time.Minute)
-		dbTTL.Int64 = int64(truncated)
-		dbTTL.Valid = true
+	dbTTL, err := validWorkspaceTTL(req.TTL)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "validate workspace ttl",
+			Errors: []httpapi.Error{
+				{
+					Field:  "ttl",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
 	}
 
-	err := api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+	err = api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
 		ID:  workspace.ID,
 		Ttl: dbTTL,
 	})
@@ -857,4 +872,24 @@ func withinDuration(t1, t2 time.Time, d time.Duration) bool {
 	}
 
 	return true
+}
+
+func validWorkspaceTTL(ttl *time.Duration) (sql.NullInt64, error) {
+	if ttl == nil {
+		return sql.NullInt64{}, nil
+	}
+
+	truncated := ttl.Truncate(time.Minute)
+	if truncated < time.Minute {
+		return sql.NullInt64{}, xerrors.New("ttl must be at least one minute")
+	}
+
+	if truncated > 24*7*time.Hour {
+		return sql.NullInt64{}, xerrors.New("ttl must be less than 7 days")
+	}
+
+	return sql.NullInt64{
+		Valid: true,
+		Int64: int64(truncated),
+	}, nil
 }

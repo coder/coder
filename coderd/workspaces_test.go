@@ -164,6 +164,49 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	})
+
+	t.Run("InvalidTTL", func(t *testing.T) {
+		t.Parallel()
+		t.Run("BelowMin", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			req := codersdk.CreateWorkspaceRequest{
+				TemplateID:        template.ID,
+				Name:              "testing",
+				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
+				TTL:               ptr(59 * time.Second),
+			}
+			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		})
+
+		t.Run("AboveMax", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			req := codersdk.CreateWorkspaceRequest{
+				TemplateID:        template.ID,
+				Name:              "testing",
+				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
+				TTL:               ptr(24*7*time.Hour + time.Minute),
+			}
+			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		})
+	})
 }
 
 func TestWorkspacesByOrganization(t *testing.T) {
@@ -552,9 +595,24 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name:          "enable ttl",
-			ttl:           ptr(time.Hour),
+			name:          "below minimum ttl",
+			ttl:           ptr(30 * time.Second),
+			expectedError: "ttl must be at least one minute",
+		},
+		{
+			name:          "minimum ttl",
+			ttl:           ptr(time.Minute),
 			expectedError: "",
+		},
+		{
+			name:          "maximum ttl",
+			ttl:           ptr(24 * 7 * time.Hour),
+			expectedError: "",
+		},
+		{
+			name:          "above maximum ttl",
+			ttl:           ptr(24*7*time.Hour + time.Minute),
+			expectedError: "ttl must be less than 7 days",
 		},
 	}
 
@@ -583,7 +641,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			})
 
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostop schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "unexpected error when setting workspace autostop schedule")
 				return
 			}
 
