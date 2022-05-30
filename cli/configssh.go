@@ -134,11 +134,6 @@ func configSSH() *cobra.Command {
 				configModified = append(configModified, []byte(sep+sshConfigIncludeStatement+"\n")...)
 			}
 
-			// TODO(mafredri): Where do we display this now...?
-			if len(workspaces) == 0 {
-				return xerrors.New("You don't have any workspaces!")
-			}
-
 			binaryFile, err := currentBinPath(cmd)
 			if err != nil {
 				return err
