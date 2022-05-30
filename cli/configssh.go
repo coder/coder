@@ -380,8 +380,8 @@ func currentBinPath(cmd *cobra.Command) (string, error) {
 	return binName, nil
 }
 
-// diffBytes two byte slices as if they were in a file named name.
-// Does best-effort cleanup ignoring non-critical errors.
+// diffBytes takes two byte slices and diffs them as if they were in a
+// file named name.
 func diffBytes(name string, b1, b2 []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	var opts []write.Option
