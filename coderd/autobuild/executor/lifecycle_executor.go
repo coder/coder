@@ -21,11 +21,11 @@ type Executor struct {
 	db      database.Store
 	log     slog.Logger
 	tick    <-chan time.Time
-	statsCh chan<- RunStats
+	statsCh chan<- Stats
 }
 
-// RunStats contains information about one run of Executor.
-type RunStats struct {
+// Stats contains information about one run of Executor.
+type Stats struct {
 	Transitions map[uuid.UUID]database.WorkspaceTransition
 	Elapsed     time.Duration
 	Error       error
@@ -44,7 +44,7 @@ func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan ti
 
 // WithStatsChannel will cause Executor to push a RunStats to ch after
 // every tick.
-func (e *Executor) WithStatsChannel(ch chan<- RunStats) *Executor {
+func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 	e.statsCh = ch
 	return e
 }
@@ -67,9 +67,9 @@ func (e *Executor) Run() {
 	}()
 }
 
-func (e *Executor) runOnce(t time.Time) RunStats {
+func (e *Executor) runOnce(t time.Time) Stats {
 	var err error
-	stats := RunStats{
+	stats := Stats{
 		Transitions: make(map[uuid.UUID]database.WorkspaceTransition),
 	}
 	defer func() {

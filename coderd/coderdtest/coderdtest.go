@@ -56,15 +56,15 @@ import (
 )
 
 type Options struct {
-	AWSCertificates       awsidentity.Certificates
-	Authorizer            rbac.Authorizer
-	AzureCertificates     x509.VerifyOptions
-	GithubOAuth2Config    *coderd.GithubOAuth2Config
-	GoogleTokenValidator  *idtoken.Validator
-	SSHKeygenAlgorithm    gitsshkey.Algorithm
-	APIRateLimit          int
-	AutobuildTicker       <-chan time.Time
-	AutobuildStatsChannel chan<- executor.RunStats
+	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
+	AzureCertificates    x509.VerifyOptions
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	APIRateLimit         int
+	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- executor.Stats
 
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD bool
@@ -93,9 +93,9 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		options.AutobuildTicker = ticker
 		t.Cleanup(func() { close(ticker) })
 	}
-	if options.AutobuildStatsChannel != nil {
+	if options.AutobuildStats != nil {
 		t.Cleanup(func() {
-			close(options.AutobuildStatsChannel)
+			close(options.AutobuildStats)
 		})
 	}
 
@@ -128,7 +128,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		db,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
-	).WithStatsChannel(options.AutobuildStatsChannel)
+	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	srv := httptest.NewUnstartedServer(nil)

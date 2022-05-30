@@ -28,11 +28,11 @@ func TestExecutorAutostartOK(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -68,11 +68,11 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -121,11 +121,11 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -158,11 +158,11 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -193,11 +193,11 @@ func TestExecutorAutostopOK(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -226,11 +226,11 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	var (
 		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace        = mustProvisionWorkspace(t, client)
@@ -276,11 +276,11 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace (disabling autostart)
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -308,11 +308,11 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace that has no TTL set
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -345,11 +345,11 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -384,11 +384,11 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		futureTime     = time.Now().Add(time.Hour)
 		futureTimeCron = fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
@@ -422,11 +422,11 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -450,11 +450,11 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	var (
 		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.RunStats)
+		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -488,17 +488,17 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	var (
 		tickCh   = make(chan time.Time)
 		tickCh2  = make(chan time.Time)
-		statsCh1 = make(chan executor.RunStats)
-		statsCh2 = make(chan executor.RunStats)
+		statsCh1 = make(chan executor.Stats)
+		statsCh2 = make(chan executor.Stats)
 		client   = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh1,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh1,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:       tickCh2,
-			IncludeProvisionerD:   true,
-			AutobuildStatsChannel: statsCh2,
+			AutobuildTicker:     tickCh2,
+			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh2,
 		})
 		// Given: we have a user with a workspace that has autostart enabled (default)
 		workspace = mustProvisionWorkspace(t, client)
