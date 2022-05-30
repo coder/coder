@@ -328,7 +328,7 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	_, err = io.Copy(f, r)
 	if err != nil {
 		_ = f.Close()
-		return err
+		return xerrors.Errorf("write temp file failed: %w", err)
 	}
 
 	err = f.Close()
