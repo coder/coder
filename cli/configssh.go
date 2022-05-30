@@ -7,13 +7,14 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/cli/safeexec"
+	"github.com/pkg/diff"
+	"github.com/pkg/diff/write"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
@@ -383,40 +384,27 @@ func currentBinPath(cmd *cobra.Command) (string, error) {
 
 // diffBytes two byte slices as if they were in a file named name.
 // Does best-effort cleanup ignoring non-critical errors.
-func diffBytes(name string, b1, b2 []byte) (data []byte, err error) {
-	f1, err := os.CreateTemp("", "coder_config-ssh.")
-	if err != nil {
-		return nil, xerrors.Errorf("create temp 1 file failed: %w", err)
+func diffBytes(name string, b1, b2 []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	var opts []write.Option
+	// TODO(mafredri): Toggle color on/off
+	if false {
+		opts = append(opts, write.TerminalColor())
 	}
-	defer os.Remove(f1.Name())
-	defer f1.Close()
-
-	f2, err := os.CreateTemp("", "coder_config-ssh.")
+	err := diff.Text(name, name+".new", b1, b2, &buf, opts...)
 	if err != nil {
-		return nil, xerrors.Errorf("create temp 2 file failed: %w", err)
-	}
-	defer os.Remove(f2.Name())
-	defer f2.Close()
-
-	_, err = f1.Write(b1)
-	if err != nil {
-		return nil, xerrors.Errorf("write temp 1 file failed: %w", err)
-	}
-	_, err = f2.Write(b2)
-	if err != nil {
-		return nil, xerrors.Errorf("write temp 2 file failed: %w", err)
-	}
-
-	// TODO(mafredri): Ensure diff binary exists, or return useful error when missing.
-	data, err = exec.Command("diff", "-u", f1.Name(), f2.Name()).Output() // #nosec
-	if len(data) == 0 && err != nil {                                     // Ignore non-zero exit when files differ.
 		return nil, err
 	}
-	// Replace temp file names with friendly names.
-	data = bytes.Replace(data, []byte(f1.Name()), []byte(name), 1)
-	data = bytes.Replace(data, []byte(f2.Name()), []byte(name+".new"), 1)
-
-	return data, err
+	b := buf.Bytes()
+	// Check if diff only output two lines, if yes, there's no diff.
+	//
+	// Example:
+	// 	--- ~/.ssh/config
+	// 	+++ ~/.ssh/config.new
+	if bytes.Count(b, []byte{'\n'}) == 2 {
+		b = nil
+	}
+	return b, nil
 }
 
 // stripOldConfigBlock is here to migrate users from old config block
