@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -24,12 +25,14 @@ func TestExecutorAutostartOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -51,19 +54,25 @@ func TestExecutorAutostartOK(t *testing.T) {
 	}()
 
 	// Then: the workspace should eventually be started
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -96,21 +105,27 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	}()
 
 	// Then: the workspace should be started using the previous template version, and not the updated version.
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
+	assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
 }
 
 func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -133,17 +148,21 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostartNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -164,17 +183,21 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostopOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -190,18 +213,24 @@ func TestExecutorAutostopOK(t *testing.T) {
 	}()
 
 	// Then: the workspace should be stopped
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostopExtend(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace        = mustProvisionWorkspace(t, client)
@@ -224,7 +253,9 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	}()
 
 	// Then: nothing should happen and the workspace should stay running
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 
 	// When: the autobuild executor ticks after the *new* deadline:
 	go func() {
@@ -233,17 +264,23 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	}()
 
 	// Then: the workspace should be stopped
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats = <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace (disabling autostart)
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -261,17 +298,21 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	}()
 
 	// Then: the workspace should remain stopped and no build should happen.
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostopNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace that has no TTL set
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -292,19 +333,23 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be stopped.
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceDeleted(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -327,19 +372,23 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionDelete)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		futureTime     = time.Now().Add(time.Hour)
 		futureTimeCron = fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
@@ -363,17 +412,21 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -386,18 +439,22 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	assertLatestTransitionWithNoEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		ctx     = context.Background()
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.RunStats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -414,7 +471,11 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	}()
 
 	// Then: the workspace should still stop - sorry!
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStop)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
@@ -425,17 +486,19 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = context.Background()
-		err     error
-		tickCh  = make(chan time.Time)
-		tickCh2 = make(chan time.Time)
-		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh,
-			IncludeProvisionerD: true,
+		tickCh   = make(chan time.Time)
+		tickCh2  = make(chan time.Time)
+		statsCh1 = make(chan executor.RunStats)
+		statsCh2 = make(chan executor.RunStats)
+		client   = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:       tickCh,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh1,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker:     tickCh2,
-			IncludeProvisionerD: true,
+			AutobuildTicker:       tickCh2,
+			IncludeProvisionerD:   true,
+			AutobuildStatsChannel: statsCh2,
 		})
 		// Given: we have a user with a workspace that has autostart enabled (default)
 		workspace = mustProvisionWorkspace(t, client)
@@ -452,20 +515,16 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	}()
 
 	// Then: the workspace should eventually be started
-	assertLatestTransitionWithEventualBuild(t, client, workspace, codersdk.WorkspaceTransitionStart)
+	stats1 := <-statsCh1
+	assert.NoError(t, stats1.Error)
+	assert.Len(t, stats1.Transitions, 1)
+	assert.Contains(t, stats1.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats1.Transitions[workspace.ID])
 
-	ws := mustWorkspace(t, client, workspace.ID)
-	builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: ws.ID})
-	require.NoError(t, err, "fetch list of workspace builds from primary")
-	// One build to start, one stop transition, and one autostart. No more.
-	if assert.Len(t, builds, 3, "unexpected number of builds for workspace from primary") {
-		assert.Equal(t, codersdk.WorkspaceTransitionStart, builds[0].Transition)
-		assert.Equal(t, codersdk.WorkspaceTransitionStop, builds[1].Transition)
-		assert.Equal(t, codersdk.WorkspaceTransitionStart, builds[2].Transition)
-		// Builds are returned most recent first.
-		require.True(t, builds[0].CreatedAt.After(builds[1].CreatedAt))
-		require.True(t, builds[1].CreatedAt.After(builds[2].CreatedAt))
-	}
+	// Then: the other executor should not have done anything
+	stats2 := <-statsCh2
+	assert.NoError(t, stats2.Error)
+	assert.Len(t, stats2.Transitions, 0)
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
@@ -511,39 +570,6 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
-}
-
-func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
-	t.Helper()
-	// assert.Eventually appears to have concurrency issues
-	assert.Eventually(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
-			return false
-		}
-		if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobSucceeded {
-			return false
-		}
-		// At this point a build has happened. Is it what we want?
-		// return assert.Equal(t, expected, ws.LatestBuild.Transition)
-		return expected == ws.LatestBuild.Transition
-	}, 3*time.Second, 25*time.Millisecond)
-}
-
-func assertLatestTransitionWithNoEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
-	t.Helper()
-	assert.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
-			return false
-		}
-		if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobSucceeded {
-			return false
-		}
-		// At this point a build should not have happened. Is the state still as expected?
-		// return assert.Equal(t, expected, ws.LatestBuild.Transition)
-		return expected == ws.LatestBuild.Transition
-	}, 3*time.Second, 25*time.Millisecond)
 }
 
 func TestMain(m *testing.M) {
