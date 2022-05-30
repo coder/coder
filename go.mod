@@ -53,7 +53,7 @@ require (
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
-	github.com/fatedier/frp v0.42.0
+	github.com/fatedier/frp v0.43.0
 	github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
