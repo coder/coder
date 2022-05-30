@@ -153,6 +153,10 @@ coder templates update gcp-linux
   - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
 
+## Community
+
+Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
+
 ## Comparison
 
 Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](./docs/about.md#what-coder-is-not).
