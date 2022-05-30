@@ -242,7 +242,6 @@ func configSSH() *cobra.Command {
 					for _, change := range changes {
 						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "* %s\n", change)
 					}
-				} else {
 				}
 
 				for _, diffFn := range []func() ([]byte, error){
