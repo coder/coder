@@ -309,7 +309,7 @@ func configSSH() *cobra.Command {
 // directory as path and renames the temp file to the file provided in
 // path. This ensure we avoid trashing the file we are writing due to
 // unforeseen circumstance like filesystem full, command killed, etc.
-func writeWithTempFileAndMove(path string, r io.Reader) error {
+func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	dir := filepath.Dir(path)
 	name := filepath.Base(path)
 
@@ -319,6 +319,11 @@ func writeWithTempFileAndMove(path string, r io.Reader) error {
 	if err != nil {
 		return xerrors.Errorf("create temp file failed: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			_ = os.Remove(f.Name()) // Cleanup in case a step failed.
+		}
+	}()
 
 	_, err = io.Copy(f, r)
 	if err != nil {
