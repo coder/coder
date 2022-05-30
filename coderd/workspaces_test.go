@@ -715,7 +715,13 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: oldDeadline,
 	})
-	require.ErrorContains(t, err, "must be after existing deadline", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "deadline: minimum extension is one minute", "setting an earlier deadline should fail")
+
+	// Updating with a time far in the future should also fail
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: oldDeadline.AddDate(1, 0, 0),
+	})
+	require.ErrorContains(t, err, "deadline: maximum extension is 24 hours", "setting an earlier deadline should fail")
 
 	// Ensure deadline still set correctly
 	updated, err = client.Workspace(ctx, workspace.ID)
