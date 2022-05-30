@@ -285,8 +285,12 @@ func configSSH() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "You should now be able to ssh into your workspace")
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
+			if len(workspaces) > 0 {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "You should now be able to ssh into your workspace")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
+			} else {
+				_, _ = fmt.Fprint(cmd.OutOrStdout(), "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n\n")
+			}
 			return nil
 		},
 	}
