@@ -244,9 +244,10 @@ func configSSH() *cobra.Command {
 					}
 				}
 
+				color := isTTY(cmd)
 				for _, diffFn := range []func() ([]byte, error){
-					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified) },
-					func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, buf.Bytes()) },
+					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified, color) },
+					func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, buf.Bytes(), color) },
 				} {
 					diff, err := diffFn()
 					if err != nil {
@@ -387,11 +388,11 @@ func currentBinPath(cmd *cobra.Command) (string, error) {
 
 // diffBytes takes two byte slices and diffs them as if they were in a
 // file named name.
-func diffBytes(name string, b1, b2 []byte) ([]byte, error) {
+//nolint: revive // Color is an option, not a control coupling.
+func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 	var buf bytes.Buffer
 	var opts []write.Option
-	// TODO(mafredri): Toggle color on/off
-	if false {
+	if color {
 		opts = append(opts, write.TerminalColor())
 	}
 	err := diff.Text(name, name+".new", b1, b2, &buf, opts...)
