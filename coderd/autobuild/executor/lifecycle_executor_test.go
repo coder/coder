@@ -515,6 +515,7 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 
 func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Client, workspace codersdk.Workspace, expected codersdk.WorkspaceTransition) {
 	t.Helper()
+	// assert.Eventually appears to have concurrency issues
 	assert.Eventually(t, func() bool {
 		ws := mustWorkspace(t, client, workspace.ID)
 		if ws.LatestBuild.ID == workspace.LatestBuild.ID {
@@ -524,7 +525,8 @@ func assertLatestTransitionWithEventualBuild(t *testing.T, client *codersdk.Clie
 			return false
 		}
 		// At this point a build has happened. Is it what we want?
-		return assert.Equal(t, expected, ws.LatestBuild.Transition)
+		// return assert.Equal(t, expected, ws.LatestBuild.Transition)
+		return expected == ws.LatestBuild.Transition
 	}, 3*time.Second, 25*time.Millisecond)
 }
 
@@ -539,7 +541,8 @@ func assertLatestTransitionWithNoEventualBuild(t *testing.T, client *codersdk.Cl
 			return false
 		}
 		// At this point a build should not have happened. Is the state still as expected?
-		return assert.Equal(t, expected, ws.LatestBuild.Transition)
+		// return assert.Equal(t, expected, ws.LatestBuild.Transition)
+		return expected == ws.LatestBuild.Transition
 	}, 3*time.Second, 25*time.Millisecond)
 }
 
