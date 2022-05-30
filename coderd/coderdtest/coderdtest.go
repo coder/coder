@@ -64,6 +64,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
 	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- executor.Stats
 
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD bool
@@ -91,6 +92,11 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		ticker := make(chan time.Time)
 		options.AutobuildTicker = ticker
 		t.Cleanup(func() { close(ticker) })
+	}
+	if options.AutobuildStats != nil {
+		t.Cleanup(func() {
+			close(options.AutobuildStats)
+		})
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -122,7 +128,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		db,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
-	)
+	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	srv := httptest.NewUnstartedServer(nil)
