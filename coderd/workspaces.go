@@ -347,10 +347,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		dbAutostartSchedule.String = *createWorkspace.AutostartSchedule
 	}
 
-	var dbTTL sql.NullInt64
-	if createWorkspace.TTL != nil && *createWorkspace.TTL > 0 {
-		dbTTL.Valid = true
-		dbTTL.Int64 = int64(*createWorkspace.TTL)
+	dbTTL, err := validWorkspaceTTL(createWorkspace.TTL)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "validate workspace ttl",
+			Errors: []httpapi.Error{
+				{
+					Field:  "ttl",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -559,14 +567,21 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbTTL sql.NullInt64
-	if req.TTL != nil && *req.TTL > 0 {
-		truncated := req.TTL.Truncate(time.Minute)
-		dbTTL.Int64 = int64(truncated)
-		dbTTL.Valid = true
+	dbTTL, err := validWorkspaceTTL(req.TTL)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "validate workspace ttl",
+			Errors: []httpapi.Error{
+				{
+					Field:  "ttl",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
 	}
 
-	err := api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+	err = api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
 		ID:  workspace.ID,
 		Ttl: dbTTL,
 	})
@@ -590,36 +605,29 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var code = http.StatusOK
+	code := http.StatusOK
+	resp := httpapi.Response{}
 
 	err := api.Database.InTx(func(s database.Store) error {
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			code = http.StatusInternalServerError
+			resp.Message = "workspace not found"
 			return xerrors.Errorf("get latest workspace build: %w", err)
 		}
 
 		if build.Transition != database.WorkspaceTransitionStart {
 			code = http.StatusConflict
+			resp.Message = "workspace must be started, current status: " + string(build.Transition)
 			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
 		newDeadline := req.Deadline.UTC()
-		if newDeadline.IsZero() {
-			// This should not be possible because the struct validation field enforces a non-zero value.
+		if err := validWorkspaceDeadline(build.Deadline, newDeadline); err != nil {
 			code = http.StatusBadRequest
-			return xerrors.New("new deadline cannot be zero")
-		}
-
-		if newDeadline.Before(build.Deadline) || newDeadline.Before(time.Now()) {
-			code = http.StatusBadRequest
-			return xerrors.Errorf("new deadline %q must be after existing deadline %q", newDeadline.Format(time.RFC3339), build.Deadline.Format(time.RFC3339))
-		}
-
-		// Disallow updates within less than one minute
-		if withinDuration(newDeadline, build.Deadline, time.Minute) {
-			code = http.StatusNotModified
-			return nil
+			resp.Message = "bad extend workspace request"
+			resp.Errors = append(resp.Errors, httpapi.Error{Field: "deadline", Detail: err.Error()})
+			return err
 		}
 
 		if err := s.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
@@ -628,15 +636,17 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
 		}); err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "failed to extend workspace deadline"
 			return xerrors.Errorf("update workspace build: %w", err)
 		}
+		resp.Message = "deadline updated to " + newDeadline.Format(time.RFC3339)
 
 		return nil
 	})
 
-	var resp = httpapi.Response{}
 	if err != nil {
-		resp.Message = err.Error()
+		api.Logger.Info(r.Context(), "extending workspace", slog.Error(err))
 	}
 	httpapi.Write(rw, code, resp)
 }
@@ -850,11 +860,44 @@ func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
 	return (*time.Duration)(&i.Int64)
 }
 
-func withinDuration(t1, t2 time.Time, d time.Duration) bool {
-	dt := t1.Sub(t2)
-	if dt < -d || dt > d {
-		return false
+func validWorkspaceTTL(ttl *time.Duration) (sql.NullInt64, error) {
+	if ttl == nil {
+		return sql.NullInt64{}, nil
 	}
 
-	return true
+	truncated := ttl.Truncate(time.Minute)
+	if truncated < time.Minute {
+		return sql.NullInt64{}, xerrors.New("ttl must be at least one minute")
+	}
+
+	if truncated > 24*7*time.Hour {
+		return sql.NullInt64{}, xerrors.New("ttl must be less than 7 days")
+	}
+
+	return sql.NullInt64{
+		Valid: true,
+		Int64: int64(truncated),
+	}, nil
+}
+
+func validWorkspaceDeadline(old, new time.Time) error {
+	if old.IsZero() {
+		return xerrors.New("nothing to do: no existing deadline set")
+	}
+
+	now := time.Now()
+	if new.Before(now) {
+		return xerrors.New("new deadline must be in the future")
+	}
+
+	delta := new.Sub(old)
+	if delta < time.Minute {
+		return xerrors.New("minimum extension is one minute")
+	}
+
+	if delta > 24*time.Hour {
+		return xerrors.New("maximum extension is 24 hours")
+	}
+
+	return nil
 }
