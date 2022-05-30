@@ -257,7 +257,6 @@ func configSSH() *cobra.Command {
 					if err != nil {
 						return xerrors.Errorf("diff failed: %w", err)
 					}
-					// TODO(mafredri): Colorize with github.com/sourcegraph/go-diff?
 					if len(diff) > 0 {
 						filesDiffer = true
 						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%s", diff)
