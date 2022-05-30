@@ -98,7 +98,7 @@ func server() *cobra.Command {
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
-			if verbose {
+			if verbose || dev {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
