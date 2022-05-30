@@ -114,17 +114,17 @@ func configSSH() *cobra.Command {
 			}
 
 			// Keep track of changes we are making.
-			var actions []string
+			var changes []string
 
 			// Check for presence of old config format and
 			// remove if present.
 			configModified, ok := stripOldConfigBlock(configRaw)
 			if ok {
-				actions = append(actions, fmt.Sprintf("Remove old config block (START-CODER/END-CODER) from %s", sshConfigFileOrig))
+				changes = append(changes, fmt.Sprintf("Remove old config block (START-CODER/END-CODER) from %s", sshConfigFileOrig))
 			}
 
 			if found := bytes.Index(configModified, []byte(sshConfigIncludeStatement)); found == -1 || (found > 0 && configModified[found-1] != '\n') {
-				actions = append(actions, fmt.Sprintf("Add 'Include coder' to %s", sshConfigFileOrig))
+				changes = append(changes, fmt.Sprintf("Add 'Include coder' to %s", sshConfigFileOrig))
 				// Separate Include statement from user content with an empty newline.
 				configModified = bytes.TrimRight(configModified, "\n")
 				sep := "\n\n"
@@ -234,19 +234,20 @@ func configSSH() *cobra.Command {
 			modifyCoderConfig := !bytes.Equal(coderConfigRaw, buf.Bytes())
 			if modifyCoderConfig {
 				if len(coderConfigRaw) == 0 {
-					actions = append(actions, fmt.Sprintf("Write auto-generated coder config file to %s", coderConfigFileOrig))
+					changes = append(changes, fmt.Sprintf("Write auto-generated coder config file to %s", coderConfigFileOrig))
 				} else {
-					actions = append(actions, fmt.Sprintf("Update auto-generated coder config file in %s", coderConfigFileOrig))
+					changes = append(changes, fmt.Sprintf("Update auto-generated coder config file in %s", coderConfigFileOrig))
 				}
 			}
 
 			if showDiff {
-				if len(actions) > 0 {
+				if len(changes) > 0 {
 					// Write to stderr to avoid dirtying the diff output.
 					_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Changes:\n\n")
-					for _, action := range actions {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "* %s\n", action)
+					for _, change := range changes {
+						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "* %s\n", change)
 					}
+				} else {
 				}
 
 				for _, diffFn := range []func() ([]byte, error){
@@ -266,9 +267,9 @@ func configSSH() *cobra.Command {
 				return nil
 			}
 
-			if len(actions) > 0 {
+			if len(changes) > 0 {
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration (use --diff to see changes):\n\n  * %s\n\n  Continue?", strings.Join(actions, "\n  * ")),
+					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration (use --diff to see changes):\n\n  * %s\n\n  Continue?", strings.Join(changes, "\n  * ")),
 					IsConfirm: true,
 				})
 				if err != nil {
