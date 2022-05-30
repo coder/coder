@@ -11,7 +11,7 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 Coder creates remote development machines so you can develop your code from anywhere. #coder
 
 > **Note**:
-> Coder is in an alpha state, but any serious bugs are P1 for us so please report them.
+> Coder is in an alpha state, but any serious bugs are P1 for us so [please report them](https://github.com/coder/coder/issues/new/choose).
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -156,6 +156,8 @@ coder templates update gcp-linux
 ## Community
 
 Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
+
+[Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
 
 ## Comparison
 
