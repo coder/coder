@@ -250,8 +250,8 @@ func configSSH() *cobra.Command {
 				}
 
 				for _, diffFn := range []func() ([]byte, error){
-					func() ([]byte, error) { return diffBytes(sshConfigFileOrig, configRaw, configModified) },
-					func() ([]byte, error) { return diffBytes(coderConfigFileOrig, coderConfigRaw, buf.Bytes()) },
+					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified) },
+					func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, buf.Bytes()) },
 				} {
 					diff, err := diffFn()
 					if err != nil {
@@ -399,8 +399,8 @@ func diffBytes(name string, b1, b2 []byte) ([]byte, error) {
 	// Check if diff only output two lines, if yes, there's no diff.
 	//
 	// Example:
-	// 	--- ~/.ssh/config
-	// 	+++ ~/.ssh/config.new
+	// 	--- /home/user/.ssh/config
+	// 	+++ /home/user/.ssh/config.new
 	if bytes.Count(b, []byte{'\n'}) == 2 {
 		b = nil
 	}
