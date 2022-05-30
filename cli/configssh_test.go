@@ -77,9 +77,13 @@ func TestConfigSSH(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	tempFile, err := os.CreateTemp(t.TempDir(), "")
+	tmpdir := t.TempDir()
+	tempFile, err := os.CreateTemp(tmpdir, "config")
 	require.NoError(t, err)
 	_ = tempFile.Close()
+	coderTempFile, err := os.CreateTemp(tmpdir, "coder")
+	require.NoError(t, err)
+	_ = coderTempFile.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
@@ -112,6 +116,7 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-option", "HostName "+tcpAddr.IP.String(),
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", tempFile.Name(),
+		"--ssh-coder-config-file", coderTempFile.Name(),
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
