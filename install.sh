@@ -81,8 +81,8 @@ echo_latest_version() {
 
 echo_standalone_postinstall() {
   echoh
-  cath << EOF
-Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/lib/coder-$VERSION
+  cath <<EOF
+  Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/coder
 
 Extend your path to use Coder:
   PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
@@ -98,7 +98,7 @@ EOF
 
 echo_systemd_postinstall() {
   echoh
-  cath << EOF
+  cath <<EOF
 $1 package has been installed.
 
 To run Coder as a system service:
@@ -347,8 +347,15 @@ install_standalone() {
   echoh "Installing v$VERSION of the $ARCH release from GitHub."
   echoh
 
-  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.tar.gz" \
-    "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar"
+  # MacOS and Windows releases are packaged as .zip
+  case $OS in
+  darwin) STANDALONE_ARCHIVE_FORMAT=zip ;;
+  windows) STANDALONE_ARCHIVE_FORMAT=zip ;;
+  *) STANDALONE_ARCHIVE_FORMAT=tar.gz ;;
+  esac
+
+  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.$STANDALONE_ARCHIVE_FORMAT" \
+    "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.$STANDALONE_ARCHIVE_FORMAT"
 
   # -w only works if the directory exists so try creating it first. If this
   # fails we can ignore the error as the -w check will then swap us to sudo.
@@ -359,27 +366,26 @@ install_standalone() {
     sh_c="sudo_sh_c"
   fi
 
-  if [ -e "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION" ]; then
-    echoh
-    echoh "coder_$VERSION is already installed at $STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION"
-    echoh "Remove it to reinstall."
-    exit 0
+  "$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
+  if [ "$STANDALONE_ARCHIVE_FORMAT" == tar.gz ]; then
+    "$sh_c" tar -C "$CACHE_DIR" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
+  else
+    "$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
   fi
 
-  "$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/lib" "$STANDALONE_INSTALL_PREFIX/bin"
-  "$sh_c" tar -C "$STANDALONE_INSTALL_PREFIX/lib" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar"
-  "$sh_c" ln -fs "$STANDALONE_INSTALL_PREFIX/lib/coder/bin/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
+  "$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
 
   echo_standalone_postinstall
 }
 
 # Determine if we have standalone releases on GitHub for the system's arch.
+# TODO: fix for Coder v2
 has_standalone() {
   case $ARCH in
     amd64) return 0 ;;
     # We only have amd64 for macOS.
     arm64)
-      [ "$(distro)" != macos ]
+      [ "$(distro)" != darwin ]
       return
       ;;
     *) return 1 ;;
@@ -390,7 +396,7 @@ os() {
   uname="$(uname)"
   case $uname in
     Linux) echo linux ;;
-    Darwin) echo macos ;;
+    Darwin) echo darwin ;;
     FreeBSD) echo freebsd ;;
     *) echo "$uname" ;;
   esac
@@ -399,7 +405,7 @@ os() {
 # Print the detected Linux distro, otherwise print the OS name.
 #
 # Example outputs:
-# - macos -> macos
+# - darwin -> darwin
 # - freebsd -> freebsd
 # - ubuntu, raspbian, debian ... -> debian
 # - amzn, centos, rhel, fedora, ... -> fedora
@@ -409,7 +415,7 @@ os() {
 #
 # Inspired by https://github.com/docker/docker-install/blob/26ff363bcf3b3f5a00498ac43694bf1c7d9ce16c/install.sh#L111-L120.
 distro() {
-  if [ "$OS" = "macos" ] || [ "$OS" = "freebsd" ]; then
+  if [ "$OS" = "darwin" ] || [ "$OS" = "freebsd" ]; then
     echo "$OS"
     return
   fi
