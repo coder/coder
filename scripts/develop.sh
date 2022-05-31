@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+set -x
 
-PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-cd "${PROJECT_ROOT}"
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 
 echo '== Run "make build" before running this command to build binaries.'
 echo '== Without these binaries, workspaces will fail to start!'
@@ -19,8 +20,15 @@ export CODER_DEV_ADMIN_PASSWORD=password
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
-  trap 'kill 0' SIGINT
-  CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
-  go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
-  wait
+	cd "${PROJECT_ROOT}"
+
+	trap 'kill 0' SIGINT
+	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
+	go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
+
+	# Just a minor sleep to ensure the first user was created to make the member.
+	sleep 2
+	# || yes to always exit code 0. If this fails, whelp.
+	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || true
+	wait
 )

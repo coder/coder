@@ -1,10 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC, ReactNode } from "react"
 
 export interface FormTitleProps {
   title: string
-  detail?: React.ReactNode
+  detail?: ReactNode
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -19,7 +19,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormTitle: React.FC<FormTitleProps> = ({ title, detail }) => {
+export const FormTitle: FC<FormTitleProps> = ({ title, detail }) => {
   const styles = useStyles()
 
   return (

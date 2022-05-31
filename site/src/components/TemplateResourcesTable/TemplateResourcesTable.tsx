@@ -4,7 +4,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import React from "react"
+import { FC } from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 
@@ -17,7 +17,7 @@ interface TemplateResourcesProps {
   resources: WorkspaceResource[]
 }
 
-export const TemplateResourcesTable: React.FC<TemplateResourcesProps> = ({ resources }) => {
+export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({ resources }) => {
   const styles = useStyles()
 
   return (

@@ -550,7 +550,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			workspace, err := db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if err == nil {
 				if workspace.Ttl.Valid {
-					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64)).Truncate(time.Minute)
+					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
 				}
 			} else {
 				// Huh? Did the workspace get deleted?

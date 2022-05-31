@@ -1,6 +1,6 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
@@ -11,7 +11,7 @@ export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
 }
 
-export const WorkspaceBuildStats: React.FC<WorkspaceBuildStatsProps> = ({ build }) => {
+export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, build)

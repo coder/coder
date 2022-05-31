@@ -1,6 +1,6 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import React from "react"
+import { FC } from "react"
 import { BrowserRouter as Router } from "react-router-dom"
 import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
@@ -10,7 +10,7 @@ import { dark } from "./theme"
 import "./theme/globalFonts"
 import { XServiceProvider } from "./xServices/StateContext"
 
-export const App: React.FC = () => {
+export const App: FC = () => {
   return (
     <Router>
       <SWRConfig

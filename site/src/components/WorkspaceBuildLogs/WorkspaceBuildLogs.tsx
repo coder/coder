@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
-import React from "react"
+import { FC } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
@@ -37,7 +37,7 @@ export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
 }
 
-export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({ logs }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()

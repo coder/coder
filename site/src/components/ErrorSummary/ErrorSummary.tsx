@@ -1,6 +1,6 @@
 import Button from "@material-ui/core/Button"
 import RefreshIcon from "@material-ui/icons/Refresh"
-import React from "react"
+import { FC } from "react"
 import { Stack } from "../Stack/Stack"
 
 const Language = {
@@ -13,7 +13,7 @@ export interface ErrorSummaryProps {
   retry?: () => void
 }
 
-export const ErrorSummary: React.FC<ErrorSummaryProps> = ({ error, retry }) => (
+export const ErrorSummary: FC<ErrorSummaryProps> = ({ error, retry }) => (
   <Stack>
     {!(error instanceof Error) ? <div>{Language.unknownErrorMessage}</div> : <div>{error.toString()}</div>}
 

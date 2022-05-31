@@ -1,3 +1,4 @@
+import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
@@ -5,6 +6,7 @@ import { displayError, displaySuccess } from "../../components/GlobalSnackbar/ut
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
+  successSecurityUpdate: "Updated password.",
   successRegenerateSSHKey: "SSH Key regenerated successfully",
   errorRegenerateSSHKey: "Error on regenerate the SSH Key",
 }
@@ -48,8 +50,9 @@ type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 export interface AuthContext {
   getUserError?: Error | unknown
   getMethodsError?: Error | unknown
-  authError?: Error | unknown
+  authError?: Error | AxiosError | unknown
   updateProfileError?: Error | unknown
+  updateSecurityError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
@@ -64,6 +67,7 @@ export type AuthEvent =
   | { type: "SIGN_OUT" }
   | { type: "SIGN_IN"; email: string; password: string }
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
+  | { type: "UPDATE_SECURITY"; data: TypesGen.UpdateUserPasswordRequest }
   | { type: "GET_SSH_KEY" }
   | { type: "REGENERATE_SSH_KEY" }
   | { type: "CONFIRM_REGENERATE_SSH_KEY" }
@@ -164,6 +168,9 @@ export const authMachine =
           }
           updateProfile: {
             data: TypesGen.User
+          }
+          updateSecurity: {
+            data: undefined
           }
           checkPermissions: {
             data: TypesGen.UserAuthorizationResponse
@@ -302,6 +309,41 @@ export const authMachine =
               },
             },
             ssh: sshState,
+            security: {
+              initial: "idle",
+              states: {
+                idle: {
+                  initial: "noError",
+                  states: {
+                    noError: {},
+                    error: {},
+                  },
+                  on: {
+                    UPDATE_SECURITY: {
+                      target: "updatingSecurity",
+                    },
+                  },
+                },
+                updatingSecurity: {
+                  entry: "clearUpdateSecurityError",
+                  invoke: {
+                    src: "updateSecurity",
+                    onDone: [
+                      {
+                        actions: ["notifySuccessSecurityUpdate"],
+                        target: "#authState.signedIn.security.idle.noError",
+                      },
+                    ],
+                    onError: [
+                      {
+                        actions: "assignUpdateSecurityError",
+                        target: "#authState.signedIn.security.idle.error",
+                      },
+                    ],
+                  },
+                },
+              },
+            },
           },
           on: {
             SIGN_OUT: {
@@ -344,6 +386,13 @@ export const authMachine =
           }
 
           return API.updateProfile(context.me.id, event.data)
+        },
+        updateSecurity: async (context, event) => {
+          if (!context.me) {
+            throw new Error("No current user found")
+          }
+
+          return API.updateUserPassword(context.me.id, event.data)
         },
         checkPermissions: async (context) => {
           if (!context.me) {
@@ -398,6 +447,15 @@ export const authMachine =
         },
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
+        }),
+        clearUpdateSecurityError: assign({
+          updateSecurityError: (_) => undefined,
+        }),
+        notifySuccessSecurityUpdate: () => {
+          displaySuccess(Language.successSecurityUpdate)
+        },
+        assignUpdateSecurityError: assign({
+          updateSecurityError: (_, event) => event.data,
         }),
         assignPermissions: assign({
           // Setting event.data as Permissions to be more stricted. So we know

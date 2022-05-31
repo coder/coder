@@ -221,7 +221,7 @@ func TestAgent(t *testing.T) {
 
 		conn := setupAgent(t, agent.Metadata{}, 0)
 		id := uuid.NewString()
-		netConn, err := conn.ReconnectingPTY(id, 100, 100)
+		netConn, err := conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead := bufio.NewReader(netConn)
 
@@ -259,7 +259,7 @@ func TestAgent(t *testing.T) {
 		expectLine(matchEchoOutput)
 
 		_ = netConn.Close()
-		netConn, err = conn.ReconnectingPTY(id, 100, 100)
+		netConn, err = conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead = bufio.NewReader(netConn)
 

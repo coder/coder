@@ -1,5 +1,4 @@
 import SvgIcon, { SvgIconProps } from "@material-ui/core/SvgIcon"
-import React from "react"
 
 /**
  * CoderIcon represents the cloud with brackets Coder brand icon. It does not

@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { MockUser, MockUserAgent } from "../../testHelpers/renderHelpers"
 import { UserCell, UserCellProps } from "./UserCell"
 

@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { CopyButton } from "../CopyButton/CopyButton"
 
@@ -10,7 +10,7 @@ export interface CodeExampleProps {
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: React.FC<CodeExampleProps> = ({ code }) => {
+export const CodeExample: FC<CodeExampleProps> = ({ code }) => {
   const styles = useStyles()
 
   return (

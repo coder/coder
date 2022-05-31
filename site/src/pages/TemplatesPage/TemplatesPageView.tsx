@@ -1,5 +1,3 @@
-import Avatar from "@material-ui/core/Avatar"
-import Box from "@material-ui/core/Box"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -9,13 +7,13 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
-import { firstLetter } from "../../util/firstLetter"
 
 dayjs.extend(relativeTime)
 
@@ -37,7 +35,7 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
   return (
     <Stack spacing={4} className={styles.root}>
@@ -73,15 +71,11 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
             {props.templates?.map((template) => (
               <TableRow key={template.id}>
                 <TableCell>
-                  <Box alignItems="center" display="flex">
-                    <Avatar variant="square" className={styles.templateAvatar}>
-                      {firstLetter(template.name)}
-                    </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.name}`} className={styles.templateLink}>
-                      <b>{template.name}</b>
-                      <span>{template.description}</span>
-                    </Link>
-                  </Box>
+                  <AvatarData
+                    title={template.name}
+                    subtitle={template.description}
+                    link={`/templates/${template.name}`}
+                  />
                 </TableCell>
 
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
@@ -112,26 +106,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  templateAvatar: {
-    borderRadius: 2,
-    marginRight: theme.spacing(1),
-    width: 24,
-    height: 24,
-    fontSize: 16,
-  },
-  templateLink: {
-    display: "flex",
-    flexDirection: "column",
-    color: theme.palette.text.primary,
-    textDecoration: "none",
-    "&:hover": {
-      textDecoration: "underline",
-    },
-    "& span": {
-      fontSize: 12,
-      color: theme.palette.text.secondary,
     },
   },
 }))

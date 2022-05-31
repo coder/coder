@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
@@ -139,8 +138,12 @@ describe("Workspace Page", () => {
     it("shows the timeline build", async () => {
       await renderWorkspacePage()
       const table = await screen.findByTestId("builds-table")
-      const rows = table.querySelectorAll("tbody > tr")
-      expect(rows).toHaveLength(MockBuilds.length)
+
+      // Wait for the results to be loaded
+      await waitFor(async () => {
+        const rows = table.querySelectorAll("tbody > tr")
+        expect(rows).toHaveLength(MockBuilds.length)
+      })
     })
   })
 

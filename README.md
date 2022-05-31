@@ -8,9 +8,10 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Coder creates remote development machines so you can develop your code from anywhere.
+Coder creates remote development machines so you can develop your code from anywhere. #coder
 
-**Coder is in an alpha state.** But, any serious bugs are P1 for us so please report them.
+> **Note**:
+> Coder is in an alpha state, but any serious bugs are P1 for us so [please report them](https://github.com/coder/coder/issues/new/choose).
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -60,16 +61,18 @@ release](https://github.com/coder/coder/releases) on a system with at least 1
 CPU core and 2 GB RAM:
 
 1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
-1. Unzip the folder you just downloaded, and move the `coder` executable to a
-   location that's on your `PATH`
+1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
-> Make sure you have the appropriate credentials for your cloud provider (e.g.,
-> access key ID and secret access key for AWS).
+    ```sh
+    # ex. MacOS and Linux
+    mv coder /usr/local/bin 
+    ```
 
-You can set up a temporary deployment, a production deployment, or a system service:
+    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) on adding a folder to `PATH`
 
-- To set up a **temporary deployment**, start with dev mode (all data is in-memory and is
-  destroyed on exit):
+There are a few ways to run Coder:
+
+- To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
 
   ```bash
   coder server --dev
@@ -82,8 +85,7 @@ You can set up a temporary deployment, a production deployment, or a system serv
       coder server
   ```
 
-- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm`
-  (Fedora, CentOS, RHEL, SUSE):
+- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, CentOS, RHEL, SUSE):
 
   ```bash
   # Edit the configuration!
@@ -91,10 +93,12 @@ You can set up a temporary deployment, a production deployment, or a system serv
   sudo service coder restart
   ```
 
-> Use `coder --help` to get a complete list of flags and environment
-> variables.
+  > macOS and Windows users: You'll need to write your own 
+  > configuration to run Coder as a system service.
 
-See the [installation guide](./docs/install.md) for additional ways to deploy Coder.
+- See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g., docker-compose)
+
+Use `coder --help` to get a complete list of flags and environment variables.
 
 ## Creating your first template and workspace
 
@@ -149,10 +153,29 @@ coder templates update gcp-linux
   - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
 
+## Community
+
+Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
+
+[Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
+
+## Comparison
+
+Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](./docs/about.md#what-coder-is-not).
+
+| Tool                                                        | Type     | Delivery Model     | Cost                          | Environments                                                                                                                                               |
+| :---------------------------------------------------------- | :------- | :----------------- | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
+| [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
+| [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux containers                                                                                                                                           |
+
+---
+
+_As of 5/27/22_
+
 ## Contributing
 
 Read the [contributing docs](./docs/CONTRIBUTING.md).
-
-## Contributors
 
 Find our list of contributors [here](./docs/CONTRIBUTORS.md).

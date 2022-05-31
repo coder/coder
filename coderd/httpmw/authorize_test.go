@@ -84,7 +84,6 @@ func TestExtractUserRoles(t *testing.T) {
 			)
 			rtr.Use(
 				httpmw.ExtractAPIKey(db, &httpmw.OAuth2Configs{}),
-				httpmw.ExtractUserRoles(db),
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
 				roles := httpmw.UserRoles(r)

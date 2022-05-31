@@ -1,6 +1,6 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 
 export const Language = {
@@ -27,11 +27,7 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-export const FormFooter: React.FC<FormFooterProps> = ({
-  onCancel,
-  isLoading,
-  submitLabel = Language.defaultSubmitLabel,
-}) => {
+export const FormFooter: FC<FormFooterProps> = ({ onCancel, isLoading, submitLabel = Language.defaultSubmitLabel }) => {
   const styles = useStyles()
   return (
     <div className={styles.footer}>

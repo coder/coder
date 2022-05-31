@@ -4,13 +4,13 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
-import { UserCell } from "../UserCell/UserCell"
 
 export const Language = {
   pageTitle: "Users",
@@ -18,8 +18,10 @@ export const Language = {
   emptyMessage: "No users found",
   usernameLabel: "User",
   suspendMenuItem: "Suspend",
+  activateMenuItem: "Activate",
   resetPasswordMenuItem: "Reset password",
   rolesLabel: "Roles",
+  statusLabel: "Status",
 }
 
 export interface UsersTableProps {
@@ -33,7 +35,7 @@ export interface UsersTableProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({
+export const UsersTable: FC<UsersTableProps> = ({
   users,
   roles,
   onSuspendUser,
@@ -48,6 +50,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       <TableHead>
         <TableRow>
           <TableCell>{Language.usernameLabel}</TableCell>
+          <TableCell>{Language.statusLabel}</TableCell>
           <TableCell>{Language.rolesLabel}</TableCell>
           {/* 1% is a trick to make the table cell width fit the content */}
           {canEditUsers && <TableCell width="1%" />}
@@ -60,8 +63,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({
           users.map((u) => (
             <TableRow key={u.id}>
               <TableCell>
-                <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
+                <AvatarData title={u.username} subtitle={u.email} />
               </TableCell>
+              <TableCell>{u.status}</TableCell>
               <TableCell>
                 {canEditUsers ? (
                   <RoleSelect
@@ -78,16 +82,28 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                 <TableCell>
                   <TableRowMenu
                     data={u}
-                    menuItems={[
-                      {
-                        label: Language.suspendMenuItem,
-                        onClick: onSuspendUser,
-                      },
-                      {
+                    menuItems={
+                      // Return either suspend or activate depending on status
+                      (u.status === "active"
+                        ? [
+                            {
+                              label: Language.suspendMenuItem,
+                              onClick: onSuspendUser,
+                            },
+                          ]
+                        : [
+                            // TODO: Uncomment this and add activate user functionality.
+                            // {
+                            //   label: Language.activateMenuItem,
+                            //   // eslint-disable-next-line @typescript-eslint/no-empty-function
+                            //   onClick: function () {},
+                            // },
+                          ]
+                      ).concat({
                         label: Language.resetPasswordMenuItem,
                         onClick: onResetUserPassword,
-                      },
-                    ]}
+                      })
+                    }
                   />
                 </TableCell>
               )}

@@ -2,7 +2,7 @@ import DialogActions from "@material-ui/core/DialogActions"
 import DialogContent from "@material-ui/core/DialogContent"
 import DialogContentText from "@material-ui/core/DialogContentText"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { CodeBlock } from "../CodeBlock/CodeBlock"
 import { Dialog, DialogActionButtons, DialogTitle } from "../Dialog/Dialog"
@@ -26,7 +26,7 @@ export const Language = {
   confirmText: "Reset password",
 }
 
-export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({
+export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
   open,
   onClose,
   onConfirm,
