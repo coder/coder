@@ -243,6 +243,10 @@ const useStyles = makeStyles({
   form: {
     display: "flex",
     justifyContent: "center",
+
+    "& input": {
+      colorScheme: "dark",
+    },
   },
   stack: {
     // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
