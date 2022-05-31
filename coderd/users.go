@@ -474,6 +474,14 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID == user.ID {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "You cannot change your own roles.",
+		})
+		return
+	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
