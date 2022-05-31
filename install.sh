@@ -367,7 +367,7 @@ install_standalone() {
   fi
 
   "$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
-  if [ "$STANDALONE_ARCHIVE_FORMAT" == tar.gz ]; then
+  if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
     "$sh_c" tar -C "$CACHE_DIR" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
   else
     "$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
@@ -383,8 +383,8 @@ install_standalone() {
 has_standalone() {
   case $ARCH in
   amd64) return 0 ;;
-  # We only have amd64 for macOS.
-  arm64)
+  ard64) return 0 ;;
+  armv7)
     [ "$(distro)" != darwin ]
     return
     ;;
@@ -463,6 +463,7 @@ arch() {
   case $uname_m in
   aarch64) echo arm64 ;;
   x86_64) echo amd64 ;;
+  armv7l) echo armv7 ;;
   *) echo "$uname_m" ;;
   esac
 }
