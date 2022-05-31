@@ -86,8 +86,12 @@ Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/lib/coder-
 
 Extend your path to use coder:
   PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
-Then run with:
-  coder
+Then run Coder (temporary):
+  coder server --dev
+Or run a production deployment with PostgreSQL:
+    CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
+        coder server
+
 EOF
 }
 
@@ -100,7 +104,6 @@ To run Coder as a system service:
 
   # Configure the PostgreSQL database for Coder
   sudo vim /etc/coder.d/coder.env
-
   # Have systemd start Coder now and restart on boot
   sudo systemctl enable --now coder
 
@@ -108,6 +111,7 @@ Or, run a temporary deployment (all data is in-memory
 and destroyed on exit):
 
   coder server --dev
+
 EOF
 }
 
@@ -342,8 +346,8 @@ install_standalone() {
   echoh "Installing v$VERSION of the $ARCH release from GitHub."
   echoh
 
-  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_$VERSION_$OS_$ARCH.tar.gz" \
-    "$CACHE_DIR/coder_$VERSION_$OS_$ARCH.tar"
+  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.tar.gz" \
+    "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar"
 
   # -w only works if the directory exists so try creating it first. If this
   # fails we can ignore the error as the -w check will then swap us to sudo.
