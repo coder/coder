@@ -96,10 +96,18 @@ echo_systemd_postinstall() {
   cath << EOF
 $1 package has been installed.
 
-To have systemd start coder now and restart on boot:
-  sudo systemctl enable --now coder@\$USER
-Or, if you don't want/need a background service you can run:
-  coder
+To run Coder as a system service:
+
+  # Configure the PostgreSQL database for Coder
+  sudo vim /etc/coder.d/coder.env
+
+  # Have systemd start Coder now and restart on boot
+  sudo systemctl enable --now coder
+
+Or, run a temporary deployment (all data is in-memory
+and destroyed on exit):
+
+  coder server --dev
 EOF
 }
 
