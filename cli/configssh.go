@@ -29,7 +29,8 @@ import (
 const (
 	sshDefaultConfigFileName      = "~/.ssh/config"
 	sshDefaultCoderConfigFileName = "~/.ssh/coder"
-	sshCoderConfigHeader          = `# This file is managed by coder. DO NOT EDIT.
+	sshCoderConfigHeader          = "# This file is managed by coder. DO NOT EDIT."
+	sshCoderConfigDocsHeader      = `
 #
 # You should not hand-edit this file, all changes will be lost upon workspace
 # creation, deletion or when running "coder config-ssh".
@@ -131,6 +132,11 @@ func configSSH() *cobra.Command {
 			if err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return xerrors.Errorf("read ssh config failed: %w", err)
 			}
+			if len(coderConfigRaw) > 0 {
+				if !bytes.HasPrefix(coderConfigRaw, []byte(sshCoderConfigHeader)) {
+					return xerrors.Errorf("unexpected content in %s: remove the file and rerun the command to continue", coderConfigFile)
+				}
+			}
 
 			// Keep track of changes we are making.
 			var changes []string
@@ -190,6 +196,7 @@ func configSSH() *cobra.Command {
 
 			buf := &bytes.Buffer{}
 			_, _ = buf.WriteString(sshCoderConfigHeader)
+			_, _ = buf.WriteString(sshCoderConfigDocsHeader)
 
 			// Store the provided flags as part of the
 			// config for future (re)use.
