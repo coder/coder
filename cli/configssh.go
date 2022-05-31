@@ -101,6 +101,15 @@ func configSSH() *cobra.Command {
 			// TODO(mafredri): Check coderConfigFile for previous options
 			// coderConfigFile.
 
+			out := cmd.OutOrStdout()
+			if showDiff {
+				out = cmd.OutOrStderr()
+			}
+			binaryFile, err := currentBinPath(out)
+			if err != nil {
+				return err
+			}
+
 			// Only allow not-exist errors to avoid trashing
 			// the users SSH config.
 			configRaw, err := os.ReadFile(sshConfigFile)
@@ -132,11 +141,6 @@ func configSSH() *cobra.Command {
 					sep = ""
 				}
 				configModified = append(configModified, []byte(sep+sshConfigIncludeStatement+"\n")...)
-			}
-
-			binaryFile, err := currentBinPath(cmd)
-			if err != nil {
-				return err
 			}
 
 			root := createConfig(cmd)
@@ -238,13 +242,13 @@ func configSSH() *cobra.Command {
 			if showDiff {
 				if len(changes) > 0 {
 					// Write to stderr to avoid dirtying the diff output.
-					_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Changes:\n\n")
+					_, _ = fmt.Fprint(out, "Changes:\n\n")
 					for _, change := range changes {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "* %s\n", change)
+						_, _ = fmt.Fprintf(out, "* %s\n", change)
 					}
 				}
 
-				color := isTTY(cmd)
+				color := isTTYOut(cmd)
 				for _, diffFn := range []func() ([]byte, error){
 					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified, color) },
 					func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, buf.Bytes(), color) },
@@ -255,6 +259,7 @@ func configSSH() *cobra.Command {
 					}
 					if len(diff) > 0 {
 						filesDiffer = true
+						// Always write to stdout.
 						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%s", diff)
 					}
 				}
@@ -268,9 +273,9 @@ func configSSH() *cobra.Command {
 					IsConfirm: true,
 				})
 				if err != nil {
-					return err
+					return nil
 				}
-				_, _ = fmt.Fprint(cmd.OutOrStdout(), "\n")
+				_, _ = fmt.Fprint(out, "\n")
 
 				if !bytes.Equal(configRaw, configModified) {
 					err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configRaw))
@@ -287,10 +292,10 @@ func configSSH() *cobra.Command {
 			}
 
 			if len(workspaces) > 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "You should now be able to ssh into your workspace")
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
+				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
+				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
 			} else {
-				_, _ = fmt.Fprint(cmd.OutOrStdout(), "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n\n")
+				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n\n")
 			}
 			return nil
 		},
@@ -347,7 +352,7 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 
 // currentBinPath returns the path to the coder binary suitable for use in ssh
 // ProxyCommand.
-func currentBinPath(cmd *cobra.Command) (string, error) {
+func currentBinPath(w io.Writer) (string, error) {
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", xerrors.Errorf("get executable path: %w", err)
@@ -363,11 +368,12 @@ func currentBinPath(cmd *cobra.Command) (string, error) {
 	// correctly. Check if the current executable is in $PATH, and warn the user
 	// if it isn't.
 	if err != nil && runtime.GOOS == "windows" {
-		cliui.Warn(cmd.OutOrStdout(),
+		cliui.Warn(w,
 			"The current executable is not in $PATH.",
 			"This may lead to problems connecting to your workspace via SSH.",
 			fmt.Sprintf("Please move %q to a location in your $PATH (such as System32) and run `%s config-ssh` again.", binName, binName),
 		)
+		_, _ = fmt.Fprint(w, "\n")
 		// Return the exePath so SSH at least works outside of Msys2.
 		return exePath, nil
 	}
@@ -375,12 +381,13 @@ func currentBinPath(cmd *cobra.Command) (string, error) {
 	// Warn the user if the current executable is not the same as the one in
 	// $PATH.
 	if filepath.Clean(pathPath) != filepath.Clean(exePath) {
-		cliui.Warn(cmd.OutOrStdout(),
+		cliui.Warn(w,
 			"The current executable path does not match the executable path found in $PATH.",
 			"This may cause issues connecting to your workspace via SSH.",
 			fmt.Sprintf("\tCurrent executable path: %q", exePath),
 			fmt.Sprintf("\tExecutable path in $PATH: %q", pathPath),
 		)
+		_, _ = fmt.Fprint(w, "\n")
 	}
 
 	return binName, nil
