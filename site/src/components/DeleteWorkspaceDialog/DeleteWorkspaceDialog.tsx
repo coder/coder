@@ -24,6 +24,6 @@ export const DeleteWorkspaceDialog: React.FC<DeleteWorkspaceDialogProps> = ({
     title={Language.deleteDialogTitle}
     onConfirm={handleConfirm}
     onClose={handleCancel}
-    description={<>{Language.deleteDialogMessage}</>}
+    description={Language.deleteDialogMessage}
   />
 )
