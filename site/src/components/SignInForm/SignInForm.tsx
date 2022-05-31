@@ -110,7 +110,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
           type="password"
           variant="outlined"
         />
-        {authErrorMessage && <FormHelperText error>{Language.authErrorMessage}</FormHelperText>}
+        {authErrorMessage && <FormHelperText error>{authErrorMessage}</FormHelperText>}
         {methodsErrorMessage && <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>}
         <div className={styles.submitBtn}>
           <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">

@@ -24,5 +24,10 @@ export CODER_DEV_ADMIN_PASSWORD=password
 	trap 'kill 0' SIGINT
 	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
 	go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
+
+	# Just a minor sleep to ensure the first user was created to make the member.
+	sleep 2
+	# || yes to always exit code 0. If this fails, whelp.
+	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || yes
 	wait
 )

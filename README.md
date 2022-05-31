@@ -8,10 +8,10 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Coder creates remote development machines so you can develop your code from anywhere.
+Coder creates remote development machines so you can develop your code from anywhere. #coder
 
 > **Note**:
-> Coder is in an alpha state, but any serious bugs are P1 for us so please report them.
+> Coder is in an alpha state, but any serious bugs are P1 for us so [please report them](https://github.com/coder/coder/issues/new/choose).
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -152,6 +152,12 @@ coder templates update gcp-linux
   - [Editors and IDEs](./docs/workspaces.md#editors-and-ides)
   - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
+
+## Community
+
+Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
+
+[Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
 
 ## Comparison
 

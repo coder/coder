@@ -29,6 +29,6 @@ ignore:
   - peerbroker/proto
   - provisionerd/proto
   - provisionersdk/proto
-  - scripts/datadog-cireport
+  - scripts
   - site/.storybook
   - rules.go

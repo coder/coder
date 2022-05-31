@@ -9,6 +9,7 @@ import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
 import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
+import { SecurityPage } from "./pages/SettingsPages/SecurityPage/SecurityPage"
 import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import { TemplatePage } from "./pages/TemplatePage/TemplatePage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
@@ -126,6 +127,7 @@ export const AppRouter: React.FC = () => (
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />
+          <Route path="security" element={<SecurityPage />} />
           <Route path="ssh-keys" element={<SSHKeysPage />} />
         </Route>
 

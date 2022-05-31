@@ -2,15 +2,18 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -81,6 +84,35 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
+	t.Run("Suspended", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		memberUser, err := member.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch member user")
+
+		_, err = client.UpdateUserStatus(context.Background(), memberUser.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err, "suspend member")
+
+		// Test an existing session
+		_, err = member.User(context.Background(), codersdk.Me)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "contact an admin")
+
+		// Test a new session
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    memberUser.Email,
+			Password: "testpass",
+		})
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "suspended")
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -103,27 +135,71 @@ func TestPostLogin(t *testing.T) {
 func TestPostLogout(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ClearCookie", func(t *testing.T) {
+	// Checks that the cookie is cleared and the API Key is deleted from the database.
+	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		ctx := context.Background()
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		keyID := strings.Split(client.SessionToken, "-")[0]
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		require.NoError(t, err)
+		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
+
 		fullURL, err := client.URL.Parse("/api/v2/users/logout")
 		require.NoError(t, err, "Server URL should parse successfully")
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, fullURL.String(), nil)
-		require.NoError(t, err, "/logout request construction should succeed")
-
-		httpClient := &http.Client{}
-
-		response, err := httpClient.Do(req)
+		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
 		require.NoError(t, err, "/logout request should succeed")
-		response.Body.Close()
+		res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		cookies := response.Cookies()
+		cookies := res.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
-		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
+		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
+		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
+	})
+
+	t.Run("LogoutWithoutKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		keyID := strings.Split(client.SessionToken, "-")[0]
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		require.NoError(t, err)
+		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
+
+		// Setting a fake database without the API Key to be used by the API.
+		// The middleware that extracts the API key is already set to read
+		// from the original database.
+		dbWithoutKey := databasefake.New()
+		api.Database = dbWithoutKey
+
+		fullURL, err := client.URL.Parse("/api/v2/users/logout")
+		require.NoError(t, err, "Server URL should parse successfully")
+
+		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
+		require.NoError(t, err, "/logout request should succeed")
+		res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		cookies := res.Cookies()
+		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
+
+		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
+		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
 	})
 }
 
@@ -212,32 +288,12 @@ func TestUpdateUserProfile(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.UpdateUserProfile(context.Background(), uuid.New().String(), codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
-			Email:    "newemail@coder.com",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		// Right now, we are raising a BAD request error because we don't support a
 		// user accessing other users info
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("ConflictingEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		existentUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-			Email:          "bruno@coder.com",
-			Username:       "bruno",
-			Password:       "password",
-			OrganizationID: user.OrganizationID,
-		})
-		_, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: "newusername",
-			Email:    existentUser.Email,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
 	t.Run("ConflictingUsername", func(t *testing.T) {
@@ -253,38 +309,22 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: existentUser.Username,
-			Email:    "newemail@coder.com",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdateUsernameAndEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: "newusername",
-			Email:    "newemail@coder.com",
-		})
-		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, "newusername")
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
-	})
-
 	t.Run("UpdateUsername", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		me, _ := client.User(context.Background(), codersdk.Me)
+		_, _ = client.User(context.Background(), codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: me.Username,
-			Email:    "newemail@coder.com",
+			Username: "newusername",
 		})
 		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, me.Username)
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
+		require.Equal(t, userProfile.Username, "newusername")
 	})
 }
 

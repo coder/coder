@@ -8,6 +8,7 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -63,8 +64,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
       <Stack direction="row" spacing={3} className={styles.layout}>
         <Stack spacing={3} className={styles.main}>
+          <WorkspaceScheduleBanner workspace={workspace} />
+
           <WorkspaceStats workspace={workspace} />
+
           <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
