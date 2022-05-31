@@ -400,7 +400,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 		TemplateID:        templateID,
 		Name:              randomUsername(),
 		AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-		TTL:               ptr(8 * time.Hour),
+		TTLMillis:         ptr((8 * time.Hour).Milliseconds()),
 	}
 	for _, mutator := range mutators {
 		mutator(&req)

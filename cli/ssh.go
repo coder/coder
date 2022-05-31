@@ -290,7 +290,7 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.TTL == nil || *ws.TTL == 0 {
+		if ws.TTLMillis == nil || *ws.TTLMillis == 0 {
 			return time.Time{}, nil
 		}
 

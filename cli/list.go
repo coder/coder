@@ -87,15 +87,16 @@ func list() *cobra.Command {
 
 				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"
-				if workspace.AutostartSchedule != "" {
-					if sched, err := schedule.Weekly(workspace.AutostartSchedule); err == nil {
+				if workspace.AutostartSchedule != nil && *workspace.AutostartSchedule != "" {
+					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
 						autostartDisplay = sched.Cron()
 					}
 				}
 
 				autostopDisplay := "-"
-				if workspace.TTL != nil {
-					autostopDisplay = durationDisplay(*workspace.TTL)
+				if workspace.TTLMillis != nil && *workspace.TTLMillis > 0 {
+					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
+					autostopDisplay = durationDisplay(dur)
 					if has, ext := hasExtension(workspace); has {
 						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext.Round(time.Minute)))
 					}
@@ -128,10 +129,11 @@ func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
 	if ws.LatestBuild.Deadline.IsZero() {
 		return false, 0
 	}
-	if ws.TTL == nil {
+	if ws.TTLMillis == nil {
 		return false, 0
 	}
-	delta := ws.LatestBuild.Deadline.Add(-*ws.TTL).Sub(ws.LatestBuild.CreatedAt)
+	ttl := time.Duration(*ws.TTLMillis) * time.Millisecond
+	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(ws.LatestBuild.CreatedAt)
 	if delta < time.Minute {
 		return false, 0
 	}

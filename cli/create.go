@@ -222,11 +222,12 @@ func create() *cobra.Command {
 				return err
 			}
 
+			ttlMillis := ttl.Milliseconds()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
 				AutostartSchedule: &schedSpec,
-				TTL:               &ttl,
+				TTLMillis:         &ttlMillis,
 				ParameterValues:   parameters,
 			})
 			if err != nil {
