@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/WorkspaceActions"

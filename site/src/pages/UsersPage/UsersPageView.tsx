@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Margins } from "../../components/Margins/Margins"
@@ -27,7 +27,7 @@ export interface UsersPageViewProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersPageView: React.FC<UsersPageViewProps> = ({
+export const UsersPageView: FC<UsersPageViewProps> = ({
   users,
   roles,
   openUserCreationDialog,

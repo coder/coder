@@ -4,7 +4,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import React from "react"
+import { ReactElement } from "react"
 import { TableHeaders } from "../TableHeaders/TableHeaders"
 import { TableTitle } from "../TableTitle/TableTitle"
 
@@ -21,7 +21,7 @@ export type Column<T> = {
     /**
      * Custom render for the field inside the table
      */
-    renderer?: (field: T[K], data: T) => React.ReactElement
+    renderer?: (field: T[K], data: T) => ReactElement
   }
 }[keyof T]
 
@@ -41,14 +41,14 @@ export interface TableProps<T> {
   /**
    * Optional empty state UI when the data is empty
    */
-  emptyState?: React.ReactElement
+  emptyState?: ReactElement
   /**
    * Optional element to render row actions like delete, update, etc
    */
-  rowMenu?: (data: T) => React.ReactElement
+  rowMenu?: (data: T) => ReactElement
 }
 
-export const Table = <T,>({ columns, data, emptyState, title, rowMenu }: TableProps<T>): React.ReactElement => {
+export const Table = <T,>({ columns, data, emptyState, title, rowMenu }: TableProps<T>): ReactElement => {
   const columnNames = columns.map(({ name }) => name)
   const body = renderTableBody(data, columns, emptyState, rowMenu)
 
@@ -69,8 +69,8 @@ export const Table = <T,>({ columns, data, emptyState, title, rowMenu }: TablePr
 const renderTableBody = <T,>(
   data: T[],
   columns: Column<T>[],
-  emptyState?: React.ReactElement,
-  rowMenu?: (data: T) => React.ReactElement,
+  emptyState?: ReactElement,
+  rowMenu?: (data: T) => ReactElement,
 ) => {
   if (data.length > 0) {
     const rows = data.map((item: T, index) => {

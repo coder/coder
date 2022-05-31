@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 
 export interface FormSectionProps {
   title: string
@@ -39,7 +39,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormSection: React.FC<FormSectionProps> = ({ title, description, children }) => {
+export const FormSection: FC<FormSectionProps> = ({ title, description, children }) => {
   const styles = useStyles()
 
   return (

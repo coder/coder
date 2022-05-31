@@ -1,7 +1,7 @@
 import MenuItem from "@material-ui/core/MenuItem"
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
-import React from "react"
+import { FC, useState } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
@@ -33,8 +33,8 @@ export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
 })
 
-export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (props) => {
-  const [parameterValues, setParameterValues] = React.useState<Record<string, string>>({})
+export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props) => {
+  const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
     initialValues: {
       name: "",

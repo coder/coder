@@ -10,7 +10,7 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
@@ -31,7 +31,7 @@ export interface WorkspacesPageViewProps {
   error?: unknown
 }
 
-export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => {
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
   return (

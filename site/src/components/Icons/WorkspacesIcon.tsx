@@ -1,5 +1,4 @@
 import SvgIcon from "@material-ui/core/SvgIcon"
-import React from "react"
 
 export const WorkspacesIcon: typeof SvgIcon = (props) => (
   <SvgIcon {...props} viewBox="0 0 16 16">

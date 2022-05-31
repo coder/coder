@@ -4,7 +4,7 @@ import CancelIcon from "@material-ui/icons/Cancel"
 import CloudDownloadIcon from "@material-ui/icons/CloudDownload"
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import StopIcon from "@material-ui/icons/Stop"
-import React from "react"
+import { FC } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
@@ -46,7 +46,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void
 }
 
-export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
+export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
   handleStart,
   handleStop,

@@ -2,7 +2,7 @@ import Checkbox from "@material-ui/core/Checkbox"
 import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
 import { makeStyles, Theme } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { Role } from "../../api/typesGenerated"
 
 export const Language = {
@@ -16,7 +16,7 @@ export interface RoleSelectProps {
   open?: boolean
 }
 
-export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
+export const RoleSelect: FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")

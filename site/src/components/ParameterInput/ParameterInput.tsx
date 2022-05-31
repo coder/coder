@@ -4,7 +4,7 @@ import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { lighten, makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import React from "react"
+import { FC } from "react"
 import { ParameterSchema } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
@@ -14,7 +14,7 @@ export interface ParameterInputProps {
   onChange: (value: string) => void
 }
 
-export const ParameterInput: React.FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
+export const ParameterInput: FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
   const styles = useStyles()
   return (
     <Paper className={styles.paper}>

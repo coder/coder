@@ -7,7 +7,7 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
@@ -35,7 +35,7 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
   return (
     <Stack spacing={4} className={styles.root}>

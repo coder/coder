@@ -1,19 +1,19 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
-import React from "react"
+import { FC } from "react"
 
 export interface TableHeadersProps {
   columns: string[]
   hasMenu?: boolean
 }
 
-export const TableHeaderRow: React.FC = ({ children }) => {
+export const TableHeaderRow: FC = ({ children }) => {
   const styles = useStyles()
   return <TableRow className={styles.root}>{children}</TableRow>
 }
 
-export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) => {
+export const TableHeaders: FC<TableHeadersProps> = ({ columns, hasMenu }) => {
   return (
     <TableHeaderRow>
       {columns.map((c, idx) => (

@@ -3,7 +3,7 @@ import AlertTitle from "@material-ui/lab/AlertTitle"
 import dayjs from "dayjs"
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
 import utc from "dayjs/plugin/utc"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 
 dayjs.extend(utc)
@@ -35,7 +35,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: React.FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
+export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
   if (!shouldDisplay(workspace)) {
     return null
   } else {

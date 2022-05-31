@@ -1,7 +1,7 @@
 import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
-import React from "react"
+import { FC } from "react"
 
 const useStyles = makeStyles((theme: Theme) => ({
   arrowIcon: {
@@ -15,12 +15,12 @@ const useStyles = makeStyles((theme: Theme) => ({
   },
 }))
 
-export const OpenDropdown: React.FC = () => {
+export const OpenDropdown: FC = () => {
   const styles = useStyles()
   return <KeyboardArrowDown className={styles.arrowIcon} />
 }
 
-export const CloseDropdown: React.FC = () => {
+export const CloseDropdown: FC = () => {
   const styles = useStyles()
   return <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
 }
