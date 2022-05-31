@@ -14,16 +14,17 @@ export interface FormFooterProps {
   submitLabel?: string
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   footer: {
     display: "flex",
     flex: "0",
     flexDirection: "row",
-    justifyContent: "center",
+    gap: theme.spacing(1.5),
     alignItems: "center",
+    marginTop: theme.spacing(3),
   },
   button: {
-    margin: "1em",
+    width: "100%",
   },
 }))
 
