@@ -124,7 +124,10 @@ export const validationSchema = Yup.object({
         }
       }
     }),
-  ttl: Yup.number().min(0).integer(),
+  ttl: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * 7 /* 7 days */),
 })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
