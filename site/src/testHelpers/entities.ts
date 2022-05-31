@@ -182,10 +182,7 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuild,
-    job: {
-      ...MockProvisionerJob,
-      status: "succeeded",
-    },
+    job: MockRunningProvisionerJob,
     transition: "start",
   },
 }
