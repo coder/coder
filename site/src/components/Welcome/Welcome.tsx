@@ -12,11 +12,7 @@ export const Welcome: FC = () => {
         <CoderIcon className={styles.logo} />
       </div>
       <Typography className={styles.title} variant="h1">
-        <>
-          Welcome to
-          <br />
-          Coder
-        </>
+        Welcome to <strong>Coder</strong>
       </Typography>
     </div>
   )
