@@ -84,8 +84,9 @@ echo_standalone_postinstall() {
   cath << EOF
 Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/lib/coder-$VERSION
 
-Extend your path to use coder:
+Extend your path to use Coder:
   PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
+
 Then run Coder (temporary):
   coder server --dev
 Or run a production deployment with PostgreSQL:
@@ -366,9 +367,8 @@ install_standalone() {
   fi
 
   "$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/lib" "$STANDALONE_INSTALL_PREFIX/bin"
-  "$sh_c" tar -C "$STANDALONE_INSTALL_PREFIX/lib" -xzf "$CACHE_DIR/coder_$${VERSION}_${OS}_${ARCH}.tar"
-  "$sh_c" mv -f "$STANDALONE_INSTALL_PREFIX/lib/coder_$${VERSION}_${OS}_${ARCH}" "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION"
-  "$sh_c" ln -fs "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION/bin/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
+  "$sh_c" tar -C "$STANDALONE_INSTALL_PREFIX/lib" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar"
+  "$sh_c" ln -fs "$STANDALONE_INSTALL_PREFIX/lib/coder/bin/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
 
   echo_standalone_postinstall
 }
