@@ -1,7 +1,11 @@
+import Link from "@material-ui/core/Link"
 import MenuItem from "@material-ui/core/MenuItem"
+import { makeStyles } from "@material-ui/core/styles"
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
+import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import { FormikContextType, useFormik } from "formik"
 import { FC, useState } from "react"
+import { Link as RouterLink } from "react-router-dom"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
@@ -34,6 +38,7 @@ export const validationSchema = Yup.object({
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props) => {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
+  const styles = useStyles()
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
     initialValues: {
       name: "",
@@ -66,6 +71,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
     },
   })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(form)
+  const selectedTemplate =
+    props.templates &&
+    form.values.template_id &&
+    props.templates.find((template) => template.id === form.values.template_id)
 
   const handleTemplateChange: TextFieldProps["onChange"] = (event) => {
     if (!props.templates) {
@@ -99,6 +108,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
               label={Language.templateLabel}
               variant="outlined"
               select
+              helperText={
+                selectedTemplate && (
+                  <Link
+                    className={styles.readMoreLink}
+                    component={RouterLink}
+                    to={`/templates/${selectedTemplate.name}`}
+                    target="_blank"
+                  >
+                    Read more about this template <OpenInNewIcon />
+                  </Link>
+                )
+              }
             >
               {props.templates.map((template) => (
                 <MenuItem key={template.id} value={template.id}>
@@ -146,3 +167,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
     </FullPageForm>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  readMoreLink: {
+    display: "flex",
+    alignItems: "center",
+
+    "& svg": {
+      width: 12,
+      height: 12,
+      marginLeft: theme.spacing(0.5),
+    },
+  },
+}))

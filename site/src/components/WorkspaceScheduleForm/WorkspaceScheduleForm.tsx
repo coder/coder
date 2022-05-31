@@ -167,8 +167,8 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack className={styles.stack}>
+      <form onSubmit={form.handleSubmit}>
+        <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
             disabled={form.isSubmitting || isLoading}
@@ -212,6 +212,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                       disabled={!form.values.startTime || form.isSubmitting || isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
+                      color="primary"
+                      size="small"
+                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -240,18 +243,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 }
 
 const useStyles = makeStyles({
-  form: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  stack: {
-    // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
-    //         to render on one line. If we change the text, we might want to
-    //         adjust these. Without constraining the width, the date picker
-    //         and number inputs aren't visually appealing or maximally usable.
-    maxWidth: 360,
-    minWidth: 360,
-  },
   daysOfWeekLabel: {
     fontSize: 12,
   },
