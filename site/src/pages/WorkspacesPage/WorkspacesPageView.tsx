@@ -30,6 +30,7 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   loading?: boolean
   workspaces?: TypesGen.Workspace[]
+  me?: TypesGen.User
   error?: unknown
 }
 
@@ -37,39 +38,50 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
   const styles = useStyles()
   const theme: Theme = useTheme()
   const [filteredWorkspaces, setFilteredWorkspaces] = useState<TypesGen.Workspace[] | undefined>(props.workspaces)
-  const [query, setQuery] = useState<string>("owner:f0ssel")
-  const handleQueryChange = useCallback(() => {
-      setQuery((query) => query)
+  const [query, setQuery] = useState<string>("owner:me")
+  const updateQuery = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value
+    setQuery(input)
 
-      if (query.length && filteredWorkspaces?.length) {
-        const owners: string[] = []
-        const newWorkspacers: TypesGen.Workspace[] = []
-        const phrases = query.split(" ")
-        for (const p of phrases) {
-          if (p.startsWith("owner:")) {
-            owners.push(p.slice("owner:".length))
+    if (input.length && props.workspaces?.length) {
+      const owners: string[] = []
+      const newWorkspaces: TypesGen.Workspace[] = []
+      const phrases = input.split(" ")
+      for (const p of phrases) {
+        if (p.startsWith("owner:")) {
+          let v = p.slice("owner:".length)
+          if (v === "me" && props.me) {
+            v = props.me.username
           }
+          owners.push(v)
         }
-
-        for (const w of filteredWorkspaces) {
-          for (const o of owners) {
-            if (o === w.owner_name) {
-              newWorkspacers.push(w)
-            }
-          }
-        }
-        setFilteredWorkspaces(newWorkspacers)
       }
-  }, [query, filteredWorkspaces])
+
+      for (const w of props.workspaces) {
+        for (const o of owners) {
+          if (o === w.owner_name) {
+            newWorkspaces.push(w)
+          }
+        }
+      }
+      setFilteredWorkspaces(newWorkspaces)
+    }
+  }
+  const handleQueryChange = useCallback(updateQuery, [props.workspaces, props.me])
 
   return (
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
-          <TextField
-            onChange={handleQueryChange}
-            value={query}
-          />
+        <form>
+            <TextField
+              onChange={handleQueryChange}
+              value={query}
+              fullWidth
+              label="Filter"
+              variant="outlined"
+            />
+        </form>
           <Link underline="none" component={RouterLink} to="/workspaces/new">
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
