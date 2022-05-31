@@ -456,6 +456,18 @@ func TestGrantRoles(t *testing.T) {
 		})
 		require.Error(t, err, "member cannot change other's org roles")
 		requireStatusCode(t, err, http.StatusForbidden)
+
+		_, err = admin.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self org roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
@@ -508,7 +520,7 @@ func TestGrantRoles(t *testing.T) {
 		require.NoError(t, err, "grant member admin role")
 
 		// Promote to org admin
-		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to org admin
 				rbac.RoleOrgMember(first.OrganizationID),
