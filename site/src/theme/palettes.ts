@@ -1,10 +1,6 @@
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 
 /**
- * Augment MUI Palette with Coder-specific design system
- */
-
-/**
  * Dark theme color palette
  *
  * This maps to our design system at:
