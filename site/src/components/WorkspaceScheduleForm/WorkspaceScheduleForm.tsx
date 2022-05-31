@@ -177,7 +177,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             }}
             label={Language.startTimeLabel}
             type="time"
-            variant="standard"
           />
 
           <TextField
@@ -195,7 +194,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
               shrink: true,
             }}
             label={Language.timezoneLabel}
-            variant="standard"
           />
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
@@ -232,7 +230,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            variant="standard"
           />
 
           <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
