@@ -409,11 +409,11 @@ func TestGrantRoles(t *testing.T) {
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
+		var err error
+
 		admin := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, admin)
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "member user")
 
 		_, err = admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
@@ -445,7 +445,7 @@ func TestGrantRoles(t *testing.T) {
 		require.Error(t, err, "member cannot change other's roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
-		_, err = member.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
+		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "member cannot change any roles")
