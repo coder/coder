@@ -90,12 +90,14 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 		go func() {
 			select {
 			case <-timeoutCtx.Done():
-				_ = conn.CloseWithError(xerrors.New("cache timeout"))
 			case <-conn.Closed():
 			}
 			c.connMutex.Lock()
 			delete(c.conns, id)
 			c.connMutex.Unlock()
+			// This should close after the delete so callers
+			// can check the `Closed()` channel for this to be expired.
+			_ = conn.CloseWithError(xerrors.New("cache timeout"))
 		}()
 		c.connMutex.Lock()
 		c.conns[id] = conn

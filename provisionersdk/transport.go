@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
@@ -45,11 +46,14 @@ func Conn(session *yamux.Session) drpc.Conn {
 }
 
 type readWriteCloser struct {
+	closeMutex sync.Mutex
 	io.ReadCloser
 	io.WriteCloser
 }
 
 func (c *readWriteCloser) Close() error {
+	c.closeMutex.Lock()
+	defer c.closeMutex.Unlock()
 	err := c.ReadCloser.Close()
 	if err != nil {
 		return err
