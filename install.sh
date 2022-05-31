@@ -91,16 +91,6 @@ Then run with:
 EOF
 }
 
-echo_brew_postinstall() {
-  echoh
-  cath << EOF
-Brew release has been installed.
-
-Run with:
-  coder
-EOF
-}
-
 echo_systemd_postinstall() {
   echoh
   cath << EOF
@@ -238,17 +228,9 @@ main() {
   DISTRO=${DISTRO:-$(distro)}
 
   case $DISTRO in
-    # macOS uses brew when available and falls back to standalone.
-    macos)
-      BREW_PATH="${BREW_PATH-brew}"
-      if command_exists "$BREW_PATH"; then
-        install_brew
-      else
-        echoh "Homebrew not installed."
-        echoh "Falling back to standalone installation."
-        install_standalone
-      fi
-      ;;
+    # macOS uses the standalone installation for now.
+    # Homebrew support is planned. See: https://github.com/coder/coder/issues/1925
+    macos) install_standalone ;;
     # The .deb and .rpm files are pulled from GitHub.
     debian) install_deb ;;
     fedora | opensuse) install_rpm ;;
@@ -316,15 +298,6 @@ fetch() {
     -C - \
     "$URL"
   sh_c mv "$FILE.incomplete" "$FILE"
-}
-
-install_brew() {
-  echoh "Installing latest from Homebrew."
-  echoh
-
-  sh_c "$BREW_PATH" install coder
-
-  echo_brew_postinstall
 }
 
 install_deb() {
