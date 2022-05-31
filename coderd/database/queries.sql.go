@@ -2115,7 +2115,8 @@ type GetAuthorizationUserRolesRow struct {
 	Roles    []string   `db:"roles" json:"roles"`
 }
 
-// This function
+// This function returns roles for authorization purposes. Implied member roles
+// are included.
 func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
 	var i GetAuthorizationUserRolesRow
