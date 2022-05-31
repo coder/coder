@@ -22,12 +22,15 @@ export const Language = {
   signOutLabel: "Sign Out",
 }
 export interface UserDropdownProps {
-  isOpen?: boolean // *DO NOT USE* Only used for testing via Storybook
   user: TypesGen.User
+  /**
+   * isOpen, defaults to false, only used for testing, to open the menu without clicking
+   */
+  isOpen?: boolean
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen, user, onSignOut }: UserDropdownProps) => {
+export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen = false, user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -52,7 +55,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen, user, onSign
       <BorderedMenu
         anchorEl={anchorEl}
         getContentAnchorEl={null}
-        open={!!anchorEl || !!isOpen}
+        open={!!anchorEl || isOpen}
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
