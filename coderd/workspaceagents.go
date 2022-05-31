@@ -419,7 +419,9 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	if err != nil {
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
-	options := &peer.ConnOptions{}
+	options := &peer.ConnOptions{
+		Logger: api.Logger.Named("agent-dialer"),
+	}
 	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	options.SettingEngine.SetRelayAcceptanceMinWait(0)
 	// Use the ProxyDialer for the TURN server.

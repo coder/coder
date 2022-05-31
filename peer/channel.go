@@ -257,6 +257,11 @@ func (c *Channel) Label() string {
 	return c.dc.Label()
 }
 
+// ID returns the label of the underlying DataChannel.
+func (c *Channel) ID() uint16 {
+	return *c.dc.ID()
+}
+
 // Protocol returns the protocol of the underlying DataChannel.
 func (c *Channel) Protocol() string {
 	return c.dc.Protocol()

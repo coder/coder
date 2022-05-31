@@ -113,23 +113,17 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	conn, err := api.dialWorkspaceAgent(r, agent.ID)
+	conn, release, err := api.workspaceAgentCache.Acquire(r, agent.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("dial workspace agent: %s", err),
 		})
 		return
 	}
+	defer release()
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
-	defaultTransport, valid := http.DefaultTransport.(*http.Transport)
-	if !valid {
-		panic("dev error: default transport isn't a transport")
-	}
-
-	transport := defaultTransport.Clone()
-	transport.DialContext = conn.DialContext
-	proxy.Transport = transport
+	proxy.Transport = conn.HTTPTransport()
 	r.URL.Path = chi.URLParam(r, "*")
 	proxy.ServeHTTP(rw, r)
 }

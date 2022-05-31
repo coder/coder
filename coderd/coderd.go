@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
@@ -80,6 +81,7 @@ func New(options *Options) *API {
 		Options: options,
 		Handler: r,
 	}
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -348,18 +350,16 @@ func New(options *Options) *API {
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
-
-	// /workspaceapps/auth
-
 	return api
 }
 
 type API struct {
 	*Options
 
-	Handler            chi.Router
-	websocketWaitMutex sync.Mutex
-	websocketWaitGroup sync.WaitGroup
+	Handler             chi.Router
+	websocketWaitMutex  sync.Mutex
+	websocketWaitGroup  sync.WaitGroup
+	workspaceAgentCache *wsconncache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
