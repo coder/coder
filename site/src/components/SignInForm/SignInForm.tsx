@@ -146,7 +146,7 @@ export const SignInForm: FC<SignInFormProps> = ({
         <>
           <div className={styles.divider}>
             <div className={styles.dividerLine} />
-            <div className={styles.dividerLabel}>Or sign in with</div>
+            <div className={styles.dividerLabel}>Or</div>
             <div className={styles.dividerLine} />
           </div>
 
