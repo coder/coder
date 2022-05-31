@@ -27,7 +27,12 @@ export const Footer: React.FC = ({ children }) => {
       </div>
       {buildInfoState.context.buildInfo && (
         <div className={styles.buildInfo}>
-          <Link variant="caption" target="_blank" href={buildInfoState.context.buildInfo.external_url}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={buildInfoState.context.buildInfo.external_url}
+          >
             {Language.buildInfoText(buildInfoState.context.buildInfo)}
           </Link>
         </div>
@@ -38,6 +43,7 @@ export const Footer: React.FC = ({ children }) => {
 
 const useFooterStyles = makeStyles((theme) => ({
   root: {
+    opacity: 0.6,
     textAlign: "center",
     flex: "0",
     paddingTop: theme.spacing(2),
@@ -49,5 +55,9 @@ const useFooterStyles = makeStyles((theme) => ({
   },
   buildInfo: {
     margin: theme.spacing(0.25),
+  },
+  link: {
+    color: theme.palette.text.secondary,
+    fontWeight: 600,
   },
 }))
