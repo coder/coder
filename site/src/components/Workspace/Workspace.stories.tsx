@@ -1,20 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import {
-  MockCanceledWorkspace,
-  MockCancelingWorkspace,
-  MockDeletedWorkspace,
-  MockDeletingWorkspace,
-  MockFailedWorkspace,
-  MockOutdatedWorkspace,
-  MockStartingWorkspace,
-  MockStoppedWorkspace,
-  MockStoppingWorkspace,
-  MockWorkspace,
-  MockWorkspaceBuild,
-  MockWorkspaceResource,
-  MockWorkspaceResource2,
-} from "../../testHelpers/renderHelpers"
+import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceProps } from "./Workspace"
 
 export default {
@@ -27,63 +13,73 @@ const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 
 export const Started = Template.bind({})
 Started.args = {
-  workspace: MockWorkspace,
+  workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),
-  resources: [MockWorkspaceResource, MockWorkspaceResource2],
-  builds: [MockWorkspaceBuild],
+  resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  builds: [Mocks.MockWorkspaceBuild],
 }
 
 export const Starting = Template.bind({})
 Starting.args = {
   ...Started.args,
-  workspace: MockStartingWorkspace,
+  workspace: Mocks.MockStartingWorkspace,
 }
 
 export const Stopped = Template.bind({})
 Stopped.args = {
   ...Started.args,
-  workspace: MockStoppedWorkspace,
+  workspace: Mocks.MockStoppedWorkspace,
 }
 
 export const Stopping = Template.bind({})
 Stopping.args = {
   ...Started.args,
-  workspace: MockStoppingWorkspace,
+  workspace: Mocks.MockStoppingWorkspace,
 }
 
 export const Error = Template.bind({})
 Error.args = {
   ...Started.args,
-  workspace: MockFailedWorkspace,
+  workspace: {
+    ...Mocks.MockFailedWorkspace,
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      job: {
+        ...Mocks.MockProvisionerJob,
+        status: "failed",
+      },
+      transition: "start",
+    },
+  },
 }
 
 export const Deleting = Template.bind({})
 Deleting.args = {
   ...Started.args,
-  workspace: MockDeletingWorkspace,
+  workspace: Mocks.MockDeletingWorkspace,
 }
 
 export const Deleted = Template.bind({})
 Deleted.args = {
   ...Started.args,
-  workspace: MockDeletedWorkspace,
+  workspace: Mocks.MockDeletedWorkspace,
 }
 
 export const Canceling = Template.bind({})
 Canceling.args = {
   ...Started.args,
-  workspace: MockCancelingWorkspace,
+  workspace: Mocks.MockCancelingWorkspace,
 }
 
 export const Canceled = Template.bind({})
 Canceled.args = {
   ...Started.args,
-  workspace: MockCanceledWorkspace,
+  workspace: Mocks.MockCanceledWorkspace,
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
   ...Started.args,
-  workspace: MockOutdatedWorkspace,
+  workspace: Mocks.MockOutdatedWorkspace,
 }

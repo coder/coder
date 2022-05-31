@@ -196,7 +196,10 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockFailedProvisionerJob,
+  },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
