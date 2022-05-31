@@ -234,9 +234,6 @@ main() {
     # The .deb and .rpm files are pulled from GitHub.
     debian) install_deb ;;
     fedora | opensuse) install_rpm ;;
-    # Arch uses the AUR package which only supports amd64 and arm64 since it
-    # pulls releases from GitHub so we need to fall back to npm.
-    arch) install_aur ;;
     # We don't have GitHub releases that work on Alpine or FreeBSD so we have no
     # choice but to use npm here.
     alpine) install_apk ;;
@@ -331,21 +328,6 @@ install_apk() {
   sudo_sh_c apk add --allow-untrusted "$CACHE_DIR/coder_$VERSION_$ARCH.apk"
 
   echo_systemd_postinstall apk
-}
-
-install_aur() {
-  echoh "Installing latest from the AUR."
-  echoh
-
-  sh_c mkdir -p "$CACHE_DIR/coder-aur"
-  sh_c "curl -#fsSL https://aur.archlinux.org/cgit/aur.git/snapshot/coder.tar.gz | tar -xzC $CACHE_DIR/coder-aur --strip-components 1"
-  echo "+ cd $CACHE_DIR/coder-aur"
-  if [ ! "${DRY_RUN-}" ]; then
-    cd "$CACHE_DIR/coder-aur"
-  fi
-  sh_c makepkg -si
-
-  echo_systemd_postinstall AUR
 }
 
 install_standalone() {
