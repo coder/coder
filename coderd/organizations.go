@@ -77,7 +77,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+			return xerrors.Errorf("create organization admin: %w", err)
 		}
 		return nil
 	})

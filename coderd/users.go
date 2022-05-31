@@ -751,7 +751,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
-		var orgRoles []string
+		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
 			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
