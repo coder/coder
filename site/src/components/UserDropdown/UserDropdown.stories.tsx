@@ -24,3 +24,12 @@ ExampleNoRoles.args = {
     return Promise.resolve()
   },
 }
+
+export const Open = Template.bind({})
+Open.args = {
+  isOpen: true,
+  user: MockUser,
+  onSignOut: () => {
+    return Promise.resolve()
+  },
+}

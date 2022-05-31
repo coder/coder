@@ -22,11 +22,12 @@ export const Language = {
   signOutLabel: "Sign Out",
 }
 export interface UserDropdownProps {
+  isOpen?: boolean // *DO NOT USE* Only used for testing via Storybook
   user: TypesGen.User
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: UserDropdownProps) => {
+export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen, user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -51,7 +52,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
       <BorderedMenu
         anchorEl={anchorEl}
         getContentAnchorEl={null}
-        open={!!anchorEl}
+        open={!!anchorEl || !!isOpen}
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",

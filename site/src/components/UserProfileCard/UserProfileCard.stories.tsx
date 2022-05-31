@@ -4,11 +4,9 @@ import { MockUser } from "../../testHelpers/entities"
 import { UserProfileCard, UserProfileCardProps } from "./UserProfileCard"
 
 export default {
-  title: "components/UserDropdown",
+  title: "components/UserProfileCard",
   component: UserProfileCard,
-  argTypes: {
-    onSignOut: { action: "Sign Out" },
-  },
+  argTypes: {},
 }
 
 const Template: Story<UserProfileCardProps> = (args: UserProfileCardProps) => <UserProfileCard {...args} />
