@@ -31,6 +31,18 @@ func APIKey(r *http.Request) database.APIKey {
 	return apiKey
 }
 
+// User roles are the 'subject' field of Authorize()
+type userRolesKey struct{}
+
+// UserRoles returns the API key from the ExtractUserRoles handler.
+func UserRoles(r *http.Request) database.GetAllUserRolesRow {
+	apiKey, ok := r.Context().Value(userRolesKey{}).(database.GetAllUserRolesRow)
+	if !ok {
+		panic("developer error: user roles middleware not provided")
+	}
+	return apiKey
+}
+
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {

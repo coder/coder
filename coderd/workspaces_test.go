@@ -88,7 +88,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin(), rbac.RoleMember())
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin())
 	otherWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 

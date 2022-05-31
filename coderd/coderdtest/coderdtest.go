@@ -281,7 +281,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 			organizationID, err := uuid.Parse(orgID)
 			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
+				codersdk.UpdateRoles{Roles: roles})
 			require.NoError(t, err, "update org membership roles")
 		}
 	}
