@@ -3,6 +3,7 @@ import FormHelperText from "@material-ui/core/FormHelperText"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import GitHubIcon from "@material-ui/icons/GitHub"
 import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
@@ -48,6 +49,29 @@ const useStyles = makeStyles((theme) => ({
   },
   submitBtn: {
     marginTop: theme.spacing(2),
+  },
+  buttonIcon: {
+    width: 14,
+    height: 14,
+  },
+  divider: {
+    paddingTop: theme.spacing(3),
+    paddingBottom: theme.spacing(3),
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+  dividerLine: {
+    width: "100%",
+    height: 1,
+    backgroundColor: theme.palette.divider,
+  },
+  dividerLabel: {
+    flexShrink: 0,
+    color: theme.palette.text.secondary,
+    textTransform: "uppercase",
+    fontSize: 12,
+    letterSpacing: 1,
   },
 }))
 
@@ -119,13 +143,30 @@ export const SignInForm: FC<SignInFormProps> = ({
         </div>
       </form>
       {authMethods?.github && (
-        <div className={styles.submitBtn}>
-          <Link href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(redirectTo)}`}>
-            <Button disabled={isLoading} fullWidth type="submit" variant="contained">
-              {Language.githubSignIn}
-            </Button>
-          </Link>
-        </div>
+        <>
+          <div className={styles.divider}>
+            <div className={styles.dividerLine} />
+            <div className={styles.dividerLabel}>Or</div>
+            <div className={styles.dividerLine} />
+          </div>
+
+          <div>
+            <Link
+              underline="none"
+              href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(redirectTo)}`}
+            >
+              <Button
+                startIcon={<GitHubIcon className={styles.buttonIcon} />}
+                disabled={isLoading}
+                fullWidth
+                type="submit"
+                variant="contained"
+              >
+                {Language.githubSignIn}
+              </Button>
+            </Link>
+          </div>
+        </>
       )}
     </>
   )
