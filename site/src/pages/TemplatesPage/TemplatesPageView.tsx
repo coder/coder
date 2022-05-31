@@ -108,7 +108,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    marginTop: theme.spacing(3),
+    marginTop: theme.spacing(10),
   },
   emptyDescription: {
     maxWidth: theme.spacing(62),
