@@ -167,14 +167,24 @@ export const MockWorkspace: TypesGen.Workspace = {
   latest_build: MockWorkspaceBuild,
 }
 
-export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildStop,
+}
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuildStop,
+    job: MockRunningProvisionerJob,
+  },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockRunningProvisionerJob,
+    transition: "start",
+  },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -186,7 +196,10 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockFailedProvisionerJob,
+  },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
