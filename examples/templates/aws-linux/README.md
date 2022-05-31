@@ -8,11 +8,13 @@ tags: [cloud, aws]
 
 ## Getting started
 
-Pick this template in `coder templates init` and follow instructions.
+Run `coder templates init`, and when prompted, select this template. Follow the
+on-screen instructions to proceed.
 
 ## Required permissions / policy
 
-This example policy allows Coder to create EC2 instances and modify instances provisioned by Coder.
+The following sample policy allows Coder to create EC2 instances and modify
+instances provisioned by Coder:
 
 ```json
 {
@@ -61,4 +63,3 @@ This example policy allows Coder to create EC2 instances and modify instances pr
     ]
 }
 ```
-
