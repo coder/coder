@@ -24,11 +24,31 @@ EOT
   sensitive   = true
 }
 
+# Last updated 2022-05-31
+# aws ec2 describe-regions | jq -r '[.Regions[].RegionName] | sort'
 variable "region" {
   description = "What region should your workspace live in?"
   default     = "us-east-1"
   validation {
-    condition     = contains(["us-east-1", "us-east-2", "us-west-1", "us-west-2"], var.region)
+    condition     = contains([
+      "ap-northeast-1",
+      "ap-northeast-2",
+      "ap-northeast-3",
+      "ap-south-1",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-north-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "sa-east-1",
+      "us-east-1",
+      "us-east-2",
+      "us-west-1",
+      "us-west-2"
+    ], var.region)
     error_message = "Invalid region!"
   }
 }
