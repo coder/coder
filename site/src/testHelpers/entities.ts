@@ -162,10 +162,16 @@ export const MockWorkspace: TypesGen.Workspace = {
   latest_build: MockWorkspaceBuild,
 }
 
-export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildStop,
+}
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuildStop,
+    job: MockRunningProvisionerJob,
+  },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,

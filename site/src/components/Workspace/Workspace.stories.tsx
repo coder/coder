@@ -41,25 +41,49 @@ Starting.args = {
 }
 
 export const Stopped = Template.bind({})
-Stopped.args = { ...Started.args, workspace: MockStoppedWorkspace }
+Stopped.args = {
+  ...Started.args,
+  workspace: MockStoppedWorkspace,
+}
 
 export const Stopping = Template.bind({})
-Stopping.args = { ...Started.args, workspace: MockStoppingWorkspace }
+Stopping.args = {
+  ...Started.args,
+  workspace: MockStoppingWorkspace,
+}
 
 export const Error = Template.bind({})
-Error.args = { ...Started.args, workspace: MockFailedWorkspace }
+Error.args = {
+  ...Started.args,
+  workspace: MockFailedWorkspace,
+}
 
 export const Deleting = Template.bind({})
-Deleting.args = { ...Started.args, workspace: MockDeletingWorkspace }
+Deleting.args = {
+  ...Started.args,
+  workspace: MockDeletingWorkspace,
+}
 
 export const Deleted = Template.bind({})
-Deleted.args = { ...Started.args, workspace: MockDeletedWorkspace }
+Deleted.args = {
+  ...Started.args,
+  workspace: MockDeletedWorkspace,
+}
 
 export const Canceling = Template.bind({})
-Canceling.args = { ...Started.args, workspace: MockCancelingWorkspace }
+Canceling.args = {
+  ...Started.args,
+  workspace: MockCancelingWorkspace,
+}
 
 export const Canceled = Template.bind({})
-Canceled.args = { ...Started.args, workspace: MockCanceledWorkspace }
+Canceled.args = {
+  ...Started.args,
+  workspace: MockCanceledWorkspace,
+}
 
 export const Outdated = Template.bind({})
-Outdated.args = { ...Started.args, workspace: MockOutdatedWorkspace }
+Outdated.args = {
+  ...Started.args,
+  workspace: MockOutdatedWorkspace,
+}
