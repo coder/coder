@@ -35,7 +35,10 @@ Started.args = {
 }
 
 export const Starting = Template.bind({})
-Starting.args = { ...Started.args, workspace: MockStartingWorkspace }
+Starting.args = {
+  ...Started.args,
+  workspace: MockStartingWorkspace,
+}
 
 export const Stopped = Template.bind({})
 Stopped.args = { ...Started.args, workspace: MockStoppedWorkspace }

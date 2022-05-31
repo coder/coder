@@ -169,7 +169,14 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: {
+      ...MockProvisionerJob,
+      status: "succeeded",
+    },
+    transition: "start",
+  },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
