@@ -12,6 +12,7 @@ export interface EmptyStateProps {
   description?: string | React.ReactNode
   descriptionClassName?: string
   cta?: ReactNode
+  className?: string
 }
 
 /**
@@ -23,11 +24,11 @@ export interface EmptyStateProps {
  * that you can directly pass props through to to customize the shape and layout of it.
  */
 export const EmptyState: FC<EmptyStateProps> = (props) => {
-  const { message, description, cta, descriptionClassName, ...boxProps } = props
+  const { message, description, cta, descriptionClassName, className, ...boxProps } = props
   const styles = useStyles()
 
   return (
-    <Box className={styles.root} {...boxProps}>
+    <Box className={combineClasses([styles.root, className])} {...boxProps}>
       <div className={styles.header}>
         <Typography variant="h5" className={styles.title}>
           {message}

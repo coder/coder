@@ -57,6 +57,11 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplates",
           onDone: [
             {
+              actions: ["assignTemplates"],
+              target: "waitingForTemplateGetCreated",
+              cond: "areTemplatesEmpty",
+            },
+            {
               actions: ["assignTemplates", "assignPreSelectedTemplate"],
               target: "gettingTemplateSchema",
               cond: "hasValidPreSelectedTemplate",
@@ -68,6 +73,25 @@ export const createWorkspaceMachine = createMachine(
           ],
           onError: {
             target: "error",
+          },
+        },
+      },
+      waitingForTemplateGetCreated: {
+        initial: "refreshingTemplates",
+        states: {
+          refreshingTemplates: {
+            invoke: {
+              src: "getTemplates",
+              onDone: [
+                { target: "waiting", cond: "areTemplatesEmpty" },
+                { target: "#createWorkspaceState.selectingTemplate", actions: ["assignTemplates"] },
+              ],
+            },
+          },
+          waiting: {
+            after: {
+              2_000: "refreshingTemplates",
+            },
           },
         },
       },
@@ -147,6 +171,7 @@ export const createWorkspaceMachine = createMachine(
         const template = event.data.find((template) => template.name === ctx.preSelectedTemplateName)
         return !!template
       },
+      areTemplatesEmpty: (_, event) => event.data.length === 0,
     },
     actions: {
       assignTemplates: assign({

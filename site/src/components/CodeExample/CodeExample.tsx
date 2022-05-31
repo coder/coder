@@ -1,22 +1,25 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 import { CopyButton } from "../CopyButton/CopyButton"
 
 export interface CodeExampleProps {
   code: string
+  className?: string
+  buttonClassName?: string
 }
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({ code }) => {
+export const CodeExample: FC<CodeExampleProps> = ({ code, className, buttonClassName }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.root}>
+    <div className={combineClasses([styles.root, className])}>
       <code className={styles.code}>{code}</code>
-      <CopyButton text={code} buttonClassName={styles.button} />
+      <CopyButton text={code} buttonClassName={combineClasses([styles.button, buttonClassName])} />
     </div>
   )
 }
@@ -25,6 +28,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     background: theme.palette.background.default,
     color: theme.palette.primary.contrastText,
