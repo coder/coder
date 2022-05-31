@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -26,8 +27,7 @@ import (
 )
 
 const (
-	sshDefaultConfigFileName = "~/.ssh/config"
-	// TODO(mafredri): Consider moving to coder config dir, i.e. ~/.config/coderv2/ssh_config?
+	sshDefaultConfigFileName      = "~/.ssh/config"
 	sshDefaultCoderConfigFileName = "~/.ssh/coder"
 	sshCoderConfigHeader          = `# This file is managed by coder. DO NOT EDIT.
 #
@@ -40,6 +40,16 @@ const (
 	// Relative paths are assumed to be in ~/.ssh, except when
 	// included in /etc/ssh.
 	sshConfigIncludeStatement = "Include coder"
+)
+
+// Regular expressions are used because SSH configs do not have
+// meaningful indentation and keywords are case-insensitive.
+var (
+	// Find the first Host and Match statement as these restrict the
+	// following declarations to be used conditionally.
+	sshHostRe = regexp.MustCompile(`^\s*((?i)Host|Match)`)
+	// Find the semantically correct include statement.
+	sshCoderIncludedRe = regexp.MustCompile(`^\s*((?i)Include) coder(\s|$)`)
 )
 
 func configSSH() *cobra.Command {
@@ -132,15 +142,11 @@ func configSSH() *cobra.Command {
 				changes = append(changes, fmt.Sprintf("Remove old config block (START-CODER/END-CODER) from %s", sshConfigFileOrig))
 			}
 
-			if found := bytes.Index(configModified, []byte(sshConfigIncludeStatement)); found == -1 || (found > 0 && configModified[found-1] != '\n') {
-				changes = append(changes, fmt.Sprintf("Add 'Include coder' to %s", sshConfigFileOrig))
-				// Separate Include statement from user content with an empty newline.
-				configModified = bytes.TrimRight(configModified, "\n")
-				sep := "\n\n"
-				if len(configModified) == 0 {
-					sep = ""
-				}
-				configModified = append(configModified, []byte(sep+sshConfigIncludeStatement+"\n")...)
+			// Check for the presence of the coder Include
+			// statement is present and add if missing.
+			configModified, ok = sshConfigAddCoderInclude(configModified)
+			if ok {
+				changes = append(changes, fmt.Sprintf("Add %q to %s", "Include coder", sshConfigFileOrig))
 			}
 
 			root := createConfig(cmd)
@@ -278,7 +284,7 @@ func configSSH() *cobra.Command {
 				_, _ = fmt.Fprint(out, "\n")
 
 				if !bytes.Equal(configRaw, configModified) {
-					err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configRaw))
+					err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
 					if err != nil {
 						return xerrors.Errorf("write ssh config failed: %w", err)
 					}
@@ -309,6 +315,36 @@ func configSSH() *cobra.Command {
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 
 	return cmd
+}
+
+// sshConfigAddCoderInclude checks for the coder Include statement and
+// returns modified = true if it was added.
+func sshConfigAddCoderInclude(data []byte) (modifiedData []byte, modified bool) {
+	found := false
+	firstHost := sshHostRe.FindIndex(data)
+	coderInclude := sshCoderIncludedRe.FindIndex(data)
+	if firstHost != nil && coderInclude != nil {
+		// If the Coder Include statement exists
+		// before a Host entry, we're good.
+		found = coderInclude[1] < firstHost[0]
+	} else if coderInclude != nil {
+		found = true
+	}
+	if found {
+		return data, false
+	}
+
+	// Add Include statement to the top of SSH config.
+	// The user is allowed to move it as long as it
+	// stays above the first Host (or Match) statement.
+	sep := "\n\n"
+	if len(data) == 0 {
+		// If SSH config is empty, a single newline will suffice.
+		sep = "\n"
+	}
+	data = append([]byte(sshConfigIncludeStatement+sep), data...)
+
+	return data, true
 }
 
 // writeWithTempFileAndMove writes to a temporary file in the same
