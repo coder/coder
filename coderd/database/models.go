@@ -304,6 +304,7 @@ type APIKey struct {
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	LifetimeSeconds   int64     `db:"lifetime_seconds" json:"lifetime_seconds"`
 }
 
 type AuditLog struct {

@@ -1129,6 +1129,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	//nolint:gosimple
 	key := database.APIKey{
 		ID:                arg.ID,
+		LifetimeSeconds:   arg.LifetimeSeconds,
 		HashedSecret:      arg.HashedSecret,
 		UserID:            arg.UserID,
 		ExpiresAt:         arg.ExpiresAt,

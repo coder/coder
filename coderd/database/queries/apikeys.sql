@@ -15,6 +15,7 @@ INSERT INTO
 		hashed_secret,
 		user_id,
 		last_used,
+	    lifetime_seconds,
 		expires_at,
 		created_at,
 		updated_at,
@@ -25,7 +26,7 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

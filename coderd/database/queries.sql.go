@@ -30,7 +30,7 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 FROM
 	api_keys
 WHERE
@@ -55,6 +55,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
@@ -66,6 +67,7 @@ INSERT INTO
 		hashed_secret,
 		user_id,
 		last_used,
+	    lifetime_seconds,
 		expires_at,
 		created_at,
 		updated_at,
@@ -76,7 +78,7 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 `
 
 type InsertAPIKeyParams struct {
@@ -84,6 +86,7 @@ type InsertAPIKeyParams struct {
 	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LastUsed          time.Time `db:"last_used" json:"last_used"`
+	LifetimeSeconds   int64     `db:"lifetime_seconds" json:"lifetime_seconds"`
 	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -100,6 +103,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.HashedSecret,
 		arg.UserID,
 		arg.LastUsed,
+		arg.LifetimeSeconds,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -123,6 +127,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
