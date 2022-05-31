@@ -450,7 +450,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 	})
 }
 
-func TestTemplateVersionPlan(t *testing.T) {
+func TestTemplateVersionDryRun(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -484,20 +484,20 @@ func TestTemplateVersionPlan(t *testing.T) {
 		})
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		// Create template version plan
+		// Create template version dry-run
 		after := time.Now()
-		job, err := client.CreateTemplateVersionPlan(ctx, version.ID, codersdk.CreateTemplateVersionPlanRequest{
+		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 			ParameterValues: []codersdk.CreateParameterRequest{},
 		})
 		require.NoError(t, err)
 
-		// Fetch template version plan
-		newJob, err := client.TemplateVersionPlan(ctx, version.ID, job.ID)
+		// Fetch template version dry-run
+		newJob, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
 		require.NoError(t, err)
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, err := client.TemplateVersionPlanLogsAfter(ctx, version.ID, job.ID, after)
+		logs, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
 		require.NoError(t, err)
 
 		logsDone := make(chan struct{})
@@ -513,7 +513,7 @@ func TestTemplateVersionPlan(t *testing.T) {
 
 		// Wait for the job to complete
 		require.Eventually(t, func() bool {
-			job, err := client.TemplateVersionPlan(ctx, version.ID, job.ID)
+			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
 			assert.NoError(t, err)
 
 			return job.Status == codersdk.ProvisionerJobSucceeded
@@ -521,7 +521,7 @@ func TestTemplateVersionPlan(t *testing.T) {
 
 		<-logsDone
 
-		resources, err := client.TemplateVersionPlanResources(ctx, version.ID, job.ID)
+		resources, err := client.TemplateVersionDryRunResources(ctx, version.ID, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		require.Equal(t, resource.Name, resources[0].Name)
@@ -542,7 +542,7 @@ func TestTemplateVersionPlan(t *testing.T) {
 			}},
 		})
 
-		_, err := client.CreateTemplateVersionPlan(context.Background(), version.ID, codersdk.CreateTemplateVersionPlanRequest{
+		_, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 			ParameterValues: []codersdk.CreateParameterRequest{},
 		})
 		var apiErr *codersdk.Error
@@ -567,25 +567,25 @@ func TestTemplateVersionPlan(t *testing.T) {
 			})
 			forceCompleteTemplateVersionJob(t, api.Database, client, version)
 
-			// Create the plan
-			job, err := client.CreateTemplateVersionPlan(context.Background(), version.ID, codersdk.CreateTemplateVersionPlanRequest{
+			// Create the dry-run
+			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionPlan(context.Background(), version.ID, job.ID)
+				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobRunning
 			}, 5*time.Second, 25*time.Millisecond)
 
-			err = client.CancelTemplateVersionPlan(context.Background(), version.ID, job.ID)
+			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionPlan(context.Background(), version.ID, job.ID)
+				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
@@ -600,21 +600,21 @@ func TestTemplateVersionPlan(t *testing.T) {
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-			// Create the plan
-			job, err := client.CreateTemplateVersionPlan(context.Background(), version.ID, codersdk.CreateTemplateVersionPlanRequest{
+			// Create the dry-run
+			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionPlan(context.Background(), version.ID, job.ID)
+				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobSucceeded
 			}, 5*time.Second, 25*time.Millisecond)
 
-			err = client.CancelTemplateVersionPlan(context.Background(), version.ID, job.ID)
+			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -634,16 +634,16 @@ func TestTemplateVersionPlan(t *testing.T) {
 			})
 			forceCompleteTemplateVersionJob(t, api.Database, client, version)
 
-			// Create the plan
-			job, err := client.CreateTemplateVersionPlan(context.Background(), version.ID, codersdk.CreateTemplateVersionPlanRequest{
+			// Create the dry-run
+			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
-			err = client.CancelTemplateVersionPlan(context.Background(), version.ID, job.ID)
+			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			require.NoError(t, err)
 
-			err = client.CancelTemplateVersionPlan(context.Background(), version.ID, job.ID)
+			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -746,8 +746,8 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 func forceCompleteTemplateVersionJob(t *testing.T, db database.Store, client *codersdk.Client, version codersdk.TemplateVersion) {
 	t.Helper()
 
-	// HACK: we need the template version job to be finished so the plan job can
-	// be created. We do this by canceling the job and then marking it as
+	// HACK: we need the template version job to be finished so the dry-run job
+	// can be created. We do this by canceling the job and then marking it as
 	// successful.
 	err := client.CancelTemplateVersion(context.Background(), version.ID)
 	require.NoError(t, err)

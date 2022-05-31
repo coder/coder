@@ -164,20 +164,20 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusOK, values)
 }
 
-func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
 		return
 	}
-	// We use the workspace RBAC check since we don't want to allow plans if the
-	// user can't create workspaces.
+	// We use the workspace RBAC check since we don't want to allow dry runs if
+	// the user can't create workspaces.
 	if !api.Authorize(rw, r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
 		return
 	}
 
-	var req codersdk.CreateTemplateVersionPlanRequest
+	var req codersdk.CreateTemplateVersionDryRunRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -210,8 +210,9 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Marshal template version plan job with the parameters from the request.
-	input, err := json.Marshal(templateVersionPlanJob{
+	// Marshal template version dry-run job with the parameters from the
+	// request.
+	input, err := json.Marshal(templateVersionDryRunJob{
 		TemplateVersionID: templateVersion.ID,
 		WorkspaceName:     req.WorkspaceName,
 		ParameterValues:   parameterValues,
@@ -223,7 +224,7 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Create a plan job
+	// Create a dry-run job
 	jobID := uuid.New()
 	provisionerJob, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 		ID:             jobID,
@@ -234,7 +235,7 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 		Provisioner:    job.Provisioner,
 		StorageMethod:  job.StorageMethod,
 		StorageSource:  job.StorageSource,
-		Type:           database.ProvisionerJobTypeTemplateVersionPlan,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 		Input:          input,
 	})
 	if err != nil {
@@ -247,8 +248,8 @@ func (api *API) createTemplateVersionPlan(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
 }
 
-func (api *API) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
-	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
+func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
 		return
 	}
@@ -256,8 +257,8 @@ func (api *API) templateVersionPlan(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertProvisionerJob(job))
 }
 
-func (api *API) templateVersionPlanResources(rw http.ResponseWriter, r *http.Request) {
-	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
+func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
 		return
 	}
@@ -265,8 +266,8 @@ func (api *API) templateVersionPlanResources(rw http.ResponseWriter, r *http.Req
 	api.provisionerJobResources(rw, r, job)
 }
 
-func (api *API) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request) {
-	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
+func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
 		return
 	}
@@ -274,10 +275,10 @@ func (api *API) templateVersionPlanLogs(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func (api *API) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	job, ok := api.fetchTemplateVersionPlanJob(rw, r)
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
 		return
 	}
@@ -318,7 +319,7 @@ func (api *API) templateVersionPlanCancel(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) fetchTemplateVersionPlanJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
 	var (
 		templateVersion = httpmw.TemplateVersionParam(r)
 		jobID           = chi.URLParam(r, "jobID")
@@ -346,18 +347,18 @@ func (api *API) fetchTemplateVersionPlanJob(rw http.ResponseWriter, r *http.Requ
 		})
 		return database.ProvisionerJob{}, false
 	}
-	if job.Type != database.ProvisionerJobTypeTemplateVersionPlan {
+	if job.Type != database.ProvisionerJobTypeTemplateVersionDryRun {
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
 	}
-	// Do a workspace resource check since it's basically a workspace plan.
+	// Do a workspace resource check since it's basically a workspace dry-run .
 	if !api.Authorize(rw, r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
 		return database.ProvisionerJob{}, false
 	}
 
 	// Verify that the template version is the one used in the request.
-	var input templateVersionPlanJob
+	var input templateVersionDryRunJob
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

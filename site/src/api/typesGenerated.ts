@@ -66,7 +66,7 @@ export interface CreateTemplateRequest {
 }
 
 // From codersdk/templateversions.go:121:6
-export interface CreateTemplateVersionPlanRequest {
+export interface CreateTemplateVersionDryRunRequest {
   readonly WorkspaceName: string
   readonly ParameterValues: CreateParameterRequest[]
 }

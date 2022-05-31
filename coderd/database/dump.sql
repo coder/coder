@@ -51,7 +51,7 @@ CREATE TYPE parameter_type_system AS ENUM (
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
-    'template_version_plan'
+    'template_version_dry_run'
 );
 
 CREATE TYPE provisioner_storage_method AS ENUM (

@@ -315,7 +315,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	t.Run("TemplatePlan", func(t *testing.T) {
+	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
 		var (
 			didComplete   atomic.Bool
@@ -353,8 +353,8 @@ func TestProvisionerd(t *testing.T) {
 						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_TemplatePlan_{
-							TemplatePlan: &proto.AcquiredJob_TemplatePlan{
+						Type: &proto.AcquiredJob_TemplateDryRun_{
+							TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 								ParameterValues: parameterValues,
 								Metadata:        metadata,
 							},

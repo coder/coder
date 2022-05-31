@@ -415,12 +415,12 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 
 		p.runReadmeParse(ctx, job)
 		p.runTemplateImport(ctx, shutdown, provisioner, job)
-	case *proto.AcquiredJob_TemplatePlan_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is template plan",
-			slog.F("workspace_name", jobType.TemplatePlan.Metadata.WorkspaceName),
-			slog.F("parameters", jobType.TemplatePlan.ParameterValues),
+	case *proto.AcquiredJob_TemplateDryRun_:
+		p.opts.Logger.Debug(context.Background(), "acquired job is template dry-run",
+			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
+			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
 		)
-		p.runTemplatePlan(ctx, shutdown, provisioner, job)
+		p.runTemplateDryRun(ctx, shutdown, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -748,19 +748,19 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 	}
 }
 
-func (p *Server) runTemplatePlan(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	// Ensure all metadata fields are set as they are all optional for plans.
-	metadata := job.GetTemplatePlan().GetMetadata()
+func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	// Ensure all metadata fields are set as they are all optional for dry-run.
+	metadata := job.GetTemplateDryRun().GetMetadata()
 	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
 	if metadata.CoderUrl == "" {
 		metadata.CoderUrl = "http://localhost:3000"
 	}
 	if metadata.WorkspaceName == "" {
-		metadata.WorkspaceName = "plan"
+		metadata.WorkspaceName = "dryrun"
 	}
 	metadata.WorkspaceOwner = job.UserName
 	if metadata.WorkspaceOwner == "" {
-		metadata.WorkspaceOwner = "planner"
+		metadata.WorkspaceOwner = "dryrunner"
 	}
 	if metadata.WorkspaceId == "" {
 		id, err := uuid.NewRandom()
@@ -784,7 +784,7 @@ func (p *Server) runTemplatePlan(ctx, shutdown context.Context, provisioner sdkp
 		shutdown,
 		provisioner,
 		job,
-		job.GetTemplatePlan().GetParameterValues(),
+		job.GetTemplateDryRun().GetParameterValues(),
 		metadata,
 	)
 	if err != nil {
@@ -794,8 +794,8 @@ func (p *Server) runTemplatePlan(ctx, shutdown context.Context, provisioner sdkp
 
 	p.completeJob(&proto.CompletedJob{
 		JobId: job.JobId,
-		Type: &proto.CompletedJob_TemplatePlan_{
-			TemplatePlan: &proto.CompletedJob_TemplatePlan{
+		Type: &proto.CompletedJob_TemplateDryRun_{
+			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
 				Resources: resources,
 			},
 		},

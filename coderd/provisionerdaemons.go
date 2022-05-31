@@ -110,8 +110,8 @@ type workspaceProvisionJob struct {
 	DryRun           bool      `json:"dry_run"`
 }
 
-// The input for a "template_version_plan" job.
-type templateVersionPlanJob struct {
+// The input for a "template_version_dry_run" job.
+type templateVersionDryRunJob struct {
 	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
 	WorkspaceName     string                    `json:"workspace_name"`
 	ParameterValues   []database.ParameterValue `json:"parameter_values"`
@@ -253,8 +253,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				},
 			},
 		}
-	case database.ProvisionerJobTypeTemplateVersionPlan:
-		var input templateVersionPlanJob
+	case database.ProvisionerJobTypeTemplateVersionDryRun:
+		var input templateVersionDryRunJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
@@ -265,7 +265,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
 
-		// Compute parameters for the plan to consume.
+		// Compute parameters for the dry-run to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID:       templateVersion.JobID,
 			OrganizationID:            job.OrganizationID,
@@ -284,8 +284,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
 		}
 
-		protoJob.Type = &proto.AcquiredJob_TemplatePlan_{
-			TemplatePlan: &proto.AcquiredJob_TemplatePlan{
+		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
+			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				ParameterValues: protoParameters,
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
@@ -647,9 +647,9 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
-	case *proto.CompletedJob_TemplatePlan_:
-		for _, resource := range jobType.TemplatePlan.Resources {
-			server.Logger.Info(ctx, "inserting template plan job resource",
+	case *proto.CompletedJob_TemplateDryRun_:
+		for _, resource := range jobType.TemplateDryRun.Resources {
+			server.Logger.Info(ctx, "inserting template dry-run job resource",
 				slog.F("job_id", job.ID.String()),
 				slog.F("resource_name", resource.Name),
 				slog.F("resource_type", resource.Type))
@@ -671,7 +671,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
 		}
-		server.Logger.Debug(ctx, "marked template plan job as completed", slog.F("job_id", jobID))
+		server.Logger.Debug(ctx, "marked template dry-run job as completed", slog.F("job_id", jobID))
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}

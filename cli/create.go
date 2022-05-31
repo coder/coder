@@ -170,38 +170,38 @@ func create() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
-			// Run a plan with the given parameters to check correctness
+			// Run a dry-run with the given parameters to check correctness
 			after := time.Now()
-			planJob, err := client.CreateTemplateVersionPlan(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionPlanRequest{
+			dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				WorkspaceName:   workspaceName,
 				ParameterValues: parameters,
 			})
 			if err != nil {
-				return xerrors.Errorf("begin workspace plan: %w", err)
+				return xerrors.Errorf("begin workspace dry-run: %w", err)
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
 			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
-					return client.TemplateVersionPlan(cmd.Context(), templateVersion.ID, planJob.ID)
+					return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
 				},
 				Cancel: func() error {
-					return client.CancelTemplateVersionPlan(cmd.Context(), templateVersion.ID, planJob.ID)
+					return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
 				},
 				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-					return client.TemplateVersionPlanLogsAfter(cmd.Context(), templateVersion.ID, planJob.ID, after)
+					return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
 				},
-				// Don't show log output for the plan unless there's an error.
+				// Don't show log output for the dry-run unless there's an error.
 				Silent: true,
 			})
 			if err != nil {
 				// TODO (Dean): reprompt for parameter values if we deem it to
 				// be a validation error
-				return xerrors.Errorf("plan workspace: %w", err)
+				return xerrors.Errorf("dry-run workspace: %w", err)
 			}
 
-			resources, err := client.TemplateVersionPlanResources(cmd.Context(), templateVersion.ID, planJob.ID)
+			resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
 			if err != nil {
-				return xerrors.Errorf("get workspace plan resources: %w", err)
+				return xerrors.Errorf("get workspace dry-run resources: %w", err)
 			}
 
 			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{

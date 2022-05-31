@@ -207,12 +207,12 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
-			r.Route("/plan", func(r chi.Router) {
-				r.Post("/", api.createTemplateVersionPlan)
-				r.Get("/{jobID}", api.templateVersionPlan)
-				r.Get("/{jobID}/resources", api.templateVersionPlanResources)
-				r.Get("/{jobID}/logs", api.templateVersionPlanLogs)
-				r.Patch("/{jobID}/cancel", api.templateVersionPlanCancel)
+			r.Route("/dry-run", func(r chi.Router) {
+				r.Post("/", api.postTemplateVersionDryRun)
+				r.Get("/{jobID}", api.templateVersionDryRun)
+				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
+				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
 		})
 		r.Route("/users", func(r chi.Router) {

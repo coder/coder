@@ -284,7 +284,7 @@ func TestCreate(t *testing.T) {
 		removeTmpDirUntilSuccess(t, tempDir)
 	})
 
-	t.Run("FailedPlan", func(t *testing.T) {
+	t.Run("FailedDryRun", func(t *testing.T) {
 		t.Parallel()
 		client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -302,7 +302,7 @@ func TestCreate(t *testing.T) {
 		})
 
 		// The template import job should end up failed, but we need it to be
-		// succeeded so the plan can begin.
+		// succeeded so the dry-run can begin.
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		require.Equal(t, codersdk.ProvisionerJobFailed, version.Job.Status, "job is not failed")
 		err := api.Database.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -325,7 +325,7 @@ func TestCreate(t *testing.T) {
 
 		err = cmd.Execute()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "plan workspace")
+		require.ErrorContains(t, err, "dry-run workspace")
 	})
 }
 
