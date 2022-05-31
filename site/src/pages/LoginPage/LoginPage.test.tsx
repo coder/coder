@@ -30,7 +30,7 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
+        return res(ctx.status(500), ctx.json({ message: Language.authErrorMessage }))
       }),
     )
 

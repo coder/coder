@@ -8,25 +8,23 @@ import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
 interface AccountFormValues {
-  email: string
   username: string
 }
 
 export const Language = {
   usernameLabel: "Username",
   emailLabel: "Email",
-  emailInvalid: "Please enter a valid email address.",
-  emailRequired: "Please enter an email address.",
   updateSettings: "Update settings",
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
   username: nameValidator(Language.usernameLabel),
 })
 
 export type AccountFormErrors = FormikErrors<AccountFormValues>
+
 export interface AccountFormProps {
+  email: string
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
@@ -34,7 +32,14 @@ export interface AccountFormProps {
   error?: string
 }
 
-export const AccountForm: FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues, formErrors = {}, error }) => {
+export const AccountForm: FC<AccountFormProps> = ({
+  email,
+  isLoading,
+  onSubmit,
+  initialValues,
+  formErrors = {},
+  error,
+}) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
@@ -46,14 +51,7 @@ export const AccountForm: FC<AccountFormProps> = ({ isLoading, onSubmit, initial
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          <TextField
-            {...getFieldHelpers("email")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="email"
-            fullWidth
-            label={Language.emailLabel}
-            variant="outlined"
-          />
+          <TextField disabled fullWidth label={Language.emailLabel} value={email} variant="outlined" />
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}

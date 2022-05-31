@@ -7,12 +7,14 @@ import { TabPanel } from "../TabPanel/TabPanel"
 
 export const Language = {
   accountLabel: "Account",
+  securityLabel: "Security",
   sshKeysLabel: "SSH keys",
   settingsLabel: "Settings",
 }
 
 const menuItems = [
   { label: Language.accountLabel, path: "/settings/account" },
+  { label: Language.securityLabel, path: "/settings/security" },
   { label: Language.sshKeysLabel, path: "/settings/ssh-keys" },
 ]
 

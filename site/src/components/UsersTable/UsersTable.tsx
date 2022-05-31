@@ -18,8 +18,10 @@ export const Language = {
   emptyMessage: "No users found",
   usernameLabel: "User",
   suspendMenuItem: "Suspend",
+  activateMenuItem: "Activate",
   resetPasswordMenuItem: "Reset password",
   rolesLabel: "Roles",
+  statusLabel: "Status",
 }
 
 export interface UsersTableProps {
@@ -48,6 +50,7 @@ export const UsersTable: FC<UsersTableProps> = ({
       <TableHead>
         <TableRow>
           <TableCell>{Language.usernameLabel}</TableCell>
+          <TableCell>{Language.statusLabel}</TableCell>
           <TableCell>{Language.rolesLabel}</TableCell>
           {/* 1% is a trick to make the table cell width fit the content */}
           {canEditUsers && <TableCell width="1%" />}
@@ -62,6 +65,7 @@ export const UsersTable: FC<UsersTableProps> = ({
               <TableCell>
                 <AvatarData title={u.username} subtitle={u.email} />
               </TableCell>
+              <TableCell>{u.status}</TableCell>
               <TableCell>
                 {canEditUsers ? (
                   <RoleSelect
@@ -78,16 +82,28 @@ export const UsersTable: FC<UsersTableProps> = ({
                 <TableCell>
                   <TableRowMenu
                     data={u}
-                    menuItems={[
-                      {
-                        label: Language.suspendMenuItem,
-                        onClick: onSuspendUser,
-                      },
-                      {
+                    menuItems={
+                      // Return either suspend or activate depending on status
+                      (u.status === "active"
+                        ? [
+                            {
+                              label: Language.suspendMenuItem,
+                              onClick: onSuspendUser,
+                            },
+                          ]
+                        : [
+                            // TODO: Uncomment this and add activate user functionality.
+                            // {
+                            //   label: Language.activateMenuItem,
+                            //   // eslint-disable-next-line @typescript-eslint/no-empty-function
+                            //   onClick: function () {},
+                            // },
+                          ]
+                      ).concat({
                         label: Language.resetPasswordMenuItem,
                         onClick: onResetUserPassword,
-                      },
-                    ]}
+                      })
+                    }
                   />
                 </TableCell>
               )}

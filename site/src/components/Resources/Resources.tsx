@@ -57,7 +57,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                 }
                 if (!agent) {
                   return (
-                    <TableRow>
+                    <TableRow key={`${resource.id}-${agentIndex}`}>
                       <TableCell className={styles.resourceNameCell}>
                         {resource.name}
                         <span className={styles.resourceType}>{resource.type}</span>

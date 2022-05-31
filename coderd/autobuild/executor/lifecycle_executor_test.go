@@ -10,12 +10,14 @@ import (
 
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,12 +25,14 @@ func TestExecutorAutostartOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -49,24 +53,26 @@ func TestExecutorAutostartOK(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
+	// Then: the workspace should eventually be started
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -99,24 +105,27 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	}()
 
 	// Then: the workspace should be started using the previous template version, and not the updated version.
-	<-time.After(5 * time.Second)
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
-	require.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
+	assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
 }
 
 func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -139,20 +148,21 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostartNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -173,20 +183,21 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.NotEqual(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace not to be running")
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostopOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -202,22 +213,24 @@ func TestExecutorAutostopOK(t *testing.T) {
 	}()
 
 	// Then: the workspace should be stopped
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostopExtend(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace        = mustProvisionWorkspace(t, client)
@@ -228,8 +241,9 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	require.NotZero(t, originalDeadline)
 
 	// Given: we extend the workspace deadline
+	newDeadline := originalDeadline.Add(30 * time.Minute)
 	err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: originalDeadline.Add(30 * time.Minute),
+		Deadline: newDeadline,
 	})
 	require.NoError(t, err, "extend workspace deadline")
 
@@ -238,34 +252,35 @@ func TestExecutorAutostopExtend(t *testing.T) {
 		tickCh <- originalDeadline.Add(time.Minute)
 	}()
 
-	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	// Then: nothing should happen and the workspace should stay running
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 
 	// When: the autobuild executor ticks after the *new* deadline:
 	go func() {
-		tickCh <- ws.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- newDeadline.Add(time.Minute)
 		close(tickCh)
 	}()
 
 	// Then: the workspace should be stopped
-	<-time.After(5 * time.Second)
-	ws = mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	stats = <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace (disabling autostart)
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -282,21 +297,22 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should not be stopped.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	// Then: the workspace should remain stopped and no build should happen.
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorAutostopNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace that has no TTL set
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -317,22 +333,23 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be stopped.
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceDeleted(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -355,22 +372,23 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		err    error
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		futureTime     = time.Now().Add(time.Hour)
 		futureTimeCron = fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
@@ -394,20 +412,21 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -420,21 +439,22 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
 }
 
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx    = context.Background()
-		tickCh = make(chan time.Time)
-		client = coderdtest.New(t, &coderdtest.Options{
+		ctx     = context.Background()
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -451,11 +471,11 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	}()
 
 	// Then: the workspace should still stop - sorry!
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
@@ -466,17 +486,19 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = context.Background()
-		err     error
-		tickCh  = make(chan time.Time)
-		tickCh2 = make(chan time.Time)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		tickCh   = make(chan time.Time)
+		tickCh2  = make(chan time.Time)
+		statsCh1 = make(chan executor.Stats)
+		statsCh2 = make(chan executor.Stats)
+		client   = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh1,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:     tickCh2,
 			IncludeProvisionerD: true,
+			AutobuildStats:      statsCh2,
 		})
 		// Given: we have a user with a workspace that has autostart enabled (default)
 		workspace = mustProvisionWorkspace(t, client)
@@ -492,23 +514,17 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		close(tickCh2)
 	}()
 
-	// Then: the workspace should be started
-	<-time.After(5 * time.Second)
-	ws := mustWorkspace(t, client, workspace.ID)
-	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
-	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
-	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
-	builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: ws.ID})
-	require.NoError(t, err, "fetch list of workspace builds from primary")
-	// One build to start, one stop transition, and one autostart. No more.
-	require.Equal(t, codersdk.WorkspaceTransitionStart, builds[0].Transition)
-	require.Equal(t, codersdk.WorkspaceTransitionStop, builds[1].Transition)
-	require.Equal(t, codersdk.WorkspaceTransitionStart, builds[2].Transition)
-	require.Len(t, builds, 3, "unexpected number of builds for workspace from primary")
+	// Then: the workspace should eventually be started
+	stats1 := <-statsCh1
+	assert.NoError(t, stats1.Error)
+	assert.Len(t, stats1.Transitions, 1)
+	assert.Contains(t, stats1.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats1.Transitions[workspace.ID])
 
-	// Builds are returned most recent first.
-	require.True(t, builds[0].CreatedAt.After(builds[1].CreatedAt))
-	require.True(t, builds[1].CreatedAt.After(builds[2].CreatedAt))
+	// Then: the other executor should not have done anything
+	stats2 := <-statsCh2
+	assert.NoError(t, stats2.Error)
+	assert.Len(t, stats2.Transitions, 0)
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
@@ -546,6 +562,7 @@ func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 }
 
 func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+	t.Helper()
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
 	if err != nil && strings.Contains(err.Error(), "status code 410") {

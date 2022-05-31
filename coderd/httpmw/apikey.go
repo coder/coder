@@ -175,7 +175,27 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 				}
 			}
 
-			ctx := context.WithValue(r.Context(), apiKeyContextKey{}, key)
+			// If the key is valid, we also fetch the user roles and status.
+			// The roles are used for RBAC authorize checks, and the status
+			// is to block 'suspended' users from accessing the platform.
+			roles, err := db.GetAllUserRoles(r.Context(), key.UserID)
+			if err != nil {
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "roles not found",
+				})
+				return
+			}
+
+			if roles.Status != database.UserStatusActive {
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: fmt.Sprintf("user is not active (status = %q), contact an admin to reactivate your account", roles.Status),
+				})
+				return
+			}
+
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
+			ctx = context.WithValue(ctx, userRolesKey{}, roles)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
