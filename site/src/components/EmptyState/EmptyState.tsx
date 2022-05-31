@@ -2,6 +2,7 @@ import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC, ReactNode } from "react"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
@@ -48,17 +49,20 @@ const useStyles = makeStyles(
       justifyContent: "center",
       alignItems: "center",
       textAlign: "center",
-      minHeight: 120,
+      minHeight: 300,
       padding: theme.spacing(3),
+      fontFamily: MONOSPACE_FONT_FAMILY,
     },
     header: {
       marginBottom: theme.spacing(3),
     },
     title: {
-      fontWeight: 400,
+      fontWeight: 600,
+      fontFamily: "inherit",
     },
     description: {
       marginTop: theme.spacing(1),
+      fontFamily: "inherit",
     },
   }),
   { name: "EmptyState" },

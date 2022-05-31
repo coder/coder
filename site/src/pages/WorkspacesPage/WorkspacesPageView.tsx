@@ -14,15 +14,18 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getDisplayStatus } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
   createButton: "Create workspace",
-  emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
+  emptyMessage: "Create your first workspace",
+  emptyDescription: "To start edit your source code, and build your awesome software.",
 }
 
 export interface WorkspacesPageViewProps {
@@ -53,50 +56,53 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {!props.loading && !props.workspaces?.length && (
+            {props.loading && <TableLoader />}
+            {props.workspaces && props.workspaces.length === 0 && (
               <TableRow>
                 <TableCell colSpan={999}>
-                  <div className={styles.welcome}>
-                    <span>
-                      <Link component={RouterLink} to="/templates">
-                        Create a workspace
+                  <EmptyState
+                    message={Language.emptyMessage}
+                    description={Language.emptyDescription}
+                    cta={
+                      <Link underline="none" component={RouterLink} to="/workspaces/new">
+                        <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
                       </Link>
-                      &nbsp;{Language.emptyView}
-                    </span>
-                  </div>
+                    }
+                  />
                 </TableCell>
               </TableRow>
             )}
-            {props.workspaces?.map((workspace) => {
-              const status = getDisplayStatus(theme, workspace.latest_build)
-              return (
-                <TableRow key={workspace.id}>
-                  <TableCell>
-                    <AvatarData
-                      title={workspace.name}
-                      subtitle={workspace.owner_name}
-                      link={`/workspaces/${workspace.id}`}
-                    />
-                  </TableCell>
-                  <TableCell>{workspace.template_name}</TableCell>
-                  <TableCell>
-                    {workspace.outdated ? (
-                      <span style={{ color: theme.palette.error.main }}>outdated</span>
-                    ) : (
-                      <span style={{ color: theme.palette.text.secondary }}>up to date</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
-                      {dayjs().to(dayjs(workspace.latest_build.created_at))}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span style={{ color: status.color }}>{status.status}</span>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+            {props.workspaces &&
+              props.workspaces.map((workspace) => {
+                const status = getDisplayStatus(theme, workspace.latest_build)
+                return (
+                  <TableRow key={workspace.id}>
+                    <TableCell>
+                      <AvatarData
+                        title={workspace.name}
+                        subtitle={workspace.owner_name}
+                        link={`/workspaces/${workspace.id}`}
+                      />
+                    </TableCell>
+                    <TableCell>{workspace.template_name}</TableCell>
+                    <TableCell>
+                      {workspace.outdated ? (
+                        <span style={{ color: theme.palette.error.main }}>outdated</span>
+                      ) : (
+                        <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
+                        {dayjs().to(dayjs(workspace.latest_build.created_at))}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span style={{ color: status.color }}>{status.status}</span>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
           </TableBody>
         </Table>
       </Margins>
