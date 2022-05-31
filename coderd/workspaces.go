@@ -96,8 +96,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK,
-		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, owner))
 }
 
 func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -275,8 +274,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
-		convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, owner))
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -514,8 +512,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
-		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template, user))
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace, workspaceBuild, templateVersionJob, template, user))
 }
 
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
@@ -736,7 +733,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, build, job, template, owner))
 		case <-ctx.Done():
 			return
 		}
@@ -829,13 +826,17 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		if !exists {
 			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
 		}
-		apiWorkspaces = append(apiWorkspaces,
-			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, user))
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, user))
 	}
 	return apiWorkspaces, nil
 }
 
-func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template, owner database.User) codersdk.Workspace {
+func convertWorkspace(
+	workspace database.Workspace,
+	workspaceBuild database.WorkspaceBuild,
+	job database.ProvisionerJob,
+	template database.Template,
+	owner database.User) codersdk.Workspace {
 	return codersdk.Workspace{
 		ID:                workspace.ID,
 		CreatedAt:         workspace.CreatedAt,
@@ -843,7 +844,7 @@ func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.Work
 		OwnerID:           workspace.OwnerID,
 		OwnerName:         owner.Username,
 		TemplateID:        workspace.TemplateID,
-		LatestBuild:       workspaceBuild,
+		LatestBuild:       convertWorkspaceBuild(workspace, workspaceBuild, job),
 		TemplateName:      template.Name,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
