@@ -31,9 +31,9 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	if options.Listener == nil {
 		config := yamux.DefaultConfig()
 		config.LogOutput = io.Discard
-		stdio, err := yamux.Server(readWriteCloser{
-			ReadCloser: os.Stdin,
-			Writer:     os.Stdout,
+		stdio, err := yamux.Server(&readWriteCloser{
+			ReadCloser:  os.Stdin,
+			WriteCloser: os.Stdout,
 		}, config)
 		if err != nil {
 			return xerrors.Errorf("create yamux: %w", err)
@@ -54,6 +54,9 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	// short-lived processes that can be executed concurrently.
 	err = srv.Serve(ctx, options.Listener)
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
