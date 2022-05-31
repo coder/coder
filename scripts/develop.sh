@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+set -x
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
@@ -28,6 +29,6 @@ export CODER_DEV_ADMIN_PASSWORD=password
 	# Just a minor sleep to ensure the first user was created to make the member.
 	sleep 2
 	# || yes to always exit code 0. If this fails, whelp.
-	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || yes
+	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || true
 	wait
 )
