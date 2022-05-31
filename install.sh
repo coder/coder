@@ -301,7 +301,7 @@ install_deb() {
   echoh "Installing v$VERSION of the $ARCH deb package from GitHub."
   echoh
 
-  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_$ARCH.deb" \
+  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_$OS_$ARCH.deb" \
     "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
   sudo_sh_c dpkg -i "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
 
@@ -312,9 +312,9 @@ install_rpm() {
   echoh "Installing v$VERSION of the $ARCH rpm package from GitHub."
   echoh
 
-  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_$VERSION_$ARCH.rpm" \
-    "$CACHE_DIR/coder_$VERSION_$ARCH.rpm"
-  sudo_sh_c rpm -i "$CACHE_DIR/coder_$VERSION_$ARCH.rpm"
+  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_$OS_$ARCH.rpm" \
+    "$CACHE_DIR/coder_${VERSION}_$OS_$ARCH.rpm"
+  sudo_sh_c rpm -i "$CACHE_DIR/coder_${VERSION}_$OS_$ARCH.rpm"
 
   echo_systemd_postinstall rpm
 }
@@ -323,9 +323,9 @@ install_apk() {
   echoh "Installing v$VERSION of the $ARCH apk package from GitHub."
   echoh
 
-  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_$VERSION_$ARCH.apk" \
-    "$CACHE_DIR/coder_$VERSION_$ARCH.apk"
-  sudo_sh_c apk add --allow-untrusted "$CACHE_DIR/coder_$VERSION_$ARCH.apk"
+  fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_$OS_$ARCH.apk" \
+    "$CACHE_DIR/coder_${VERSION}_$OS_$ARCH.apk"
+  sudo_sh_c apk add --allow-untrusted "$CACHE_DIR/coder_${VERSION}_$OS_$ARCH.apk"
 
   echo_systemd_postinstall apk
 }
