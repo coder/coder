@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
@@ -22,16 +23,16 @@ func TransportPipe() (*yamux.Session, *yamux.Session) {
 	yamuxConfig := yamux.DefaultConfig()
 	yamuxConfig.LogOutput = io.Discard
 	client, err := yamux.Client(&readWriteCloser{
-		ReadCloser: clientReader,
-		Writer:     serverWriter,
+		ReadCloser:  clientReader,
+		WriteCloser: serverWriter,
 	}, yamuxConfig)
 	if err != nil {
 		panic(err)
 	}
 
 	server, err := yamux.Server(&readWriteCloser{
-		ReadCloser: serverReader,
-		Writer:     clientWriter,
+		ReadCloser:  serverReader,
+		WriteCloser: clientWriter,
 	}, yamuxConfig)
 	if err != nil {
 		panic(err)
@@ -45,8 +46,19 @@ func Conn(session *yamux.Session) drpc.Conn {
 }
 
 type readWriteCloser struct {
+	closeMutex sync.Mutex
 	io.ReadCloser
-	io.Writer
+	io.WriteCloser
+}
+
+func (c *readWriteCloser) Close() error {
+	c.closeMutex.Lock()
+	defer c.closeMutex.Unlock()
+	err := c.ReadCloser.Close()
+	if err != nil {
+		return err
+	}
+	return c.WriteCloser.Close()
 }
 
 // Allows concurrent requests on a single dRPC connection.
