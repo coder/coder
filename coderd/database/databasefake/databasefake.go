@@ -1126,6 +1126,10 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if arg.LifetimeSeconds == 0 {
+		arg.LifetimeSeconds = 86400
+	}
+
 	//nolint:gosimple
 	key := database.APIKey{
 		ID:                arg.ID,

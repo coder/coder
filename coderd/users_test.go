@@ -8,6 +8,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/coder/coder/coderd/database"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -129,6 +132,99 @@ func TestPostLogin(t *testing.T) {
 			Password: req.Password,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("Lifetime&Expire", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		split := strings.Split(client.SessionToken, "-")
+		loginKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch login key")
+		require.Equal(t, int64(86400), loginKey.LifetimeSeconds, "default should be 86400")
+
+		// Generated tokens have a longer life
+		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
+		require.NoError(t, err, "make new api key")
+		split = strings.Split(token.Key, "-")
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch api key")
+
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
+		require.True(t, apiKey.ExpiresAt.After(loginKey.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
+		require.Greater(t, apiKey.LifetimeSeconds, loginKey.LifetimeSeconds, "api key should have longer lifetime")
+	})
+
+	t.Run("APIKeyExtend", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
+		require.NoError(t, err, "make new api key")
+		client.SessionToken = token.Key
+		split := strings.Split(token.Key, "-")
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch api key")
+
+		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:       apiKey.ID,
+			LastUsed: apiKey.LastUsed,
+			// This should cause a refresh
+			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
+			OAuthAccessToken:  apiKey.OAuthAccessToken,
+			OAuthRefreshToken: apiKey.OAuthRefreshToken,
+			OAuthExpiry:       apiKey.OAuthExpiry,
+		})
+		require.NoError(t, err, "update api key")
+
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch user")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch refreshed api key")
+		// 1 minute tolerance
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*7).Add(time.Minute*-1)), "api key lasts 7 days")
+	})
+
+	t.Run("LoginKeyExtend", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		split := strings.Split(client.SessionToken, "-")
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch login key")
+
+		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:       apiKey.ID,
+			LastUsed: apiKey.LastUsed,
+			// This should cause a refresh
+			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
+			OAuthAccessToken:  apiKey.OAuthAccessToken,
+			OAuthRefreshToken: apiKey.OAuthRefreshToken,
+			OAuthExpiry:       apiKey.OAuthExpiry,
+		})
+		require.NoError(t, err, "update login key")
+
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch user")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch refreshed login key")
+		// 1 minute tolerance
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24).Add(time.Minute*-1)), "login key lasts 24 hrs")
 	})
 }
 

@@ -12,10 +12,10 @@ LIMIT
 INSERT INTO
 	api_keys (
 		id,
+		lifetime_seconds,
 		hashed_secret,
 		user_id,
 		last_used,
-	    lifetime_seconds,
 		expires_at,
 		created_at,
 		updated_at,
@@ -26,7 +26,13 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+	(@id,
+	 -- If the lifetime is set to 0, default to 24hrs
+	 CASE @lifetime_seconds::bigint
+	     WHEN 0 THEN 86400
+		 ELSE @lifetime_seconds::bigint
+	 END
+	 , @hashed_secret, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @oauth_access_token, @oauth_refresh_token, @oauth_id_token, @oauth_expiry) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE
