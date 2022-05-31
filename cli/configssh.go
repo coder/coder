@@ -179,7 +179,7 @@ func configSSH() *cobra.Command {
 			// prompting in diff mode (unexpected behavior).
 			if !showDiff && coderConfig.isZero() && !lastCoderConfig.isZero() {
 				line, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("Found previous configuration option(s):\n\n  - %s\n\n  Use previous option(s)?", strings.Join(lastCoderConfig.asList(), "\n  - ")),
+					Text:      fmt.Sprintf("Found previous configuration option(s):\n\n    - %s\n\n  Use previous option(s)?", strings.Join(lastCoderConfig.asList(), "\n    - ")),
 					IsConfirm: true,
 				})
 				if err != nil {
