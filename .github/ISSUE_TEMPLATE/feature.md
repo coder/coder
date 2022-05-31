@@ -11,4 +11,6 @@ labels: ["new feature :sparkles:", "needs grooming :razor:"]
 
 ## Are there any workarounds to get this functionality today?
 
+## What is the "definition of done" for this feature?
+
 ## Are you interested in submitting a PR for this?
