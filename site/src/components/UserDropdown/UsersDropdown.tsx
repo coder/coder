@@ -78,6 +78,8 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
             </MenuItem>
           </Link>
 
+          <Divider />
+
           <a
             href={`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`}
             target="_blank"
