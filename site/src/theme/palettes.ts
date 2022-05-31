@@ -1,11 +1,5 @@
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 
-/**
- * Dark theme color palette
- *
- * This maps to our design system at:
- * https://www.figma.com/file/VkXU4873QOsSprMQV02GgR/Design-System?node-id=219%3A40
- */
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
