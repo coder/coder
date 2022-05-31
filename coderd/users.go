@@ -473,7 +473,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
+	roles := httpmw.UserAuthorizationRoles(r)
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {

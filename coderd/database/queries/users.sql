@@ -134,7 +134,9 @@ WHERE
 	id = $1 RETURNING *;
 
 
--- name: GetAllUserRoles :one
+-- name: GetAuthorizationUserRoles :one
+-- This function returns roles for authorization purposes. Implied member roles
+-- are included.
 SELECT
 	-- username is returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
