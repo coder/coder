@@ -726,8 +726,13 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
+	// Default expires at to now+lifetime, or just 24hrs if not set
 	if params.ExpiresAt.IsZero() {
-		params.ExpiresAt = database.Now().Add(24 * time.Hour)
+		if params.LifetimeSeconds != 0 {
+			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
+		} else {
+			params.ExpiresAt = database.Now().Add(24 * time.Hour)
+		}
 	}
 
 	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
