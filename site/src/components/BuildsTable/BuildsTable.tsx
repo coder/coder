@@ -6,7 +6,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
-import React from "react"
+import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
@@ -27,7 +27,7 @@ export interface BuildsTableProps {
   className?: string
 }
 
-export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) => {
+export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
   const isLoading = !builds
   const theme: Theme = useTheme()
   const navigate = useNavigate()

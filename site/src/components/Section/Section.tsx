@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { fade } from "@material-ui/core/styles/colorManipulator"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 import { SectionAction } from "../SectionAction/SectionAction"
 
@@ -17,7 +17,7 @@ export interface SectionProps {
   children?: React.ReactNode
 }
 
-type SectionFC = React.FC<SectionProps> & { Action: typeof SectionAction }
+type SectionFC = FC<SectionProps> & { Action: typeof SectionAction }
 
 export const Section: SectionFC = ({
   title,

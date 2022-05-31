@@ -1,5 +1,4 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
-import React from "react"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as AccountForm from "../../../components/SettingsAccountForm/SettingsAccountForm"

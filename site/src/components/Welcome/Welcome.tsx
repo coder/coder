@@ -1,9 +1,9 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import { CoderIcon } from "../Icons/CoderIcon"
 
-export const Welcome: React.FC = () => {
+export const Welcome: FC = () => {
   const styles = useStyles()
 
   return (

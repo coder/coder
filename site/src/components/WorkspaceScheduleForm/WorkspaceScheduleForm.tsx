@@ -11,7 +11,7 @@ import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
 import { getFormHelpers } from "../../util/formUtils"
@@ -127,7 +127,7 @@ export const validationSchema = Yup.object({
   ttl: Yup.number().min(0).integer(),
 })
 
-export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
   initialValues = {
     sunday: false,

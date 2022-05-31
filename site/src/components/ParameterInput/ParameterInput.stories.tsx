@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { ParameterSchema } from "../../api/typesGenerated"
 import { ParameterInput, ParameterInputProps } from "./ParameterInput"
 

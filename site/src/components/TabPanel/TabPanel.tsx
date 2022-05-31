@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { fade } from "@material-ui/core/styles/colorManipulator"
-import React from "react"
+import { FC } from "react"
 import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
 export type AdminMenuItemCallback = (menuItem: string) => void
@@ -10,7 +10,7 @@ export interface TabPanelProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabPanel: React.FC<TabPanelProps> = ({ children, title, menuItems }) => {
+export const TabPanel: FC<TabPanelProps> = ({ children, title, menuItems }) => {
   const styles = useStyles()
 
   return (

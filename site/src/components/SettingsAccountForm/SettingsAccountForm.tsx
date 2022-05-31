@@ -1,7 +1,7 @@
 import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
@@ -32,7 +32,7 @@ export interface AccountFormProps {
   error?: string
 }
 
-export const AccountForm: React.FC<AccountFormProps> = ({
+export const AccountForm: FC<AccountFormProps> = ({
   email,
   isLoading,
   onSubmit,

@@ -1,4 +1,4 @@
-import React from "react"
+import { FC, lazy, Suspense } from "react"
 import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
@@ -8,23 +8,23 @@ import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
-import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
-import { SecurityPage } from "./pages/SettingsPages/SecurityPage/SecurityPage"
-import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import { TemplatePage } from "./pages/TemplatePage/TemplatePage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
+import { AccountPage } from "./pages/UserSettingsPage/AccountPage/AccountPage"
+import { SecurityPage } from "./pages/UserSettingsPage/SecurityPage/SecurityPage"
+import { SSHKeysPage } from "./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
-const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
-const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
-const CreateWorkspacePage = React.lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
+const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
+const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
+const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 
-export const AppRouter: React.FC = () => (
-  <React.Suspense fallback={<></>}>
+export const AppRouter: FC = () => (
+  <Suspense fallback={<></>}>
     <Routes>
       <Route path="/">
         <Route
@@ -159,5 +159,5 @@ export const AppRouter: React.FC = () => (
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
-  </React.Suspense>
+  </Suspense>
 )

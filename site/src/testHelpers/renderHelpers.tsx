@@ -1,7 +1,7 @@
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
-import React from "react"
+import { FC, ReactElement } from "react"
 import { MemoryRouter, Route, Routes, unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
@@ -10,7 +10,7 @@ import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
 
-export const WrapperComponent: React.FC = ({ children }) => {
+export const WrapperComponent: FC = ({ children }) => {
   return (
     <HistoryRouter history={history}>
       <XServiceProvider>
@@ -20,7 +20,7 @@ export const WrapperComponent: React.FC = ({ children }) => {
   )
 }
 
-export const render = (component: React.ReactElement): RenderResult => {
+export const render = (component: ReactElement): RenderResult => {
   return wrappedRender(<WrapperComponent>{component}</WrapperComponent>)
 }
 

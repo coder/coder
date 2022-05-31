@@ -1,6 +1,6 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 import { firstLetter } from "../../util/firstLetter"
 
@@ -9,7 +9,7 @@ export interface UserAvatarProps {
   username: string
 }
 
-export const UserAvatar: React.FC<UserAvatarProps> = ({ username, className }) => {
+export const UserAvatar: FC<UserAvatarProps> = ({ username, className }) => {
   const styles = useStyles()
   return (
     <Avatar variant="square" className={combineClasses([styles.avatar, className])}>

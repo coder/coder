@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react"
-import React from "react"
 import { MockAdminRole, MockMemberRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"

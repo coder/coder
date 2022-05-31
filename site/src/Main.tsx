@@ -1,5 +1,4 @@
 import { inspect } from "@xstate/inspect"
-import React from "react"
 import ReactDOM from "react-dom"
 import { Interpreter } from "xstate"
 import { App } from "./app"

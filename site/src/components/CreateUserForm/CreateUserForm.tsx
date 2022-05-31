@@ -1,7 +1,7 @@
 import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
@@ -35,7 +35,7 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({
+export const CreateUserForm: FC<CreateUserFormProps> = ({
   onSubmit,
   onCancel,
   formErrors,

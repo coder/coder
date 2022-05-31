@@ -1,6 +1,6 @@
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import { FormikContextType } from "formik"
-import React from "react"
+import { ReactElement } from "react"
 import { PasswordField } from "../PasswordField/PasswordField"
 
 /**
@@ -118,7 +118,7 @@ export const FormTextField = <T,>({
   type,
   variant = "outlined",
   ...rest
-}: FormTextFieldProps<T>): React.ReactElement => {
+}: FormTextFieldProps<T>): ReactElement => {
   const isError = form.touched[formFieldName] && Boolean(form.errors[formFieldName])
 
   // Conversion to a string primitive is necessary as formFieldName is an in

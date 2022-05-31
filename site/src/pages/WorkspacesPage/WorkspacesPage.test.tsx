@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"

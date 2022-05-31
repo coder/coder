@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import frontMatter from "front-matter"
-import React from "react"
+import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
@@ -28,11 +28,7 @@ export interface TemplatePageViewProps {
   templateResources: WorkspaceResource[]
 }
 
-export const TemplatePageView: React.FC<TemplatePageViewProps> = ({
-  template,
-  activeTemplateVersion,
-  templateResources,
-}) => {
+export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTemplateVersion, templateResources }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
 

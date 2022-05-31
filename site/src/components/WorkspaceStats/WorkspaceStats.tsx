@@ -1,7 +1,7 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
@@ -21,7 +21,7 @@ export interface WorkspaceStatsProps {
   workspace: Workspace
 }
 
-export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, workspace.latest_build)

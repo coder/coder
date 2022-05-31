@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { containerWidth, sidePadding } from "../../theme/constants"
 
 type Size = "regular" | "medium" | "small"
@@ -24,7 +24,7 @@ interface MarginsProps {
   size?: Size
 }
 
-export const Margins: React.FC<MarginsProps> = ({ children, size = "regular" }) => {
+export const Margins: FC<MarginsProps> = ({ children, size = "regular" }) => {
   const styles = useStyles({ maxWidth: widthBySize[size] })
   return <div className={styles.margins}>{children}</div>
 }
