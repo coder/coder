@@ -167,7 +167,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form onSubmit={form.handleSubmit}>
+      <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
@@ -243,6 +243,11 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 }
 
 const useStyles = makeStyles({
+  form: {
+    "& input": {
+      colorScheme: "dark",
+    },
+  },
   daysOfWeekLabel: {
     fontSize: 12,
   },

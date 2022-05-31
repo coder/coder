@@ -15,6 +15,7 @@ import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 export interface WorkspaceProps {
   handleStart: () => void
   handleStop: () => void
+  handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   workspace: TypesGen.Workspace
@@ -29,6 +30,7 @@ export interface WorkspaceProps {
 export const Workspace: FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
+  handleDelete,
   handleUpdate,
   handleCancel,
   workspace,
@@ -56,6 +58,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
+            handleDelete={handleDelete}
             handleUpdate={handleUpdate}
             handleCancel={handleCancel}
           />
