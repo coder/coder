@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { MockWorkspaceBuildLogs } from "../../testHelpers/entities"
 import { WorkspaceBuildLogs, WorkspaceBuildLogsProps } from "./WorkspaceBuildLogs"
 

@@ -95,5 +95,15 @@ export const getOverrides = (palette: PaletteOptions) => {
         border: `1px solid ${palette.divider}`,
       },
     },
+    MuiFormHelperText: {
+      contained: {
+        marginLeft: 0,
+        marginRight: 0,
+      },
+
+      marginDense: {
+        marginTop: 8,
+      },
+    },
   }
 }

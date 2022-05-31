@@ -409,11 +409,11 @@ func TestGrantRoles(t *testing.T) {
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
+		var err error
+
 		admin := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, admin)
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "member user")
 
 		_, err = admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgAdmin(first.OrganizationID)},
@@ -445,7 +445,7 @@ func TestGrantRoles(t *testing.T) {
 		require.Error(t, err, "member cannot change other's roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
-		_, err = member.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
+		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change any roles")
@@ -456,6 +456,18 @@ func TestGrantRoles(t *testing.T) {
 		})
 		require.Error(t, err, "member cannot change other's org roles")
 		requireStatusCode(t, err, http.StatusForbidden)
+
+		_, err = admin.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self org roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
@@ -503,7 +515,7 @@ func TestGrantRoles(t *testing.T) {
 		require.NoError(t, err, "grant member admin role")
 
 		// Promote to org admin
-		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to org admin
 				rbac.RoleOrgAdmin(first.OrganizationID),

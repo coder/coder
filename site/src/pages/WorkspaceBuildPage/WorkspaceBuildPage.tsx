@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useMachine } from "@xstate/react"
-import React from "react"
+import { FC } from "react"
 import { useParams } from "react-router-dom"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
@@ -25,7 +25,7 @@ const useBuildId = () => {
   return buildId
 }
 
-export const WorkspaceBuildPage: React.FC = () => {
+export const WorkspaceBuildPage: FC = () => {
   const buildId = useBuildId()
   const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
   const { logs, build } = buildState.context

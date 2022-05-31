@@ -1,6 +1,7 @@
 import { useMachine } from "@xstate/react"
 import React, { useEffect } from "react"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
+import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Margins } from "../../components/Margins/Margins"
@@ -11,6 +12,7 @@ import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
+  const navigate = useNavigate()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
@@ -32,16 +34,27 @@ export const WorkspacePage: React.FC = () => {
     return (
       <Margins>
         <Stack spacing={4}>
-          <Workspace
-            workspace={workspace}
-            handleStart={() => workspaceSend("START")}
-            handleStop={() => workspaceSend("STOP")}
-            handleUpdate={() => workspaceSend("UPDATE")}
-            handleCancel={() => workspaceSend("CANCEL")}
-            resources={resources}
-            getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
-            builds={builds}
-          />
+          <>
+            <Workspace
+              workspace={workspace}
+              handleStart={() => workspaceSend("START")}
+              handleStop={() => workspaceSend("STOP")}
+              handleDelete={() => workspaceSend("ASK_DELETE")}
+              handleUpdate={() => workspaceSend("UPDATE")}
+              handleCancel={() => workspaceSend("CANCEL")}
+              resources={resources}
+              getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
+              builds={builds}
+            />
+            <DeleteWorkspaceDialog
+              isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
+              handleCancel={() => workspaceSend("CANCEL_DELETE")}
+              handleConfirm={() => {
+                workspaceSend("DELETE")
+                navigate("/workspaces")
+              }}
+            />
+          </>
         </Stack>
       </Margins>
     )

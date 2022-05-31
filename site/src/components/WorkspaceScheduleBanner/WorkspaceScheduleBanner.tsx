@@ -3,8 +3,9 @@ import AlertTitle from "@material-ui/lab/AlertTitle"
 import dayjs from "dayjs"
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
 import utc from "dayjs/plugin/utc"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { isWorkspaceOn } from "../../util/workspace"
 
 dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
@@ -18,12 +19,7 @@ export interface WorkspaceScheduleBannerProps {
 }
 
 export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
-  const transition = workspace.latest_build.transition
-  const status = workspace.latest_build.job.status
-
-  if (transition !== "start") {
-    return false
-  } else if (status === "canceled" || status === "canceling" || status === "failed") {
+  if (!isWorkspaceOn(workspace)) {
     return false
   } else {
     // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
@@ -35,7 +31,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: React.FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
+export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
   if (!shouldDisplay(workspace)) {
     return null
   } else {

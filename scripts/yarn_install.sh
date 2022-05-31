@@ -5,7 +5,7 @@
 #
 # Usage: yarn_install.sh [optional extra flags]
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)

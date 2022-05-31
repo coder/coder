@@ -1,11 +1,11 @@
 import { fireEvent, render } from "@testing-library/react"
-import React from "react"
+import { FC } from "react"
 import { act } from "react-dom/test-utils"
 import { WrapperComponent } from "../../testHelpers/renderHelpers"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 namespace Helpers {
-  export const Component: React.FC<ConfirmDialogProps> = (props: ConfirmDialogProps) => {
+  export const Component: FC<ConfirmDialogProps> = (props: ConfirmDialogProps) => {
     return (
       <WrapperComponent>
         <ConfirmDialog {...props} />

@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import * as Mocks from "../../testHelpers/renderHelpers"
 import { TemplateStats, TemplateStatsProps } from "../TemplateStats/TemplateStats"
 

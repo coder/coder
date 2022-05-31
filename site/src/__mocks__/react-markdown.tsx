@@ -1,6 +1,6 @@
-import React from "react"
+import { FC } from "react"
 
-const ReactMarkdown: React.FC = ({ children }) => {
+const ReactMarkdown: FC = ({ children }) => {
   return <div data-testid="markdown">{children}</div>
 }
 

@@ -6,17 +6,20 @@ import cronstrue from "cronstrue"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import utc from "dayjs/plugin/utc"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { extractTimezone, stripTimezone } from "../../util/schedule"
+import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
+dayjs.extend(utc)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
-const Language = {
+export const Language = {
   autoStartDisplay: (schedule: string): string => {
     if (schedule) {
       return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
@@ -33,24 +36,34 @@ const Language = {
     }
   },
   autoStopDisplay: (workspace: Workspace): string => {
-    const latest = workspace.latest_build
+    const deadline = dayjs(workspace.latest_build.deadline).utc()
+    // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+    // SEE: #1834
+    const hasDeadline = deadline.year() > 1
+    const ttl = workspace.ttl
 
-    if (!workspace.ttl || workspace.ttl < 1) {
-      return "Manual"
-    }
-
-    if (latest.transition === "start") {
-      const now = dayjs()
-      const updatedAt = dayjs(latest.updated_at)
-      const deadline = updatedAt.add(workspace.ttl / 1_000_000, "ms")
+    if (isWorkspaceOn(workspace) && hasDeadline) {
+      // Workspace is on --> derive from latest_build.deadline. Note that the
+      // user may modify their workspace object (ttl) while the workspace is
+      // running and depending on system semantics, the deadline may still
+      // represent the previously defined ttl. Thus, we always derive from the
+      // deadline as the source of truth.
+      const now = dayjs().utc()
       if (now.isAfter(deadline)) {
-        return "Workspace is shutting down now"
+        return "Workspace is shutting down"
+      } else {
+        return now.to(deadline)
       }
-      return now.to(deadline)
+    } else if (!ttl || ttl < 1) {
+      // If the workspace is not on, and the ttl is 0 or undefined, then the
+      // workspace is set to manually shutdown.
+      return "Manual"
+    } else {
+      // The workspace has a ttl set, but is either in an unknown state or is
+      // not running. Therefore, we derive from workspace.ttl.
+      const duration = dayjs.duration(ttl / 1_000_000, "milliseconds")
+      return `${duration.humanize()} after start`
     }
-
-    const duration = dayjs.duration(workspace.ttl / 1_000_000, "milliseconds")
-    return `${duration.humanize()} after start`
   },
   editScheduleLink: "Edit schedule",
   schedule: "Schedule",
@@ -60,7 +73,7 @@ export interface WorkspaceScheduleProps {
   workspace: Workspace
 }
 
-export const WorkspaceSchedule: React.FC<WorkspaceScheduleProps> = ({ workspace }) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
   const styles = useStyles()
 
   return (

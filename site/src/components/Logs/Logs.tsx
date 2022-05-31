@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
-import React from "react"
+import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
@@ -14,7 +14,7 @@ export interface LogsProps {
   className?: string
 }
 
-export const Logs: React.FC<LogsProps> = ({ lines, className = "" }) => {
+export const Logs: FC<LogsProps> = ({ lines, className = "" }) => {
   const styles = useStyles()
 
   return (

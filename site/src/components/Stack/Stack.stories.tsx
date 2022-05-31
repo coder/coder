@@ -1,6 +1,5 @@
 import TextField from "@material-ui/core/TextField"
 import { Story } from "@storybook/react"
-import React from "react"
 import { Stack, StackProps } from "./Stack"
 
 export default {

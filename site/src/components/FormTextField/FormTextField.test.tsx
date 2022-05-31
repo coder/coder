@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as yup from "yup"
 import { FormTextField, FormTextFieldProps } from "./FormTextField"
 
@@ -11,7 +11,7 @@ namespace Helpers {
 
   export const requiredValidationMsg = "required"
 
-  export const Component: React.FC<Omit<FormTextFieldProps<FormValues>, "form" | "formFieldName">> = (props) => {
+  export const Component: FC<Omit<FormTextFieldProps<FormValues>, "form" | "formFieldName">> = (props) => {
     const form = useFormik<FormValues>({
       initialValues: {
         name: "",

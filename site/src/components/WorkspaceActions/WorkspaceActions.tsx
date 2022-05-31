@@ -2,9 +2,10 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import CancelIcon from "@material-ui/icons/Cancel"
 import CloudDownloadIcon from "@material-ui/icons/CloudDownload"
+import DeleteIcon from "@material-ui/icons/Delete"
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import StopIcon from "@material-ui/icons/Stop"
-import React from "react"
+import { FC } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
@@ -15,6 +16,8 @@ export const Language = {
   stopping: "Stopping workspace",
   start: "Start workspace",
   starting: "Starting workspace",
+  delete: "Delete workspace",
+  deleting: "Deleting workspace",
   cancel: "Cancel action",
   update: "Update workspace",
 }
@@ -38,18 +41,23 @@ const canStart = (workspaceStatus: WorkspaceStatus) => ["stopped", "canceled", "
 
 const canStop = (workspaceStatus: WorkspaceStatus) => ["started", "canceled", "error"].includes(workspaceStatus)
 
+const canDelete = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "stopped", "canceled", "error"].includes(workspaceStatus)
+
 export interface WorkspaceActionsProps {
   workspace: Workspace
   handleStart: () => void
   handleStop: () => void
+  handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
 }
 
-export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
+export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
   handleStart,
   handleStop,
+  handleDelete,
   handleUpdate,
   handleCancel,
 }) => {
@@ -72,6 +80,14 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
           icon={<StopIcon />}
           onClick={handleStop}
           label={Language.stop}
+        />
+      )}
+      {canDelete(workspaceStatus) && (
+        <WorkspaceActionButton
+          className={styles.actionButton}
+          icon={<DeleteIcon />}
+          onClick={handleDelete}
+          label={Language.delete}
         />
       )}
       {canCancelJobs(workspaceStatus) && (

@@ -11,7 +11,7 @@ import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
 import { getFormHelpers } from "../../util/formUtils"
@@ -127,7 +127,7 @@ export const validationSchema = Yup.object({
   ttl: Yup.number().min(0).integer(),
 })
 
-export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
   initialValues = {
     sunday: false,
@@ -167,8 +167,8 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack className={styles.stack}>
+      <form onSubmit={form.handleSubmit} className={styles.form}>
+        <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
             disabled={form.isSubmitting || isLoading}
@@ -177,7 +177,6 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
             }}
             label={Language.startTimeLabel}
             type="time"
-            variant="standard"
           />
 
           <TextField
@@ -195,7 +194,6 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
               shrink: true,
             }}
             label={Language.timezoneLabel}
-            variant="standard"
           />
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
@@ -212,6 +210,9 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
                       disabled={!form.values.startTime || form.isSubmitting || isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
+                      color="primary"
+                      size="small"
+                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -229,7 +230,6 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            variant="standard"
           />
 
           <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
@@ -241,16 +241,9 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
 const useStyles = makeStyles({
   form: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  stack: {
-    // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
-    //         to render on one line. If we change the text, we might want to
-    //         adjust these. Without constraining the width, the date picker
-    //         and number inputs aren't visually appealing or maximally usable.
-    maxWidth: 360,
-    minWidth: 360,
+    "& input": {
+      colorScheme: "dark",
+    },
   },
   daysOfWeekLabel: {
     fontSize: 12,

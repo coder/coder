@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -15,6 +15,7 @@ import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 export interface WorkspaceProps {
   handleStart: () => void
   handleStop: () => void
+  handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   workspace: TypesGen.Workspace
@@ -26,9 +27,10 @@ export interface WorkspaceProps {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({
+export const Workspace: FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
+  handleDelete,
   handleUpdate,
   handleCancel,
   workspace,
@@ -56,6 +58,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
+            handleDelete={handleDelete}
             handleUpdate={handleUpdate}
             handleCancel={handleCancel}
           />

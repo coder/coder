@@ -1,12 +1,13 @@
 import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
+import { Stack } from "../Stack/Stack"
 
 export const Language = {
   emailLabel: "Email",
@@ -34,7 +35,7 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({
+export const CreateUserForm: FC<CreateUserFormProps> = ({
   onSubmit,
   onCancel,
   formErrors,
@@ -57,32 +58,34 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
   return (
     <FullPageForm title="Create user" onCancel={onCancel}>
       <form onSubmit={form.handleSubmit}>
-        <TextField
-          {...getFieldHelpers("username")}
-          onChange={onChangeTrimmed(form)}
-          autoComplete="username"
-          autoFocus
-          fullWidth
-          label={Language.usernameLabel}
-          variant="outlined"
-        />
-        <TextField
-          {...getFieldHelpers("email")}
-          onChange={onChangeTrimmed(form)}
-          autoComplete="email"
-          fullWidth
-          label={Language.emailLabel}
-          variant="outlined"
-        />
-        <TextField
-          {...getFieldHelpers("password")}
-          autoComplete="current-password"
-          fullWidth
-          id="password"
-          label={Language.passwordLabel}
-          type="password"
-          variant="outlined"
-        />
+        <Stack spacing={1}>
+          <TextField
+            {...getFieldHelpers("username")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="username"
+            autoFocus
+            fullWidth
+            label={Language.usernameLabel}
+            variant="outlined"
+          />
+          <TextField
+            {...getFieldHelpers("email")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="email"
+            fullWidth
+            label={Language.emailLabel}
+            variant="outlined"
+          />
+          <TextField
+            {...getFieldHelpers("password")}
+            autoComplete="current-password"
+            fullWidth
+            id="password"
+            label={Language.passwordLabel}
+            type="password"
+            variant="outlined"
+          />
+        </Stack>
         {error && <FormHelperText error>{error}</FormHelperText>}
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>

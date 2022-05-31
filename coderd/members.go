@@ -20,6 +20,14 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID == member.UserID {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "You cannot change your own organization roles.",
+		})
+		return
+	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {

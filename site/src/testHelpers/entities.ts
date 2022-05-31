@@ -70,17 +70,22 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
 }
-
-export const MockFailedProvisionerJob = { ...MockProvisionerJob, status: "failed" as TypesGen.ProvisionerJobStatus }
-export const MockCancelingProvisionerJob = {
+export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceling" as TypesGen.ProvisionerJobStatus,
+  status: "failed",
 }
-export const MockCanceledProvisionerJob = {
+export const MockCancelingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceled" as TypesGen.ProvisionerJobStatus,
+  status: "canceling",
 }
-export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
+export const MockCanceledProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceled",
+}
+export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "running",
+}
 
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
@@ -162,14 +167,24 @@ export const MockWorkspace: TypesGen.Workspace = {
   latest_build: MockWorkspaceBuild,
 }
 
-export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildStop,
+}
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuildStop,
+    job: MockRunningProvisionerJob,
+  },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockRunningProvisionerJob,
+    transition: "start",
+  },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -181,7 +196,10 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockFailedProvisionerJob,
+  },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,

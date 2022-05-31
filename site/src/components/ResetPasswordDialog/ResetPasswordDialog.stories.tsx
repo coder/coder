@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { MockUser } from "../../testHelpers/renderHelpers"
 import { ResetPasswordDialog, ResetPasswordDialogProps } from "./ResetPasswordDialog"
 

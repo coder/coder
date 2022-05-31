@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { RuntimeErrorState, RuntimeErrorStateProps } from "./RuntimeErrorState"
 
 const error = new Error("An error occurred")

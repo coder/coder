@@ -4,7 +4,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
@@ -35,7 +35,7 @@ export interface UsersTableProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({
+export const UsersTable: FC<UsersTableProps> = ({
   users,
   roles,
   onSuspendUser,

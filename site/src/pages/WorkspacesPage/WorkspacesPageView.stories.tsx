@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { ProvisionerJobStatus, Workspace } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
