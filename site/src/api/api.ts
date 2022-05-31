@@ -63,7 +63,7 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 }
 
 export const getUsers = async (): Promise<TypesGen.User[]> => {
-  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active")
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active,suspended")
   return response.data
 }
 
@@ -215,6 +215,11 @@ export const updateProfile = async (
   data: TypesGen.UpdateUserProfileRequest,
 ): Promise<TypesGen.User> => {
   const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
+  return response.data
+}
+
+export const activateUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/activate`)
   return response.data
 }
 

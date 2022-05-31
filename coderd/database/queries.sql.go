@@ -2091,7 +2091,9 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 const getAllUserRoles = `-- name: GetAllUserRoles :one
 SELECT
     -- username is returned just to help for logging purposes
-	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+    -- status is used to enforce 'suspended' users, as all roles are ignored
+    --	when suspended.
+	id, username, status, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
 FROM
 	users
 LEFT JOIN organization_members
@@ -2101,15 +2103,21 @@ WHERE
 `
 
 type GetAllUserRolesRow struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	Username string    `db:"username" json:"username"`
-	Roles    []string  `db:"roles" json:"roles"`
+	ID       uuid.UUID  `db:"id" json:"id"`
+	Username string     `db:"username" json:"username"`
+	Status   UserStatus `db:"status" json:"status"`
+	Roles    []string   `db:"roles" json:"roles"`
 }
 
 func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAllUserRoles, userID)
 	var i GetAllUserRolesRow
-	err := row.Scan(&i.ID, &i.Username, pq.Array(&i.Roles))
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Status,
+		pq.Array(&i.Roles),
+	)
 	return i, err
 }
 
@@ -2218,17 +2226,19 @@ WHERE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
-		)	
+		)
 		ELSE true
 	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN $3 :: text != '' THEN (
-			status = $3 :: user_status
+		WHEN cardinality($3 :: user_status[]) > 0 THEN (
+			status = ANY($3 :: user_status[])
 		)
-		ELSE true
+		ELSE
+		    -- Only show active by default
+		    status = 'active'
 	END
 	-- End of filters
 ORDER BY
@@ -2241,18 +2251,18 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
-	Search    string    `db:"search" json:"search"`
-	Status    string    `db:"status" json:"status"`
-	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
+	Search    string       `db:"search" json:"search"`
+	Status    []UserStatus `db:"status" json:"status"`
+	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
-		arg.Status,
+		pq.Array(arg.Status),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

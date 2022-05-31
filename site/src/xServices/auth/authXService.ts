@@ -1,3 +1,4 @@
+import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
@@ -49,7 +50,7 @@ type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 export interface AuthContext {
   getUserError?: Error | unknown
   getMethodsError?: Error | unknown
-  authError?: Error | unknown
+  authError?: Error | AxiosError | unknown
   updateProfileError?: Error | unknown
   updateSecurityError?: Error | unknown
   me?: TypesGen.User

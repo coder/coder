@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -105,9 +106,26 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	var (
-		searchName   = r.URL.Query().Get("search")
-		statusFilter = r.URL.Query().Get("status")
+		searchName    = r.URL.Query().Get("search")
+		statusFilters = r.URL.Query().Get("status")
 	)
+
+	statuses := make([]database.UserStatus, 0)
+
+	if statusFilters != "" {
+		// Split on commas if present to account for it being a list
+		for _, filter := range strings.Split(statusFilters, ",") {
+			switch database.UserStatus(filter) {
+			case database.UserStatusSuspended, database.UserStatusActive:
+				statuses = append(statuses, database.UserStatus(filter))
+			default:
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("%q is not a valid user status", filter),
+				})
+				return
+			}
+		}
+	}
 
 	// Reading all users across the site.
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser) {
@@ -124,7 +142,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
 		Search:    searchName,
-		Status:    statusFilter,
+		Status:    statuses,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
@@ -598,7 +616,15 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "invalid email or password",
+			Message: "Incorrect email or password.",
+		})
+		return
+	}
+
+	// If the user logged into a suspended account, reject the login request.
+	if user.Status != database.UserStatusActive {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "You are suspended, contact an admin to reactivate your account",
 		})
 		return
 	}

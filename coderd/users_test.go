@@ -84,6 +84,35 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
+	t.Run("Suspended", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		memberUser, err := member.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch member user")
+
+		_, err = client.UpdateUserStatus(context.Background(), memberUser.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err, "suspend member")
+
+		// Test an existing session
+		_, err = member.User(context.Background(), codersdk.Me)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "contact an admin")
+
+		// Test a new session
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    memberUser.Email,
+			Password: "testpass",
+		})
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "suspended")
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
