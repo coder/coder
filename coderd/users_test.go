@@ -96,11 +96,18 @@ func TestPostLogin(t *testing.T) {
 		_, err = client.UpdateUserStatus(context.Background(), memberUser.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err, "suspend member")
 
+		// Test an existing session
+		_, err = member.User(context.Background(), codersdk.Me)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "contact an admin")
+
+		// Test a new session
 		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    memberUser.Email,
 			Password: "testpass",
 		})
-		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "suspended")

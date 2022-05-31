@@ -219,7 +219,7 @@ export const updateProfile = async (
 }
 
 export const activateUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
-  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/active`)
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/activate`)
   return response.data
 }
 

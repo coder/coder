@@ -236,7 +236,7 @@ func New(options *Options) *API {
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
-						r.Put("/active", api.putUserStatus(database.UserStatusActive))
+						r.Put("/activate", api.putUserStatus(database.UserStatusActive))
 					})
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)

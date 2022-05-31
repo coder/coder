@@ -218,7 +218,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	path := fmt.Sprintf("/api/v2/users/%s/status/", user)
 	switch status {
 	case UserStatusActive:
-		path += "active"
+		path += "activate"
 	case UserStatusSuspended:
 		path += "suspend"
 	default:

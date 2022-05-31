@@ -92,12 +92,12 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                             },
                           ]
                         : [
-                            {
-                              label: Language.activateMenuItem,
-                              // TODO: Activate user
-                              // eslint-disable-next-line @typescript-eslint/no-empty-function
-                              onClick: function () {},
-                            },
+                            // TODO: Uncomment this and add activate user functionality.
+                            // {
+                            //   label: Language.activateMenuItem,
+                            //   // eslint-disable-next-line @typescript-eslint/no-empty-function
+                            //   onClick: function () {},
+                            // },
                           ]
                       ).concat({
                         label: Language.resetPasswordMenuItem,
