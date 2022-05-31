@@ -6,6 +6,7 @@ import cronstrue from "cronstrue"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
+import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
@@ -14,6 +15,7 @@ import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
+dayjs.extend(utc)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
@@ -34,18 +36,21 @@ export const Language = {
     }
   },
   autoStopDisplay: (workspace: Workspace): string => {
-    const deadline = workspace.latest_build.deadline
+    const deadline = dayjs(workspace.latest_build.deadline).utc()
+    // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+    // SEE: #1834
+    const hasDeadline = deadline.year() > 1
     const ttl = workspace.ttl
 
-    if (isWorkspaceOn(workspace)) {
+    if (isWorkspaceOn(workspace) && hasDeadline) {
       // Workspace is on --> derive from latest_build.deadline. Note that the
       // user may modify their workspace object (ttl) while the workspace is
       // running and depending on system semantics, the deadline may still
       // represent the previously defined ttl. Thus, we always derive from the
       // deadline as the source of truth.
-      const now = dayjs()
+      const now = dayjs().utc()
       if (now.isAfter(deadline)) {
-        return "Workspace is shutting down now"
+        return "Workspace is shutting down"
       } else {
         return now.to(deadline)
       }
