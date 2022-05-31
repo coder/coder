@@ -3,12 +3,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC, ReactNode } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string
   /** Longer optional description to display below the message */
-  description?: string
+  description?: string | React.ReactNode
+  descriptionClassName?: string
   cta?: ReactNode
 }
 
@@ -21,7 +23,7 @@ export interface EmptyStateProps {
  * that you can directly pass props through to to customize the shape and layout of it.
  */
 export const EmptyState: FC<EmptyStateProps> = (props) => {
-  const { message, description, cta, ...boxProps } = props
+  const { message, description, cta, descriptionClassName, ...boxProps } = props
   const styles = useStyles()
 
   return (
@@ -31,7 +33,11 @@ export const EmptyState: FC<EmptyStateProps> = (props) => {
           {message}
         </Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" className={styles.description}>
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            className={combineClasses([styles.description, descriptionClassName])}
+          >
             {description}
           </Typography>
         )}

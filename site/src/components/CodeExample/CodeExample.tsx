@@ -15,8 +15,8 @@ export const CodeExample: FC<CodeExampleProps> = ({ code }) => {
 
   return (
     <div className={styles.root}>
-      <code>{code}</code>
-      <CopyButton text={code} />
+      <code className={styles.code}>{code}</code>
+      <CopyButton text={code} buttonClassName={styles.button} />
     </div>
   )
 }
@@ -25,13 +25,21 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     background: theme.palette.background.default,
     color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 13,
-    padding: theme.spacing(2),
+    fontSize: 14,
+    borderRadius: theme.shape.borderRadius,
+    padding: theme.spacing(0.5),
+  },
+  code: {
+    padding: `${theme.spacing(0.5)}px  ${theme.spacing(0.75)}px ${theme.spacing(0.5)}px ${theme.spacing(2)}px`,
+  },
+  button: {
+    border: 0,
+    minWidth: 42,
+    minHeight: 42,
     borderRadius: theme.shape.borderRadius,
   },
 }))
