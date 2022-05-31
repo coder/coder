@@ -12,7 +12,7 @@ usage() {
 "
   fi
 
-  cath << EOF
+  cath <<EOF
 Installs Coder.
 It tries to use the system package manager if possible.
 After successful installation it explains how to start Coder.
@@ -82,7 +82,7 @@ echo_latest_version() {
 echo_standalone_postinstall() {
   echoh
   cath <<EOF
-  Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/coder
+Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/coder
 
 Extend your path to use Coder:
   PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
@@ -133,66 +133,66 @@ main() {
   ALL_FLAGS=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      -*)
-        ALL_FLAGS="${ALL_FLAGS} $1"
-        ;;
+    -*)
+      ALL_FLAGS="${ALL_FLAGS} $1"
+      ;;
     esac
 
     case "$1" in
-      --dry-run)
-        DRY_RUN=1
-        ;;
-      --method)
-        METHOD="$(parse_arg "$@")"
-        shift
-        ;;
-      --method=*)
-        METHOD="$(parse_arg "$@")"
-        ;;
-      --prefix)
-        STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
-        shift
-        ;;
-      --prefix=*)
-        STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
-        ;;
-      --version)
-        VERSION="$(parse_arg "$@")"
-        shift
-        ;;
-      --version=*)
-        VERSION="$(parse_arg "$@")"
-        ;;
-      --edge)
-        EDGE=1
-        ;;
-      --rsh)
-        RSH="$(parse_arg "$@")"
-        shift
-        ;;
-      --rsh=*)
-        RSH="$(parse_arg "$@")"
-        ;;
-      -h | --h | -help | --help)
-        usage
-        exit 0
-        ;;
-      --)
-        shift
-        # We remove the -- added above.
-        ALL_FLAGS="${ALL_FLAGS% --}"
-        RSH_ARGS="$*"
-        break
-        ;;
-      -*)
-        echoerr "Unknown flag $1"
-        echoerr "Run with --help to see usage."
-        exit 1
-        ;;
-      *)
-        RSH_ARGS="$*"
-        break
-        ;;
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    --method)
+      METHOD="$(parse_arg "$@")"
+      shift
+      ;;
+    --method=*)
+      METHOD="$(parse_arg "$@")"
+      ;;
+    --prefix)
+      STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
+      shift
+      ;;
+    --prefix=*)
+      STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
+      ;;
+    --version)
+      VERSION="$(parse_arg "$@")"
+      shift
+      ;;
+    --version=*)
+      VERSION="$(parse_arg "$@")"
+      ;;
+    --edge)
+      EDGE=1
+      ;;
+    --rsh)
+      RSH="$(parse_arg "$@")"
+      shift
+      ;;
+    --rsh=*)
+      RSH="$(parse_arg "$@")"
+      ;;
+    -h | --h | -help | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      # We remove the -- added above.
+      ALL_FLAGS="${ALL_FLAGS% --}"
+      RSH_ARGS="$*"
+      break
+      ;;
+    -*)
+      echoerr "Unknown flag $1"
+      echoerr "Run with --help to see usage."
+      exit 1
+      ;;
+    *)
+      RSH_ARGS="$*"
+      break
+      ;;
     esac
 
     shift
@@ -241,54 +241,54 @@ main() {
   DISTRO=${DISTRO:-$(distro)}
 
   case $DISTRO in
-    # macOS uses the standalone installation for now.
-    # Homebrew support is planned. See: https://github.com/coder/coder/issues/1925
-    macos) install_standalone ;;
-    # The .deb and .rpm files are pulled from GitHub.
-    debian) install_deb ;;
-    fedora | opensuse) install_rpm ;;
-    # We don't have GitHub releases that work on Alpine or FreeBSD so we have no
-    # choice but to use npm here.
-    alpine) install_apk ;;
-    # For anything else we'll try to install standalone but fall back to npm if
-    # we don't have releases for the architecture.
-    *)
-      echoh "Unsupported package manager."
-      echoh "Falling back to standalone installation."
-      install_standalone
-      ;;
+  # macOS uses the standalone installation for now.
+  # Homebrew support is planned. See: https://github.com/coder/coder/issues/1925
+  macos) install_standalone ;;
+  # The .deb and .rpm files are pulled from GitHub.
+  debian) install_deb ;;
+  fedora | opensuse) install_rpm ;;
+  # We don't have GitHub releases that work on Alpine or FreeBSD so we have no
+  # choice but to use npm here.
+  alpine) install_apk ;;
+  # For anything else we'll try to install standalone but fall back to npm if
+  # we don't have releases for the architecture.
+  *)
+    echoh "Unsupported package manager."
+    echoh "Falling back to standalone installation."
+    install_standalone
+    ;;
   esac
 }
 
 parse_arg() {
   case "$1" in
-    *=*)
-      # Remove everything after first equal sign.
-      opt="${1%%=*}"
-      # Remove everything before first equal sign.
-      optarg="${1#*=}"
-      if [ ! "$optarg" ] && [ ! "${OPTIONAL-}" ]; then
-        echoerr "$opt requires an argument"
-        echoerr "Run with --help to see usage."
-        exit 1
-      fi
-      echo "$optarg"
-      return
-      ;;
+  *=*)
+    # Remove everything after first equal sign.
+    opt="${1%%=*}"
+    # Remove everything before first equal sign.
+    optarg="${1#*=}"
+    if [ ! "$optarg" ] && [ ! "${OPTIONAL-}" ]; then
+      echoerr "$opt requires an argument"
+      echoerr "Run with --help to see usage."
+      exit 1
+    fi
+    echo "$optarg"
+    return
+    ;;
   esac
 
   case "${2-}" in
-    "" | -*)
-      if [ ! "${OPTIONAL-}" ]; then
-        echoerr "$1 requires an argument"
-        echoerr "Run with --help to see usage."
-        exit 1
-      fi
-      ;;
-    *)
-      echo "$2"
-      return
-      ;;
+  "" | -*)
+    if [ ! "${OPTIONAL-}" ]; then
+      echoerr "$1 requires an argument"
+      echoerr "Run with --help to see usage."
+      exit 1
+    fi
+    ;;
+  *)
+    echo "$2"
+    return
+    ;;
   esac
 }
 
@@ -359,7 +359,7 @@ install_standalone() {
 
   # -w only works if the directory exists so try creating it first. If this
   # fails we can ignore the error as the -w check will then swap us to sudo.
-  sh_c mkdir -p "$STANDALONE_INSTALL_PREFIX" 2> /dev/null || true
+  sh_c mkdir -p "$STANDALONE_INSTALL_PREFIX" 2>/dev/null || true
 
   sh_c="sh_c"
   if [ ! -w "$STANDALONE_INSTALL_PREFIX" ]; then
@@ -382,23 +382,23 @@ install_standalone() {
 # TODO: fix for Coder v2
 has_standalone() {
   case $ARCH in
-    amd64) return 0 ;;
-    # We only have amd64 for macOS.
-    arm64)
-      [ "$(distro)" != darwin ]
-      return
-      ;;
-    *) return 1 ;;
+  amd64) return 0 ;;
+  # We only have amd64 for macOS.
+  arm64)
+    [ "$(distro)" != darwin ]
+    return
+    ;;
+  *) return 1 ;;
   esac
 }
 
 os() {
   uname="$(uname)"
   case $uname in
-    Linux) echo linux ;;
-    Darwin) echo darwin ;;
-    FreeBSD) echo freebsd ;;
-    *) echo "$uname" ;;
+  Linux) echo linux ;;
+  Darwin) echo darwin ;;
+  FreeBSD) echo freebsd ;;
+  *) echo "$uname" ;;
   esac
 }
 
@@ -461,15 +461,15 @@ distro_name() {
 arch() {
   uname_m=$(uname -m)
   case $uname_m in
-    aarch64) echo arm64 ;;
-    x86_64) echo amd64 ;;
-    *) echo "$uname_m" ;;
+  aarch64) echo arm64 ;;
+  x86_64) echo amd64 ;;
+  *) echo "$uname_m" ;;
   esac
 }
 
 command_exists() {
   if [ ! "$1" ]; then return 1; fi
-  command -v "$@" > /dev/null
+  command -v "$@" >/dev/null
 }
 
 sh_c() {
@@ -531,7 +531,7 @@ prefix() {
   fifo="$(mktemp -d)/fifo"
   mkfifo "$fifo"
   sed -e "s#^#$PREFIX: #" "$fifo" &
-  "$@" > "$fifo" 2>&1
+  "$@" >"$fifo" 2>&1
 }
 
 main "$@"
