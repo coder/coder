@@ -366,8 +366,8 @@ install_standalone() {
   fi
 
   "$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/lib" "$STANDALONE_INSTALL_PREFIX/bin"
-  "$sh_c" tar -C "$STANDALONE_INSTALL_PREFIX/lib" -xzf "$CACHE_DIR/coder_$VERSION_$OS_$ARCH.tar"
-  "$sh_c" mv -f "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION_$OS_$ARCH" "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION"
+  "$sh_c" tar -C "$STANDALONE_INSTALL_PREFIX/lib" -xzf "$CACHE_DIR/coder_$${VERSION}_${OS}_${ARCH}.tar"
+  "$sh_c" mv -f "$STANDALONE_INSTALL_PREFIX/lib/coder_$${VERSION}_${OS}_${ARCH}" "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION"
   "$sh_c" ln -fs "$STANDALONE_INSTALL_PREFIX/lib/coder_$VERSION/bin/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
 
   echo_standalone_postinstall
