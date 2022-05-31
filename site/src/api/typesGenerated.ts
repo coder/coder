@@ -281,14 +281,14 @@ export interface UpdateRoles {
   readonly roles: string[]
 }
 
-// From codersdk/users.go:67:6
+// From codersdk/users.go:66:6
 export interface UpdateUserPasswordRequest {
+  readonly old_password: string
   readonly password: string
 }
 
 // From codersdk/users.go:62:6
 export interface UpdateUserProfileRequest {
-  readonly email: string
   readonly username: string
 }
 

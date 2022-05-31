@@ -1,7 +1,7 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 
@@ -23,7 +23,7 @@ export interface TerminalLinkProps {
  * If no user name is provided "me" is used however it makes the link not
  * shareable.
  */
-export const TerminalLink: React.FC<TerminalLinkProps> = ({ agentName, userName = "me", workspaceName, className }) => {
+export const TerminalLink: FC<TerminalLinkProps> = ({ agentName, userName = "me", workspaceName, className }) => {
   const styles = useStyles()
 
   return (

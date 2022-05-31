@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import { UserAvatar, UserAvatarProps } from "../UserAvatar/UserAvatar"
 
 export interface UserCellProps {
@@ -35,7 +35,7 @@ const useStyles = makeStyles((theme) => ({
  * UserCell is a single cell in an audit log table row that contains user-level
  * information
  */
-export const UserCell: React.FC<UserCellProps> = ({ Avatar, caption, primaryText, onPrimaryTextSelect }) => {
+export const UserCell: FC<UserCellProps> = ({ Avatar, caption, primaryText, onPrimaryTextSelect }) => {
   const styles = useStyles()
 
   return (

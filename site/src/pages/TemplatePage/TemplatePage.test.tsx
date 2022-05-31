@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react"
-import React from "react"
 import { MockTemplate, MockWorkspaceResource, renderWithAuth } from "../../testHelpers/renderHelpers"
 import { TemplatePage } from "./TemplatePage"
 

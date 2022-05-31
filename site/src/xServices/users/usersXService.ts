@@ -221,7 +221,10 @@ export const usersMachine = createMachine(
           throw new Error("newUserPassword not generated")
         }
 
-        return API.updateUserPassword(context.newUserPassword, context.userIdToResetPassword)
+        return API.updateUserPassword(context.userIdToResetPassword, {
+          password: context.newUserPassword,
+          old_password: "",
+        })
       },
       updateUserRoles: (context, event) => {
         if (!context.userIdToUpdateRoles) {

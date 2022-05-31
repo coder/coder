@@ -128,6 +128,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, apiKey := range q.apiKeys {
+		if apiKey.ID != id {
+			continue
+		}
+		q.apiKeys[index] = q.apiKeys[len(q.apiKeys)-1]
+		q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetFileByHash(_ context.Context, hash string) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -218,11 +233,13 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = tmp
 	}
 
-	if params.Status != "" {
+	if len(params.Status) > 0 {
 		usersFilteredByStatus := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if params.Status == string(user.Status) {
-				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+			for _, status := range params.Status {
+				if user.Status == status {
+					usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+				}
 			}
 		}
 		users = usersFilteredByStatus
@@ -289,6 +306,7 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	return database.GetAllUserRolesRow{
 		ID:       userID,
 		Username: user.Username,
+		Status:   user.Status,
 		Roles:    roles,
 	}, nil
 }

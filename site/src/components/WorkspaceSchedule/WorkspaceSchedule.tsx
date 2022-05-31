@@ -6,7 +6,7 @@ import cronstrue from "cronstrue"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
@@ -60,7 +60,7 @@ export interface WorkspaceScheduleProps {
   workspace: Workspace
 }
 
-export const WorkspaceSchedule: React.FC<WorkspaceScheduleProps> = ({ workspace }) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
   const styles = useStyles()
 
   return (

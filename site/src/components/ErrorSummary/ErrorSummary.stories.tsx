@@ -1,6 +1,5 @@
 import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { ErrorSummary, ErrorSummaryProps } from "./ErrorSummary"
 
 export default {

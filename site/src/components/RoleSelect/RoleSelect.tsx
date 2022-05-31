@@ -2,7 +2,7 @@ import Checkbox from "@material-ui/core/Checkbox"
 import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
 import { makeStyles, Theme } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { Role } from "../../api/typesGenerated"
 
 export const Language = {
@@ -16,7 +16,7 @@ export interface RoleSelectProps {
   open?: boolean
 }
 
-export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
+export const RoleSelect: FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")
@@ -55,5 +55,10 @@ const useStyles = makeStyles((theme: Theme) => ({
     // Set a fixed width for the select. It avoids selects having different sizes
     // depending on how many roles they have selected.
     width: theme.spacing(25),
+    "& .MuiSelect-root": {
+      // Adjusting padding because it does not have label
+      paddingTop: theme.spacing(1.5),
+      paddingBottom: theme.spacing(1.5),
+    },
   },
 }))

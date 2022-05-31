@@ -1,5 +1,5 @@
 import { useMachine } from "@xstate/react"
-import React from "react"
+import { FC } from "react"
 import { useParams } from "react-router-dom"
 import { Loader } from "../../components/Loader/Loader"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
@@ -16,7 +16,7 @@ const useTemplateName = () => {
   return template
 }
 
-export const TemplatePage: React.FC = () => {
+export const TemplatePage: FC = () => {
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
   const [templateState] = useMachine(templateMachine, {

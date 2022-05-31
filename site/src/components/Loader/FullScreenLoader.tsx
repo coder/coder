@@ -1,6 +1,6 @@
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -16,7 +16,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FullScreenLoader: React.FC = () => {
+export const FullScreenLoader: FC = () => {
   const styles = useStyles()
 
   return (

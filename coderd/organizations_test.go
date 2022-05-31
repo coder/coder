@@ -38,7 +38,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		org, err := client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		org, err := client.Organization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		_, err = client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		_, err = client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: org.Name,
 		})
 		var apiErr *codersdk.Error
@@ -79,7 +79,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		_, err := client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: "new",
 		})
 		require.NoError(t, err)

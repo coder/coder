@@ -261,11 +261,14 @@ func secureHeaders(next http.Handler) http.Handler {
 		CSPDirectiveManifestSrc: {"'self' blob:"},
 		CSPDirectiveFrameSrc:    {"'self'"},
 		// data: for loading base64 encoded icons for generic applications.
-		CSPDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
+		// https: allows loading images from external sources. This is not ideal
+		// 	but is required for the templates page that renders readmes.
+		//	We should find a better solution in the future.
+		CSPDirectiveImgSrc:     {"'self' https: https://cdn.coder.com data:"},
 		CSPDirectiveFormAction: {"'self'"},
 		CSPDirectiveMediaSrc:   {"'self'"},
 		// Report all violations back to the server to log
-		CSPDirectiveReportURI: {"/api/private/csp/reports"},
+		CSPDirectiveReportURI: {"/api/v2/csp/reports"},
 		CSPFrameAncestors:     {"'none'"},
 
 		// Only scripts can manipulate the dom. This prevents someone from

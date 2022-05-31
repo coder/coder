@@ -1,6 +1,5 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import React from "react"
 import { CreateUserForm, CreateUserFormProps } from "./CreateUserForm"
 
 export default {

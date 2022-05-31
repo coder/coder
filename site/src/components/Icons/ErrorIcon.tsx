@@ -1,5 +1,4 @@
 import SvgIcon, { SvgIconProps } from "@material-ui/core/SvgIcon"
-import React from "react"
 
 export const ErrorIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 24 24">

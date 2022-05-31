@@ -1,7 +1,6 @@
 import { act, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import React from "react"
 import { Language } from "../../components/SignInForm/SignInForm"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
@@ -31,7 +30,7 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
+        return res(ctx.status(500), ctx.json({ message: Language.authErrorMessage }))
       }),
     )
 

@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { ReactElement } from "react"
 import { FormTextField, FormTextFieldProps } from "../FormTextField/FormTextField"
 
 export interface FormDropdownItem {
@@ -15,7 +15,7 @@ export interface FormDropdownFieldProps<T> extends FormTextFieldProps<T> {
   items: FormDropdownItem[]
 }
 
-export const FormDropdownField = <T,>({ items, ...props }: FormDropdownFieldProps<T>): React.ReactElement => {
+export const FormDropdownField = <T,>({ items, ...props }: FormDropdownFieldProps<T>): ReactElement => {
   const styles = useStyles()
   return (
     <FormTextField select {...props}>

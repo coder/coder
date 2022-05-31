@@ -2,7 +2,7 @@ import IconButton from "@material-ui/core/IconButton"
 import Snackbar, { SnackbarProps as MuiSnackbarProps } from "@material-ui/core/Snackbar"
 import { makeStyles } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
-import React from "react"
+import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 
 type EnterpriseSnackbarVariant = "error" | "info"
@@ -25,7 +25,7 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/snackbars/
  */
-export const EnterpriseSnackbar: React.FC<EnterpriseSnackbarProps> = ({
+export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
   onClose,
   variant = "info",
   ContentProps = {},

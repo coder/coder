@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react"
-import React from "react"
-import { MockUser } from "../../testHelpers/entities"
+import { MockAdminRole, MockMemberRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
@@ -33,6 +32,36 @@ describe("UserDropdown", () => {
   })
 
   describe("when the menu is open", () => {
+    it("displays the user's roles", async () => {
+      await renderAndClick()
+
+      expect(screen.getByText(MockAdminRole.display_name)).toBeDefined()
+      expect(screen.getByText(MockMemberRole.display_name)).toBeDefined()
+    })
+
+    it("has the correct link for the documentation item", async () => {
+      process.env.CODER_VERSION = "v0.5.4"
+      await renderAndClick()
+
+      const link = screen.getByText(Language.docsLabel).closest("a")
+      if (!link) {
+        throw new Error("Anchor tag not found for the documentation menu item")
+      }
+
+      expect(link.getAttribute("href")).toBe(`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`)
+    })
+
+    it("has the correct link for the account item", async () => {
+      await renderAndClick()
+
+      const link = screen.getByText(Language.accountLabel).closest("a")
+      if (!link) {
+        throw new Error("Anchor tag not found for the account menu item")
+      }
+
+      expect(link.getAttribute("href")).toBe("/settings/account")
+    })
+
     describe("and sign out is clicked", () => {
       it("calls the onSignOut function", async () => {
         const onSignOut = jest.fn()
@@ -41,28 +70,5 @@ describe("UserDropdown", () => {
         expect(onSignOut).toBeCalledTimes(1)
       })
     })
-  })
-
-  it("has the correct link for the documentation item", async () => {
-    process.env.CODER_VERSION = "v0.5.4"
-    await renderAndClick()
-
-    const link = screen.getByText(Language.docsLabel).closest("a")
-    if (!link) {
-      throw new Error("Anchor tag not found for the documentation menu item")
-    }
-
-    expect(link.getAttribute("href")).toBe(`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`)
-  })
-
-  it("has the correct link for the account item", async () => {
-    await renderAndClick()
-
-    const link = screen.getByText(Language.accountLabel).closest("a")
-    if (!link) {
-      throw new Error("Anchor tag not found for the account menu item")
-    }
-
-    expect(link.getAttribute("href")).toBe("/settings/account")
   })
 })

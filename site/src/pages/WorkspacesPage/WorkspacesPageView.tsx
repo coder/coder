@@ -1,4 +1,3 @@
-import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles, Theme } from "@material-ui/core/styles"
@@ -11,12 +10,12 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
-import { firstLetter } from "../../util/firstLetter"
 import { getDisplayStatus } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
@@ -32,7 +31,7 @@ export interface WorkspacesPageViewProps {
   error?: unknown
 }
 
-export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => {
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
   return (
@@ -73,15 +72,11 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
               return (
                 <TableRow key={workspace.id}>
                   <TableCell>
-                    <div className={styles.workspaceName}>
-                      <Avatar variant="square" className={styles.workspaceAvatar}>
-                        {firstLetter(workspace.name)}
-                      </Avatar>
-                      <Link component={RouterLink} to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
-                        <b>{workspace.name}</b>
-                        <span>{workspace.owner_name}</span>
-                      </Link>
-                    </div>
+                    <AvatarData
+                      title={workspace.name}
+                      subtitle={workspace.owner_name}
+                      link={`/workspaces/${workspace.id}`}
+                    />
                   </TableCell>
                   <TableCell>{workspace.template_name}</TableCell>
                   <TableCell>
@@ -132,30 +127,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  workspaceAvatar: {
-    borderRadius: 2,
-    marginRight: theme.spacing(1),
-    width: 24,
-    height: 24,
-    fontSize: 16,
-  },
-  workspaceName: {
-    display: "flex",
-    alignItems: "center",
-  },
-  workspaceLink: {
-    display: "flex",
-    flexDirection: "column",
-    color: theme.palette.text.primary,
-    textDecoration: "none",
-    "&:hover": {
-      textDecoration: "underline",
-    },
-    "& span": {
-      fontSize: 12,
-      color: theme.palette.text.secondary,
     },
   },
 }))

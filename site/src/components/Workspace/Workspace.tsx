@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -8,6 +8,7 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -25,7 +26,7 @@ export interface WorkspaceProps {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({
+export const Workspace: FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
   handleUpdate,
@@ -63,8 +64,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
       <Stack direction="row" spacing={3} className={styles.layout}>
         <Stack spacing={3} className={styles.main}>
+          <WorkspaceScheduleBanner workspace={workspace} />
+
           <WorkspaceStats workspace={workspace} />
+
           <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>

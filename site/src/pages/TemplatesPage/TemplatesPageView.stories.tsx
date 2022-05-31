@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { MockTemplate } from "../../testHelpers/entities"
 import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
 

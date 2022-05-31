@@ -310,6 +310,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
+
 	if req.TemplateID != uuid.Nil {
 		_, err := api.Database.GetTemplateByID(r.Context(), req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -337,6 +338,15 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get file: %s", err),
 		})
+		return
+	}
+
+	// Making a new template version is the same permission as creating a new template.
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, file) {
 		return
 	}
 

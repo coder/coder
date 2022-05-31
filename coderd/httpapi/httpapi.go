@@ -104,7 +104,7 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 		for _, validationError := range validationErrors {
 			apiErrors = append(apiErrors, Error{
 				Field:  validationError.Field(),
-				Detail: validationError.Tag(),
+				Detail: fmt.Sprintf("Validation failed for tag %q with value: \"%v\"", validationError.Tag(), validationError.Value()),
 			})
 		}
 		Write(rw, http.StatusBadRequest, Response{

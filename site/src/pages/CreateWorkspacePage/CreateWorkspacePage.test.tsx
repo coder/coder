@@ -1,13 +1,12 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import React from "react"
-import { reach, StringSchema } from "yup"
 import * as API from "../../api/api"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
+import { Language as FormLanguage } from "../../util/formUtils"
 import CreateWorkspacePage from "./CreateWorkspacePage"
-import { Language, validationSchema } from "./CreateWorkspacePageView"
+import { Language } from "./CreateWorkspacePageView"
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -23,8 +22,6 @@ const fillForm = async ({ name = "example" }: { name?: string }) => {
   await userEvent.click(submitButton)
 }
 
-const nameSchema = reach(validationSchema, "name") as StringSchema
-
 describe("CreateWorkspacePage", () => {
   it("renders", async () => {
     renderCreateWorkspacePage()
@@ -35,7 +32,7 @@ describe("CreateWorkspacePage", () => {
   it("shows validation error message", async () => {
     renderCreateWorkspacePage()
     await fillForm({ name: "$$$" })
-    const errorMessage = await screen.findByText(Language.nameMatches)
+    const errorMessage = await screen.findByText(FormLanguage.nameInvalidChars(Language.nameLabel))
     expect(errorMessage).toBeDefined()
   })
 
@@ -46,39 +43,5 @@ describe("CreateWorkspacePage", () => {
     await fillForm({ name: "test" })
     // Check if the request was made
     await waitFor(() => expect(API.createWorkspace).toBeCalledTimes(1))
-  })
-
-  describe("validationSchema", () => {
-    it("allows a 1-letter name", () => {
-      const validate = () => nameSchema.validateSync("t")
-      expect(validate).not.toThrow()
-    })
-
-    it("allows a 32-letter name", () => {
-      const input = Array(32).fill("a").join("")
-      const validate = () => nameSchema.validateSync(input)
-      expect(validate).not.toThrow()
-    })
-
-    it("allows 'test-3' to be used as name", () => {
-      const validate = () => nameSchema.validateSync("test-3")
-      expect(validate).not.toThrow()
-    })
-
-    it("allows '3-test' to be used as a name", () => {
-      const validate = () => nameSchema.validateSync("3-test")
-      expect(validate).not.toThrow()
-    })
-
-    it("disallows a 33-letter name", () => {
-      const input = Array(33).fill("a").join("")
-      const validate = () => nameSchema.validateSync(input)
-      expect(validate).toThrow()
-    })
-
-    it("disallows a space", () => {
-      const validate = () => nameSchema.validateSync("test 3")
-      expect(validate).toThrow()
-    })
   })
 })

@@ -60,12 +60,12 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserProfileRequest struct {
-	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
 }
 
 type UpdateUserPasswordRequest struct {
-	Password string `json:"password" validate:"required"`
+	OldPassword string `json:"old_password" validate:""`
+	Password    string `json:"password" validate:"required"`
 }
 
 type UpdateRoles struct {
@@ -217,7 +217,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	path := fmt.Sprintf("/api/v2/users/%s/status/", user)
 	switch status {
 	case UserStatusActive:
-		path += "active"
+		path += "activate"
 	case UserStatusSuspended:
 		path += "suspend"
 	default:
@@ -408,8 +408,8 @@ func (c *Client) OrganizationByName(ctx context.Context, user string, name strin
 }
 
 // CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, user string, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
+func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
 	if err != nil {
 		return Organization{}, err
 	}

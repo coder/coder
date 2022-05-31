@@ -456,8 +456,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 
 	// The ID format is referenced in conn.go.
 	// <uuid>:<height>:<width>
-	idParts := strings.Split(rawID, ":")
-	if len(idParts) != 3 {
+	idParts := strings.SplitN(rawID, ":", 4)
+	if len(idParts) != 4 {
 		a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
 		return
 	}
@@ -489,7 +489,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		}
 	} else {
 		// Empty command will default to the users shell!
-		cmd, err := a.createCommand(ctx, "", nil)
+		cmd, err := a.createCommand(ctx, idParts[3], nil)
 		if err != nil {
 			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
 			return
