@@ -70,17 +70,22 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
 }
-
-export const MockFailedProvisionerJob = { ...MockProvisionerJob, status: "failed" as TypesGen.ProvisionerJobStatus }
-export const MockCancelingProvisionerJob = {
+export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceling" as TypesGen.ProvisionerJobStatus,
+  status: "failed",
 }
-export const MockCanceledProvisionerJob = {
+export const MockCancelingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceled" as TypesGen.ProvisionerJobStatus,
+  status: "canceling",
 }
-export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
+export const MockCanceledProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceled",
+}
+export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "running",
+}
 
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
