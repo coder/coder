@@ -11,14 +11,10 @@ import { UserDropdownContent } from "../UserDropdownContent/UserDropdownContent"
 
 export interface UserDropdownProps {
   user: TypesGen.User
-  /**
-   * isOpen, defaults to false, only used for testing, to open the menu without clicking
-   */
-  isOpen?: boolean
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen = false, user, onSignOut }: UserDropdownProps) => {
+export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -43,7 +39,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ isOpen = false, user
       <BorderedMenu
         anchorEl={anchorEl}
         getContentAnchorEl={null}
-        open={!!anchorEl || isOpen}
+        open={!!anchorEl}
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
