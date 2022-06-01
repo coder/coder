@@ -18,7 +18,7 @@ export const Language = {
   starting: "Starting",
   delete: "Delete",
   deleting: "Deleting",
-  cancel: "Cancel",
+  cancel: "Cancel action",
   update: "Update",
 }
 
