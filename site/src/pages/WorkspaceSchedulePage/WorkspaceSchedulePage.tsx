@@ -87,13 +87,13 @@ export const formValuesToAutoStartRequest = (
 export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
-    ttl: values.ttl ? values.ttl * 60 * 60 * 1000 * 1_000_000 : undefined,
+    ttl_ms: values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
   }
 }
 
 export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttl = workspace.ttl ? workspace.ttl / (1_000_000 * 1000 * 60 * 60) : 0
+  const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
 
   if (!schedule) {
     return {
@@ -106,7 +106,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
       saturday: false,
       startTime: "",
       timezone: "",
-      ttl,
+      ttl: ttl,
     }
   }
 
@@ -133,7 +133,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     saturday: weeklyFlags[6],
     startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
     timezone,
-    ttl,
+    ttl: ttl,
   }
 }
 

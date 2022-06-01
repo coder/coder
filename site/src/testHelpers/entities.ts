@@ -164,7 +164,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours as nanoseconds
+  ttl_ms: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours as nanoseconds
   latest_build: MockWorkspaceBuild,
 }
 
