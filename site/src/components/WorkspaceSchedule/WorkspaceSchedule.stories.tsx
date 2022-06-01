@@ -19,6 +19,20 @@ export default {
 
 const Template: Story<WorkspaceScheduleProps> = (args) => <WorkspaceSchedule {...args} />
 
+export const NoScheduleNoTTL = Template.bind({})
+NoScheduleNoTTL.args = {
+  workspace: {
+    ...Mocks.MockWorkspace,
+
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      transition: "stop",
+    },
+    autostart_schedule: undefined,
+    ttl_ms: undefined,
+  },
+}
+
 export const NoTTL = Template.bind({})
 NoTTL.args = {
   workspace: {
@@ -29,7 +43,7 @@ NoTTL.args = {
       // SEE: #1834
       deadline: "0001-01-01T00:00:00Z",
     },
-    ttl: undefined,
+    ttl_ms: undefined,
   },
 }
 
@@ -42,7 +56,7 @@ ShutdownSoon.args = {
       deadline: dayjs().add(ONE, "hour").utc().format(),
       transition: "start",
     },
-    ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours
+    ttl_ms: 2 * 60 * 60 * 1000 // 2 hours
   },
 }
 
@@ -56,7 +70,7 @@ ShutdownLong.args = {
       deadline: dayjs().add(SEVEN, "days").utc().format(),
       transition: "start",
     },
-    ttl: 7 * 24 * 60 * 60 * 1000 * 1_000_000, // 7 days
+    ttl_ms: 7 * 24 * 60 * 60 * 1000 // 7 days
   },
 }
 
@@ -69,7 +83,7 @@ WorkspaceOffShort.args = {
       ...Mocks.MockWorkspaceBuild,
       transition: "stop",
     },
-    ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
   },
 }
 
@@ -82,6 +96,6 @@ WorkspaceOffLong.args = {
       ...Mocks.MockWorkspaceBuild,
       transition: "stop",
     },
-    ttl: 2 * 365 * 24 * 60 * 60 * 1000 * 1_000_000, // 2 years
+    ttl_ms: 2 * 365 * 24 * 60 * 60 * 1000, // 2 years
   },
 }
