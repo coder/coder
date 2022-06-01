@@ -2,6 +2,7 @@
 set -eu
 
 # Coder's automatic install script.
+# See https://github.com/coder/coder#installing-coder
 
 usage() {
   arg0="$0"
@@ -378,7 +379,6 @@ install_standalone() {
 }
 
 # Determine if we have standalone releases on GitHub for the system's arch.
-# TODO: fix for Coder v2
 has_standalone() {
   case $ARCH in
   amd64) return 0 ;;

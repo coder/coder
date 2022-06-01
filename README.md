@@ -56,47 +56,30 @@ You can use any Web IDE ([code-server](https://github.com/coder/code-server), [p
 
 ## Installing Coder
 
-We recommend installing [the latest
-release](https://github.com/coder/coder/releases) on a system with at least 1
-CPU core and 2 GB RAM:
+There are a few ways to install Coder:
 
-1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
-1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
+- [install script](./docs/install.md#installsh) (MacOS & Linux). The script uses the system package manager if possible.
+- with [system packages](./docs/install.md#system-packages) (Debian, Fedora, Alpine)
+- with [Docker or docker-compose](./docs/install.md#docker-compose) (MacOS, Windows, Linux)
+- [manually](./docs/install.md#manual) (MacOS, Windows, Linux)
 
-    ```sh
-    # ex. MacOS and Linux
-    mv coder /usr/local/bin 
-    ```
+If you use the install script, you can preview what occurs during the install process:
 
-    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) on adding a folder to `PATH`
+```sh
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
+```
 
-There are a few ways to run Coder:
+To install, run:
 
-- To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
+```sh
+curl -fsSL https://coder.com/install.sh | sh
+```
 
-  ```bash
-  coder server --dev
-  ```
+Once installed, you can run a temporary deployment in dev mode (all data is in-memory and destroyed on exit):
 
-- To run a **production deployment** with PostgreSQL:
-
-  ```bash
-  CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-      coder server
-  ```
-
-- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, CentOS, RHEL, SUSE):
-
-  ```bash
-  # Edit the configuration!
-  sudo vim /etc/coder.d/coder.env
-  sudo service coder restart
-  ```
-
-  > macOS and Windows users: You'll need to write your own 
-  > configuration to run Coder as a system service.
-
-- See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g., docker-compose)
+```sh
+coder server --dev
+```
 
 Use `coder --help` to get a complete list of flags and environment variables.
 
