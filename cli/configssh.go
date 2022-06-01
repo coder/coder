@@ -57,12 +57,9 @@ var (
 // sshCoderConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshCoderConfigOptions struct {
-	sshConfigFile string
-	sshOptions    []string
-}
-
-func (o sshCoderConfigOptions) isZero() bool {
-	return o.sshConfigFile == sshDefaultConfigFileName && len(o.sshOptions) == 0
+	sshConfigDefaultFile string
+	sshConfigFile        string
+	sshOptions           []string
 }
 
 func (o sshCoderConfigOptions) equal(other sshCoderConfigOptions) bool {
@@ -75,7 +72,7 @@ func (o sshCoderConfigOptions) equal(other sshCoderConfigOptions) bool {
 }
 
 func (o sshCoderConfigOptions) asArgs() (args []string) {
-	if o.sshConfigFile != sshDefaultConfigFileName {
+	if o.sshConfigFile != o.sshConfigDefaultFile {
 		args = append(args, "--ssh-config-file", o.sshConfigFile)
 	}
 	for _, opt := range o.sshOptions {
@@ -85,7 +82,7 @@ func (o sshCoderConfigOptions) asArgs() (args []string) {
 }
 
 func (o sshCoderConfigOptions) asList() (list []string) {
-	if o.sshConfigFile != sshDefaultConfigFileName {
+	if o.sshConfigFile != o.sshConfigDefaultFile {
 		list = append(list, fmt.Sprintf("ssh-config-file: %s", o.sshConfigFile))
 	}
 	for _, opt := range o.sshOptions {
@@ -175,7 +172,7 @@ func configSSH() *cobra.Command {
 					return xerrors.Errorf("unexpected content in %s: remove the file and rerun the command to continue", coderConfigFile)
 				}
 			}
-			lastCoderConfig := sshCoderConfigParseLastOptions(bytes.NewReader(coderConfigRaw))
+			lastCoderConfig := sshCoderConfigParseLastOptions(bytes.NewReader(coderConfigRaw), coderConfig.sshConfigDefaultFile)
 
 			// Only prompt when no arguments are provided and avoid
 			// prompting in diff mode (unexpected behavior).
@@ -368,8 +365,10 @@ func configSSH() *cobra.Command {
 		},
 	}
 	cliflag.StringVarP(cmd.Flags(), &coderConfig.sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
-	cmd.Flags().StringVar(&coderConfigFile, "ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("ssh-coder-config-file")
+	cmd.Flags().StringVar(&coderConfig.sshConfigDefaultFile, "test.default-ssh-config-file", sshDefaultConfigFileName, "Specifies the default path to the SSH config file. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("test.default-ssh-config-file")
+	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("test.ssh-coder-config-file")
 	cmd.Flags().StringArrayVarP(&coderConfig.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
 	cmd.Flags().BoolVarP(&showDiff, "diff", "D", false, "Show diff of changes that will be made.")
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
@@ -418,7 +417,7 @@ func sshCoderConfigWriteHeader(w io.Writer, o sshCoderConfigOptions) error {
 	_, _ = fmt.Fprint(w, sshCoderConfigHeader)
 	_, _ = fmt.Fprint(w, sshCoderConfigDocsHeader)
 	_, _ = fmt.Fprint(w, sshCoderConfigOptionsHeader)
-	if o.sshConfigFile != sshDefaultConfigFileName {
+	if o.sshConfigFile != o.sshConfigDefaultFile {
 		_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-config-file", o.sshConfigFile)
 	}
 	for _, opt := range o.sshOptions {
@@ -428,8 +427,9 @@ func sshCoderConfigWriteHeader(w io.Writer, o sshCoderConfigOptions) error {
 	return nil
 }
 
-func sshCoderConfigParseLastOptions(r io.Reader) (o sshCoderConfigOptions) {
-	o.sshConfigFile = sshDefaultConfigFileName // Default value is not written.
+func sshCoderConfigParseLastOptions(r io.Reader, sshConfigDefaultFile string) (o sshCoderConfigOptions) {
+	o.sshConfigDefaultFile = sshConfigDefaultFile
+	o.sshConfigFile = sshConfigDefaultFile // Default value is not written.
 
 	s := bufio.NewScanner(r)
 	for s.Scan() {
