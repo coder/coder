@@ -41,7 +41,7 @@ export const Language = {
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
-  ttlHelperText: "Your workspace will automatically shut down after this much time.",
+  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
 }
 
 export interface WorkspaceScheduleFormProps {
