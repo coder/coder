@@ -473,7 +473,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserAuthorizationRoles(r)
+	roles := httpmw.AuthorizationUserRoles(r)
 	apiKey := httpmw.APIKey(r)
 
 	if apiKey.UserID == user.ID {
