@@ -34,7 +34,9 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	added, removed := rbac.ChangeRoleSet(member.Roles, params.Roles)
+	// The org-member role is always implied.
+	impliedTypes := append(params.Roles, rbac.RoleOrgMember(organization.ID))
+	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
 		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {

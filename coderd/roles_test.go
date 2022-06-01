@@ -113,6 +113,8 @@ func TestListRoles(t *testing.T) {
 	require.NoError(t, err, "create org")
 
 	const forbidden = "forbidden"
+	siteRoles := convertRoles(rbac.RoleAdmin(), "auditor")
+	orgRoles := convertRoles(rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	testCases := []struct {
 		Name            string
@@ -127,14 +129,14 @@ func TestListRoles(t *testing.T) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			ExpectedRoles: convertRoles(rbac.SiteRoles()),
+			ExpectedRoles: siteRoles,
 		},
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: orgRoles,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
@@ -149,14 +151,14 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(rbac.SiteRoles()),
+			ExpectedRoles: siteRoles,
 		},
 		{
 			Name: "OrgAdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: orgRoles,
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
@@ -171,14 +173,14 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(rbac.SiteRoles()),
+			ExpectedRoles: siteRoles,
 		},
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: orgRoles,
 		},
 	}
 
@@ -200,17 +202,18 @@ func TestListRoles(t *testing.T) {
 	}
 }
 
-func convertRole(role rbac.Role) codersdk.Role {
+func convertRole(roleName string) codersdk.Role {
+	role, _ := rbac.RoleByName(roleName)
 	return codersdk.Role{
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
 }
 
-func convertRoles(roles []rbac.Role) []codersdk.Role {
-	converted := make([]codersdk.Role, 0, len(roles))
-	for _, role := range roles {
-		converted = append(converted, convertRole(role))
+func convertRoles(roleNames ...string) []codersdk.Role {
+	converted := make([]codersdk.Role, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		converted = append(converted, convertRole(roleName))
 	}
 	return converted
 }

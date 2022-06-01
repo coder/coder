@@ -2088,12 +2088,18 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
-const getAllUserRoles = `-- name: GetAllUserRoles :one
+const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
-    -- username is returned just to help for logging purposes
-    -- status is used to enforce 'suspended' users, as all roles are ignored
-    --	when suspended.
-	id, username, status, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+	-- username is returned just to help for logging purposes
+	-- status is used to enforce 'suspended' users, as all roles are ignored
+	--	when suspended.
+	id, username, status,
+	array_cat(
+		-- All users are members
+			array_append(users.rbac_roles, 'member'),
+		-- All org_members get the org-member role for their orgs
+			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
+	    AS roles
 FROM
 	users
 LEFT JOIN organization_members
@@ -2102,16 +2108,18 @@ WHERE
     id = $1
 `
 
-type GetAllUserRolesRow struct {
+type GetAuthorizationUserRolesRow struct {
 	ID       uuid.UUID  `db:"id" json:"id"`
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
 	Roles    []string   `db:"roles" json:"roles"`
 }
 
-func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error) {
-	row := q.db.QueryRowContext(ctx, getAllUserRoles, userID)
-	var i GetAllUserRolesRow
+// This function returns roles for authorization purposes. Implied member roles
+// are included.
+func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
+	var i GetAuthorizationUserRolesRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,

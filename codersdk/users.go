@@ -69,7 +69,7 @@ type UpdateUserPasswordRequest struct {
 }
 
 type UpdateRoles struct {
-	Roles []string `json:"roles" validate:"required"`
+	Roles []string `json:"roles" validate:""`
 }
 
 type UserRoles struct {
