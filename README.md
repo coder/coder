@@ -56,12 +56,7 @@ You can use any Web IDE ([code-server](https://github.com/coder/code-server), [p
 
 ## Installing Coder
 
-There are a few ways to install Coder:
-
-- [install script](./docs/install.md#installsh) (MacOS & Linux). The script uses the system package manager if possible.
-- with [system packages](./docs/install.md#system-packages) (Debian, Fedora, Alpine)
-- with [Docker or docker-compose](./docs/install.md#docker-compose) (MacOS, Windows, Linux)
-- [manually](./docs/install.md#manual) (MacOS, Windows, Linux)
+There are a few ways to install Coder: [install script](./docs/install.md#installsh) (macOS, Linux), [docker-compose](./docs/install.md#docker-compose), or [manually](./docs/install.md#manual) via the latest release (macOS, Windows, and Linux).
 
 If you use the install script, you can preview what occurs during the install process:
 
