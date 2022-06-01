@@ -25,7 +25,7 @@ dayjs.extend(relativeTime)
 export const Language = {
   createButton: "Create workspace",
   emptyMessage: "Create your first workspace",
-  emptyDescription: "To start edit your source code, and build your awesome software.",
+  emptyDescription: "Start editing your source code and building your software",
 }
 
 export interface WorkspacesPageViewProps {
