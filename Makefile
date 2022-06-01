@@ -71,7 +71,7 @@ lint/go:
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
 lint/shellcheck: $(shell shfmt -f .)
 	@echo "--- shellcheck"
-	shellcheck -x $(shell shfmt -f .)
+	shellcheck --external-sources $(shell shfmt -f .)
 
 peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \
