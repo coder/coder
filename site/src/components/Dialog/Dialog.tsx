@@ -114,7 +114,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           })}
           disabled={confirmLoading}
           onClick={onCancel}
-          variant="contained"
+          variant="outlined"
         >
           {cancelText}
         </LoadingButton>
@@ -145,7 +145,7 @@ interface StyleProps {
 
 const useButtonStyles = makeStyles((theme) => ({
   dialogButton: {
-    borderRadius: 0,
+    borderRadius: theme.shape.borderRadius,
     fontSize: theme.typography.h6.fontSize,
     fontWeight: theme.typography.h5.fontWeight,
     padding: theme.spacing(2.25),

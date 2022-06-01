@@ -48,11 +48,12 @@ interface StyleProps {
 const useStyles = makeStyles((theme) => ({
   dialogWrapper: (props: StyleProps) => ({
     "& .MuiPaper-root": {
-      background: props.type === "info" ? theme.palette.primary.main : theme.palette.error.dark,
+      background: props.type === "info" ? theme.palette.primary.main : theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
     },
   }),
   dialogContent: (props: StyleProps) => ({
-    color: props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText,
+    color: props.type === "info" ? theme.palette.primary.contrastText : theme.palette.text.secondary,
     padding: theme.spacing(6),
     textAlign: "center",
   }),
@@ -61,16 +62,14 @@ const useStyles = makeStyles((theme) => ({
   },
   description: (props: StyleProps) => ({
     color:
-      props.type === "info"
-        ? fade(theme.palette.primary.contrastText, 0.75)
-        : fade(theme.palette.error.contrastText, 0.75),
+      props.type === "info" ? fade(theme.palette.primary.contrastText, 0.75) : fade(theme.palette.text.secondary, 0.75),
     lineHeight: "160%",
 
     "& strong": {
       color:
         props.type === "info"
           ? fade(theme.palette.primary.contrastText, 0.95)
-          : fade(theme.palette.error.contrastText, 0.95),
+          : fade(theme.palette.text.secondary, 0.95),
     },
   }),
 }))
