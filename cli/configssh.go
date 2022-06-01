@@ -142,11 +142,13 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("user home dir failed: %w", err)
 			}
 
-			sshConfigFile := coderConfig.sshConfigFile // Store the pre ~/ replacement name for serializing options.
+			sshConfigFile := coderConfig.sshConfigFile
 			if strings.HasPrefix(sshConfigFile, "~/") {
 				sshConfigFile = filepath.Join(dirname, sshConfigFile[2:])
 			}
-			coderConfigFile = filepath.Join(dirname, coderConfigFile[2:]) // Replace ~/ with home dir.
+			if strings.HasPrefix(coderConfigFile, "~/") {
+				coderConfigFile = filepath.Join(dirname, coderConfigFile[2:])
+			}
 
 			// Only allow not-exist errors to avoid trashing
 			// the users SSH config.
