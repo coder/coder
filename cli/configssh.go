@@ -174,11 +174,21 @@ func configSSH() *cobra.Command {
 			}
 			lastCoderConfig := sshCoderConfigParseLastOptions(bytes.NewReader(coderConfigRaw), coderConfig.sshConfigDefaultFile)
 
-			// Only prompt when no arguments are provided and avoid
-			// prompting in diff mode (unexpected behavior).
-			if !showDiff && coderConfig.isZero() && !lastCoderConfig.isZero() {
+			// Avoid prompting in diff mode (unexpected behavior).
+			if !showDiff && !coderConfig.equal(lastCoderConfig) {
+				newOpts := coderConfig.asList()
+				newOptsMsg := "\n\n  New options: none"
+				if len(newOpts) > 0 {
+					newOptsMsg = fmt.Sprintf("\n\n  New options:\n    * %s", strings.Join(newOpts, "\n    * "))
+				}
+				oldOpts := lastCoderConfig.asList()
+				oldOptsMsg := "\n\n Previouss options: none"
+				if len(oldOpts) > 0 {
+					oldOptsMsg = fmt.Sprintf("\n\n  Previous options:\n    * %s", strings.Join(oldOpts, "\n    * "))
+				}
+
 				line, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("Found previous configuration option(s):\n\n    - %s\n\n  Use previous option(s)?", strings.Join(lastCoderConfig.asList(), "\n    - ")),
+					Text:      fmt.Sprintf("New options differ from previous options:%s%s\n\n  Use new options?", newOptsMsg, oldOptsMsg),
 					IsConfirm: true,
 				})
 				if err != nil {
@@ -186,7 +196,7 @@ func configSSH() *cobra.Command {
 					if line == "" && xerrors.Is(err, cliui.Canceled) {
 						return nil
 					}
-				} else {
+					// Selecting "no" will use the last config.
 					coderConfig = lastCoderConfig
 				}
 				_, _ = fmt.Fprint(out, "\n")
