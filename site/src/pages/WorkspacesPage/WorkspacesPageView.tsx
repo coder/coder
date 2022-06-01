@@ -15,7 +15,6 @@ import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
-import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getDisplayStatus } from "../../util/workspace"
@@ -34,13 +33,12 @@ export interface WorkspacesPageViewProps {
   error?: unknown
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces, error }) => {
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces }) => {
   useStyles()
   const theme: Theme = useTheme()
 
   return (
     <Stack spacing={4}>
-      {error && <ErrorSummary error={error} />}
       <Table>
         <TableHead>
           <TableRow>
