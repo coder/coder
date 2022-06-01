@@ -39,14 +39,12 @@ Usage:
       Choose the installation method. Defaults to detect.
       - detect detects the system package manager and tries to use it.
         Full reference on the process is further below.
-      - standalone installs a standalone release archive into ~/.local
-        Add ~/.local/bin to your \$PATH to use it.
+      - standalone installs a standalone release archive into /usr/local/bin
 
   --prefix <dir>
-      Sets the prefix used by standalone release archives. Defaults to ~/.local
-      The release is unarchived into ~/.local/lib/coder-X.X.X
-      and the binary symlinked into ~/.local/bin/coder
-      To install system wide pass ---prefix=/usr/local
+      Sets the prefix used by standalone release archives. Defaults to /usr/local
+      and the binary is copied into /usr/local/bin
+      To install in \$HOME, pass ---prefix=\$HOME/.local
 
   --rsh <bin>
       Specifies the remote shell for remote installation. Defaults to ssh.
@@ -81,17 +79,27 @@ echo_latest_version() {
 }
 
 echo_standalone_postinstall() {
-	echoh
-	cath <<EOF
+	if [ "$STANDALONE_INSTALL_PREFIX" = /usr/local ]; then
+		cath <<EOF
+
+Standalone release has been installed into /usr/local/bin/coder
+
+EOF
+	else
+		cath <<EOF
 Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/coder
 
 Extend your path to use Coder:
-  PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
+PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
 
-Then run Coder (temporary):
+EOF
+	fi
+	cath <<EOF
+Run Coder (temporary):
   coder server --dev
+
 Or run a production deployment with PostgreSQL:
-    CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
+    CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \\
         coder server
 
 EOF
@@ -216,7 +224,7 @@ main() {
 	# These are used by the various install_* functions that make use of GitHub
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
-	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-$HOME/.local}
+	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	VERSION=${VERSION:-$(echo_latest_version)}
 	# These can be overridden for testing but shouldn't normally be used as it can
 	# result in a broken coder.
