@@ -315,7 +315,7 @@ jobs:
     name: "deploy"
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    # if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     permissions:
       contents: read
       id-token: write
@@ -371,17 +371,10 @@ jobs:
       - name: Build site
         run: make -B site/out/index.html
 
-      - name: Build Release
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --snapshot --rm-dist --skip-sign
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coder_windows_amd64.zip
-          path: ./dist/coder_*_windows_amd64.zip
-          retention-days: 7
+      - name: Build Linux Release
+        run: |
+          goreleaser build --snapshot --rm-dist --id coder-slim
+          goreleaser build --snapshot --rm-dist --id coder-linux
 
       - uses: actions/upload-artifact@v3
         with:
@@ -399,6 +392,16 @@ jobs:
 
       - name: Start
         run: gcloud compute ssh coder -- sudo service coder restart
+
+      - name: Build Windows Release
+        run: |
+          goreleaser build --snapshot --rm-dist --id coder-windows
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coder_windows_amd64.zip
+          path: ./dist/coder_*_windows_amd64.zip
+          retention-days: 7
 
   test-js:
     name: "test/js"
