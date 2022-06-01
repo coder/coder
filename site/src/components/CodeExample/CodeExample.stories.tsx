@@ -17,3 +17,8 @@ export const Example = Template.bind({})
 Example.args = {
   code: sampleCode,
 }
+
+export const LongCode = Template.bind({})
+LongCode.args = {
+  code: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnKzATuWwmmt5+CKTPuRGN0R1PBemA+6/SStpLiyX+L",
+}
