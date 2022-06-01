@@ -44,3 +44,12 @@ export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): Fi
 
   return result
 }
+
+/**
+ *
+ * @param error
+ * @param defaultMessage
+ * @returns error's message if ApiError or Error, else defaultMessage
+ */
+export const getErrorMessage = (error: Error | ApiError | unknown, defaultMessage: string): string =>
+  isApiError(error) ? error.response.data.message : error instanceof Error ? error.message : defaultMessage

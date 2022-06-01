@@ -31,7 +31,7 @@ describe("TemplatesPage", () => {
     render(<TemplatesPage />)
 
     // Then
-    await screen.findByText(Language.emptyViewCreate)
+    await screen.findByText(Language.emptyMessage)
   })
 
   it("renders a filled templates page", async () => {

@@ -8,9 +8,10 @@ import TableRow from "@material-ui/core/TableRow"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
-import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
@@ -24,9 +25,17 @@ export const Language = {
   nameLabel: "Name",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
-  emptyViewCreateCTA: "Create a template",
-  emptyViewCreate: "to standardize development workspaces for your team.",
-  emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
+  emptyViewNoPerms: "Contact your Coder administrator to create a template. You can share the code below.",
+  emptyMessage: "Create your first template",
+  emptyDescription: (
+    <>
+      To create a workspace you need to have a template. You can{" "}
+      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+        create one from scratch
+      </Link>{" "}
+      or use a built-in template using the following Coder CLI command:
+    </>
+  ),
 }
 
 export interface TemplatesPageViewProps {
@@ -53,18 +62,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
             {!props.loading && !props.templates?.length && (
               <TableRow>
                 <TableCell colSpan={999}>
-                  <div className={styles.welcome}>
-                    {props.canCreateTemplate ? (
-                      <span>
-                        <Link component={RouterLink} to="/templates/new">
-                          {Language.emptyViewCreateCTA}
-                        </Link>
-                        &nbsp;{Language.emptyViewCreate}
-                      </span>
-                    ) : (
-                      <span>{Language.emptyViewNoPerms}</span>
-                    )}
-                  </div>
+                  <EmptyState
+                    message={Language.emptyMessage}
+                    description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
+                    descriptionClassName={styles.emptyDescription}
+                    cta={<CodeExample code="coder template init" />}
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -92,20 +95,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    marginTop: theme.spacing(3),
+    marginTop: theme.spacing(10),
   },
-  welcome: {
-    paddingTop: theme.spacing(12),
-    paddingBottom: theme.spacing(12),
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    "& span": {
-      maxWidth: 600,
-      textAlign: "center",
-      fontSize: theme.spacing(2),
-      lineHeight: `${theme.spacing(3)}px`,
-    },
+  emptyDescription: {
+    maxWidth: theme.spacing(62),
   },
 }))

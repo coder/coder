@@ -88,7 +88,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
 	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleAdmin(), rbac.RoleMember()},
+		GrantedRoles: []string{rbac.RoleAdmin()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -473,14 +473,24 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
+	roles := httpmw.AuthorizationUserRoles(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID == user.ID {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "You cannot change your own roles.",
+		})
+		return
+	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	added, removed := rbac.ChangeRoleSet(roles.Roles, params.Roles)
+	// The member role is always implied.
+	impliedTypes := append(params.Roles, rbac.RoleMember())
+	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
 		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
@@ -749,7 +759,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
-		var orgRoles []string
+		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
 			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
@@ -764,8 +774,6 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			req.OrganizationID = organization.ID
 			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
 		}
-		// Always also be a member.
-		orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
 
 		params := database.InsertUserParams{
 			ID:        uuid.New(),
@@ -774,7 +782,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
-			RBACRoles: []string{rbac.RoleMember()},
+			RBACRoles: []string{},
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

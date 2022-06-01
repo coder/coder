@@ -1,7 +1,7 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
-import { WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
+import { Workspace, WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
 
 export type WorkspaceStatus =
   | "queued"
@@ -184,4 +184,10 @@ export const getDisplayAgentStatus = (
         status: DisplayAgentStatusLanguage["disconnected"],
       }
   }
+}
+
+export const isWorkspaceOn = (workspace: Workspace): boolean => {
+  const transition = workspace.latest_build.transition
+  const status = workspace.latest_build.job.status
+  return transition === "start" && status === "succeeded"
 }

@@ -73,13 +73,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Roles: []string{
-				// Also assign member role incase they get demoted from admin
-				rbac.RoleOrgMember(organization.ID),
 				rbac.RoleOrgAdmin(organization.ID),
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+			return xerrors.Errorf("create organization admin: %w", err)
 		}
 		return nil
 	})

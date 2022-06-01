@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { ProvisionerJobStatus, Workspace } from "../../api/typesGenerated"
+import { ProvisionerJobStatus, Workspace, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 
@@ -10,7 +10,10 @@ export default {
 
 const Template: Story<WorkspacesPageViewProps> = (args) => <WorkspacesPageView {...args} />
 
-const createWorkspaceWithStatus = (status: ProvisionerJobStatus, transition = "start"): Workspace => {
+const createWorkspaceWithStatus = (
+  status: ProvisionerJobStatus,
+  transition: WorkspaceTransition = "start",
+): Workspace => {
   return {
     ...MockWorkspace,
     latest_build: {
@@ -46,4 +49,6 @@ AllStates.args = {
 }
 
 export const Empty = Template.bind({})
-Empty.args = {}
+Empty.args = {
+  workspaces: [],
+}

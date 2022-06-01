@@ -9,9 +9,8 @@ export interface FormTitleProps {
 
 const useStyles = makeStyles((theme) => ({
   title: {
-    textAlign: "center",
-    marginTop: theme.spacing(5),
-    marginBottom: theme.spacing(5),
+    marginTop: theme.spacing(6),
+    marginBottom: theme.spacing(4),
 
     "& h3": {
       marginBottom: theme.spacing(1),
