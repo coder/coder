@@ -146,11 +146,12 @@ func TestSSH(t *testing.T) {
 
 		<-cmdDone
 	})
-	//nolint:paralleltest // Disabled due to use of t.Setenv.
 	t.Run("ForwardAgent", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("Test not supported on windows")
 		}
+
+		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
 
@@ -198,11 +199,11 @@ func TestSSH(t *testing.T) {
 			}
 		})
 
-		t.Setenv("SSH_AUTH_SOCK", agentSock)
 		cmd, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
 			"--forward-agent",
+			"--identity-agent", agentSock, // Overrides $SSH_AUTH_SOCK.
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
