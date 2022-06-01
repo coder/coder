@@ -45,6 +45,11 @@ Usage:
       Sets the prefix used by standalone release archives. Defaults to /usr/local
       and the binary is copied into /usr/local/bin
       To install in \$HOME, pass ---prefix=\$HOME/.local
+	
+  --binary-name <name>
+	  Sets the name for the CLI in standalone release archives. Defaults to "coder"
+	  To use the CLI as coder2, pass --binary-name=coder2
+	  Note: in-product documentation will always refer to the CLI as "coder"
 
   --rsh <bin>
       Specifies the remote shell for remote installation. Defaults to ssh.
@@ -79,16 +84,13 @@ echo_latest_version() {
 }
 
 echo_standalone_postinstall() {
-	if [ "$STANDALONE_INSTALL_PREFIX" = /usr/local ]; then
-		cath <<EOF
-
-Standalone release has been installed into /usr/local/bin/coder
+	cath <<EOF
+	Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
 
 EOF
-	else
-		cath <<EOF
-Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/coder
 
+	if [ "$STANDALONE_INSTALL_PREFIX" != /usr/local ]; then
+		cath <<EOF
 Extend your path to use Coder:
 PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
 
@@ -96,11 +98,11 @@ EOF
 	fi
 	cath <<EOF
 Run Coder (temporary):
-  coder server --dev
+  $STANDALONE_BINARY_NAME server --dev
 
 Or run a production deployment with PostgreSQL:
     CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \\
-        coder server
+        $STANDALONE_BINARY_NAME server
 
 EOF
 }
@@ -165,6 +167,13 @@ main() {
 		--prefix=*)
 			STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
 			;;
+		--binary-name)
+			STANDALONE_BINARY_NAME="$(parse_arg "$@")"
+			shift
+			;;
+		--binary-name=*)
+			STANDALONE_BINARY_NAME="$(parse_arg "$@")"
+			;;
 		--version)
 			VERSION="$(parse_arg "$@")"
 			shift
@@ -225,6 +234,7 @@ main() {
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
+	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	VERSION=${VERSION:-$(echo_latest_version)}
 	# These can be overridden for testing but shouldn't normally be used as it can
 	# result in a broken coder.
@@ -381,7 +391,7 @@ install_standalone() {
 		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_INSTALL_PREFIX/bin/coder"
+	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	echo_standalone_postinstall
 }
