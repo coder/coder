@@ -1,4 +1,5 @@
 import Box from "@material-ui/core/Box"
+import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -6,6 +7,7 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { combineClasses } from "../../util/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
@@ -45,6 +47,8 @@ export const UsersTable: FC<UsersTableProps> = ({
   canEditUsers,
   isLoading,
 }) => {
+  const styles = useStyles()
+
   return (
     <Table>
       <TableHead>
@@ -60,55 +64,73 @@ export const UsersTable: FC<UsersTableProps> = ({
         {isLoading && <TableLoader />}
         {!isLoading &&
           users &&
-          users.map((u) => (
-            <TableRow key={u.id}>
-              <TableCell>
-                <AvatarData title={u.username} subtitle={u.email} />
-              </TableCell>
-              <TableCell>{u.status}</TableCell>
-              <TableCell>
-                {canEditUsers ? (
-                  <RoleSelect
-                    roles={roles ?? []}
-                    selectedRoles={u.roles}
-                    loading={isUpdatingUserRoles}
-                    onChange={(roles) => onUpdateUserRoles(u, roles)}
-                  />
-                ) : (
-                  <>{u.roles.map((r) => r.display_name).join(", ")}</>
-                )}
-              </TableCell>
-              {canEditUsers && (
+          users.map((user) => {
+            // When the user has no role, it is because they are a member
+            const fallbackRoles: TypesGen.Role[] = [
+              {
+                name: "member",
+                display_name: "Member",
+              },
+            ]
+            const userRoles = user.roles.length === 0 ? fallbackRoles : user.roles
+
+            return (
+              <TableRow key={user.id}>
                 <TableCell>
-                  <TableRowMenu
-                    data={u}
-                    menuItems={
-                      // Return either suspend or activate depending on status
-                      (u.status === "active"
-                        ? [
-                            {
-                              label: Language.suspendMenuItem,
-                              onClick: onSuspendUser,
-                            },
-                          ]
-                        : [
-                            // TODO: Uncomment this and add activate user functionality.
-                            // {
-                            //   label: Language.activateMenuItem,
-                            //   // eslint-disable-next-line @typescript-eslint/no-empty-function
-                            //   onClick: function () {},
-                            // },
-                          ]
-                      ).concat({
-                        label: Language.resetPasswordMenuItem,
-                        onClick: onResetUserPassword,
-                      })
-                    }
-                  />
+                  <AvatarData title={user.username} subtitle={user.email} />
                 </TableCell>
-              )}
-            </TableRow>
-          ))}
+                <TableCell
+                  className={combineClasses([
+                    styles.status,
+                    user.status === "suspended" ? styles.suspended : undefined,
+                  ])}
+                >
+                  {user.status}
+                </TableCell>
+                <TableCell>
+                  {canEditUsers ? (
+                    <RoleSelect
+                      roles={roles ?? []}
+                      selectedRoles={userRoles}
+                      loading={isUpdatingUserRoles}
+                      onChange={(roles) => onUpdateUserRoles(user, roles)}
+                    />
+                  ) : (
+                    <>{userRoles.map((role) => role.display_name).join(", ")}</>
+                  )}
+                </TableCell>
+                {canEditUsers && (
+                  <TableCell>
+                    <TableRowMenu
+                      data={user}
+                      menuItems={
+                        // Return either suspend or activate depending on status
+                        (user.status === "active"
+                          ? [
+                              {
+                                label: Language.suspendMenuItem,
+                                onClick: onSuspendUser,
+                              },
+                            ]
+                          : [
+                              // TODO: Uncomment this and add activate user functionality.
+                              // {
+                              //   label: Language.activateMenuItem,
+                              //   // eslint-disable-next-line @typescript-eslint/no-empty-function
+                              //   onClick: function () {},
+                              // },
+                            ]
+                        ).concat({
+                          label: Language.resetPasswordMenuItem,
+                          onClick: onResetUserPassword,
+                        })
+                      }
+                    />
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
 
         {users && users.length === 0 && (
           <TableRow>
@@ -123,3 +145,12 @@ export const UsersTable: FC<UsersTableProps> = ({
     </Table>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  status: {
+    textTransform: "capitalize",
+  },
+  suspended: {
+    color: theme.palette.text.secondary,
+  },
+}))
