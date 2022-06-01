@@ -35,7 +35,7 @@ export const Language = {
       <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
         create one from scratch
       </Link>{" "}
-      or use a built-in template by typing the following Coder CLI command:
+      or use a built-in template using the following Coder CLI command:
     </>
   ),
 }
