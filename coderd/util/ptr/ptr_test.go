@@ -16,8 +16,6 @@ func Test_Ref_Deref(t *testing.T) {
 		t.Parallel()
 		val := "test"
 		p := ptr.Ref(val)
-		d := ptr.Deref(p)
-		assert.Equal(t, val, d)
 		assert.Equal(t, &val, p)
 	})
 
@@ -25,8 +23,6 @@ func Test_Ref_Deref(t *testing.T) {
 		t.Parallel()
 		val := true
 		p := ptr.Ref(val)
-		d := ptr.Deref(p)
-		assert.Equal(t, val, d)
 		assert.Equal(t, &val, p)
 	})
 
@@ -34,8 +30,6 @@ func Test_Ref_Deref(t *testing.T) {
 		t.Parallel()
 		val := int64(42)
 		p := ptr.Ref(val)
-		d := ptr.Deref(p)
-		assert.Equal(t, val, d)
 		assert.Equal(t, &val, p)
 	})
 
@@ -43,8 +37,6 @@ func Test_Ref_Deref(t *testing.T) {
 		t.Parallel()
 		val := float64(3.14159)
 		p := ptr.Ref(val)
-		d := ptr.Deref(p)
-		assert.Equal(t, val, d)
 		assert.Equal(t, &val, p)
 	})
 }

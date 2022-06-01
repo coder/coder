@@ -106,7 +106,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
       saturday: false,
       startTime: "",
       timezone: "",
-      ttl: ttl,
+      ttl,
     }
   }
 
@@ -133,7 +133,7 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     saturday: weeklyFlags[6],
     startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
     timezone,
-    ttl: ttl,
+    ttl,
   }
 }
 

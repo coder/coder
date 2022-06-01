@@ -12,11 +12,6 @@ func Ref[T any](v T) *T {
 	return &v
 }
 
-// Deref dereferences v. Opposite of Ptr.
-func Deref[T any](v *T) T {
-	return *v
-}
-
 // NilOrEmpty returns true if s is nil or the empty string.
 func NilOrEmpty(s *string) bool {
 	return s == nil || *s == ""
