@@ -33,6 +33,14 @@ export const isApiError = (err: any): err is ApiError => {
   return false
 }
 
+/**
+ * ApiErrors contain useful error messages in their response body. They contain an overall message
+ * and may also contain errors for specific form fields.
+ * @param error ApiError
+ * @returns true if the ApiError contains error messages for specific form fields.
+ */
+export const hasApiFieldErrors = (error: ApiError): boolean => Array.isArray(error.response.data.errors)
+
 export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): FieldErrors => {
   const result: FieldErrors = {}
 
