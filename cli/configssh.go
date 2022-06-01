@@ -372,17 +372,23 @@ func configSSH() *cobra.Command {
 // sshConfigAddCoderInclude checks for the coder Include statement and
 // returns modified = true if it was added.
 func sshConfigAddCoderInclude(data []byte) (modifiedData []byte, modified bool) {
-	found := false
+	valid := false
 	firstHost := sshHostRe.FindIndex(data)
 	coderInclude := sshCoderIncludedRe.FindIndex(data)
 	if firstHost != nil && coderInclude != nil {
 		// If the Coder Include statement exists
 		// before a Host entry, we're good.
-		found = coderInclude[1] < firstHost[0]
+		valid = coderInclude[1] < firstHost[0]
+		if !valid {
+			// Remove invalid Include statement.
+			d := append([]byte{}, data[:coderInclude[0]]...)
+			d = append(d, data[coderInclude[1]:]...)
+			data = d
+		}
 	} else if coderInclude != nil {
-		found = true
+		valid = true
 	}
-	if found {
+	if valid {
 		return data, false
 	}
 
