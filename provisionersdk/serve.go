@@ -32,8 +32,8 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		config := yamux.DefaultConfig()
 		config.LogOutput = io.Discard
 		stdio, err := yamux.Server(&readWriteCloser{
-			ReadCloser:  os.Stdin,
-			WriteCloser: os.Stdout,
+			ReadCloser: os.Stdin,
+			Writer:     os.Stdout,
 		}, config)
 		if err != nil {
 			return xerrors.Errorf("create yamux: %w", err)
@@ -69,4 +69,9 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		return xerrors.Errorf("serve transport: %w", err)
 	}
 	return nil
+}
+
+type readWriteCloser struct {
+	io.ReadCloser
+	io.Writer
 }

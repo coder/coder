@@ -102,7 +102,6 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			apiKeyMiddleware,
 			httpmw.ExtractUserParam(api.Database),
-			authRolesMiddleware,
 		)
 		r.Get("/*", api.workspaceAppsProxyPath)
 	})

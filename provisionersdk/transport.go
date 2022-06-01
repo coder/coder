@@ -3,7 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"io"
-	"sync"
+	"net"
 
 	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
@@ -18,22 +18,14 @@ const (
 
 // TransportPipe creates an in-memory pipe for dRPC transport.
 func TransportPipe() (*yamux.Session, *yamux.Session) {
-	clientReader, clientWriter := io.Pipe()
-	serverReader, serverWriter := io.Pipe()
+	c1, c2 := net.Pipe()
 	yamuxConfig := yamux.DefaultConfig()
 	yamuxConfig.LogOutput = io.Discard
-	client, err := yamux.Client(&readWriteCloser{
-		ReadCloser:  clientReader,
-		WriteCloser: serverWriter,
-	}, yamuxConfig)
+	client, err := yamux.Client(c1, yamuxConfig)
 	if err != nil {
 		panic(err)
 	}
-
-	server, err := yamux.Server(&readWriteCloser{
-		ReadCloser:  serverReader,
-		WriteCloser: clientWriter,
-	}, yamuxConfig)
+	server, err := yamux.Server(c2, yamuxConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -43,22 +35,6 @@ func TransportPipe() (*yamux.Session, *yamux.Session) {
 // Conn returns a multiplexed dRPC connection from a yamux session.
 func Conn(session *yamux.Session) drpc.Conn {
 	return &multiplexedDRPC{session}
-}
-
-type readWriteCloser struct {
-	closeMutex sync.Mutex
-	io.ReadCloser
-	io.WriteCloser
-}
-
-func (c *readWriteCloser) Close() error {
-	c.closeMutex.Lock()
-	defer c.closeMutex.Unlock()
-	err := c.ReadCloser.Close()
-	if err != nil {
-		return err
-	}
-	return c.WriteCloser.Close()
 }
 
 // Allows concurrent requests on a single dRPC connection.
