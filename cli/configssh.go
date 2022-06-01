@@ -49,9 +49,9 @@ const (
 var (
 	// Find the first Host and Match statement as these restrict the
 	// following declarations to be used conditionally.
-	sshHostRe = regexp.MustCompile(`^\s*((?i)Host|Match)`)
+	sshHostRe = regexp.MustCompile(`(?m)^\s*((?i)Host|Match)\s.*$`)
 	// Find the semantically correct include statement.
-	sshCoderIncludedRe = regexp.MustCompile(`^\s*((?i)Include) coder(\s|$)`)
+	sshCoderIncludedRe = regexp.MustCompile(`(?m)^\s*((?i)Include) coder(\s.*)?$`)
 )
 
 // sshCoderConfigOptions represents options that can be stored and read
