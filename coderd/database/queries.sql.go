@@ -30,7 +30,7 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 FROM
 	api_keys
 WHERE
@@ -55,6 +55,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
@@ -63,6 +64,7 @@ const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
 		id,
+		lifetime_seconds,
 		hashed_secret,
 		user_id,
 		last_used,
@@ -76,11 +78,18 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	($1,
+	 -- If the lifetime is set to 0, default to 24hrs
+	 CASE $2::bigint
+	     WHEN 0 THEN 86400
+		 ELSE $2::bigint
+	 END
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 `
 
 type InsertAPIKeyParams struct {
 	ID                string    `db:"id" json:"id"`
+	LifetimeSeconds   int64     `db:"lifetime_seconds" json:"lifetime_seconds"`
 	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LastUsed          time.Time `db:"last_used" json:"last_used"`
@@ -97,6 +106,7 @@ type InsertAPIKeyParams struct {
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, insertAPIKey,
 		arg.ID,
+		arg.LifetimeSeconds,
 		arg.HashedSecret,
 		arg.UserID,
 		arg.LastUsed,
@@ -123,6 +133,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
