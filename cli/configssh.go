@@ -194,7 +194,7 @@ func configSSH() *cobra.Command {
 					newOptsMsg = fmt.Sprintf("\n\n  New options:\n    * %s", strings.Join(newOpts, "\n    * "))
 				}
 				oldOpts := lastCoderConfig.asList()
-				oldOptsMsg := "\n\n Previouss options: none"
+				oldOptsMsg := "\n\n  Previous options: none"
 				if len(oldOpts) > 0 {
 					oldOptsMsg = fmt.Sprintf("\n\n  Previous options:\n    * %s", strings.Join(oldOpts, "\n    * "))
 				}
