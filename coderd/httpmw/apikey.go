@@ -34,9 +34,9 @@ func APIKey(r *http.Request) database.APIKey {
 // User roles are the 'subject' field of Authorize()
 type userRolesKey struct{}
 
-// UserAuthorizationRoles returns the roles used for authorization.
+// AuthorizationUserRoles returns the roles used for authorization.
 // Comes from the ExtractAPIKey handler.
-func UserAuthorizationRoles(r *http.Request) database.GetAuthorizationUserRolesRow {
+func AuthorizationUserRoles(r *http.Request) database.GetAuthorizationUserRolesRow {
 	apiKey, ok := r.Context().Value(userRolesKey{}).(database.GetAuthorizationUserRolesRow)
 	if !ok {
 		panic("developer error: user roles middleware not provided")
