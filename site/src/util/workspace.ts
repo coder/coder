@@ -1,7 +1,7 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
-import { Workspace, WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
+import { Workspace, WorkspaceAgent, WorkspaceBuild, WorkspaceFilter } from "../api/typesGenerated"
 
 export type WorkspaceStatus =
   | "queued"
@@ -190,4 +190,26 @@ export const isWorkspaceOn = (workspace: Workspace): boolean => {
   const transition = workspace.latest_build.transition
   const status = workspace.latest_build.job.status
   return transition === "start" && status === "succeeded"
+}
+
+export const workspaceQueryToFilter = (query?: string): WorkspaceFilter => {
+  let filter: WorkspaceFilter = {
+    Owner: "",
+    OrganizationID: "",
+  }
+
+  if (query) {
+    const parts = query.split(" ")
+
+    parts.map((part) => {
+      if (part.startsWith("owner:")) {
+        filter = {
+          Owner: part.slice("owner:".length),
+          OrganizationID: "",
+        }
+      }
+    })
+  }
+
+  return filter
 }

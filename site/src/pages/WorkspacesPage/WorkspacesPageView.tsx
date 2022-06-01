@@ -15,7 +15,7 @@ import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
-import { Margins } from "../../components/Margins/Margins"
+import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getDisplayStatus } from "../../util/workspace"
@@ -34,93 +34,78 @@ export interface WorkspacesPageViewProps {
   error?: unknown
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
-  const styles = useStyles()
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces, error }) => {
+  useStyles()
   const theme: Theme = useTheme()
+
   return (
     <Stack spacing={4}>
-      <Margins>
-        <div className={styles.actions}>
-          <Link underline="none" component={RouterLink} to="/workspaces/new">
-            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-          </Link>
-        </div>
-        <Table>
-          <TableHead>
+      {error && <ErrorSummary error={error} />}
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell>Template</TableCell>
+            <TableCell>Version</TableCell>
+            <TableCell>Last Built</TableCell>
+            <TableCell>Status</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {loading && <TableLoader />}
+          {workspaces && workspaces.length === 0 && (
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Template</TableCell>
-              <TableCell>Version</TableCell>
-              <TableCell>Last Built</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell colSpan={999}>
+                <EmptyState
+                  message={Language.emptyMessage}
+                  description={Language.emptyDescription}
+                  cta={
+                    <Link underline="none" component={RouterLink} to="/workspaces/new">
+                      <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+                    </Link>
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {props.loading && <TableLoader />}
-            {props.workspaces && props.workspaces.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <EmptyState
-                    message={Language.emptyMessage}
-                    description={Language.emptyDescription}
-                    cta={
-                      <Link underline="none" component={RouterLink} to="/workspaces/new">
-                        <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-                      </Link>
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-            {props.workspaces &&
-              props.workspaces.map((workspace) => {
-                const status = getDisplayStatus(theme, workspace.latest_build)
-                return (
-                  <TableRow key={workspace.id}>
-                    <TableCell>
-                      <AvatarData
-                        title={workspace.name}
-                        subtitle={workspace.owner_name}
-                        link={`/workspaces/${workspace.id}`}
-                      />
-                    </TableCell>
-                    <TableCell>{workspace.template_name}</TableCell>
-                    <TableCell>
-                      {workspace.outdated ? (
-                        <span style={{ color: theme.palette.error.main }}>outdated</span>
-                      ) : (
-                        <span style={{ color: theme.palette.text.secondary }}>up to date</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
-                        {dayjs().to(dayjs(workspace.latest_build.created_at))}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span style={{ color: status.color }}>{status.status}</span>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-          </TableBody>
-        </Table>
-      </Margins>
+          )}
+          {workspaces &&
+            workspaces.map((workspace) => {
+              const status = getDisplayStatus(theme, workspace.latest_build)
+              return (
+                <TableRow key={workspace.id}>
+                  <TableCell>
+                    <AvatarData
+                      title={workspace.name}
+                      subtitle={workspace.owner_name}
+                      link={`/workspaces/${workspace.id}`}
+                    />
+                  </TableCell>
+                  <TableCell>{workspace.template_name}</TableCell>
+                  <TableCell>
+                    {workspace.outdated ? (
+                      <span style={{ color: theme.palette.error.main }}>outdated</span>
+                    ) : (
+                      <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
+                      {dayjs().to(dayjs(workspace.latest_build.created_at))}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span style={{ color: status.color }}>{status.status}</span>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+        </TableBody>
+      </Table>
     </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  actions: {
-    marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-    display: "flex",
-    height: theme.spacing(6),
-
-    "& > *": {
-      marginLeft: "auto",
-    },
-  },
   welcome: {
     paddingTop: theme.spacing(12),
     paddingBottom: theme.spacing(12),
