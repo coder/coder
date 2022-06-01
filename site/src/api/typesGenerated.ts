@@ -101,8 +101,7 @@ export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
   readonly autostart_schedule?: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -301,13 +300,12 @@ export interface UpdateUserProfileRequest {
 
 // From codersdk/workspaces.go:141:6
 export interface UpdateWorkspaceAutostartRequest {
-  readonly schedule: string
+  readonly schedule?: string
 }
 
 // From codersdk/workspaces.go:161:6
 export interface UpdateWorkspaceTTLRequest {
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
 }
 
 // From codersdk/files.go:16:6
@@ -372,9 +370,8 @@ export interface Workspace {
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
-  readonly autostart_schedule: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly autostart_schedule?: string
+  readonly ttl_ms?: number
 }
 
 // From codersdk/workspaceresources.go:31:6
