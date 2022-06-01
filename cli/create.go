@@ -170,10 +170,40 @@ func create() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
-			resources, err := client.TemplateVersionResources(cmd.Context(), templateVersion.ID)
+			// Run a dry-run with the given parameters to check correctness
+			after := time.Now()
+			dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+				WorkspaceName:   workspaceName,
+				ParameterValues: parameters,
+			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("begin workspace dry-run: %w", err)
 			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
+			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+				},
+				Cancel: func() error {
+					return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
+				},
+				// Don't show log output for the dry-run unless there's an error.
+				Silent: true,
+			})
+			if err != nil {
+				// TODO (Dean): reprompt for parameter values if we deem it to
+				// be a validation error
+				return xerrors.Errorf("dry-run workspace: %w", err)
+			}
+
+			resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
+			if err != nil {
+				return xerrors.Errorf("get workspace dry-run resources: %w", err)
+			}
+
 			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspaceName,
 				// Since agent's haven't connected yet, hiding this makes more sense.
@@ -192,7 +222,6 @@ func create() *cobra.Command {
 				return err
 			}
 
-			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
@@ -204,7 +233,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, before)
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, after)
 			if err != nil {
 				return err
 			}

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
@@ -414,6 +415,12 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 
 		p.runReadmeParse(ctx, job)
 		p.runTemplateImport(ctx, shutdown, provisioner, job)
+	case *proto.AcquiredJob_TemplateDryRun_:
+		p.opts.Logger.Debug(context.Background(), "acquired job is template dry-run",
+			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
+			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
+		)
+		p.runTemplateDryRun(ctx, shutdown, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -583,7 +590,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
-		p.failActiveJobf("template import provision for start: %s", err)
+		p.failActiveJobf("template import provision for stop: %s", err)
 		return
 	}
 
@@ -719,6 +726,14 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 				return nil, xerrors.Errorf("send job update: %w", err)
 			}
 		case *sdkproto.Provision_Response_Complete:
+			if msgType.Complete.Error != "" {
+				p.opts.Logger.Info(context.Background(), "dry-run provision failure",
+					slog.F("error", msgType.Complete.Error),
+				)
+
+				return nil, xerrors.New(msgType.Complete.Error)
+			}
+
 			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
@@ -731,6 +746,60 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
+}
+
+func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	// Ensure all metadata fields are set as they are all optional for dry-run.
+	metadata := job.GetTemplateDryRun().GetMetadata()
+	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
+	if metadata.CoderUrl == "" {
+		metadata.CoderUrl = "http://localhost:3000"
+	}
+	if metadata.WorkspaceName == "" {
+		metadata.WorkspaceName = "dryrun"
+	}
+	metadata.WorkspaceOwner = job.UserName
+	if metadata.WorkspaceOwner == "" {
+		metadata.WorkspaceOwner = "dryrunner"
+	}
+	if metadata.WorkspaceId == "" {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			p.failActiveJobf("generate random ID: %s", err)
+			return
+		}
+		metadata.WorkspaceId = id.String()
+	}
+	if metadata.WorkspaceOwnerId == "" {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			p.failActiveJobf("generate random ID: %s", err)
+			return
+		}
+		metadata.WorkspaceOwnerId = id.String()
+	}
+
+	// Run the template import provision task since it's already a dry run.
+	resources, err := p.runTemplateImportProvision(ctx,
+		shutdown,
+		provisioner,
+		job,
+		job.GetTemplateDryRun().GetParameterValues(),
+		metadata,
+	)
+	if err != nil {
+		p.failActiveJobf("run dry-run provision job: %s", err)
+		return
+	}
+
+	p.completeJob(&proto.CompletedJob{
+		JobId: job.JobId,
+		Type: &proto.CompletedJob_TemplateDryRun_{
+			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+				Resources: resources,
+			},
+		},
+	})
 }
 
 func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {

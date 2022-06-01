@@ -276,7 +276,7 @@ func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
+func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -286,6 +286,7 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 		if u.ID == userID {
 			u := u
 			roles = append(roles, u.RBACRoles...)
+			roles = append(roles, "member")
 			user = &u
 			break
 		}
@@ -294,14 +295,15 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
 			roles = append(roles, mem.Roles...)
+			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
 
 	if user == nil {
-		return database.GetAllUserRolesRow{}, sql.ErrNoRows
+		return database.GetAuthorizationUserRolesRow{}, sql.ErrNoRows
 	}
 
-	return database.GetAllUserRolesRow{
+	return database.GetAuthorizationUserRolesRow{
 		ID:       userID,
 		Username: user.Username,
 		Status:   user.Status,

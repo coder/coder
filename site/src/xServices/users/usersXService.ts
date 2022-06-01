@@ -1,6 +1,6 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
+import { ApiError, FieldErrors, getErrorMessage, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { generateRandomString } from "../../util/random"
@@ -292,17 +292,20 @@ export const usersMachine = createMachine(
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)
       },
-      displaySuspendedErrorMessage: () => {
-        displayError(Language.suspendUserError)
+      displaySuspendedErrorMessage: (context) => {
+        const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        displayError(message)
       },
       displayResetPasswordSuccess: () => {
         displaySuccess(Language.resetUserPasswordSuccess)
       },
-      displayResetPasswordErrorMessage: () => {
-        displayError(Language.resetUserPasswordError)
+      displayResetPasswordErrorMessage: (context) => {
+        const message = getErrorMessage(context.resetUserPasswordError, Language.resetUserPasswordError)
+        displayError(message)
       },
-      displayUpdateRolesErrorMessage: () => {
-        displayError(Language.updateUserRolesError)
+      displayUpdateRolesErrorMessage: (context) => {
+        const message = getErrorMessage(context.updateUserRolesError, Language.updateUserRolesError)
+        displayError(message)
       },
       generateRandomPassword: assign({
         newUserPassword: (_) => generateRandomString(12),

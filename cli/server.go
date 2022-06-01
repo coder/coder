@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/provisioner/echo"
 
 	"github.com/briandowns/spinner"
@@ -29,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
@@ -98,7 +100,8 @@ func server() *cobra.Command {
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
-			if verbose {
+			buildModeDev := semver.Prerelease(buildinfo.Version()) == "-devel"
+			if verbose || buildModeDev {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 

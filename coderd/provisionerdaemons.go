@@ -110,6 +110,13 @@ type workspaceProvisionJob struct {
 	DryRun           bool      `json:"dry_run"`
 }
 
+// The input for a "template_version_dry_run" job.
+type templateVersionDryRunJob struct {
+	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
+	WorkspaceName     string                    `json:"workspace_name"`
+	ParameterValues   []database.ParameterValue `json:"parameter_values"`
+}
+
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
 	AccessURL    *url.URL
@@ -219,18 +226,15 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
-			}
-			protoParameters = append(protoParameters, converted)
+
+		// Convert types to their corresponding protobuf types.
+		protoParameters, err := convertComputedParameterValues(parameters)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
 		}
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
-			return nil, failJob(fmt.Sprint("convert workspace transition: %w", err))
+			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
@@ -246,6 +250,46 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceOwner:      owner.Username,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),
+				},
+			},
+		}
+	case database.ProvisionerJobTypeTemplateVersionDryRun:
+		var input templateVersionDryRunJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
+		}
+
+		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, input.TemplateVersionID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get template version: %s", err))
+		}
+
+		// Compute parameters for the dry-run to consume.
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			TemplateImportJobID:       templateVersion.JobID,
+			OrganizationID:            job.OrganizationID,
+			TemplateID:                templateVersion.TemplateID,
+			UserID:                    user.ID,
+			WorkspaceID:               uuid.NullUUID{},
+			AdditionalParameterValues: input.ParameterValues,
+		}, nil)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
+		}
+
+		// Convert types to their corresponding protobuf types.
+		protoParameters, err := convertComputedParameterValues(parameters)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
+		}
+
+		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
+			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
+				ParameterValues: protoParameters,
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl:      server.AccessURL.String(),
+					WorkspaceName: input.WorkspaceName,
 				},
 			},
 		}
@@ -603,6 +647,35 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
+	case *proto.CompletedJob_TemplateDryRun_:
+		for _, resource := range jobType.TemplateDryRun.Resources {
+			server.Logger.Info(ctx, "inserting template dry-run job resource",
+				slog.F("job_id", job.ID.String()),
+				slog.F("resource_name", resource.Name),
+				slog.F("resource_type", resource.Type))
+
+			err = insertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource)
+			if err != nil {
+				return nil, xerrors.Errorf("insert resource: %w", err)
+			}
+		}
+
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        jobID,
+			UpdatedAt: database.Now(),
+			CompletedAt: sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update provisioner job: %w", err)
+		}
+		server.Logger.Debug(ctx, "marked template dry-run job as completed", slog.F("job_id", jobID))
+		if err != nil {
+			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
 	default:
 		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
 			reflect.TypeOf(completed.Type).String())
@@ -731,6 +804,19 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	default:
 		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
 	}
+}
+
+func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
+	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
+	for i, computedParameter := range parameters {
+		converted, err := convertComputedParameterValue(computedParameter)
+		if err != nil {
+			return nil, xerrors.Errorf("convert parameter: %w", err)
+		}
+		protoParameters[i] = converted
+	}
+
+	return protoParameters, nil
 }
 
 func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {

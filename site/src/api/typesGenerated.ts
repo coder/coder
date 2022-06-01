@@ -65,6 +65,12 @@ export interface CreateTemplateRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+// From codersdk/templateversions.go:121:6
+export interface CreateTemplateVersionDryRunRequest {
+  readonly WorkspaceName: string
+  readonly ParameterValues: CreateParameterRequest[]
+}
+
 // From codersdk/organizations.go:36:6
 export interface CreateTemplateVersionRequest {
   readonly template_id?: string
@@ -244,6 +250,7 @@ export interface Template {
 export interface TemplateVersion {
   readonly id: string
   readonly template_id?: string
+  readonly organization_id?: string
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
@@ -251,7 +258,7 @@ export interface TemplateVersion {
   readonly readme: string
 }
 
-// From codersdk/templateversions.go:25:6
+// From codersdk/templateversions.go:26:6
 export interface TemplateVersionParameter {
   readonly id: string
   readonly created_at: string

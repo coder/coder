@@ -409,53 +409,65 @@ func TestGrantRoles(t *testing.T) {
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
+		var err error
+
 		admin := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, admin)
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "member user")
 
 		_, err = admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+			Roles: []string{rbac.RoleOrgAdmin(first.OrganizationID)},
 		})
 		require.Error(t, err, "org role in site")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateUserRoles(ctx, uuid.New().String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+			Roles: []string{rbac.RoleOrgAdmin(first.OrganizationID)},
 		})
 		require.Error(t, err, "user does not exist")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{rbac.RoleAdmin()},
 		})
 		require.Error(t, err, "site role in org")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "role in org without membership")
 		requireStatusCode(t, err, http.StatusNotFound)
 
 		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change other's roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
-		_, err = member.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change any roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
 		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change other's org roles")
 		requireStatusCode(t, err, http.StatusForbidden)
+
+		_, err = admin.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self org roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
@@ -468,11 +480,9 @@ func TestGrantRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
 			rbac.RoleAdmin(),
-			rbac.RoleMember(),
 		}, "should be a member and admin")
 
 		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
 	})
@@ -486,12 +496,10 @@ func TestGrantRoles(t *testing.T) {
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
 		roles, err := member.GetUserRoles(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.ElementsMatch(t, roles.Roles, []string{
-			rbac.RoleMember(),
-		}, "should be a member and admin")
+		require.ElementsMatch(t, roles.Roles, []string{}, "should be a member")
 		require.ElementsMatch(t,
 			roles.OrganizationRoles[first.OrganizationID],
-			[]string{rbac.RoleOrgMember(first.OrganizationID)},
+			[]string{},
 		)
 
 		memberUser, err := member.User(ctx, codersdk.Me)
@@ -501,17 +509,15 @@ func TestGrantRoles(t *testing.T) {
 		_, err = admin.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to site admin
-				rbac.RoleMember(),
 				rbac.RoleAdmin(),
 			},
 		})
 		require.NoError(t, err, "grant member admin role")
 
 		// Promote to org admin
-		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to org admin
-				rbac.RoleOrgMember(first.OrganizationID),
 				rbac.RoleOrgAdmin(first.OrganizationID),
 			},
 		})
@@ -520,12 +526,10 @@ func TestGrantRoles(t *testing.T) {
 		roles, err = member.GetUserRoles(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
-			rbac.RoleMember(),
 			rbac.RoleAdmin(),
 		}, "should be a member and admin")
 
 		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
 	})
