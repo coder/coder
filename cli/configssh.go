@@ -355,7 +355,7 @@ func configSSH() *cobra.Command {
 				// configuration, so we output the entire command.
 				diffCommand := fmt.Sprintf("$ %s %s", cmd.CommandPath(), strings.Join(append(coderConfig.asArgs(), "--diff"), " "))
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  To see changes, run with --diff:\n\n    %s\n\n  Continue?", strings.Join(changes, "\n    * "), diffCommand),
+					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  To see changes, run diff:\n\n    %s\n\n  Continue?", strings.Join(changes, "\n    * "), diffCommand),
 					IsConfirm: true,
 				})
 				if err != nil {
