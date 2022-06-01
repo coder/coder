@@ -1,22 +1,25 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 import { CopyButton } from "../CopyButton/CopyButton"
 
 export interface CodeExampleProps {
   code: string
+  className?: string
+  buttonClassName?: string
 }
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({ code }) => {
+export const CodeExample: FC<CodeExampleProps> = ({ code, className, buttonClassName }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.root}>
-      <code>{code}</code>
-      <CopyButton text={code} />
+    <div className={combineClasses([styles.root, className])}>
+      <code className={styles.code}>{code}</code>
+      <CopyButton text={code} buttonClassName={combineClasses([styles.button, buttonClassName])} />
     </div>
   )
 }
@@ -30,8 +33,17 @@ const useStyles = makeStyles((theme) => ({
     background: theme.palette.background.default,
     color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 13,
-    padding: theme.spacing(2),
+    fontSize: 14,
+    borderRadius: theme.shape.borderRadius,
+    padding: theme.spacing(0.5),
+  },
+  code: {
+    padding: `${theme.spacing(0.5)}px  ${theme.spacing(0.75)}px ${theme.spacing(0.5)}px ${theme.spacing(2)}px`,
+  },
+  button: {
+    border: 0,
+    minWidth: 42,
+    minHeight: 42,
     borderRadius: theme.shape.borderRadius,
   },
 }))

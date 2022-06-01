@@ -8,6 +8,8 @@ import { FC, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
 import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
@@ -18,6 +20,17 @@ import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formU
 export const Language = {
   templateLabel: "Template",
   nameLabel: "Name",
+  emptyMessage: "Let's create your first template",
+  emptyDescription: (
+    <>
+      To create a workspace you need to have a template. You can{" "}
+      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+        create one from scratch
+      </Link>{" "}
+      or use a built-in template by typing the following Coder CLI command:
+    </>
+  ),
+  templateLink: "Read more about this template",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -98,7 +111,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
         {props.loadingTemplates && <Loader />}
 
         <Stack>
-          {props.templates && (
+          {props.templates && props.templates.length === 0 && (
+            <EmptyState
+              className={styles.emptyState}
+              message={Language.emptyMessage}
+              description={Language.emptyDescription}
+              descriptionClassName={styles.emptyStateDescription}
+              cta={
+                <CodeExample className={styles.code} buttonClassName={styles.codeButton} code="coder template init" />
+              }
+            />
+          )}
+          {props.templates && props.templates.length > 0 && (
             <TextField
               {...getFieldHelpers("template_id")}
               disabled={form.isSubmitting}
@@ -116,7 +140,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
                     to={`/templates/${selectedTemplate.name}`}
                     target="_blank"
                   >
-                    Read more about this template <OpenInNewIcon />
+                    {Language.templateLink} <OpenInNewIcon />
                   </Link>
                 )
               }
@@ -178,5 +202,22 @@ const useStyles = makeStyles((theme) => ({
       height: 12,
       marginLeft: theme.spacing(0.5),
     },
+  },
+  emptyState: {
+    padding: 0,
+    fontFamily: "inherit",
+    textAlign: "left",
+    minHeight: "auto",
+    alignItems: "flex-start",
+  },
+  emptyStateDescription: {
+    lineHeight: "160%",
+  },
+  code: {
+    background: theme.palette.background.paper,
+    width: "100%",
+  },
+  codeButton: {
+    background: theme.palette.background.paper,
   },
 }))
