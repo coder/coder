@@ -65,14 +65,12 @@ export const UsersTable: FC<UsersTableProps> = ({
         {!isLoading &&
           users &&
           users.map((user) => {
-            // When the user has no role, it is because they are a member
-            const fallbackRoles: TypesGen.Role[] = [
-              {
-                name: "member",
-                display_name: "Member",
-              },
-            ]
-            const userRoles = user.roles.length === 0 ? fallbackRoles : user.roles
+            // When the user has no role we want to show they are a Member
+            const fallbackRole: TypesGen.Role = {
+              name: "member",
+              display_name: "Member",
+            }
+            const userRoles = user.roles.length === 0 ? [fallbackRole] : user.roles
 
             return (
               <TableRow key={user.id}>
@@ -93,7 +91,11 @@ export const UsersTable: FC<UsersTableProps> = ({
                       roles={roles ?? []}
                       selectedRoles={userRoles}
                       loading={isUpdatingUserRoles}
-                      onChange={(roles) => onUpdateUserRoles(user, roles)}
+                      onChange={(roles) => {
+                        // Remove the fallback role because it is only for the UI
+                        roles = roles.filter((role) => role !== fallbackRole.name)
+                        onUpdateUserRoles(user, roles)
+                      }}
                     />
                   ) : (
                     <>{userRoles.map((role) => role.display_name).join(", ")}</>
