@@ -17,17 +17,8 @@ const Template: Story<UserDropdownProps> = (args: UserDropdownProps) => (
   </Box>
 )
 
-export const Closed = Template.bind({})
-Closed.args = {
-  user: MockUser,
-  onSignOut: () => {
-    return Promise.resolve()
-  },
-}
-
-export const Open = Template.bind({})
-Open.args = {
-  isOpen: true,
+export const Example = Template.bind({})
+Example.args = {
   user: MockUser,
   onSignOut: () => {
     return Promise.resolve()

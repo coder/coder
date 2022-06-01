@@ -1,15 +1,15 @@
 import { Story } from "@storybook/react"
 import React from "react"
 import { MockUser } from "../../testHelpers/entities"
-import { UserProfileCard, UserProfileCardProps } from "./UserProfileCard"
+import { UserDropdownContent, UserDropdownContentProps } from "./UserDropdownContent"
 
 export default {
-  title: "components/UserProfileCard",
-  component: UserProfileCard,
+  title: "components/UserDropdownContent",
+  component: UserDropdownContent,
   argTypes: {},
 }
 
-const Template: Story<UserProfileCardProps> = (args: UserProfileCardProps) => <UserProfileCard {...args} />
+const Template: Story<UserDropdownContentProps> = (args: UserDropdownContentProps) => <UserDropdownContent {...args} />
 
 export const ExampleNoRoles = Template.bind({})
 ExampleNoRoles.args = {
