@@ -6,11 +6,12 @@ tags: [cloud, kubernetes]
 
 # Authentication
 
-This template has several ways to authenticate to a Kubernetes cluster.
+This template features two ways to authenticate to a Kubernetes cluster.
 
 ## kubeconfig (Coder host)
 
-If the Coder host has a local `~/.kube/config`, this can be used to authenticate with Coder. Make sure this is on the same user running the `coder` service.
+If the Coder host has a local `~/.kube/config`, you can use this to authenticate
+with Coder. Make sure this is done with same user that's running the `coder` service.
 
 ## ServiceAccount
 

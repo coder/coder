@@ -6,20 +6,32 @@ tags: [cloud, google, container]
 
 # gcp-vm-container
 
-## Getting Started
-
-Run `coder templates init`, and when prompted, select this template. Follow the
-on-screen instructions to proceed.
+To get started, run `coder templates init`. When prompted, select this template,
+and follow the on-screen instructions to proceed.
 
 ## Service account
 
 Coder requires a Google Cloud Service Account to provision workspaces. To create
 a service account:
 
-1. Navigate to the [CGP console](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts/create).
-2. Add the following roles:
+1. Navigate to the [CGP
+   console](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts/create),
+   and select your Cloud project (if you have more than one project associated with
+   your account)
+
+1. Provide a service account name (this name is used to generate the service
+   account ID)
+
+1. Click **Create and continue**, and choose the following IAM roles to grant to
+   the service account:
    - Compute Admin
    - Service Account User
-3. Click on the created key, and navigate to the **Keys** tab.
-4. Click **Add key** > **Create new key**.
-5. Generate a **JSON private key**, which will be what you provide to coder.
+
+   Click **Continue**.
+
+1. Click on the created key, and navigate to the **Keys** tab.
+
+1. Click **Add key** > **Create new key**.
+
+1. Generate a **JSON private key**, which will be what you provide to Coder
+   during the setup process.

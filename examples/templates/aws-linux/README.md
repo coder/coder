@@ -6,10 +6,8 @@ tags: [cloud, aws]
 
 # aws-linux
 
-## Getting started
-
-Run `coder templates init`, and when prompted, select this template. Follow the
-on-screen instructions to proceed.
+To get started, run `coder templates init`. When prompted, select this template.
+Follow the on-screen instructions to proceed.
 
 ## Required permissions / policy
 
