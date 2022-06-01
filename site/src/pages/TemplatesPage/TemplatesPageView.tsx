@@ -25,8 +25,6 @@ export const Language = {
   nameLabel: "Name",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
-  emptyViewCreateCTA: "Create a template",
-  emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "Contact your Coder administrator to create a template. You can share the code below.",
   emptyMessage: "Create your first template",
   emptyDescription: (
