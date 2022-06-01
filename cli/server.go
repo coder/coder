@@ -33,6 +33,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -86,7 +87,7 @@ func server() *cobra.Command {
 		tlsKeyFile                       string
 		tlsMinVersion                    string
 		turnRelayAddress                 string
-		tunnel                           bool
+		shouldTunnel                     bool
 		stunServers                      []string
 		trace                            bool
 		secureAuthCookie                 bool
@@ -165,18 +166,18 @@ func server() *cobra.Command {
 				accessURL = localURL.String()
 			} else {
 				// If an access URL is specified, always skip tunneling.
-				tunnel = false
+				shouldTunnel = false
 			}
 
 			var (
-				tunnelErrChan          <-chan error
 				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
+				tunnel                 = &devtunnel.Tunnel{ErrorChan: make(chan error, 1)}
 			)
 			defer closeTunnel()
 
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
-			if dev && tunnel {
+			if dev && shouldTunnel {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
 					"Coder requires a URL accessible by workspaces you provision. "+
 						"A free tunnel can be created for simple setup. This will "+
@@ -195,10 +196,11 @@ func server() *cobra.Command {
 					}
 				}
 				if err == nil {
-					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
+					tunnel, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
+					accessURL = tunnel.URL
 				}
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
@@ -327,7 +329,25 @@ func server() *cobra.Command {
 						return shutdownConnsCtx
 					},
 				}
-				errCh <- server.Serve(listener)
+
+				wg := errgroup.Group{}
+				wg.Go(func() error {
+					if dev && shouldTunnel {
+						defer tunnel.Listener.Close()
+					}
+
+					return server.Serve(listener)
+				})
+
+				if dev && shouldTunnel {
+					wg.Go(func() error {
+						defer listener.Close()
+
+						return server.Serve(tunnel.Listener)
+					})
+				}
+
+				errCh <- wg.Wait()
 			}()
 
 			config := createConfig(cmd)
@@ -393,7 +413,7 @@ func server() *cobra.Command {
 			case <-cmd.Context().Done():
 				coderAPI.Close()
 				return cmd.Context().Err()
-			case err := <-tunnelErrChan:
+			case err := <-tunnel.ErrorChan:
 				if err != nil {
 					return err
 				}
@@ -455,10 +475,10 @@ func server() *cobra.Command {
 				spin.Stop()
 			}
 
-			if dev && tunnel {
+			if dev && shouldTunnel {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
 				closeTunnel()
-				<-tunnelErrChan
+				<-tunnel.ErrorChan
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
@@ -504,7 +524,7 @@ func server() *cobra.Command {
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_DEV_TUNNEL", true,
+	cliflag.BoolVarP(root.Flags(), &shouldTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true,
 		"Specifies whether the dev tunnel will be enabled or not. If specified, the interactive prompt will not display.")
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
