@@ -10,13 +10,13 @@ attempts to use the system package manager detection-reference if possible.
 You can preview what occurs during the install process:
 
 ```bash
-curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
+curl -L https://coder.com/install.sh | sh -s -- --dry-run
 ```
 
 To install, run:
 
 ```bash
-curl -fsSL https://coder.com/install.sh | sh
+curl -L https://coder.com/install.sh | sh
 ```
 
 > If you're concerned about the install script's use of `curl | sh` and the
@@ -27,7 +27,7 @@ curl -fsSL https://coder.com/install.sh | sh
 You can modify the installation process by including flags. Run the help command for reference:
 
 ```bash
-curl -fsSL https://coder.com/install.sh | sh -s -- --help
+curl -L https://coder.com/install.sh | sh -s -- --help
 ```
 
 ## System packages
