@@ -6,7 +6,7 @@ describe("WorkspaceBuildPage", () => {
   it("renders the stats and logs", async () => {
     renderWithAuth(<WorkspaceBuildPage />, { route: `/builds/${MockWorkspaceBuild.id}`, path: "/builds/:buildId" })
 
-    await screen.findByText(MockWorkspaceBuild.workspace_id)
+    await screen.findByText(MockWorkspaceBuild.workspace_name)
     await screen.findByText(MockWorkspaceBuildLogs[0].stage)
   })
 })
