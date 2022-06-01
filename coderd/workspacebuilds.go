@@ -58,39 +58,50 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if paginationParams.AfterID != uuid.Nil {
-		// See if the record exists first. If the record does not exist, the pagination
-		// query will not work.
-		_, err := api.Database.GetWorkspaceBuildByID(r.Context(), paginationParams.AfterID)
-		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("record at \"after_id\" (%q) does not exist", paginationParams.AfterID.String()),
-			})
-			return
-		} else if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get workspace build at after_id: %s", err),
-			})
-			return
+	var builds []database.WorkspaceBuild
+	// Ensure all db calls happen in the same tx
+	err := api.Database.InTx(func(store database.Store) error {
+		var err error
+		if paginationParams.AfterID != uuid.Nil {
+			// See if the record exists first. If the record does not exist, the pagination
+			// query will not work.
+			_, err := store.GetWorkspaceBuildByID(r.Context(), paginationParams.AfterID)
+			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("record at \"after_id\" (%q) does not exist", paginationParams.AfterID.String()),
+				})
+				return err
+			} else if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("get workspace build at after_id: %s", err),
+				})
+				return err
+			}
 		}
-	}
 
-	req := database.GetWorkspaceBuildByWorkspaceIDParams{
-		WorkspaceID: workspace.ID,
-		AfterID:     paginationParams.AfterID,
-		OffsetOpt:   int32(paginationParams.Offset),
-		LimitOpt:    int32(paginationParams.Limit),
-	}
-	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+		req := database.GetWorkspaceBuildByWorkspaceIDParams{
+			WorkspaceID: workspace.ID,
+			AfterID:     paginationParams.AfterID,
+			OffsetOpt:   int32(paginationParams.Offset),
+			LimitOpt:    int32(paginationParams.Limit),
+		}
+		builds, err = api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get workspace builds: %s", err),
+			})
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace builds: %s", err),
-		})
 		return
 	}
+
 	jobIDs := make([]uuid.UUID, 0, len(builds))
 	for _, version := range builds {
 		jobIDs = append(jobIDs, version.JobID)
