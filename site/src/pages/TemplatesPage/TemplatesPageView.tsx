@@ -66,21 +66,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 <TableCell colSpan={999}>
                   <EmptyState
                     message={Language.emptyMessage}
-                    description={Language.emptyDescription}
+                    description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
                     descriptionClassName={styles.emptyDescription}
                     cta={<CodeExample code="coder template init" />}
                   />
-
-                  {/* {props.canCreateTemplate ? (
-                      <span>
-                        <Link component={RouterLink} to="/templates/new">
-                          {Language.emptyViewCreateCTA}
-                        </Link>
-                        &nbsp;{Language.emptyViewCreate}
-                      </span>
-                    ) : (
-                      <span>{Language.emptyViewNoPerms}</span>
-                    )} */}
                 </TableCell>
               </TableRow>
             )}
