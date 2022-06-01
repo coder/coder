@@ -207,3 +207,25 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
     deadline: NinetyMinutesFromNow.format(),
   }
 }
+
+export const workspaceQueryToFilter = (query?: string): WorkspaceFilter => {
+  let filter: WorkspaceFilter = {
+    Owner: "",
+    OrganizationID: "",
+  }
+
+  if (query) {
+    const parts = query.split(" ")
+
+    parts.map((part) => {
+      if (part.startsWith("owner:")) {
+        filter = {
+          Owner: part.slice("owner:".length),
+          OrganizationID: "",
+        }
+      }
+    })
+  }
+
+  return filter
+}
