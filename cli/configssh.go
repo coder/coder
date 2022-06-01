@@ -49,9 +49,15 @@ const (
 var (
 	// Find the first Host and Match statement as these restrict the
 	// following declarations to be used conditionally.
-	sshHostRe = regexp.MustCompile(`(?m)^\s*((?i)Host|Match)\s.*$`)
-	// Find the semantically correct include statement.
-	sshCoderIncludedRe = regexp.MustCompile(`(?m)^\s*((?i)Include) coder(\s.*)?$`)
+	sshHostRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Host|Match)\s[^\n\r]*$`)
+	// Find the semantically correct include statement. Since the user can
+	// modify their configuration as they see fit, there could be:
+	// - Leading indentation (space, tab)
+	// - Trailing indentation (space, tab), followed by e.g. a comment or
+	//   another file to Include (we don't want to support this, but
+	//   explicitly blocking it adds complexity)
+	// - Select newline after Include statement for removal purposes
+	sshCoderIncludedRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Include) coder([\t ].*)?[\r]?[\n]?$`)
 )
 
 // sshCoderConfigOptions represents options that can be stored and read
