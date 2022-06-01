@@ -30,6 +30,7 @@ export const Language = {
       or use a built-in template by typing the following Coder CLI command:
     </>
   ),
+  templateLink: "Read more about this template",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -139,7 +140,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
                     to={`/templates/${selectedTemplate.name}`}
                     target="_blank"
                   >
-                    Read more about this template <OpenInNewIcon />
+                    {Language.templateLink} <OpenInNewIcon />
                   </Link>
                 )
               }
