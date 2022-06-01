@@ -391,7 +391,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		if paginationParams.AfterID != uuid.Nil {
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
-			_, err := api.Database.GetTemplateVersionByID(r.Context(), paginationParams.AfterID)
+			_, err := store.GetTemplateVersionByID(r.Context(), paginationParams.AfterID)
 			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 					Message: fmt.Sprintf("record at \"after_id\" (%q) does not exists", paginationParams.AfterID.String()),
@@ -405,7 +405,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+		versions, err := store.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
 			TemplateID: template.ID,
 			AfterID:    paginationParams.AfterID,
 			LimitOpt:   int32(paginationParams.Limit),
@@ -426,7 +426,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		for _, version := range versions {
 			jobIDs = append(jobIDs, version.JobID)
 		}
-		jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+		jobs, err := store.GetProvisionerJobsByIDs(r.Context(), jobIDs)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get jobs: %s", err),
@@ -608,7 +608,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		provisionerJob, err = api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -632,7 +632,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		templateVersion, err = api.Database.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
+		templateVersion, err = db.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,

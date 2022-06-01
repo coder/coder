@@ -85,7 +85,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			OffsetOpt:   int32(paginationParams.Offset),
 			LimitOpt:    int32(paginationParams.Limit),
 		}
-		builds, err = api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
+		builds, err = store.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
