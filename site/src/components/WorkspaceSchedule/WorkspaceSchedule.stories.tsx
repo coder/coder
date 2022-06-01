@@ -56,7 +56,7 @@ ShutdownSoon.args = {
       deadline: dayjs().add(ONE, "hour").utc().format(),
       transition: "start",
     },
-    ttl_ms: 2 * 60 * 60 * 1000 // 2 hours
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
   },
 }
 
@@ -70,7 +70,7 @@ ShutdownLong.args = {
       deadline: dayjs().add(SEVEN, "days").utc().format(),
       transition: "start",
     },
-    ttl_ms: 7 * 24 * 60 * 60 * 1000 // 7 days
+    ttl_ms: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }
 
