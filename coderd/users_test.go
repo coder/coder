@@ -735,6 +735,50 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 }
 
+// TestSuspendedPagination is when the after_id is a suspended record.
+// The database query should still return the correct page, as the after_id
+// is in a subquery that finds the record regardless of its status.
+// This is mainly to confirm the db fake has the same behavior.
+func TestSuspendedPagination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err)
+	orgID := me.OrganizationIDs[0]
+
+	total := 10
+	users := make([]codersdk.User, 0, total)
+	// Create users
+	for i := 0; i < total; i++ {
+		email := fmt.Sprintf("%d@coder.com", i)
+		username := fmt.Sprintf("user%d", i)
+		user, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          email,
+			Username:       username,
+			Password:       "password",
+			OrganizationID: orgID,
+		})
+		require.NoError(t, err)
+		users = append(users, user)
+	}
+	sortUsers(users)
+	deletedUser := users[2]
+	expected := users[3:8]
+	_, err = client.UpdateUserStatus(ctx, deletedUser.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "suspend user")
+
+	page, err := client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Limit:   len(expected),
+			AfterID: deletedUser.ID,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, expected, page, "expected page")
+}
+
 // TestPaginatedUsers creates a list of users, then tries to paginate through
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {

@@ -385,6 +385,23 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if paginationParams.AfterID != uuid.Nil {
+		// See if the record exists first. If the record does not exist, the pagination
+		// query will not work.
+		_, err := api.Database.GetTemplateVersionByID(r.Context(), paginationParams.AfterID)
+		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("record at \"after_id\" (%q) does not exists", paginationParams.AfterID.String()),
+			})
+			return
+		} else if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get template version at after_id: %s", err),
+			})
+			return
+		}
+	}
+
 	apiVersion := []codersdk.TemplateVersion{}
 	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
 		TemplateID: template.ID,

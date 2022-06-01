@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -42,6 +44,30 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.Len(t, builds, 1)
 		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.NoError(t, err)
+	})
+
+	t.Run("PaginateNonExistentRow", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		_, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
+			WorkspaceID: workspace.ID,
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.New(),
+			},
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
+		require.Contains(t, apiError.Message, "does not exist")
 	})
 
 	t.Run("PaginateLimitOffset", func(t *testing.T) {
