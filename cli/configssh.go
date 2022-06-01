@@ -65,6 +65,15 @@ func (o sshCoderConfigOptions) isZero() bool {
 	return o.sshConfigFile == sshDefaultConfigFileName && len(o.sshOptions) == 0
 }
 
+func (o sshCoderConfigOptions) equal(other sshCoderConfigOptions) bool {
+	// Compare without side-effects or regard to order.
+	opt1 := slices.Clone(o.sshOptions)
+	sort.Strings(opt1)
+	opt2 := slices.Clone(other.sshOptions)
+	sort.Strings(opt2)
+	return o.sshConfigFile == other.sshConfigFile && slices.Equal(opt1, opt2)
+}
+
 func (o sshCoderConfigOptions) asArgs() (args []string) {
 	if o.sshConfigFile != sshDefaultConfigFileName {
 		args = append(args, "--ssh-config-file", o.sshConfigFile)
