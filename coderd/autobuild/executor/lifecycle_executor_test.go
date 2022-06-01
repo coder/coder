@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: ptr(sched.String()),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -95,7 +96,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: ptr(sched.String()),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -138,7 +139,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: ptr(sched.String()),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -359,7 +360,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: ptr(sched.String()),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// Given: workspace is deleted
@@ -402,7 +403,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	sched, err := schedule.Weekly(futureTimeCron)
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: ptr(sched.String()),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -570,10 +571,6 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 func TestMain(m *testing.M) {

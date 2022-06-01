@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -177,8 +178,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              "testing",
-				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr((59 * time.Second).Milliseconds()),
+				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+				TTLMillis:         ptr.Ref((59 * time.Second).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -197,8 +198,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              "testing",
-				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr((24*7*time.Hour + time.Minute).Milliseconds()),
+				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+				TTLMillis:         ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -459,12 +460,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	}{
 		{
 			name:          "disable autostart",
-			schedule:      ptr(""),
+			schedule:      ptr.Ref(""),
 			expectedError: "",
 		},
 		{
 			name:             "friday to monday",
-			schedule:         ptr("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
@@ -472,7 +473,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         ptr("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
@@ -481,7 +482,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         ptr("CRON_TZ=Europe/Dublin 30 9 * * *"),
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
@@ -490,7 +491,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         ptr("CRON_TZ=Europe/Dublin 30 9 * * *"),
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
@@ -498,17 +499,17 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      ptr("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
+			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
 			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
-			schedule:      ptr("asdf asdf asdf "),
+			schedule:      ptr.Ref("asdf asdf asdf "),
 			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{
 			name:          "only 3 values",
-			schedule:      ptr("CRON_TZ=Europe/Dublin 30 9 *"),
+			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
 			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
@@ -571,7 +572,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: ptr("9 30 1-5"),
+				Schedule: ptr.Ref("9 30 1-5"),
 			}
 		)
 
@@ -598,22 +599,22 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		},
 		{
 			name:          "below minimum ttl",
-			ttlMillis:     ptr((30 * time.Second).Milliseconds()),
+			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
 			expectedError: "ttl must be at least one minute",
 		},
 		{
 			name:          "minimum ttl",
-			ttlMillis:     ptr(time.Minute.Milliseconds()),
+			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "maximum ttl",
-			ttlMillis:     ptr((24 * 7 * time.Hour).Milliseconds()),
+			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
-			ttlMillis:     ptr((24*7*time.Hour + time.Minute).Milliseconds()),
+			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "ttl must be less than 7 days",
 		},
 	}
@@ -663,7 +664,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceTTLRequest{
-				TTLMillis: ptr(time.Hour.Milliseconds()),
+				TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
 			}
 		)
 
@@ -762,8 +763,4 @@ func mustLocation(t *testing.T, location string) *time.Location {
 	}
 
 	return loc
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

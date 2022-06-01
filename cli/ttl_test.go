@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -34,7 +35,7 @@ func TestTTL(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: ptr(ttl.Milliseconds()),
+			TTLMillis: ptr.Ref(ttl.Milliseconds()),
 		})
 		require.NoError(t, err)
 

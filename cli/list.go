@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -87,14 +88,14 @@ func list() *cobra.Command {
 
 				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"
-				if workspace.AutostartSchedule != nil && *workspace.AutostartSchedule != "" {
+				if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
 					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
 						autostartDisplay = sched.Cron()
 					}
 				}
 
 				autostopDisplay := "-"
-				if workspace.TTLMillis != nil && *workspace.TTLMillis > 0 {
+				if !ptr.NilOrZero(workspace.TTLMillis) {
 					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 					autostopDisplay = durationDisplay(dur)
 					if has, ext := hasExtension(workspace); has {

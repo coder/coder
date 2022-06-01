@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -865,12 +866,11 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 }
 
 func validWorkspaceTTLMillis(millis *int64) (sql.NullInt64, error) {
-	if millis == nil {
+	if ptr.NilOrZero(millis) {
 		return sql.NullInt64{}, nil
 	}
 
 	dur := time.Duration(*millis) * time.Millisecond
-
 	truncated := dur.Truncate(time.Minute)
 	if truncated < time.Minute {
 		return sql.NullInt64{}, xerrors.New("ttl must be at least one minute")
@@ -909,7 +909,7 @@ func validWorkspaceDeadline(old, new time.Time) error {
 }
 
 func validWorkspaceSchedule(s *string) (sql.NullString, error) {
-	if s == nil || *s == "" {
+	if ptr.NilOrEmpty(s) {
 		return sql.NullString{}, nil
 	}
 

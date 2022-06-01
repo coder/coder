@@ -20,7 +20,3 @@ func TestRoot(t *testing.T) {
 		require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
 	})
 }
-
-func ptr[T any](v T) *T {
-	return &v
-}

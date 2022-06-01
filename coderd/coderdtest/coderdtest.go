@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -399,8 +400,8 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              randomUsername(),
-		AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-		TTLMillis:         ptr((8 * time.Hour).Milliseconds()),
+		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
 	for _, mutator := range mutators {
 		mutator(&req)
@@ -601,8 +602,4 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

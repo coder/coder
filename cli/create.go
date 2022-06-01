@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -222,12 +223,11 @@ func create() *cobra.Command {
 				return err
 			}
 
-			ttlMillis := ttl.Milliseconds()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
 				AutostartSchedule: &schedSpec,
-				TTLMillis:         &ttlMillis,
+				TTLMillis:         ptr.Ref(ttl.Milliseconds()),
 				ParameterValues:   parameters,
 			})
 			if err != nil {

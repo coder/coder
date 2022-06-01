@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -34,7 +35,7 @@ func TestAutostart(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: ptr(sched),
+			Schedule: ptr.Ref(sched),
 		})
 		require.NoError(t, err)
 
