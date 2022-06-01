@@ -28,7 +28,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     background: theme.palette.background.default,
     color: theme.palette.primary.contrastText,
@@ -39,6 +38,13 @@ const useStyles = makeStyles((theme) => ({
   },
   code: {
     padding: `${theme.spacing(0.5)}px  ${theme.spacing(0.75)}px ${theme.spacing(0.5)}px ${theme.spacing(2)}px`,
+    whiteSpace: "nowrap",
+    width: "100%",
+    overflowX: "auto",
+    // Have a better area to display the scrollbar
+    height: 42,
+    display: "flex",
+    alignItems: "center",
   },
   button: {
     border: 0,
