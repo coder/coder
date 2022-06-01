@@ -169,9 +169,14 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("read ssh config failed: %w", err)
 			}
 
+			coderConfigExists := true
 			coderConfigRaw, err := os.ReadFile(coderConfigFile)
-			if err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return xerrors.Errorf("read ssh config failed: %w", err)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					coderConfigExists = false
+				} else {
+					return xerrors.Errorf("read ssh config failed: %w", err)
+				}
 			}
 			if len(coderConfigRaw) > 0 {
 				if !bytes.HasPrefix(coderConfigRaw, []byte(sshCoderConfigHeader)) {
@@ -180,8 +185,9 @@ func configSSH() *cobra.Command {
 			}
 			lastCoderConfig := sshCoderConfigParseLastOptions(bytes.NewReader(coderConfigRaw), coderConfig.sshConfigDefaultFile)
 
-			// Avoid prompting in diff mode (unexpected behavior).
-			if !showDiff && !coderConfig.equal(lastCoderConfig) {
+			// Avoid prompting in diff mode (unexpected behavior)
+			// or when a previous config does not exist.
+			if !showDiff && !coderConfig.equal(lastCoderConfig) && coderConfigExists {
 				newOpts := coderConfig.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
