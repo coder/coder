@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -25,6 +26,36 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 )
+
+func sshConfigFileNames(t *testing.T) (sshConfig string, coderConfig string) {
+	t.Helper()
+	tmpdir := t.TempDir()
+	dotssh := filepath.Join(tmpdir, ".ssh")
+	err := os.Mkdir(dotssh, 0o700)
+	require.NoError(t, err)
+	n1 := filepath.Join(dotssh, "config")
+	n2 := filepath.Join(dotssh, "coder")
+	return n1, n2
+}
+
+func sshConfigFileCreate(t *testing.T, name string, data io.Reader) {
+	t.Helper()
+	t.Logf("Writing %s", name)
+	f, err := os.Create(name)
+	require.NoError(t, err)
+	n, err := io.Copy(f, data)
+	t.Logf("Wrote %d", n)
+	require.NoError(t, err)
+	err = f.Close()
+	require.NoError(t, err)
+}
+
+func sshConfigFileRead(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(name)
+	require.NoError(t, err)
+	return string(b)
+}
 
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
@@ -78,13 +109,6 @@ func TestConfigSSH(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	tmpdir := t.TempDir()
-	tempFile, err := os.CreateTemp(tmpdir, "config")
-	require.NoError(t, err)
-	_ = tempFile.Close()
-	coderTempFile, err := os.CreateTemp(tmpdir, "coder")
-	require.NoError(t, err)
-	_ = coderTempFile.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
@@ -111,59 +135,50 @@ func TestConfigSSH(t *testing.T) {
 		_ = listener.Close()
 	})
 
+	sshConfigFile, coderConfigFile := sshConfigFileNames(t)
+
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
 	cmd, root := clitest.New(t, "config-ssh",
 		"--ssh-option", "HostName "+tcpAddr.IP.String(),
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
-		"--ssh-config-file", tempFile.Name(),
-		"--ssh-coder-config-file", coderTempFile.Name(),
+		"--ssh-config-file", sshConfigFile,
+		"--test.ssh-coder-config-file", coderConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
+	cmd.SetOut(io.MultiWriter(pty.Output(), os.Stderr))
 	go func() {
 		defer close(doneChan)
 		err := cmd.Execute()
 		assert.NoError(t, err)
 	}()
+
+	matches := []struct {
+		match, write string
+	}{
+		{match: "Continue?", write: "yes"},
+	}
+	for _, m := range matches {
+		pty.ExpectMatch(m.match)
+		pty.WriteLine(m.write)
+	}
+
 	<-doneChan
 
-	t.Log(tempFile.Name())
+	t.Log(coderConfigFile)
+	t.Log(sshConfigFileRead(t, coderConfigFile))
+	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", tempFile.Name(), "coder."+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
+	// Set HOME because coder config is included from ~/.ssh/coder.
+	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
 	sshCmd.Stderr = os.Stderr
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
-}
-
-func sshConfigFileNames(t *testing.T) (sshConfig string, coderConfig string) {
-	t.Helper()
-	tmpdir := t.TempDir()
-	n1 := filepath.Join(tmpdir, "config")
-	n2 := filepath.Join(tmpdir, "coder")
-	return n1, n2
-}
-
-func sshConfigFileCreate(t *testing.T, name string, data io.Reader) {
-	t.Helper()
-	t.Logf("Writing %s", name)
-	f, err := os.Create(name)
-	require.NoError(t, err)
-	n, err := io.Copy(f, data)
-	t.Logf("Wrote %d", n)
-	require.NoError(t, err)
-	err = f.Close()
-	require.NoError(t, err)
-}
-
-func sshConfigFileRead(t *testing.T, name string) string {
-	b, err := os.ReadFile(name)
-	require.NoError(t, err)
-	return string(b)
 }
 
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
