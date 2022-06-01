@@ -46,7 +46,7 @@ describe("Create User Page", () => {
     })
     render(<CreateUserPage />)
     await fillForm({})
-    const errorMessage = await screen.findByText(Language.unknownError)
+    const errorMessage = await screen.findByText(UserLanguage.createUserError)
     expect(errorMessage).toBeDefined()
   })
 
