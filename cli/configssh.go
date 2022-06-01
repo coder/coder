@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -97,6 +98,67 @@ func (o sshCoderConfigOptions) asList() (list []string) {
 	return list
 }
 
+type sshWorkspaceConfig struct {
+	Name  string
+	Hosts []string
+}
+
+func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (receive func() ([]sshWorkspaceConfig, error)) {
+	wcC := make(chan []sshWorkspaceConfig, 1)
+	errC := make(chan error, 1)
+	go func() {
+		wc, err := func() ([]sshWorkspaceConfig, error) {
+			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				Owner: codersdk.Me,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			var errGroup errgroup.Group
+			workspaceConfigs := make([]sshWorkspaceConfig, len(workspaces))
+			for i, workspace := range workspaces {
+				i := i
+				workspace := workspace
+				errGroup.Go(func() error {
+					resources, err := client.TemplateVersionResources(ctx, workspace.LatestBuild.TemplateVersionID)
+					if err != nil {
+						return err
+					}
+
+					wc := sshWorkspaceConfig{Name: workspace.Name}
+					for _, resource := range resources {
+						if resource.Transition != codersdk.WorkspaceTransitionStart {
+							continue
+						}
+						for _, agent := range resource.Agents {
+							hostname := workspace.Name
+							if len(resource.Agents) > 1 {
+								hostname += "." + agent.Name
+							}
+							wc.Hosts = append(wc.Hosts, hostname)
+						}
+					}
+					workspaceConfigs[i] = wc
+
+					return nil
+				})
+			}
+			err = errGroup.Wait()
+			if err != nil {
+				return nil, err
+			}
+
+			return workspaceConfigs, nil
+		}()
+		wcC <- wc
+		errC <- err
+	}()
+	return func() ([]sshWorkspaceConfig, error) {
+		return <-wcC, <-errC
+	}
+}
+
 func configSSH() *cobra.Command {
 	var (
 		coderConfig      sshCoderConfigOptions
@@ -132,13 +194,7 @@ func configSSH() *cobra.Command {
 				return err
 			}
 
-			// Early check for workspaces to ensure API key has not expired.
-			workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
-				Owner: codersdk.Me,
-			})
-			if err != nil {
-				return err
-			}
+			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(cmd.Context(), client)
 
 			out := cmd.OutOrStdout()
 			if showDiff {
@@ -172,6 +228,7 @@ func configSSH() *cobra.Command {
 			coderConfigExists := true
 			coderConfigRaw, err := os.ReadFile(coderConfigFile)
 			if err != nil {
+				//nolint: revive // Inverting this if statement doesn't improve readability.
 				if errors.Is(err, fs.ErrNotExist) {
 					coderConfigExists = false
 				} else {
@@ -232,43 +289,6 @@ func configSSH() *cobra.Command {
 			}
 
 			root := createConfig(cmd)
-			var errGroup errgroup.Group
-			type workspaceConfig struct {
-				Name  string
-				Hosts []string
-			}
-			workspaceConfigs := make([]workspaceConfig, len(workspaces))
-			for i, workspace := range workspaces {
-				i := i
-				workspace := workspace
-				errGroup.Go(func() error {
-					resources, err := client.TemplateVersionResources(cmd.Context(), workspace.LatestBuild.TemplateVersionID)
-					if err != nil {
-						return err
-					}
-
-					wc := workspaceConfig{Name: workspace.Name}
-					for _, resource := range resources {
-						if resource.Transition != codersdk.WorkspaceTransitionStart {
-							continue
-						}
-						for _, agent := range resource.Agents {
-							hostname := workspace.Name
-							if len(resource.Agents) > 1 {
-								hostname += "." + agent.Name
-							}
-							wc.Hosts = append(wc.Hosts, hostname)
-						}
-					}
-					workspaceConfigs[i] = wc
-
-					return nil
-				})
-			}
-			err = errGroup.Wait()
-			if err != nil {
-				return err
-			}
 
 			buf := &bytes.Buffer{}
 
@@ -279,8 +299,12 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("write coder config header failed: %w", err)
 			}
 
+			workspaceConfigs, err := recvWorkspaceConfigs()
+			if err != nil {
+				return xerrors.Errorf("fetch workspace configs failed: %w", err)
+			}
 			// Ensure stable sorting of output.
-			slices.SortFunc(workspaceConfigs, func(a, b workspaceConfig) bool {
+			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
 				return a.Name < b.Name
 			})
 			for _, wc := range workspaceConfigs {
@@ -377,9 +401,9 @@ func configSSH() *cobra.Command {
 				}
 			}
 
-			if len(workspaces) > 0 {
+			if len(workspaceConfigs) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
+				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh coder.%s\n\n", workspaceConfigs[0].Name)
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n\n")
 			}
