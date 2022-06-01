@@ -538,7 +538,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			})
 
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
 				return
 			}
 

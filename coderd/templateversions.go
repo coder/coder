@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -161,6 +162,216 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, values)
+}
+
+func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+	// We use the workspace RBAC check since we don't want to allow dry runs if
+	// the user can't create workspaces.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
+
+	var req codersdk.CreateTemplateVersionDryRunRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Template version import job hasn't completed!",
+		})
+		return
+	}
+
+	// Convert parameters from request to parameters for the job
+	parameterValues := make([]database.ParameterValue, len(req.ParameterValues))
+	for i, v := range req.ParameterValues {
+		parameterValues[i] = database.ParameterValue{
+			ID:                uuid.Nil,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           uuid.Nil,
+			Name:              v.Name,
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       v.SourceValue,
+			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		}
+	}
+
+	// Marshal template version dry-run job with the parameters from the
+	// request.
+	input, err := json.Marshal(templateVersionDryRunJob{
+		TemplateVersionID: templateVersion.ID,
+		WorkspaceName:     req.WorkspaceName,
+		ParameterValues:   parameterValues,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("marshal new provisioner job: %s", err),
+		})
+		return
+	}
+
+	// Create a dry-run job
+	jobID := uuid.New()
+	provisionerJob, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		ID:             jobID,
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		OrganizationID: templateVersion.OrganizationID,
+		InitiatorID:    apiKey.UserID,
+		Provisioner:    job.Provisioner,
+		StorageMethod:  job.StorageMethod,
+		StorageSource:  job.StorageSource,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+		Input:          input,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert provisioner job: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
+}
+
+func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertProvisionerJob(job))
+}
+
+func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobResources(rw, r, job)
+}
+
+func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobLogs(rw, r, job)
+}
+
+func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http.Request) {
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+	if !api.Authorize(rw, r, rbac.ActionUpdate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		return
+	}
+
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled",
+		})
+		return
+	}
+
+	err := api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled",
+	})
+}
+
+func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		jobID           = chi.URLParam(r, "jobID")
+	)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return database.ProvisionerJob{}, false
+	}
+
+	jobUUID, err := uuid.Parse(jobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Job ID must be a valid UUID",
+		})
+		return database.ProvisionerJob{}, false
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), jobUUID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job by ID %q: %s", jobUUID.String(), err),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if job.Type != database.ProvisionerJobTypeTemplateVersionDryRun {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	// Do a workspace resource check since it's basically a workspace dry-run .
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		return database.ProvisionerJob{}, false
+	}
+
+	// Verify that the template version is the one used in the request.
+	var input templateVersionDryRunJob
+	err = json.Unmarshal(job.Input, &input)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("unmarshal job metadata: %s", err),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if input.TemplateVersionID != templateVersion.ID {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+
+	return job, true
 }
 
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -463,12 +674,13 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
-		ID:         version.ID,
-		TemplateID: &version.TemplateID.UUID,
-		CreatedAt:  version.CreatedAt,
-		UpdatedAt:  version.UpdatedAt,
-		Name:       version.Name,
-		Job:        job,
-		Readme:     version.Readme,
+		ID:             version.ID,
+		TemplateID:     &version.TemplateID.UUID,
+		OrganizationID: version.OrganizationID,
+		CreatedAt:      version.CreatedAt,
+		UpdatedAt:      version.UpdatedAt,
+		Name:           version.Name,
+		Job:            job,
+		Readme:         version.Readme,
 	}
 }
