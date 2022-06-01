@@ -149,7 +149,7 @@ func TestConfigSSH(t *testing.T) {
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
-	cmd.SetOut(io.MultiWriter(pty.Output(), os.Stderr))
+	cmd.SetOut(pty.Output())
 	go func() {
 		defer close(doneChan)
 		err := cmd.Execute()
