@@ -272,6 +272,26 @@ describe("Users Page", () => {
         expect(API.updateUserRoles).toBeCalledTimes(1)
         expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
       })
+      it("shows an error from the backend", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        server.use(
+          rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
+            return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
+          }),
+        )
+
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        await updateUserRole(() => {}, MockAuditorRole)
+
+        // Check if the error message is displayed
+        await screen.findByText("message from the backend")
+      })
     })
   })
 })
