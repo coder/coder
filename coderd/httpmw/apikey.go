@@ -166,7 +166,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			}
 			// Only update the ExpiresAt once an hour to prevent database spam.
 			// We extend the ExpiresAt to reduce re-authentication.
-			apiKeyLifetime := 24 * time.Hour
+			apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
 			if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
 				key.ExpiresAt = now.Add(apiKeyLifetime)
 				changed = true
