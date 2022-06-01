@@ -96,7 +96,7 @@ export const useStyles = makeStyles((theme) => {
       flex: 2,
     },
     secondColumnSpacer: {
-      flex: "0 0 170px",
+      flex: "0 0 200px",
     },
     header: {
       paddingTop: theme.spacing(5),

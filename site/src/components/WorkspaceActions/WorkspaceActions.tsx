@@ -92,7 +92,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       )}
       {canCancelJobs(workspaceStatus) && (
         <WorkspaceActionButton
-          className={styles.actionButton}
+          className={styles.cancelActionButton}
           icon={<CancelIcon />}
           onClick={handleCancel}
           label={Language.cancel}
@@ -112,5 +112,8 @@ const useStyles = makeStyles((theme) => ({
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
     width: theme.spacing(16),
+  },
+  cancelActionButton: {
+    width: theme.spacing(27),
   },
 }))
