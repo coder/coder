@@ -11,12 +11,12 @@ import { Stack } from "../Stack/Stack"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 export const Language = {
-  stop: "Stop workspace",
-  stopping: "Stopping workspace",
-  start: "Start workspace",
-  starting: "Starting workspace",
+  stop: "Stop",
+  stopping: "Stopping",
+  start: "Start",
+  starting: "Starting",
   cancel: "Cancel action",
-  update: "Update workspace",
+  update: "Update",
 }
 
 /**
@@ -95,6 +95,6 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
-    width: theme.spacing(27),
+    width: theme.spacing(16),
   },
 }))

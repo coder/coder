@@ -41,8 +41,8 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
             <TableHeaderRow>
               <TableCell>{Language.resourceLabel}</TableCell>
               <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
-              <TableCell>{Language.statusLabel}</TableCell>
               <TableCell>{Language.accessLabel}</TableCell>
+              <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -83,11 +83,6 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
                     <TableCell>
-                      <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
-                        {getDisplayAgentStatus(theme, agent).status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
                       {agent.status === "connected" && (
                         <TerminalLink
                           className={styles.accessLink}
@@ -96,6 +91,11 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                           userName={workspace.owner_name}
                         />
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
+                        {getDisplayAgentStatus(theme, agent).status}
+                      </span>
                     </TableCell>
                   </TableRow>
                 )

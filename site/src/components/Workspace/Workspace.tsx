@@ -40,42 +40,42 @@ export const Workspace: FC<WorkspaceProps> = ({
 
   return (
     <div className={styles.root}>
-      <div className={styles.header}>
-        <div>
-          <Typography variant="h4" className={styles.title}>
-            {workspace.name}
-          </Typography>
+      <Stack direction="row" spacing={3}>
+        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
+          <div className={styles.header}>
+            <div>
+              <Typography variant="h4" className={styles.title}>
+                {workspace.name}
+              </Typography>
 
-          <Typography color="textSecondary" className={styles.subtitle}>
-            {workspace.owner_name}
-          </Typography>
-        </div>
+              <Typography color="textSecondary" className={styles.subtitle}>
+                {workspace.owner_name}
+              </Typography>
+            </div>
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+            />
+          </div>
+        </Stack>
 
-        <div className={styles.headerActions}>
-          <WorkspaceActions
-            workspace={workspace}
-            handleStart={handleStart}
-            handleStop={handleStop}
-            handleUpdate={handleUpdate}
-            handleCancel={handleCancel}
-          />
-        </div>
-      </div>
+        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}></Stack>
+      </Stack>
 
-      <Stack direction="row" spacing={3} className={styles.layout}>
-        <Stack spacing={3} className={styles.main}>
+      <Stack direction="row" spacing={3}>
+        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
           <WorkspaceScheduleBanner workspace={workspace} />
-
           <WorkspaceStats workspace={workspace} />
-
           <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
-
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
         </Stack>
 
-        <Stack spacing={3} className={styles.sidebar}>
+        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}>
           <WorkspaceSchedule workspace={workspace} />
         </Stack>
       </Stack>
@@ -89,15 +89,19 @@ export const useStyles = makeStyles((theme) => {
       display: "flex",
       flexDirection: "column",
     },
+    firstColumnSpacer: {
+      flex: 2,
+    },
+    secondColumnSpacer: {
+      flex: "0 0 170px",
+    },
     header: {
       paddingTop: theme.spacing(5),
       paddingBottom: theme.spacing(5),
       fontFamily: MONOSPACE_FONT_FAMILY,
       display: "flex",
       alignItems: "center",
-    },
-    headerActions: {
-      marginLeft: "auto",
+      justifyContent: "space-between",
     },
     title: {
       fontWeight: 600,
