@@ -10,6 +10,7 @@ import { FormikContextType, FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
+import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { Language, WorkspacesPageView } from "./WorkspacesPageView"
@@ -58,16 +59,19 @@ const WorkspacesPage: FC = () => {
     <>
       <Margins>
         <div className={styles.actions}>
-          <Button aria-controls="simple-menu" aria-haspopup="true" onClick={handleClick}>
-            Filter
-          </Button>
-          <Menu id="simple-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
-            <MenuItem onClick={setYourWorkspaces}>Your workspaces</MenuItem>
-            <MenuItem onClick={setAllWorkspaces}>All workspaces</MenuItem>
-          </Menu>
-          <form onSubmit={form.handleSubmit}>
-            <TextField {...getFieldHelpers("query")} onChange={onChangeTrimmed(form)} fullWidth variant="outlined" />
-          </form>
+          <Stack direction="row">
+            <Button aria-controls="simple-menu" aria-haspopup="true" onClick={handleClick}>
+              Filter
+            </Button>
+            <Menu id="simple-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
+              <MenuItem onClick={setYourWorkspaces}>Your workspaces</MenuItem>
+              <MenuItem onClick={setAllWorkspaces}>All workspaces</MenuItem>
+            </Menu>
+            <form onSubmit={form.handleSubmit}>
+              <TextField {...getFieldHelpers("query")} onChange={onChangeTrimmed(form)} fullWidth variant="outlined" />
+            </form>
+          </Stack>
+
           <Link underline="none" component={RouterLink} to="/workspaces/new">
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
