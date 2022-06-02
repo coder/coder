@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -199,11 +198,10 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type WorkspaceFilter struct {
-	OrganizationID uuid.UUID
+	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
 	// Owner can be a user_id (uuid), "me", or a username
-	Owner   string
-	Name    string
-	Deleted bool
+	Owner string `json:"owner,omitempty"`
+	Name  string `json:"name,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -219,9 +217,6 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		}
 		if f.Name != "" {
 			q.Set("name", f.Name)
-		}
-		if f.Deleted {
-			q.Set("deleted", strconv.FormatBool(f.Deleted))
 		}
 		r.URL.RawQuery = q.Encode()
 	}
