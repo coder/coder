@@ -143,16 +143,49 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: fmt.Sprintf("get workspace resource: %s", err),
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+
+	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build job: %s", err),
+		})
+		return
+	}
+	// Ensure the resource is still valid!
+	// We only accept agents for resources on the latest build.
+	ensureLatestBuild := func() error {
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if build.ID != latestBuild.ID {
+			return xerrors.New("build is outdated")
+		}
+		return nil
+	}
+
+	err = ensureLatestBuild()
+	if err != nil {
+		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
+			slog.F("resource", resource),
+			slog.F("agent", workspaceAgent),
+		)
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			Message: fmt.Sprintf("ensure latest build: %s", err),
+		})
+		return
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
@@ -163,6 +196,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
+
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
@@ -170,6 +204,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
+
 	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Pubsub:    api.Pubsub,
@@ -180,6 +215,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closer.Close()
+
 	firstConnectedAt := workspaceAgent.FirstConnectedAt
 	if !firstConnectedAt.Valid {
 		firstConnectedAt = sql.NullTime{
@@ -204,23 +240,6 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	ensureLatestBuild := func() error {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
-		if err != nil {
-			return err
-		}
-		if build.ID != latestBuild.ID {
-			return xerrors.New("build is outdated")
-		}
-		return nil
-	}
 
 	defer func() {
 		disconnectedAt = sql.NullTime{
@@ -230,11 +249,6 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = updateConnectionTimes()
 	}()
 
-	err = ensureLatestBuild()
-	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, "")
-		return
-	}
 	err = updateConnectionTimes()
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
