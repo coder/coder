@@ -3498,16 +3498,28 @@ WHERE
 				owner_id = $3
 		  ELSE true
 	END
+	-- Filter by name
+	AND CASE
+		  WHEN $4 :: string != '' THEN
+				name = LOWER($4)
+		  ELSE true
+	END
 `
 
 type GetWorkspacesWithFilterParams struct {
 	Deleted        bool      `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter, arg.Deleted, arg.OrganizationID, arg.OwnerID)
+	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter,
+		arg.Deleted,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+	)
 	if err != nil {
 		return nil, err
 	}
