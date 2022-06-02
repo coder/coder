@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -521,7 +520,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
-// is called if io.EOF is encountered.
+// is called if a read or write error is encountered.
 type wsNetConn struct {
 	cancel context.CancelFunc
 	net.Conn
@@ -529,7 +528,7 @@ type wsNetConn struct {
 
 func (c *wsNetConn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
-	if errors.Is(err, io.EOF) {
+	if err != nil {
 		c.cancel()
 	}
 	return n, err
@@ -537,7 +536,7 @@ func (c *wsNetConn) Read(b []byte) (n int, err error) {
 
 func (c *wsNetConn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
-	if errors.Is(err, io.EOF) {
+	if err != nil {
 		c.cancel()
 	}
 	return n, err
@@ -549,8 +548,8 @@ func (c *wsNetConn) Close() error {
 }
 
 // websocketNetConn wraps websocket.NetConn and returns a context that
-// is tied to the parent context and the lifetime of the conn. A io.EOF
-// error during read or write will cancel the context, but not close the
+// is tied to the parent context and the lifetime of the conn. Any error
+// during read or write will cancel the context, but not close the
 // conn. Close should be called to release context resources.
 func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
 	ctx, cancel := context.WithCancel(ctx)
