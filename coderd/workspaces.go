@@ -142,13 +142,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("organization_id must be a uuid: %s", err.Error()),
-			})
-			return
+		if err == nil {
+			filter.OrganizationID = orgID
 		}
-		filter.OrganizationID = orgID
 	}
 	if ownerFilter == "me" {
 		filter.OwnerID = apiKey.UserID
@@ -161,15 +157,12 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 				Username: ownerFilter,
 				Email:    ownerFilter,
 			})
-			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "owner must be a uuid or username",
-				})
-				return
+			if err == nil {
+				filter.OwnerID = user.ID
 			}
-			userID = user.ID
+		} else {
+			filter.OwnerID = userID
 		}
-		filter.OwnerID = userID
 	}
 	if nameFilter != "" {
 		filter.Name = nameFilter
