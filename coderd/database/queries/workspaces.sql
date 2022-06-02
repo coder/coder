@@ -30,7 +30,7 @@ WHERE
 	END
 	-- Filter by name
 	AND CASE
-		  WHEN @name :: string != '' THEN
+		  WHEN @name :: text != '' THEN
 				name = LOWER(@name)
 		  ELSE true
 	END
