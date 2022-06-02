@@ -199,8 +199,6 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   return transition === "start" && status === "succeeded"
 }
 
-<<<<<<< HEAD
-
 export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
   const now = __startDate ? dayjs(__startDate) : dayjs()
   const NinetyMinutesFromNow = now.add(90, "minutes").utc()
