@@ -13,8 +13,8 @@ type LogsContext = {
 
 type LogsEvent =
   | {
-      type: "ADD_LOGS"
-      logs: ProvisionerJobLog[]
+      type: "ADD_LOG"
+      log: ProvisionerJobLog
     }
   | {
       type: "NO_MORE_LOGS"
@@ -80,8 +80,8 @@ export const workspaceBuildMachine = createMachine(
           },
         },
         on: {
-          ADD_LOGS: {
-            actions: "addNewLogs",
+          ADD_LOG: {
+            actions: "addLog",
           },
           NO_MORE_LOGS: {
             target: "loaded",
@@ -109,10 +109,10 @@ export const workspaceBuildMachine = createMachine(
       assignLogs: assign({
         logs: (_, event) => event.data,
       }),
-      addNewLogs: assign({
+      addLog: assign({
         logs: (context, event) => {
           const previousLogs = context.logs ?? []
-          return [...previousLogs, ...event.logs]
+          return [...previousLogs, event.log]
         },
       }),
     },
@@ -132,10 +132,7 @@ export const workspaceBuildMachine = createMachine(
             break
           }
 
-          if (value) {
-            const logs = value.split("\n").map((jsonString) => JSON.parse(jsonString) as ProvisionerJobLog)
-            callback({ type: "ADD_LOGS", logs })
-          }
+          callback({ type: "ADD_LOG", log: value })
         }
       },
     },
