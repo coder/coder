@@ -72,17 +72,18 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
+	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
