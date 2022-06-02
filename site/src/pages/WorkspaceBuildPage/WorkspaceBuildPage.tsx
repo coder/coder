@@ -27,7 +27,6 @@ const useBuildId = () => {
 
 export const WorkspaceBuildPage: FC = () => {
   const buildId = useBuildId()
-  // We can initialize logs as an empty array because it will be a stream
   const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
   const { logs, build } = buildState.context
   const isWaitingForLogs = !buildState.matches("logs.loaded")
