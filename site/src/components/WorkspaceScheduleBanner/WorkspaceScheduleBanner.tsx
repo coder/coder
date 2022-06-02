@@ -35,7 +35,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ __onExtend, workspace }) => {
+export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
 
   if (!shouldDisplay(workspace)) {
@@ -48,11 +48,7 @@ export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ __on
             color="inherit"
             disabled={bannerState.hasTag("loading")}
             onClick={() => {
-              if (__onExtend) {
-                __onExtend()
-              } else {
-                bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
-              }
+              bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
             }}
             size="small"
           >

@@ -1,4 +1,3 @@
-import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
@@ -16,7 +15,6 @@ const Template: Story<WorkspaceScheduleBannerProps> = (args) => <WorkspaceSchedu
 
 export const Example = Template.bind({})
 Example.args = {
-  __onExtend: action("extend"),
   workspace: {
     ...Mocks.MockWorkspace,
     latest_build: {
