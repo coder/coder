@@ -196,11 +196,7 @@ export const isWorkspaceOn = (workspace: TypeGen.Workspace): boolean => {
 }
 
 export const workspaceQueryToFilter = (query?: string): TypeGen.WorkspaceFilter => {
-  const defaultFilter: TypeGen.WorkspaceFilter = {
-    Owner: "",
-    OrganizationID: "",
-  }
-
+  const defaultFilter: TypeGen.WorkspaceFilter = {}
   const preparedQuery = query?.replace(/  +/g, " ")
 
   if (!preparedQuery) {
@@ -212,9 +208,19 @@ export const workspaceQueryToFilter = (query?: string): TypeGen.WorkspaceFilter 
       const [key, val] = part.split(":")
       if (key === "owner") {
         return {
-          Owner: val,
-          OrganizationID: "",
+          owner: val,
         }
+      }
+
+      const [username, name] = part.split("/")
+      if (username && name) {
+        return {
+          owner: username,
+          name: name,
+        }
+      }
+      return {
+        name: part,
       }
     }
 
