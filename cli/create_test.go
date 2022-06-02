@@ -23,6 +23,7 @@ import (
 
 func TestCreate(t *testing.T) {
 	t.Parallel()
+	t.Fatal("CIAN FIX THIS")
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -65,6 +66,7 @@ func TestCreate(t *testing.T) {
 
 	t.Run("AboveTemplateMaxTTL", func(t *testing.T) {
 		t.Parallel()
+		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -93,6 +95,7 @@ func TestCreate(t *testing.T) {
 
 	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
 		t.Parallel()
+		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -149,6 +152,7 @@ func TestCreate(t *testing.T) {
 
 	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
 		t.Parallel()
+		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
