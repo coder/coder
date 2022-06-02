@@ -385,51 +385,77 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	apiVersion := []codersdk.TemplateVersion{}
-	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: template.ID,
-		AfterID:    paginationParams.AfterID,
-		LimitOpt:   int32(paginationParams.Limit),
-		OffsetOpt:  int32(paginationParams.Offset),
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, apiVersion)
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
-		})
-		return
-	}
-	jobIDs := make([]uuid.UUID, 0, len(versions))
-	for _, version := range versions {
-		jobIDs = append(jobIDs, version.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get jobs: %s", err),
-		})
-		return
-	}
-	jobByID := map[string]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID.String()] = job
-	}
-
-	for _, version := range versions {
-		job, exists := jobByID[version.JobID.String()]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
-			})
-			return
+	var err error
+	apiVersions := []codersdk.TemplateVersion{}
+	err = api.Database.InTx(func(store database.Store) error {
+		if paginationParams.AfterID != uuid.Nil {
+			// See if the record exists first. If the record does not exist, the pagination
+			// query will not work.
+			_, err := store.GetTemplateVersionByID(r.Context(), paginationParams.AfterID)
+			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("record at \"after_id\" (%q) does not exists", paginationParams.AfterID.String()),
+				})
+				return err
+			} else if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("get template version at after_id: %s", err),
+				})
+				return err
+			}
 		}
-		apiVersion = append(apiVersion, convertTemplateVersion(version, convertProvisionerJob(job)))
+
+		versions, err := store.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+			TemplateID: template.ID,
+			AfterID:    paginationParams.AfterID,
+			LimitOpt:   int32(paginationParams.Limit),
+			OffsetOpt:  int32(paginationParams.Offset),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusOK, apiVersions)
+			return err
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get template version: %s", err),
+			})
+			return err
+		}
+
+		jobIDs := make([]uuid.UUID, 0, len(versions))
+		for _, version := range versions {
+			jobIDs = append(jobIDs, version.JobID)
+		}
+		jobs, err := store.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get jobs: %s", err),
+			})
+			return err
+		}
+		jobByID := map[string]database.ProvisionerJob{}
+		for _, job := range jobs {
+			jobByID[job.ID.String()] = job
+		}
+
+		for _, version := range versions {
+			job, exists := jobByID[version.JobID.String()]
+			if !exists {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
+				})
+				return err
+			}
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job)))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, apiVersion)
+	httpapi.Write(rw, http.StatusOK, apiVersions)
 }
 
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
@@ -582,7 +608,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		provisionerJob, err = api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -606,7 +632,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		templateVersion, err = api.Database.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
+		templateVersion, err = db.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,

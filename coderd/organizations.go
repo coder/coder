@@ -57,8 +57,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var organization database.Organization
-	err = api.Database.InTx(func(db database.Store) error {
-		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+	err = api.Database.InTx(func(store database.Store) error {
+		organization, err = store.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      req.Name,
 			CreatedAt: database.Now(),
@@ -67,7 +67,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
-		_, err = api.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+		_, err = store.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
 			CreatedAt:      database.Now(),
