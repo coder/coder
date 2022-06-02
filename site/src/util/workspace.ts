@@ -64,6 +64,7 @@ export const DisplayStatusLanguage = {
   queued: "Queued",
 }
 
+// Localize workspace status and provide corresponding color from theme
 export const getDisplayStatus = (
   theme: Theme,
   build: WorkspaceBuild,
@@ -85,12 +86,12 @@ export const getDisplayStatus = (
       }
     case "starting":
       return {
-        color: theme.palette.success.main,
+        color: theme.palette.primary.main,
         status: `⦿ ${DisplayStatusLanguage.starting}`,
       }
     case "stopping":
       return {
-        color: theme.palette.text.secondary,
+        color: theme.palette.primary.main,
         status: `◍ ${DisplayStatusLanguage.stopping}`,
       }
     case "stopped":
