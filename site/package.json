@@ -35,6 +35,7 @@
     "@xstate/inspect": "0.6.5",
     "@xstate/react": "3.0.0",
     "axios": "0.26.1",
+    "cron-parser": "4.4.0",
     "cronstrue": "2.5.0",
     "dayjs": "1.11.2",
     "formik": "2.2.9",
