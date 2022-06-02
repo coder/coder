@@ -174,7 +174,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
         <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
@@ -192,7 +192,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                 </Link>
               </>,
             )}
-            disabled={form.isSubmitting || isLoading || !form.values.startTime}
+            disabled={isLoading || !form.values.startTime}
             InputLabelProps={{
               shrink: true,
             }}
@@ -210,7 +210,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || form.isSubmitting || isLoading}
+                      disabled={!form.values.startTime || isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
                       color="primary"
@@ -229,13 +229,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <TextField
             {...formHelpers("ttl", Language.ttlHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
           />
 
-          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
+          <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
       </form>
     </FullPageForm>

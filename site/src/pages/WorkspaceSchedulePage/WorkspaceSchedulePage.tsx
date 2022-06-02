@@ -172,7 +172,6 @@ export const WorkspaceSchedulePage: React.FC = () => {
             autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
           })
-          return Promise.resolve()
         }}
       />
     )
