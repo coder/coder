@@ -78,12 +78,12 @@ const useStyles = makeStyles((theme) => ({
     },
 
     "&[data-status='active']": {
-      color: theme.palette.primary.main,
+      color: theme.palette.secondary.dark,
       "& .BorderedMenuRow-description": {
         color: theme.palette.text.primary,
       },
       "& .BorderedMenuRow-icon": {
-        color: theme.palette.primary.main,
+        color: theme.palette.secondary.dark,
       },
     },
   },
