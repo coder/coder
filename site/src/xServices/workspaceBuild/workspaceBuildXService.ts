@@ -8,7 +8,7 @@ type LogsContext = {
   build?: WorkspaceBuild
   getBuildError?: Error | unknown
   // Logs
-  logs?: ProvisionerJobLog[]
+  logs: ProvisionerJobLog[]
 }
 
 type LogsEvent =
@@ -110,10 +110,7 @@ export const workspaceBuildMachine = createMachine(
         logs: (_, event) => event.data,
       }),
       addLog: assign({
-        logs: (context, event) => {
-          const previousLogs = context.logs ?? []
-          return [...previousLogs, event.log]
-        },
+        logs: (context, event) => [...context.logs, event.log],
       }),
     },
     services: {
