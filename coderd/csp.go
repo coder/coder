@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpapi"
@@ -23,7 +24,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		api.Logger.Warn(ctx, "csp violation", slog.Error(err))
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "failed to read body",
+			Message: fmt.Sprintf("Failed to read body, invalid json: %s", err.Error()),
 		})
 		return
 	}

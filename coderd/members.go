@@ -76,11 +76,11 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 
 		roleOrg, err := uuid.Parse(orgID)
 		if err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("role must have proper uuids for organization, %q does not", r)
+			return database.OrganizationMember{}, xerrors.Errorf("Role must have proper uuids for organization, %q does not", r)
 		}
 
 		if roleOrg != args.OrgID {
-			return database.OrganizationMember{}, xerrors.Errorf("must only pass roles for org %q", args.OrgID.String())
+			return database.OrganizationMember{}, xerrors.Errorf("Must only pass roles for org %q", args.OrgID.String())
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
@@ -90,7 +90,7 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 
 	updatedUser, err := api.Database.UpdateMemberRoles(ctx, args)
 	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("update site roles: %w", err)
+		return database.OrganizationMember{}, xerrors.Errorf("Update site roles: %w", err)
 	}
 	return updatedUser, nil
 }

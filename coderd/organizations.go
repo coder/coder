@@ -45,13 +45,13 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: "organization already exists with that name",
+			Message: "Organization already exists with that name",
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization: %s", err.Error()),
+			Message: fmt.Sprintf("Get organization: %s", err.Error()),
 		})
 		return
 	}
@@ -83,7 +83,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: err.Error(),
+			Message: fmt.Sprintf("Insert organization member: %s", err.Error()),
 		})
 		return
 	}

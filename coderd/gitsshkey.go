@@ -22,7 +22,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("regenerate key pair: %s", err),
+			Message: fmt.Sprintf("Regenerate key pair: %s", err),
 		})
 		return
 	}
@@ -35,7 +35,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update git SSH key: %s", err),
+			Message: fmt.Sprintf("Update git SSH key: %s", err),
 		})
 		return
 	}
@@ -43,7 +43,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	newKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get git SSH key: %s", err),
+			Message: fmt.Sprintf("Get Git SSH key: %s", err),
 		})
 		return
 	}
@@ -67,7 +67,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update git SSH key: %s", err),
+			Message: fmt.Sprintf("Update git SSH key: %s", err),
 		})
 		return
 	}
