@@ -14,7 +14,7 @@ export const Language = {
 
 export type WorkspaceScheduleBannerEvent = { type: "EXTEND_DEADLINE_DEFAULT"; workspaceId: string }
 
-export const workspaceScheduleBanner = createMachine(
+export const workspaceScheduleBannerMachine = createMachine(
   {
     tsTypes: {} as import("./workspaceScheduleBannerXService.typegen").Typegen0,
     schema: {

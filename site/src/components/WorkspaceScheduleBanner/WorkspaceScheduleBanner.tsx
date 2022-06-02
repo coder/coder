@@ -8,7 +8,7 @@ import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
-import { workspaceScheduleBanner } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
+import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
@@ -19,10 +19,6 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleBannerProps {
-  /**
-   * @remarks __onExtend is used for testing purposes
-   */
-  __onExtend?: () => void
   workspace: TypesGen.Workspace
 }
 
@@ -40,7 +36,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
 }
 
 export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ __onExtend, workspace }) => {
-  const [bannerState, bannerSend] = useMachine(workspaceScheduleBanner)
+  const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
 
   if (!shouldDisplay(workspace)) {
     return null
