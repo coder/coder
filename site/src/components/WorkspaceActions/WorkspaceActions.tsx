@@ -12,14 +12,14 @@ import { Stack } from "../Stack/Stack"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 export const Language = {
-  stop: "Stop workspace",
-  stopping: "Stopping workspace",
-  start: "Start workspace",
-  starting: "Starting workspace",
-  delete: "Delete workspace",
-  deleting: "Deleting workspace",
+  stop: "Stop",
+  stopping: "Stopping",
+  start: "Start",
+  starting: "Starting",
+  delete: "Delete",
+  deleting: "Deleting",
   cancel: "Cancel action",
-  update: "Update workspace",
+  update: "Update",
 }
 
 /**
@@ -92,7 +92,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       )}
       {canCancelJobs(workspaceStatus) && (
         <WorkspaceActionButton
-          className={styles.actionButton}
+          className={styles.cancelActionButton}
           icon={<CancelIcon />}
           onClick={handleCancel}
           label={Language.cancel}
@@ -111,6 +111,9 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
+    width: theme.spacing(16),
+  },
+  cancelActionButton: {
     width: theme.spacing(27),
   },
 }))
