@@ -387,12 +387,12 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "ended")
-	}()
+
 	// Accept text connections, because it's more developer friendly.
-	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	agentConn, err := api.dialWorkspaceAgent(ctx, r, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
@@ -411,11 +411,13 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-// dialWorkspaceAgent connects to a workspace agent by ID.
-func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+// dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
+// r.Context() for cancellation if it's use is safe or r.Hijack() has
+// not been performed.
+func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
 	go func() {
-		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
+		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
 			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 			Pubsub:    api.Pubsub,
@@ -425,7 +427,7 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}()
 
 	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := peerClient.NegotiateConnection(r.Context())
+	stream, err := peerClient.NegotiateConnection(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
@@ -437,7 +439,7 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
 		clientPipe, serverPipe := net.Pipe()
 		go func() {
-			<-r.Context().Done()
+			<-ctx.Done()
 			_ = clientPipe.Close()
 			_ = serverPipe.Close()
 		}()
