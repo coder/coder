@@ -210,7 +210,7 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
 
 export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter => {
   const defaultFilter: TypesGen.WorkspaceFilter = {}
-  const preparedQuery = query?.replace(/  +/g, " ")
+  const preparedQuery = query?.trim().replace(/  +/g, " ")
 
   if (!preparedQuery) {
     return defaultFilter
