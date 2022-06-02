@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react"
-import { MockAdminRole, MockMemberRole, MockUser } from "../../testHelpers/entities"
+import { MockAdminRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
@@ -36,7 +36,6 @@ describe("UserDropdown", () => {
       await renderAndClick()
 
       expect(screen.getByText(MockAdminRole.display_name)).toBeDefined()
-      expect(screen.getByText(MockMemberRole.display_name)).toBeDefined()
     })
 
     it("has the correct link for the documentation item", async () => {
