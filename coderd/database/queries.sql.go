@@ -1773,21 +1773,25 @@ INSERT INTO
 		"name",
 		provisioner,
 		active_version_id,
-		description
+		description,
+		max_ttl,
+		min_autostart_interval
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
 `
 
 type InsertTemplateParams struct {
-	ID              uuid.UUID       `db:"id" json:"id"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Name            string          `db:"name" json:"name"`
-	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description     string          `db:"description" json:"description"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Name                 string          `db:"name" json:"name"`
+	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description          string          `db:"description" json:"description"`
+	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
+	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -1800,6 +1804,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Provisioner,
 		arg.ActiveVersionID,
 		arg.Description,
+		arg.MaxTtl,
+		arg.MinAutostartInterval,
 	)
 	var i Template
 	err := row.Scan(
