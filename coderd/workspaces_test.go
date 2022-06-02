@@ -268,6 +268,36 @@ func TestWorkspacesByOwner(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
+
+	t.Run("ListName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		w := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		// Create noise workspace that should be filtered out
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		// Use name filter
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: w.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces, 1)
+
+		// Create same name workspace that should be included
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) { cwr.Name = w.Name })
+
+		workspaces, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: w.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces, 2)
+	})
 }
 
 func TestWorkspaceByOwnerAndName(t *testing.T) {
