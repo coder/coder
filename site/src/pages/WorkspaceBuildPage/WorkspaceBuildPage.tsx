@@ -4,6 +4,7 @@ import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { useParams } from "react-router-dom"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
+import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -27,9 +28,9 @@ const useBuildId = () => {
 export const WorkspaceBuildPage: FC = () => {
   const buildId = useBuildId()
   // We can initialize logs as an empty array because it will be a stream
-  const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId, logs: [] } })
+  const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
   const { logs, build } = buildState.context
-  const isLoading = !buildState.matches("loaded")
+  const isWaitingForLogs = !buildState.matches("logs.loaded")
   const styles = useStyles()
 
   return (
@@ -40,7 +41,8 @@ export const WorkspaceBuildPage: FC = () => {
         </Typography>
 
         {build && <WorkspaceBuildStats build={build} />}
-        <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isLoading={isLoading} />
+        {!logs && <Loader />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={isWaitingForLogs} />}
       </Stack>
     </Margins>
   )

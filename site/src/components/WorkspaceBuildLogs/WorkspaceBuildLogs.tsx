@@ -36,10 +36,10 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 
 export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
-  isLoading: boolean
+  isWaitingForLogs: boolean
 }
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isLoading }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isWaitingForLogs }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()
@@ -55,8 +55,8 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isLoadin
         }))
         const duration = getStageDurationInSeconds(logs)
         const isLastStage = stageIndex === stages.length - 1
-        const shouldDisplaySpinner = isLoading && isLastStage
-        const shouldDisplayDuration = !isLoading && duration
+        const shouldDisplaySpinner = isWaitingForLogs && isLastStage
+        const shouldDisplayDuration = !isWaitingForLogs && duration
 
         return (
           <div key={stage}>
