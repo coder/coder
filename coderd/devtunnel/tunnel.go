@@ -47,6 +47,7 @@ type configExt struct {
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 }
 
+// NewWithConfig calls New with the given config. For documentation, see New.
 func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel, error) {
 	err := startUpdateRoutine(ctx, logger, cfg)
 	if err != nil {
@@ -112,6 +113,11 @@ allowed_ip=%s/128`,
 	}, nil
 }
 
+// New creates a tunnel with a public URL and returns a listener for incoming
+// connections on that URL. Connections are made over the wireguard protocol.
+// Tunnel configuration is cached in the user's config directory. Successive
+// calls to New will always use the same URL. If multiple public URLs in
+// parallel are required, use NewWithConfig.
 func New(ctx context.Context, logger slog.Logger) (*Tunnel, error) {
 	cfg, err := readOrGenerateConfig()
 	if err != nil {
