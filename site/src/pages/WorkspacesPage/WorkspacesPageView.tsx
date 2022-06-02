@@ -49,7 +49,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           </TableRow>
         </TableHead>
         <TableBody>
-          {loading && <TableLoader />}
+          {!workspaces && loading && <TableLoader />}
           {workspaces && workspaces.length === 0 && (
             <TableRow>
               <TableCell colSpan={999}>
