@@ -1,6 +1,7 @@
+import dayjs from "dayjs"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
-import { isWorkspaceOn } from "./workspace"
+import { defaultWorkspaceExtension, isWorkspaceOn } from "./workspace"
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
@@ -38,6 +39,28 @@ describe("util > workspace", () => {
         },
       }
       expect(isWorkspaceOn(workspace)).toBe(isOn)
+    })
+  })
+
+  describe("defaultWorkspaceExtension", () => {
+    it.each<[string, TypesGen.PutExtendWorkspaceRequest]>([
+      [
+        "2022-06-02T14:56:34Z",
+        {
+          deadline: "2022-06-02T15:26:34Z",
+        },
+      ],
+
+      // This case is the same as above, but in a different timezone to prove
+      // that UTC conversion for deadline works as expected
+      [
+        "2022-06-02T10:56:20-04:00",
+        {
+          deadline: "2022-06-02T15:26:34Z",
+        },
+      ],
+    ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
+      expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request)
     })
   })
 })
