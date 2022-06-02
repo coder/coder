@@ -180,7 +180,7 @@ const useButtonStyles = makeStyles((theme) => ({
     // Override disabled to keep background color, change loading spinner to contrast color
     "&.Mui-disabled": {
       "&.MuiButton-containedPrimary": {
-        background: theme.palette.primary.dark,
+        background: theme.palette.success.main,
 
         "& .MuiCircularProgress-root": {
           color: theme.palette.primary.contrastText,

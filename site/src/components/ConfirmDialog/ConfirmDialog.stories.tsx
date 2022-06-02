@@ -36,3 +36,10 @@ InfoDialog.args = {
   hideCancel: true,
   type: "info",
 }
+
+export const InfoDialogWithCancel = Template.bind({})
+InfoDialog.args = {
+  description: "Information can be cool!",
+  hideCancel: false,
+  type: "info",
+}

@@ -87,16 +87,14 @@ const useStyles = makeStyles((theme) => ({
     padding: `${theme.spacing(1)}px ${theme.spacing(3)}px ${theme.spacing(1)}px ${theme.spacing(2)}px`,
     boxShadow: theme.shadows[6],
     alignItems: "inherit",
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.secondary,
   },
   snackbarContentInfo: {
-    backgroundColor: theme.palette.info.main,
-    // Use primary color as a highlight
-    borderLeftColor: theme.palette.primary.main,
-    color: theme.palette.info.contrastText,
+    // Use success color as a highlight
+    borderLeftColor: theme.palette.success.main,
   },
   snackbarContentError: {
-    backgroundColor: theme.palette.background.paper,
     borderLeftColor: theme.palette.error.main,
-    color: theme.palette.text.secondary,
   },
 }))
