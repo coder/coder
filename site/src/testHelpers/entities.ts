@@ -134,7 +134,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   template_version_id: "",
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
-  workspace_id: "test-workspace",
+  workspace_name: "test-workspace",
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
 }
 
@@ -163,7 +164,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours as nanoseconds
+  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
 }
 

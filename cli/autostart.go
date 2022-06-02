@@ -51,15 +51,15 @@ func autostartShow() *cobra.Command {
 				return err
 			}
 
-			if workspace.AutostartSchedule == "" {
+			if workspace.AutostartSchedule == nil || *workspace.AutostartSchedule == "" {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not enabled\n")
 				return nil
 			}
 
-			validSchedule, err := schedule.Weekly(workspace.AutostartSchedule)
+			validSchedule, err := schedule.Weekly(*workspace.AutostartSchedule)
 			if err != nil {
 				// This should never happen.
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "invalid autostart schedule %q for workspace %s: %s\n", workspace.AutostartSchedule, workspace.Name, err.Error())
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())
 				return nil
 			}
 
@@ -110,7 +110,7 @@ func autostartEnable() *cobra.Command {
 			}
 
 			err = client.UpdateWorkspaceAutostart(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: validSchedule.String(),
+				Schedule: &spec,
 			})
 			if err != nil {
 				return err
@@ -153,7 +153,7 @@ func autostartDisable() *cobra.Command {
 			}
 
 			err = client.UpdateWorkspaceAutostart(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: "",
+				Schedule: nil,
 			})
 			if err != nil {
 				return err

@@ -40,8 +40,8 @@ func TestBump(t *testing.T) {
 		expectedDeadline := workspace.LatestBuild.Deadline.Add(90 * time.Minute)
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		require.WithinDuration(t, workspace.LatestBuild.Deadline, time.Now().Add(*workspace.TTL), time.Minute)
-		require.NoError(t, err)
+		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -81,8 +81,8 @@ func TestBump(t *testing.T) {
 		expectedDeadline := workspace.LatestBuild.Deadline.Add(30 * time.Minute)
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		require.WithinDuration(t, workspace.LatestBuild.Deadline, time.Now().Add(*workspace.TTL), time.Minute)
-		require.NoError(t, err)
+		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -121,8 +121,8 @@ func TestBump(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		require.WithinDuration(t, workspace.LatestBuild.Deadline, time.Now().Add(*workspace.TTL), time.Minute)
-		require.NoError(t, err)
+		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -147,7 +147,7 @@ func TestBump(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-				cwr.TTL = nil
+				cwr.TTLMillis = nil
 			})
 			cmdArgs   = []string{"bump", workspace.Name}
 			stdoutBuf = &bytes.Buffer{}
@@ -199,8 +199,8 @@ func TestBump(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		require.WithinDuration(t, workspace.LatestBuild.Deadline, time.Now().Add(*workspace.TTL), time.Minute)
-		require.NoError(t, err)
+		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
