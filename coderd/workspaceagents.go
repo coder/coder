@@ -388,7 +388,6 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Accept text connections, because it's more developer friendly.
 	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
