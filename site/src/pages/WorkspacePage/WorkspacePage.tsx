@@ -9,6 +9,7 @@ import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
+import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
@@ -17,6 +18,8 @@ export const WorkspacePage: React.FC = () => {
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
+
+  const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -36,6 +39,12 @@ export const WorkspacePage: React.FC = () => {
         <Stack spacing={4}>
           <>
             <Workspace
+              bannerProps={{
+                isLoading: bannerState.hasTag("loading"),
+                onExtend: () => {
+                  bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
+                },
+              }}
               workspace={workspace}
               handleStart={() => workspaceSend("START")}
               handleStop={() => workspaceSend("STOP")}

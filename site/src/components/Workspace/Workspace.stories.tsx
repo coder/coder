@@ -13,6 +13,10 @@ const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 
 export const Started = Template.bind({})
 Started.args = {
+  bannerProps: {
+    isLoading: false,
+    onExtend: action("extend"),
+  },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),

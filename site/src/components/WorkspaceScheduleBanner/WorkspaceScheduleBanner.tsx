@@ -1,14 +1,12 @@
 import Button from "@material-ui/core/Button"
 import Alert from "@material-ui/lab/Alert"
 import AlertTitle from "@material-ui/lab/AlertTitle"
-import { useMachine } from "@xstate/react"
 import dayjs from "dayjs"
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
 import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
-import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
@@ -19,6 +17,8 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleBannerProps {
+  isLoading?: boolean
+  onExtend: () => void
   workspace: TypesGen.Workspace
 }
 
@@ -35,23 +35,14 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
-  const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
-
+export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ isLoading, onExtend, workspace }) => {
   if (!shouldDisplay(workspace)) {
     return null
   } else {
     return (
       <Alert
         action={
-          <Button
-            color="inherit"
-            disabled={bannerState.hasTag("loading")}
-            onClick={() => {
-              bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
-            }}
-            size="small"
-          >
+          <Button color="inherit" disabled={isLoading} onClick={onExtend} size="small">
             {Language.bannerAction}
           </Button>
         }
