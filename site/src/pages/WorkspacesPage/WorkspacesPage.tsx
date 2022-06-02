@@ -25,30 +25,36 @@ const WorkspacesPage: FC = () => {
   const styles = useStyles()
   const [workspacesState, send] = useMachine(workspacesMachine)
 
-  const form: FormikContextType<FilterFormValues> = useFormik<FilterFormValues>({
-    initialValues: { query: workspacesState.context.filter || "" },
-    onSubmit: (data) => {
+const form = useFormik<FilterFormValues>({
+    initialValues: {
+      query: workspacesState.context.filter || "",
+    },
+    onSubmit: (values) => {
       send({
         type: "SET_FILTER",
-        query: data.query,
+        query: values.query,
       })
     },
   })
 
-  const getFieldHelpers = getFormHelpers<FilterFormValues>(form, {})
+  const getFieldHelpers = getFormHelpers<FilterFormValues>(form)
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget)
   }
+
   const handleClose = () => {
     setAnchorEl(null)
   }
+
   const setYourWorkspaces = () => {
     form.setFieldValue("query", "owner:me")
     void form.submitForm()
     handleClose()
   }
+
   const setAllWorkspaces = () => {
     form.setFieldValue("query", "")
     void form.submitForm()
@@ -60,13 +66,15 @@ const WorkspacesPage: FC = () => {
       <Margins>
         <div className={styles.actions}>
           <Stack direction="row">
-            <Button aria-controls="simple-menu" aria-haspopup="true" onClick={handleClick}>
+            <Button aria-controls="filter-menu" aria-haspopup="true" onClick={handleClick}>
               Filter
             </Button>
-            <Menu id="simple-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
+
+            <Menu id="filter-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
               <MenuItem onClick={setYourWorkspaces}>Your workspaces</MenuItem>
               <MenuItem onClick={setAllWorkspaces}>All workspaces</MenuItem>
             </Menu>
+
             <form onSubmit={form.handleSubmit}>
               <TextField {...getFieldHelpers("query")} onChange={onChangeTrimmed(form)} fullWidth variant="outlined" />
             </form>
@@ -76,6 +84,7 @@ const WorkspacesPage: FC = () => {
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
         </div>
+
         <WorkspacesPageView
           loading={workspacesState.hasTag("loading")}
           workspaces={workspacesState.context.workspaces}

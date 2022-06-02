@@ -69,9 +69,9 @@ describe("util > workspace", () => {
       ["", { Owner: "", OrganizationID: "" }],
       ["asdkfvjn", { Owner: "", OrganizationID: "" }],
       ["owner:me", { Owner: "me", OrganizationID: "" }],
-      ["owner:me owner:me2", { Owner: "me2", OrganizationID: "" }],
+      ["owner:me owner:me2", { Owner: "me", OrganizationID: "" }],
     ])(`query=%p, filter=%p`, (query, filter) => {
-      expect(workspaceQueryToFilter(query)).toBe(filter)
+      expect(workspaceQueryToFilter(query)).toEqual(filter)
     })
   })
 })

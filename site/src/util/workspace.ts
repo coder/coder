@@ -209,23 +209,28 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
 }
 
 export const workspaceQueryToFilter = (query?: string): WorkspaceFilter => {
-  let filter: WorkspaceFilter = {
+  const defaultFilter: WorkspaceFilter = {
     Owner: "",
     OrganizationID: "",
   }
 
-  if (query) {
-    const parts = query.split(" ")
+  const preparedQuery = query?.replace(/  +/g, " ")
 
-    parts.map((part) => {
-      if (part.startsWith("owner:")) {
-        filter = {
-          Owner: part.slice("owner:".length),
+  if (!preparedQuery) {
+    return defaultFilter
+  } else {
+    const parts = preparedQuery.split(" ")
+
+    for (const part of parts) {
+      const [key, val] = part.split(":")
+      if (key === "owner") {
+        return {
+          Owner: val,
           OrganizationID: "",
         }
       }
-    })
-  }
+    }
 
-  return filter
+    return defaultFilter
+  }
 }
