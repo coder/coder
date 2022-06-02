@@ -9,12 +9,12 @@ import { useMachine } from "@xstate/react"
 import { FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
-import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 
 interface FilterFormValues {
   query: string
@@ -24,7 +24,7 @@ const Language = {
   filterName: "Filters",
   createWorkspaceButton: "Create workspace",
   yourWorkspacesButton: "Your workspaces",
-  allWorkspacesButton: "All workspaces"
+  allWorkspacesButton: "All workspaces",
 }
 
 export type FilterFormErrors = FormikErrors<FilterFormValues>
@@ -78,12 +78,7 @@ const WorkspacesPage: FC = () => {
               {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
             </Button>
 
-            <Menu id="filter-menu"
-              anchorEl={anchorEl} 
-              keepMounted 
-              open={Boolean(anchorEl)} 
-              onClose={handleClose}
-            >
+            <Menu id="filter-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
               <MenuItem onClick={setYourWorkspaces}>{Language.yourWorkspacesButton}</MenuItem>
               <MenuItem onClick={setAllWorkspaces}>{Language.allWorkspacesButton}</MenuItem>
             </Menu>
