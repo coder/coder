@@ -41,7 +41,7 @@ export const RoleSelect: FC<RoleSelectProps> = ({ roles, selectedRoles, loading,
 
         return (
           <MenuItem key={r.name} value={r.name} disabled={loading}>
-            <Checkbox color="primary" checked={isChecked} /> {r.display_name}
+            <Checkbox size="small" color="primary" checked={isChecked} /> {r.display_name}
           </MenuItem>
         )
       })}
