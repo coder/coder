@@ -65,11 +65,12 @@ describe("util > workspace", () => {
     })
   describe("workspaceQueryToFilter", () => {
     it.each<[string | undefined, TypesGen.WorkspaceFilter]>([
-      [undefined, { Owner: "", OrganizationID: "" }],
-      ["", { Owner: "", OrganizationID: "" }],
-      ["asdkfvjn", { Owner: "", OrganizationID: "" }],
-      ["owner:me", { Owner: "me", OrganizationID: "" }],
-      ["owner:me owner:me2", { Owner: "me", OrganizationID: "" }],
+      [undefined, {}],
+      ["", {}],
+      ["asdkfvjn", { name: "asdkfvjn" }],
+      ["owner:me", { owner: "me" }],
+      ["owner:me owner:me2", { owner: "me" }],
+      ["me/dev", { owner: "me", name: "dev" }],
     ])(`query=%p, filter=%p`, (query, filter) => {
       expect(workspaceQueryToFilter(query)).toEqual(filter)
     })

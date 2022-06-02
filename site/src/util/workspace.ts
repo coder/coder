@@ -199,6 +199,7 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   return transition === "start" && status === "succeeded"
 }
 
+<<<<<<< HEAD
 
 export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
   const now = __startDate ? dayjs(__startDate) : dayjs()
@@ -209,12 +210,8 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
   }
 }
 
-export const workspaceQueryToFilter = (query?: string): WorkspaceFilter => {
-  const defaultFilter: WorkspaceFilter = {
-    Owner: "",
-    OrganizationID: "",
-  }
-
+export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter => {
+  const defaultFilter: TypesGen.WorkspaceFilter = {}
   const preparedQuery = query?.replace(/  +/g, " ")
 
   if (!preparedQuery) {
@@ -226,9 +223,19 @@ export const workspaceQueryToFilter = (query?: string): WorkspaceFilter => {
       const [key, val] = part.split(":")
       if (key === "owner") {
         return {
-          Owner: val,
-          OrganizationID: "",
+          owner: val,
         }
+      }
+
+      const [username, name] = part.split("/")
+      if (username && name) {
+        return {
+          owner: username,
+          name: name,
+        }
+      }
+      return {
+        name: part,
       }
     }
 
