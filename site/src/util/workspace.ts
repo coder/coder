@@ -1,7 +1,10 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
 import { WorkspaceBuildTransition } from "../api/types"
-import { Workspace, WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
+import * as TypesGen from "../api/typesGenerated"
+
+dayjs.extend(utc)
 
 export type WorkspaceStatus =
   | "queued"
@@ -29,7 +32,7 @@ const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
 }
 
 // Converts a workspaces status to a human-readable form.
-export const getWorkspaceStatus = (workspaceBuild?: WorkspaceBuild): WorkspaceStatus => {
+export const getWorkspaceStatus = (workspaceBuild?: TypesGen.WorkspaceBuild): WorkspaceStatus => {
   const transition = workspaceBuild?.transition as WorkspaceBuildTransition
   const jobStatus = workspaceBuild?.job.status
   switch (jobStatus) {
@@ -67,7 +70,7 @@ export const DisplayStatusLanguage = {
 // Localize workspace status and provide corresponding color from theme
 export const getDisplayStatus = (
   theme: Theme,
-  build: WorkspaceBuild,
+  build: TypesGen.WorkspaceBuild,
 ): {
   color: string
   status: string
@@ -133,7 +136,7 @@ export const getDisplayStatus = (
   throw new Error("unknown status " + status)
 }
 
-export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): number | undefined => {
+export const getWorkspaceBuildDurationInSeconds = (build: TypesGen.WorkspaceBuild): number | undefined => {
   const isCompleted = build.job.started_at && build.job.completed_at
 
   if (!isCompleted) {
@@ -145,7 +148,10 @@ export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): numbe
   return completedAt.diff(startedAt, "seconds")
 }
 
-export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
+export const displayWorkspaceBuildDuration = (
+  build: TypesGen.WorkspaceBuild,
+  inProgressLabel = "In progress",
+): string => {
   const duration = getWorkspaceBuildDurationInSeconds(build)
   return duration ? `${duration} seconds` : inProgressLabel
 }
@@ -158,7 +164,7 @@ export const DisplayAgentStatusLanguage = {
 
 export const getDisplayAgentStatus = (
   theme: Theme,
-  agent: WorkspaceAgent,
+  agent: TypesGen.WorkspaceAgent,
 ): {
   color: string
   status: string
@@ -187,8 +193,17 @@ export const getDisplayAgentStatus = (
   }
 }
 
-export const isWorkspaceOn = (workspace: Workspace): boolean => {
+export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   const transition = workspace.latest_build.transition
   const status = workspace.latest_build.job.status
   return transition === "start" && status === "succeeded"
+}
+
+export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
+  const now = __startDate ? dayjs(__startDate) : dayjs()
+  const NinetyMinutesFromNow = now.add(90, "minutes").utc()
+
+  return {
+    deadline: NinetyMinutesFromNow.format(),
+  }
 }
