@@ -176,16 +176,18 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			req := codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              "testing",
-				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr.Ref((59 * time.Second).Milliseconds()),
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((59 * time.Second).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Errors, 1)
+			require.Equal(t, apiErr.Errors[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Errors[0].Detail, "ttl must be at least one minute")
 		})
 
 		t.Run("AboveMax", func(t *testing.T) {
@@ -196,17 +198,41 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			req := codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              "testing",
-				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Errors, 1)
+			require.Equal(t, apiErr.Errors[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Errors[0].Detail, "ttl must be less than 7 days")
 		})
+	})
+
+	t.Run("InvalidAutostart", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "testing",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		}
+		_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Errors, 1)
+		require.Equal(t, apiErr.Errors[0].Field, "schedule")
+		require.Equal(t, apiErr.Errors[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
 }
 
@@ -500,17 +526,17 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			name:          "invalid location",
 			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
-			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      ptr.Ref("asdf asdf asdf "),
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{
 			name:          "only 3 values",
 			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
 
@@ -620,8 +646,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		},
 		{
 			name:           "above template maximum ttl",
-			ttlMillis:      ptr.Ref((12*time.Hour + time.Minute).Milliseconds()),
-			expectedError:  "TODO what is the error",
+			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
+			expectedError:  "requested value is 12h0m0s but template max is 8h0m0s",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
 		},
 	}

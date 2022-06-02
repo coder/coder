@@ -333,29 +333,20 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var dbAutostartSchedule sql.NullString
-	if createWorkspace.AutostartSchedule != nil {
-		_, err := schedule.Weekly(*createWorkspace.AutostartSchedule)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("parse autostart schedule: %s", err.Error()),
-			})
-			return
-		}
-		dbAutostartSchedule.Valid = true
-		dbAutostartSchedule.String = *createWorkspace.AutostartSchedule
+	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule, time.Duration(template.MinAutostartInterval))
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Invalid Autostart Schedule",
+			Errors:  []httpapi.Error{{Field: "schedule", Detail: err.Error()}},
+		})
+		return
 	}
 
 	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "validate workspace ttl",
-			Errors: []httpapi.Error{
-				{
-					Field:  "ttl",
-					Detail: err.Error(),
-				},
-			},
+			Message: "Invalid Workspace TTL",
+			Errors:  []httpapi.Error{{Field: "ttl_ms", Detail: err.Error()}},
 		})
 		return
 	}
@@ -528,10 +519,19 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbSched, err := validWorkspaceSchedule(req.Schedule)
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
+		api.Logger.Error(r.Context(), "fetch workspace template", slog.F("workspace_id", workspace.ID), slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("invalid autostart schedule: %s", err),
+			Message: "Error fetching workspace template",
+		})
+	}
+
+	dbSched, err := validWorkspaceSchedule(req.Schedule, time.Duration(template.MinAutostartInterval))
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Invalid autostart schedule",
+			Errors:  []httpapi.Error{{Field: "schedule", Detail: err.Error()}},
 		})
 		return
 	}
@@ -566,12 +566,32 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			Message: "validate workspace ttl",
 			Errors: []httpapi.Error{
 				{
-					Field:  "ttl",
+					Field:  "ttl_ms",
 					Detail: err.Error(),
 				},
 			},
 		})
 		return
+	}
+
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Error fetching workspace template!",
+		})
+		return
+	}
+
+	if dbTTL.Valid && dbTTL.Int64 > template.MaxTtl {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Constrained by template",
+			Errors: []httpapi.Error{
+				{
+					Field:  "ttl_ms",
+					Detail: fmt.Sprintf("requested value is %s but template max is %s", time.Duration(dbTTL.Int64), time.Duration(template.MaxTtl)),
+				},
+			},
+		})
 	}
 
 	err = api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
@@ -906,14 +926,18 @@ func validWorkspaceDeadline(old, new time.Time) error {
 	return nil
 }
 
-func validWorkspaceSchedule(s *string) (sql.NullString, error) {
+func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error) {
 	if ptr.NilOrEmpty(s) {
 		return sql.NullString{}, nil
 	}
 
-	_, err := schedule.Weekly(*s)
+	sched, err := schedule.Weekly(*s)
 	if err != nil {
 		return sql.NullString{}, err
+	}
+
+	if schedMin := sched.Min(); schedMin < min {
+		return sql.NullString{}, xerrors.Errorf("Minimum autostart interval %s below template minimum %s", schedMin, min)
 	}
 
 	return sql.NullString{
