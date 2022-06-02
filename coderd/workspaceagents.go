@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +18,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -324,16 +327,16 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = wsConn.Close(websocket.StatusNormalClosure, "")
-	}()
-	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
-	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
-	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
-	case <-r.Context().Done():
+	case <-api.TURNServer.Accept(wsNetConn, remoteAddress, localAddress).Closed():
+	case <-ctx.Done():
 	}
-	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	api.Logger.Debug(ctx, "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -514,4 +517,45 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 	}
 
 	return workspaceAgent, nil
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if io.EOF is encountered.
+type wsNetConn struct {
+	cancel context.CancelFunc
+	net.Conn
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if errors.Is(err, io.EOF) {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if errors.Is(err, io.EOF) {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Close() error {
+	defer c.cancel()
+	return c.Conn.Close()
+}
+
+// websocketNetConn wraps websocket.NetConn and returns a context that
+// is tied to the parent context and the lifetime of the conn. A io.EOF
+// error during read or write will cancel the context, but not close the
+// conn. Close should be called to release context resources.
+func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	ctx, cancel := context.WithCancel(ctx)
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return ctx, &wsNetConn{
+		cancel: cancel,
+		Conn:   nc,
+	}
 }
