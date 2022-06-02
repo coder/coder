@@ -3511,7 +3511,7 @@ WHERE
 	END
 	-- Filter by name
 	AND CASE
-		  WHEN $4 :: string != '' THEN
+		  WHEN $4 :: text != '' THEN
 				name = LOWER($4)
 		  ELSE true
 	END
