@@ -197,13 +197,12 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
 
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
@@ -233,7 +232,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
 	updateConnectionTimes := func() error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(r.Context(), database.UpdateWorkspaceAgentConnectionByIDParams{
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
@@ -259,7 +258,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
