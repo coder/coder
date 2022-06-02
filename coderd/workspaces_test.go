@@ -290,7 +290,8 @@ func TestWorkspacesByOwner(t *testing.T) {
 		require.Len(t, workspaces, 1)
 
 		// Create same name workspace that should be included
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) { cwr.Name = w.Name })
+		other := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_ = coderdtest.CreateWorkspace(t, other, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) { cwr.Name = w.Name })
 
 		workspaces, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
 			Name: w.Name,
