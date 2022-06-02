@@ -123,7 +123,7 @@ export const workspaceBuildMachine = createMachine(
         const reader = await API.streamWorkspaceBuildLogs(ctx.buildId)
 
         // Watching for the stream
-        // eslint-disable-next-line no-constant-condition
+        // eslint-disable-next-line no-constant-condition, @typescript-eslint/no-unnecessary-condition
         while (true) {
           const { value, done } = await reader.read()
 
