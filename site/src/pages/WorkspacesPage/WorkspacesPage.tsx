@@ -13,10 +13,16 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
-import { Language, WorkspacesPageView } from "./WorkspacesPageView"
+import { WorkspacesPageView } from "./WorkspacesPageView"
 
 interface FilterFormValues {
   query: string
+}
+
+const Language = {
+  createWorkspaceButton: "Create workspace",
+  yourWorkspacesButton: "Your workspaces",
+  allWorkspacesButton: "All workspaces"
 }
 
 export type FilterFormErrors = FormikErrors<FilterFormValues>
@@ -71,8 +77,8 @@ const WorkspacesPage: FC = () => {
             </Button>
 
             <Menu id="filter-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
-              <MenuItem onClick={setYourWorkspaces}>Your workspaces</MenuItem>
-              <MenuItem onClick={setAllWorkspaces}>All workspaces</MenuItem>
+              <MenuItem onClick={setYourWorkspaces}>{Language.yourWorkspacesButton}</MenuItem>
+              <MenuItem onClick={setAllWorkspaces}>{Language.allWorkspacesButton}</MenuItem>
             </Menu>
 
             <form onSubmit={form.handleSubmit}>
@@ -81,7 +87,7 @@ const WorkspacesPage: FC = () => {
           </Stack>
 
           <Link underline="none" component={RouterLink} to="/workspaces/new">
-            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+            <Button startIcon={<AddCircleOutline />}>{Language.createWorkspaceButton}</Button>
           </Link>
         </div>
 
