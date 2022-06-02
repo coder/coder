@@ -51,7 +51,7 @@ export const workspacesMachine = createMachine(
           },
           onError: {
             target: "ready",
-            actions: "assignGetWorkspacesError",
+            actions: ["assignGetWorkspacesError", "clearWorkspaces"],
           },
         },
         tags: "loading",
@@ -70,6 +70,7 @@ export const workspacesMachine = createMachine(
         getWorkspacesError: (_, event) => event.data,
       }),
       clearGetWorkspacesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
+      clearWorkspaces: (context) => assign({ ...context, workspaces: undefined }),
     },
     services: {
       getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
