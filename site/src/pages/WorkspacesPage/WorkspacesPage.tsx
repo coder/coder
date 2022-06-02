@@ -14,12 +14,14 @@ import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
+import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 
 interface FilterFormValues {
   query: string
 }
 
 const Language = {
+  filterName: "Filters",
   createWorkspaceButton: "Create workspace",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces"
@@ -73,10 +75,15 @@ const WorkspacesPage: FC = () => {
         <div className={styles.actions}>
           <Stack direction="row">
             <Button aria-controls="filter-menu" aria-haspopup="true" onClick={handleClick}>
-              Filter
+              {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
             </Button>
 
-            <Menu id="filter-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
+            <Menu id="filter-menu"
+              anchorEl={anchorEl} 
+              keepMounted 
+              open={Boolean(anchorEl)} 
+              onClose={handleClose}
+            >
               <MenuItem onClick={setYourWorkspaces}>{Language.yourWorkspacesButton}</MenuItem>
               <MenuItem onClick={setAllWorkspaces}>{Language.allWorkspacesButton}</MenuItem>
             </Menu>
