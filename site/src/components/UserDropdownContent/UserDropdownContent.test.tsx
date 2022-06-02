@@ -3,7 +3,7 @@ import { MockAdminRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
-describe("UserProfileCard", () => {
+describe("UserDropdownContent", () => {
   const env = process.env
 
   // REMARK: copying process.env so we don't mutate that object or encounter conflicts between tests
