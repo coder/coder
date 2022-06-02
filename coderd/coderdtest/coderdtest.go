@@ -322,12 +322,16 @@ func CreateWorkspaceBuild(
 
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {
-	template, err := client.CreateTemplate(context.Background(), organization, codersdk.CreateTemplateRequest{
+func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
+	req := codersdk.CreateTemplateRequest{
 		Name:        randomUsername(),
 		Description: randomUsername(),
 		VersionID:   version,
-	})
+	}
+	for _, mut := range mutators {
+		mut(&req)
+	}
+	template, err := client.CreateTemplate(context.Background(), organization, req)
 	require.NoError(t, err)
 	return template
 }
@@ -400,7 +404,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              randomUsername(),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
 	for _, mutator := range mutators {

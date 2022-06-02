@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -157,5 +158,33 @@ func TestAutostart(t *testing.T) {
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
+	})
+
+	t.Run("BelowTemplateConstraint", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx     = context.Background()
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user    = coderdtest.CreateFirstUser(t, client)
+			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+			})
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			cmdArgs   = []string{"autostart", "enable", workspace.Name, "--minute", "*", "--hour", "*"}
+		)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+
+		err := cmd.Execute()
+		require.NoError(t, err, "unexpected error")
+
+		// Ensure nothing happened
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch updated workspace")
+		require.Equal(t, *workspace.AutostartSchedule, *updated.AutostartSchedule, "expected previous autostart schedule")
 	})
 }

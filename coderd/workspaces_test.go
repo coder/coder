@@ -588,9 +588,10 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		ttlMillis     *int64
-		expectedError string
+		name           string
+		ttlMillis      *int64
+		expectedError  string
+		modifyTemplate func(*codersdk.CreateTemplateRequest)
 	}{
 		{
 			name:          "disable ttl",
@@ -617,19 +618,30 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "ttl must be less than 7 days",
 		},
+		{
+			name:           "above template maximum ttl",
+			ttlMillis:      ptr.Ref((12*time.Hour + time.Minute).Milliseconds()),
+			expectedError:  "TODO what is the error",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+
+			mutators := make([]func(*codersdk.CreateTemplateRequest), 0)
+			if testCase.modifyTemplate != nil {
+				mutators = append(mutators, testCase.modifyTemplate)
+			}
 			var (
 				ctx       = context.Background()
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, mutators...)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
 					cwr.TTLMillis = nil

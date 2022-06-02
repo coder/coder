@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -60,6 +61,63 @@ func TestCreate(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		<-doneChan
+	})
+
+	t.Run("AboveTemplateMaxTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref((12 * time.Hour).Milliseconds())
+		})
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--ttl", "24h",
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		errCh := make(chan error)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(errCh)
+			errCh <- cmd.Execute()
+		}()
+		require.EqualError(t, <-errCh, "TODO what is the error")
+	})
+
+	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+		})
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--autostart-minute", "*", // Every minute
+			"--autostart-hour", "*", // Every hour
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		errCh := make(chan error)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(errCh)
+			errCh <- cmd.Execute()
+		}()
+		require.EqualError(t, <-errCh, "TODO what is the error")
 	})
 
 	t.Run("CreateErrInvalidTz", func(t *testing.T) {

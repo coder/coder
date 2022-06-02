@@ -61,6 +61,15 @@ type CreateTemplateRequest struct {
 	// templates, but it doesn't make sense for users.
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+
+	// MaxTTLMillis allows optionally specifying the maximum allowable TTL
+	// for all workspaces created from this template.
+	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
+
+	// MinAutostartIntervalMillis allows optionally specifying the minimum
+	// allowable duration between autostarts for all workspaces created from
+	// this template.
+	MinAutostartIntervalMillis *int64 `json:"min_autostart_interval_ms,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
