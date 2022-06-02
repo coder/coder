@@ -34,6 +34,7 @@ func ssh() *cobra.Command {
 		stdio          bool
 		shuffle        bool
 		forwardAgent   bool
+		identityAgent  string
 		wsPollInterval time.Duration
 	)
 	cmd := &cobra.Command{
@@ -110,8 +111,11 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if forwardAgent && os.Getenv("SSH_AUTH_SOCK") != "" {
-				err = gosshagent.ForwardToRemote(sshClient, os.Getenv("SSH_AUTH_SOCK"))
+			if identityAgent == "" {
+				identityAgent = os.Getenv("SSH_AUTH_SOCK")
+			}
+			if forwardAgent && identityAgent != "" {
+				err = gosshagent.ForwardToRemote(sshClient, identityAgent)
 				if err != nil {
 					return xerrors.Errorf("forward agent failed: %w", err)
 				}
@@ -171,6 +175,7 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
 	_ = cmd.Flags().MarkHidden("shuffle")
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
+	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 
 	return cmd
