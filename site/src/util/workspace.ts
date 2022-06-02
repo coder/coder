@@ -219,10 +219,14 @@ export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter
 
     for (const part of parts) {
       const [key, val] = part.split(":")
-      if (key === "owner") {
-        return {
-          owner: val,
+      if (key && val) {
+        if (key === "owner") {
+          return {
+            owner: val,
+          }
         }
+        // skip invalid key pairs
+        continue
       }
 
       const [username, name] = part.split("/")
