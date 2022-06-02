@@ -31,10 +31,8 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 );
 
 CREATE TYPE parameter_scope AS ENUM (
-    'organization',
     'template',
     'import_job',
-    'user',
     'workspace'
 );
 
@@ -485,4 +483,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-
