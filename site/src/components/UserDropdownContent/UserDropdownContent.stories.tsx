@@ -6,10 +6,9 @@ import { UserDropdownContent, UserDropdownContentProps } from "./UserDropdownCon
 export default {
   title: "components/UserDropdownContent",
   component: UserDropdownContent,
-  argTypes: {},
 }
 
-const Template: Story<UserDropdownContentProps> = (args: UserDropdownContentProps) => <UserDropdownContent {...args} />
+const Template: Story<UserDropdownContentProps> = (args) => <UserDropdownContent {...args} />
 
 export const ExampleNoRoles = Template.bind({})
 ExampleNoRoles.args = {

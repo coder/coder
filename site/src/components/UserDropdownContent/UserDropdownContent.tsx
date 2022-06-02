@@ -20,6 +20,7 @@ export const Language = {
   docsLabel: "Documentation",
   signOutLabel: "Sign Out",
 }
+
 export interface UserDropdownContentProps {
   user: TypesGen.User
   onPopoverClose: () => void
