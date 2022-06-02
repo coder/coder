@@ -29,7 +29,7 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockAdminRole, MockAuditorRole, MockMemberRole]
+export const MockSiteRoles = [MockAdminRole, MockAuditorRole]
 
 export const MockUser: TypesGen.User = {
   id: "test-user",
@@ -38,7 +38,7 @@ export const MockUser: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockAdminRole, MockMemberRole],
+  roles: [MockAdminRole],
 }
 
 export const MockUser2: TypesGen.User = {
@@ -48,7 +48,7 @@ export const MockUser2: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockMemberRole],
+  roles: [],
 }
 
 export const MockOrganization: TypesGen.Organization = {
