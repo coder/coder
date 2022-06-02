@@ -49,12 +49,13 @@ func ttlShow() *cobra.Command {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
-			if workspace.TTL == nil {
+			if workspace.TTLMillis == nil || *workspace.TTLMillis == 0 {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not set\n")
 				return nil
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", workspace.TTL)
+			dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", dur)
 
 			return nil
 		},
@@ -96,10 +97,10 @@ func ttlset() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s\n", truncated)
 			}
 
-			err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTL: &truncated,
-			})
-			if err != nil {
+			millis := truncated.Milliseconds()
+			if err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+				TTLMillis: &millis,
+			}); err != nil {
 				return xerrors.Errorf("update workspace ttl: %w", err)
 			}
 
@@ -130,7 +131,7 @@ func ttlunset() *cobra.Command {
 			}
 
 			err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTL: nil,
+				TTLMillis: nil,
 			})
 			if err != nil {
 				return xerrors.Errorf("update workspace ttl: %w", err)

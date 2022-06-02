@@ -26,8 +26,8 @@ type Workspace struct {
 	LatestBuild       WorkspaceBuild `json:"latest_build"`
 	Outdated          bool           `json:"outdated"`
 	Name              string         `json:"name"`
-	AutostartSchedule string         `json:"autostart_schedule"`
-	TTL               *time.Duration `json:"ttl"`
+	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
+	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -139,7 +139,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
-	Schedule string `json:"schedule"`
+	Schedule *string `json:"schedule"`
 }
 
 // UpdateWorkspaceAutostart sets the autostart schedule for workspace by id.
@@ -159,7 +159,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 
 // UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
 type UpdateWorkspaceTTLRequest struct {
-	TTL *time.Duration `json:"ttl"`
+	TTLMillis *int64 `json:"ttl_ms"`
 }
 
 // UpdateWorkspaceTTL sets the ttl for workspace by id.

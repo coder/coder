@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -95,7 +96,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -138,7 +139,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -316,12 +317,12 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 		})
 		// Given: we have a user with a workspace that has no TTL set
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTL = nil
+			cwr.TTLMillis = nil
 		})
 	)
 
 	// Given: workspace has no TTL set
-	require.Nil(t, workspace.TTL)
+	require.Nil(t, workspace.TTLMillis)
 
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
@@ -359,7 +360,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// Given: workspace is deleted
@@ -402,7 +403,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	sched, err := schedule.Weekly(futureTimeCron)
 	require.NoError(t, err)
 	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
+		Schedule: ptr.Ref(sched.String()),
 	}))
 
 	// When: the autobuild executor ticks
@@ -461,7 +462,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	)
 
 	// Given: the user changes their mind and decides their workspace should not auto-stop
-	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTL: nil})
+	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the deadline

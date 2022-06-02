@@ -20,13 +20,13 @@ dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
 export const Language = {
-  autoStartDisplay: (schedule: string): string => {
+  autoStartDisplay: (schedule: string | undefined): string => {
     if (schedule) {
       return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
     }
     return "Manual"
   },
-  autoStartLabel: (schedule: string): string => {
+  autoStartLabel: (schedule: string | undefined): string => {
     const prefix = "Start"
 
     if (schedule) {
@@ -40,7 +40,7 @@ export const Language = {
     // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
     const hasDeadline = deadline.year() > 1
-    const ttl = workspace.ttl
+    const ttl = workspace.ttl_ms
 
     if (isWorkspaceOn(workspace) && hasDeadline) {
       // Workspace is on --> derive from latest_build.deadline. Note that the
@@ -61,7 +61,7 @@ export const Language = {
     } else {
       // The workspace has a ttl set, but is either in an unknown state or is
       // not running. Therefore, we derive from workspace.ttl.
-      const duration = dayjs.duration(ttl / 1_000_000, "milliseconds")
+      const duration = dayjs.duration(ttl, "milliseconds")
       return `${duration.humanize()} after start`
     }
   },

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
@@ -290,7 +291,7 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.TTL == nil || *ws.TTL == 0 {
+		if ptr.NilOrZero(ws.TTLMillis) {
 			return time.Time{}, nil
 		}
 
