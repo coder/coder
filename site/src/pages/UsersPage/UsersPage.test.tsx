@@ -242,7 +242,7 @@ describe("Users Page", () => {
         }, MockAuditorRole)
 
         // Check if the select text was updated with the Auditor role
-        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Member, Auditor"))
+        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Auditor"))
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
