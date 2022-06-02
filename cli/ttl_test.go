@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -34,7 +35,7 @@ func TestTTL(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTL: &ttl,
+			TTLMillis: ptr.Ref(ttl.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -73,7 +74,7 @@ func TestTTL(t *testing.T) {
 		// Ensure ttl updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
+		require.Equal(t, ttl.Truncate(time.Minute), time.Duration(*updated.TTLMillis)*time.Millisecond)
 		require.Contains(t, stdoutBuf.String(), "warning: ttl rounded down")
 
 		// unset schedule
@@ -87,7 +88,7 @@ func TestTTL(t *testing.T) {
 		// Ensure ttl updated
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Nil(t, updated.TTL, "expected ttl to not be set")
+		require.Nil(t, updated.TTLMillis, "expected ttl to not be set")
 	})
 
 	t.Run("ZeroInvalid", func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestTTL(t *testing.T) {
 		// Ensure ttl updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
+		require.Equal(t, ttl.Truncate(time.Minute), time.Duration(*updated.TTLMillis)*time.Millisecond)
 		require.Contains(t, stdoutBuf.String(), "warning: ttl rounded down")
 
 		// A TTL of zero is not considered valid.
@@ -131,7 +132,7 @@ func TestTTL(t *testing.T) {
 		// Ensure ttl remains as before
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
+		require.Equal(t, ttl.Truncate(time.Minute), time.Duration(*updated.TTLMillis)*time.Millisecond)
 	})
 
 	t.Run("Set_NotFound", func(t *testing.T) {

@@ -660,9 +660,14 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lifeTime := time.Hour * 24 * 7
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
+		// All api generated keys will last 1 week. Browser login tokens have
+		// a shorter life.
+		ExpiresAt:       database.Now().Add(lifeTime),
+		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if !created {
 		return
@@ -723,10 +728,21 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
+	// Default expires at to now+lifetime, or just 24hrs if not set
+	if params.ExpiresAt.IsZero() {
+		if params.LifetimeSeconds != 0 {
+			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
+		} else {
+			params.ExpiresAt = database.Now().Add(24 * time.Hour)
+		}
+	}
+
 	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:                keyID,
-		UserID:            params.UserID,
-		ExpiresAt:         database.Now().Add(24 * time.Hour),
+		ID:              keyID,
+		UserID:          params.UserID,
+		LifetimeSeconds: params.LifetimeSeconds,
+		// Make sure in UTC time for common time zone
+		ExpiresAt:         params.ExpiresAt.UTC(),
 		CreatedAt:         database.Now(),
 		UpdatedAt:         database.Now(),
 		HashedSecret:      hashed[:],

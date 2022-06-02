@@ -19,13 +19,13 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
   return (
     <div className={styles.stats}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Workspace ID</span>
+        <span className={styles.statsLabel}>Workspace Name</span>
         <Link
           component={RouterLink}
           to={`/workspaces/${build.workspace_id}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {build.workspace_id}
+          {build.workspace_name}
         </Link>
       </div>
       <div className={styles.statsDivider} />

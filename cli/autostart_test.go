@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -34,7 +35,7 @@ func TestAutostart(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: sched,
+			Schedule: ptr.Ref(sched),
 		})
 		require.NoError(t, err)
 
@@ -76,7 +77,7 @@ func TestAutostart(t *testing.T) {
 		// Ensure autostart schedule updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, sched, updated.AutostartSchedule, "expected autostart schedule to be set")
+		require.Equal(t, sched, *updated.AutostartSchedule, "expected autostart schedule to be set")
 
 		// Disable schedule
 		cmd, root = clitest.New(t, "autostart", "disable", workspace.Name)
@@ -90,7 +91,7 @@ func TestAutostart(t *testing.T) {
 		// Ensure autostart schedule updated
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Empty(t, updated.AutostartSchedule, "expected autostart schedule to not be set")
+		require.Nil(t, updated.AutostartSchedule, "expected autostart schedule to not be set")
 	})
 
 	t.Run("Enable_NotFound", func(t *testing.T) {
@@ -155,6 +156,6 @@ func TestAutostart(t *testing.T) {
 		// Ensure nothing happened
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, expectedSchedule, updated.AutostartSchedule, "expected default autostart schedule")
+		require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
 	})
 }

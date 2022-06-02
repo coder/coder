@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -226,7 +227,7 @@ func create() *cobra.Command {
 				TemplateID:        template.ID,
 				Name:              workspaceName,
 				AutostartSchedule: &schedSpec,
-				TTL:               &ttl,
+				TTLMillis:         ptr.Ref(ttl.Milliseconds()),
 				ParameterValues:   parameters,
 			})
 			if err != nil {
