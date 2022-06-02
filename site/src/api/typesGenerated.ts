@@ -63,6 +63,8 @@ export interface CreateTemplateRequest {
   readonly description?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
+  readonly max_ttl_ms?: number
+  readonly min_autostart_interval_ms?: number
 }
 
 // From codersdk/templateversions.go:121:6
@@ -96,7 +98,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly state?: string
 }
 
-// From codersdk/organizations.go:67:6
+// From codersdk/organizations.go:76:6
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
