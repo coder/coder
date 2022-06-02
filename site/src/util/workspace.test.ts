@@ -47,7 +47,7 @@ describe("util > workspace", () => {
       [
         "2022-06-02T14:56:34Z",
         {
-          deadline: "2022-06-02T15:26:34Z",
+          deadline: "2022-06-02T16:26:34Z",
         },
       ],
 
@@ -56,7 +56,7 @@ describe("util > workspace", () => {
       [
         "2022-06-02T10:56:20-04:00",
         {
-          deadline: "2022-06-02T15:26:34Z",
+          deadline: "2022-06-02T16:26:20Z",
         },
       ],
     ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
