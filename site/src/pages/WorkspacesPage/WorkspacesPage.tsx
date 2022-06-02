@@ -6,7 +6,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import { useMachine } from "@xstate/react"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
@@ -25,7 +25,7 @@ const WorkspacesPage: FC = () => {
   const styles = useStyles()
   const [workspacesState, send] = useMachine(workspacesMachine)
 
-const form = useFormik<FilterFormValues>({
+  const form = useFormik<FilterFormValues>({
     initialValues: {
       query: workspacesState.context.filter || "",
     },
@@ -50,13 +50,13 @@ const form = useFormik<FilterFormValues>({
   }
 
   const setYourWorkspaces = () => {
-    form.setFieldValue("query", "owner:me")
+    void form.setFieldValue("query", "owner:me")
     void form.submitForm()
     handleClose()
   }
 
   const setAllWorkspaces = () => {
-    form.setFieldValue("query", "")
+    void form.setFieldValue("query", "")
     void form.submitForm()
     handleClose()
   }
@@ -88,7 +88,6 @@ const form = useFormik<FilterFormValues>({
         <WorkspacesPageView
           loading={workspacesState.hasTag("loading")}
           workspaces={workspacesState.context.workspaces}
-          error={workspacesState.context.getWorkspacesError}
         />
       </Margins>
     </>

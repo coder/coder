@@ -30,7 +30,6 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   loading?: boolean
   workspaces?: TypesGen.Workspace[]
-  error?: unknown
 }
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces }) => {
