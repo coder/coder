@@ -30,7 +30,7 @@ variable "region" {
   description = "What region should your workspace live in?"
   default     = "us-east-1"
   validation {
-    condition     = contains([
+    condition = contains([
       "ap-northeast-1",
       "ap-northeast-2",
       "ap-northeast-3",

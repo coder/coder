@@ -826,14 +826,12 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	}
 	return apiWorkspaces, nil
 }
-
 func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild database.WorkspaceBuild,
 	job database.ProvisionerJob,
 	template database.Template,
 	owner database.User) codersdk.Workspace {
-
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
 		autostartSchedule = &workspace.AutostartSchedule.String
