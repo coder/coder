@@ -51,6 +51,9 @@ const useStyles = makeStyles((theme) => ({
       background: props.type === "info" ? theme.palette.primary.main : theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
     },
+    "& .MuiDialogActions-spacing": {
+      padding: `0 ${theme.spacing(3.75)}px ${theme.spacing(3.75)}px`,
+    },
   }),
   dialogContent: (props: StyleProps) => ({
     color: props.type === "info" ? theme.palette.primary.contrastText : theme.palette.text.secondary,

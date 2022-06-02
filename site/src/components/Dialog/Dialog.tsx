@@ -148,7 +148,7 @@ const useButtonStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     fontSize: theme.typography.h6.fontSize,
     fontWeight: theme.typography.h5.fontWeight,
-    padding: theme.spacing(2.25),
+    padding: `${theme.spacing(0.75)}px ${theme.spacing(2)}px`,
     width: "100%",
     boxShadow: "none",
   },
