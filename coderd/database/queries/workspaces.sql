@@ -31,7 +31,7 @@ WHERE
 	-- Filter by name
 	AND CASE
 		  WHEN @name :: text != '' THEN
-				name = LOWER(@name)
+				LOWER(name) = LOWER(@name)
 		  ELSE true
 	END
 ;

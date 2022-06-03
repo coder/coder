@@ -3512,7 +3512,7 @@ WHERE
 	-- Filter by name
 	AND CASE
 		  WHEN $4 :: text != '' THEN
-				name = LOWER($4)
+				LOWER(name) = LOWER($4)
 		  ELSE true
 	END
 `
