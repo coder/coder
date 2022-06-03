@@ -1,4 +1,5 @@
 import { Language, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
   sunday: false,
@@ -125,6 +126,15 @@ describe("validationSchema", () => {
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTimezone)
+  })
+
+  it.each<[string]>(zones.map((zone) => [zone]))(`validation passes from tz=%p`, (zone) => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      timezone: zone,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrow()
   })
 
   it("allows a ttl of 7 days", () => {

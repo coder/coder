@@ -92,7 +92,10 @@ export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): Typ
   }
 }
 
-export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
+export const workspaceToInitialValues = (
+  workspace: TypesGen.Workspace,
+  defaultTimeZone = "",
+): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
   const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : 0
 
@@ -106,12 +109,12 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
       friday: false,
       saturday: false,
       startTime: "",
-      timezone: "",
+      timezone: defaultTimeZone,
       ttl: ttlHours,
     }
   }
 
-  const timezone = extractTimezone(schedule, dayjs.tz.guess())
+  const timezone = extractTimezone(schedule, defaultTimeZone)
 
   const expression = cronParser.parseExpression(stripTimezone(schedule))
 
@@ -162,7 +165,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         fieldErrors={formErrors}
-        initialValues={workspaceToInitialValues(workspace)}
+        initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/workspaces/${workspaceId}`)

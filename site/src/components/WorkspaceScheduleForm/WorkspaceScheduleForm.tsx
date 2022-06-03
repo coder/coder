@@ -4,7 +4,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
-import Link from "@material-ui/core/Link"
+import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
@@ -18,6 +18,7 @@ import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { zones } from "./zones"
 
 // REMARK: timezone plugin depends on UTC
 //
@@ -203,21 +204,20 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           />
 
           <TextField
-            {...formHelpers(
-              "timezone",
-              <>
-                Timezone must be a valid name from the{" "}
-                <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  timezone database
-                </Link>
-              </>,
-            )}
+            {...formHelpers("timezone")}
             disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.timezoneLabel}
-          />
+            select
+          >
+            {zones.map((zone) => (
+              <MenuItem key={zone} value={zone}>
+                {zone}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
