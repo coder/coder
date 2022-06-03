@@ -218,7 +218,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()

@@ -160,35 +160,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
-	owner := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OwnerID: owner.ID,
-		Deleted: false,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
-
-	// Only return workspaces the user can read
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
-}
-
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")

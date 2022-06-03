@@ -57,7 +57,7 @@ describe("TerminalPage", () => {
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/users/:userName/workspace/:workspaceName", (req, res, ctx) => {
+      rest.get("/api/v2/users/:userId/workspace/:workspaceName", (req, res, ctx) => {
         return res(ctx.status(500), ctx.json({ id: "workspace-id" }))
       }),
     )

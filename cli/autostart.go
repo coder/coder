@@ -42,7 +42,7 @@ func autostartShow() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}
@@ -96,7 +96,7 @@ func autostartEnable() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}
@@ -135,7 +135,7 @@ func autostartDisable() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}

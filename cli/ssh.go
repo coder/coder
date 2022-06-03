@@ -205,7 +205,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, userID st
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	} else {
-		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), userID, workspaceParts[0])
+		workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

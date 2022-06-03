@@ -40,7 +40,7 @@ func ttlShow() *cobra.Command {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -69,7 +69,7 @@ func ttlset() *cobra.Command {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -113,7 +113,7 @@ func ttlunset() *cobra.Command {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
