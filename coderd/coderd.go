@@ -107,8 +107,8 @@ func New(options *Options) *API {
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
 	// other applications might not as well.
-	r.Route("/%40{user}/{workspaceagent}/apps/{application}", apps)
-	r.Route("/@{user}/{workspaceagent}/apps/{application}", apps)
+	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {

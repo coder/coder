@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/site"
 )
 
@@ -23,7 +24,7 @@ import (
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	// This can be in the form of: "<workspace-name>.[workspace-agent]" or "<workspace-name>"
-	workspaceWithAgent := chi.URLParam(r, "workspaceagent")
+	workspaceWithAgent := chi.URLParam(r, "workspacename")
 	workspaceParts := strings.Split(workspaceWithAgent, ".")
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -40,6 +41,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace: %s", err),
 		})
+		return
+	}
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 
@@ -87,7 +91,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 
 	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
 		AgentID: agent.ID,
-		Name:    chi.URLParam(r, "application"),
+		Name:    chi.URLParam(r, "workspaceapp"),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
