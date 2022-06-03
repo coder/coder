@@ -7,6 +7,15 @@ import (
 	"net/http"
 )
 
-func DefaultHandler() http.Handler {
+type APIResponse struct {
+	StatusCode int
+	Message    string
+}
+
+func Handler() http.Handler {
 	return http.NotFoundHandler()
+}
+
+func WithAPIResponse(ctx context.Context, _ APIResponse) context.Context {
+	return ctx
 }

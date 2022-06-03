@@ -5,6 +5,7 @@ package site_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,7 +40,7 @@ func TestCaching(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.Handler(rootFS))
+	srv := httptest.NewServer(site.HandlerWithFS(rootFS))
 	defer srv.Close()
 
 	// Create a context
@@ -98,7 +99,7 @@ func TestServingFiles(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.Handler(rootFS))
+	srv := httptest.NewServer(site.HandlerWithFS(rootFS))
 	defer srv.Close()
 
 	// Create a context
@@ -171,4 +172,41 @@ func TestShouldCacheFile(t *testing.T) {
 		got := site.ShouldCacheFile(testCase.reqFile)
 		require.Equal(t, testCase.expected, got, fmt.Sprintf("Expected ShouldCacheFile(%s) to be %t", testCase.reqFile, testCase.expected))
 	}
+}
+
+func TestServeAPIResponse(t *testing.T) {
+	t.Parallel()
+
+	// Create a test server
+	rootFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte(`{"code":{{ .APIResponse.StatusCode }},"message":"{{ .APIResponse.Message }}"}`),
+		},
+	}
+
+	apiResponse := site.APIResponse{
+		StatusCode: http.StatusBadGateway,
+		Message:    "This could be an error message!",
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(site.WithAPIResponse(r.Context(), apiResponse))
+		site.HandlerWithFS(rootFS).ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	var body struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	t.Logf("resp: %q", data)
+	err = json.Unmarshal(data, &body)
+	require.NoError(t, err)
+	require.Equal(t, apiResponse.StatusCode, body.Code)
+	require.Equal(t, apiResponse.Message, body.Message)
 }

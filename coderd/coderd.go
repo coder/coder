@@ -76,8 +76,9 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
-		Options: options,
-		Handler: r,
+		Options:     options,
+		Handler:     r,
+		siteHandler: site.Handler(),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
@@ -95,14 +96,19 @@ func New(options *Options) *API {
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
-	r.Route("/@{user}/{workspaceagent}/apps/{application}", func(r chi.Router) {
+	apps := func(r chi.Router) {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			apiKeyMiddleware,
 			httpmw.ExtractUserParam(api.Database),
 		)
 		r.Get("/*", api.workspaceAppsProxyPath)
-	})
+	}
+	// %40 is the encoded character of the @ symbol. VS Code Web does
+	// not handle character encoding properly, so it's safe to assume
+	// other applications might not as well.
+	r.Route("/%40{user}/{workspaceagent}/apps/{application}", apps)
+	r.Route("/@{user}/{workspaceagent}/apps/{application}", apps)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -338,7 +344,7 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
-	r.NotFound(site.DefaultHandler().ServeHTTP)
+	r.NotFound(api.siteHandler.ServeHTTP)
 	return api
 }
 
@@ -346,6 +352,7 @@ type API struct {
 	*Options
 
 	Handler             chi.Router
+	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache

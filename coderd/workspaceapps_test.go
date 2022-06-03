@@ -38,7 +38,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	client, coderAPI := coderdtest.NewWithAPI(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+	coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -56,7 +56,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 							},
 							Apps: []*proto.App{{
 								Name: "example",
-								Url:  fmt.Sprintf("http://127.0.0.1:%d", tcpAddr.Port),
+								Url:  fmt.Sprintf("http://127.0.0.1:%d?query=true", tcpAddr.Port),
 							}},
 						}},
 					}},
@@ -68,7 +68,6 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	daemonCloser.Close()
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
@@ -91,9 +90,20 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 
-	t.Run("Proxies", func(t *testing.T) {
+	t.Run("RedirectsWithQuery", func(t *testing.T) {
 		t.Parallel()
 		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example/", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		loc, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "query=true", loc.RawQuery)
+	})
+
+	t.Run("Proxies", func(t *testing.T) {
+		t.Parallel()
+		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?query=true", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)

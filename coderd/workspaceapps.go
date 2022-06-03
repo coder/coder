@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/site"
 )
 
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
@@ -113,23 +114,15 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	conn, release, err := api.workspaceAgentCache.Acquire(r, agent.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("dial workspace agent: %s", err),
-		})
-		return
-	}
-	defer release()
-
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
-	// Write the error directly using our format!
+	// Write an error using our embed handler
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		httpapi.Write(w, http.StatusBadGateway, httpapi.Response{
-			Message: err.Error(),
-		})
+		r = r.WithContext(site.WithAPIResponse(r.Context(), site.APIResponse{
+			StatusCode: http.StatusBadGateway,
+			Message:    err.Error(),
+		}))
+		api.siteHandler.ServeHTTP(w, r)
 	}
-	proxy.Transport = conn.HTTPTransport()
 	path := chi.URLParam(r, "*")
 	if !strings.HasSuffix(r.URL.Path, "/") && path == "" {
 		// Web applications typically request paths relative to the
@@ -139,6 +132,27 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
 		return
 	}
+	if r.URL.RawQuery == "" && appURL.RawQuery != "" {
+		// If the application defines a default set of query parameters,
+		// we should always respect them. The reverse proxy will merge
+		// query parameters for server-side requests, but sometimes
+		// client-side applications require the query parameters to render
+		// properly. With code-server, this is the "folder" param.
+		r.URL.RawQuery = appURL.RawQuery
+		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		return
+	}
 	r.URL.Path = path
+
+	conn, release, err := api.workspaceAgentCache.Acquire(r, agent.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("dial workspace agent: %s", err),
+		})
+		return
+	}
+	defer release()
+
+	proxy.Transport = conn.HTTPTransport()
 	proxy.ServeHTTP(rw, r)
 }

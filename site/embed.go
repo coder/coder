@@ -5,6 +5,7 @@ package site
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"io"
@@ -28,7 +29,16 @@ import (
 //go:embed out/bin/*
 var site embed.FS
 
-func DefaultHandler() http.Handler {
+type apiResponseContextKey struct{}
+
+// WithAPIResponse returns a context with the APIResponse value attached.
+// This is used to inject API response data to the index.html for additional
+// metadata in error pages.
+func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Context {
+	return context.WithValue(ctx, apiResponseContextKey{}, apiResponse)
+}
+
+func Handler() http.Handler {
 	// the out directory is where webpack builds are created. It is in the same
 	// directory as this file (package site).
 	siteFS, err := fs.Sub(site, "out")
@@ -38,11 +48,11 @@ func DefaultHandler() http.Handler {
 		panic(err)
 	}
 
-	return Handler(siteFS)
+	return HandlerWithFS(siteFS)
 }
 
 // Handler returns an HTTP handler for serving the static site.
-func Handler(fileSystem fs.FS) http.Handler {
+func HandlerWithFS(fileSystem fs.FS) http.Handler {
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
 	//
@@ -90,8 +100,14 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	CSP  cspState
-	CSRF csrfState
+	APIResponse APIResponse
+	CSP         cspState
+	CSRF        csrfState
+}
+
+type APIResponse struct {
+	StatusCode int
+	Message    string
 }
 
 type cspState struct {
@@ -137,6 +153,11 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	state := htmlState{
 		// Token is the CSRF token for the given request
 		CSRF: csrfState{Token: nosurf.Token(req)},
+	}
+
+	apiResponseRaw := req.Context().Value(apiResponseContextKey{})
+	if apiResponseRaw != nil {
+		state.APIResponse = apiResponseRaw.(APIResponse)
 	}
 
 	// First check if it's a file we have in our templates
