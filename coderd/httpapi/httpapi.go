@@ -52,8 +52,19 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	Message string  `json:"message" validate:"required"`
-	Errors  []Error `json:"errors,omitempty" validate:"required"`
+	// Message is for general user-friendly error messages. This message will
+	// be shown at the top/bottom of a form, or in a toast on the UI.
+	Message string `json:"message"`
+	// Internal has the technical error information (err.Error()). These details
+	// might come from external packages and might not be user friendly.
+	// Do not populate this error field with any sensitive information or
+	// any errors that may be a security implication. These details are still
+	// available to more technical users.
+	Internal string `json:"internal"`
+	// Errors are form field-specific friendly error messages. They will be
+	// shown on a form field in the UI. These can also be used to add additional
+	// context if there is a set of errors in the primary 'Message'.
+	Errors []Error `json:"errors,omitempty"`
 }
 
 // Error represents a scoped error to a user input.

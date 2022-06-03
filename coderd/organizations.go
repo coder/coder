@@ -51,7 +51,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Get organization: %s", err.Error()),
+			Message:  fmt.Sprintf("Internal error fetching organization %q", req.Name),
+			Internal: err.Error(),
 		})
 		return
 	}
@@ -83,7 +84,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Insert organization member: %s", err.Error()),
+			Message:  "Internal error inserting organization member",
+			Internal: err.Error(),
 		})
 		return
 	}

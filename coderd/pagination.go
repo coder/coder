@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -25,7 +24,11 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 		afterID, err = uuid.Parse(r.URL.Query().Get("after_id"))
 		if err != nil {
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("after_id must be a valid uuid: %s", err.Error()),
+				Message:  "Query param 'after_id' must be a valid uuid",
+				Internal: err.Error(),
+				Errors: []httpapi.Error{
+					{Field: "after_id", Detail: err.Error()},
+				},
 			})
 			return p, false
 		}
@@ -34,7 +37,11 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 		limit, err = strconv.Atoi(s)
 		if err != nil {
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
+				Message:  "Query param 'limit' must be a valid integer",
+				Internal: err.Error(),
+				Errors: []httpapi.Error{
+					{Field: "limit", Detail: err.Error()},
+				},
 			})
 			return p, false
 		}
@@ -43,7 +50,11 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 		offset, err = strconv.Atoi(s)
 		if err != nil {
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("offset must be an integer: %s", err.Error()),
+				Message:  "Query param 'offset' must be a valid integer",
+				Internal: err.Error(),
+				Errors: []httpapi.Error{
+					{Field: "offset", Detail: err.Error()},
+				},
 			})
 			return p, false
 		}

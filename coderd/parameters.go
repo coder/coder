@@ -41,13 +41,14 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("a parameter already exists in scope %q with name %q", scope, createRequest.Name),
+			Message: fmt.Sprintf("Parameter already exists in scope %q and name %q", scope, createRequest.Name),
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get parameter value: %s", err),
+			Message:  "Internal error fetching parameter",
+			Internal: err.Error(),
 		})
 		return
 	}
@@ -65,7 +66,8 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("insert parameter value: %s", err),
+			Message:  "Internal error inserting parameter",
+			Internal: err.Error(),
 		})
 		return
 	}
@@ -96,7 +98,8 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get parameter values by scope: %s", err),
+			Message:  "Internal error fetching parameter scope values",
+			Internal: err.Error(),
 		})
 		return
 	}
@@ -130,20 +133,23 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("parameter doesn't exist in the provided scope with name %q", name),
+			Message:  fmt.Sprintf("No parameter found at the provided scope with name %q", name),
+			Internal: err.Error(),
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get parameter value: %s", err),
+			Message:  fmt.Sprintf("Internal error fetching parameter"),
+			Internal: err.Error(),
 		})
 		return
 	}
 	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("delete parameter: %s", err),
+			Message:  fmt.Sprintf("Internal error deleting parameter"),
+			Internal: err.Error(),
 		})
 		return
 	}
@@ -224,9 +230,10 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 		// This scope does not make sense from this api.
 		// ImportJob params are created with the job, and the job id cannot
 		// be predicted.
-		err = xerrors.Errorf("ImportJob scope not supported")
+		// Just fallthrough to the unsupported error
+		fallthrough
 	default:
-		err = xerrors.Errorf("scope %q unsupported", scope)
+		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
 	}
 
 	// Write error payload to rw if we cannot find the resource for the scope
@@ -235,7 +242,7 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 			httpapi.Forbidden(rw)
 		} else {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("param scope resource: %s", err.Error()),
+				Message: err.Error(),
 			})
 		}
 		return nil, false
@@ -256,7 +263,10 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 		scope = database.ParameterScopeWorkspace
 	default:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("invalid scope %q", scope),
+			Message: fmt.Sprintf("Invalid scope %q", scope),
+			Errors: []httpapi.Error{
+				{Field: "scope", Detail: "invalid scope"},
+			},
 		})
 		return scope, uuid.Nil, false
 	}
@@ -265,7 +275,11 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("invalid uuid %q: %s", id, err),
+			Message:  fmt.Sprintf("Invalid uuid %q", id),
+			Internal: err.Error(),
+			Errors: []httpapi.Error{
+				{Field: "id", Detail: "Invalid uuid"},
+			},
 		})
 		return scope, uuid.Nil, false
 	}
