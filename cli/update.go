@@ -19,11 +19,7 @@ func update() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-			workspace, err := namedWorkspace(cmd, client, organization.ID, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}

@@ -147,22 +147,16 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}":                   {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
-		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
-		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
-			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
+		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
+		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
+			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
 		},
 		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspacename}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
-		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,

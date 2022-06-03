@@ -9,7 +9,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -180,7 +179,7 @@ func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.
 // namedWorkspace fetches and returns a workspace by an identifier, which may be either
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
-func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, identifier string) (codersdk.Workspace, error) {
+func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
 	parts := strings.Split(identifier, "/")
 
 	var owner, name string
@@ -195,7 +194,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID
 		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
-	return client.WorkspaceByOwnerAndName(cmd.Context(), orgID, owner, name)
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name)
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
