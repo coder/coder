@@ -54,25 +54,10 @@ describe("TerminalPage", () => {
     history.push(`/some-user/${MockWorkspace.name}/terminal`)
   })
 
-  it("shows an error if fetching organizations fails", async () => {
-    // Given
-    server.use(
-      rest.get("/api/v2/users/me/organizations", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
-      }),
-    )
-
-    // When
-    const { container } = renderTerminal()
-
-    // Then
-    await expectTerminalText(container, Language.organizationsErrorMessagePrefix)
-  })
-
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
+      rest.get("/api/v2/users/:userName/workspace/:workspaceName", (req, res, ctx) => {
         return res(ctx.status(500), ctx.json({ id: "workspace-id" }))
       }),
     )

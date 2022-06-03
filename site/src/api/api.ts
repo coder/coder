@@ -136,13 +136,10 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 }
 
 export const getWorkspaceByOwnerAndName = async (
-  organizationID: string,
   username = "me",
   workspaceName: string,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
-  )
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
   return response.data
 }
 

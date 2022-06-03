@@ -154,7 +154,6 @@ func New(options *Options) *API {
 				})
 				r.Route("/workspaces", func(r chi.Router) {
 					r.Post("/", api.postWorkspacesByOrganization)
-					r.Get("/", api.workspacesByOrganization)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(httpmw.ExtractUserParam(options.Database))
 						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
@@ -259,6 +258,7 @@ func New(options *Options) *API {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
+					r.Get("/workspace/{workspacename}", api.workspaceByOwnerAndName)
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
