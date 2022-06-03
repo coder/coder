@@ -127,7 +127,7 @@ const useStyles = makeStyles((theme) => ({
     margin: theme.spacing(0.5),
   },
   chipRoot: {
-    backgroundColor: "#7057FF",
+    backgroundColor: theme.palette.secondary.dark,
   },
   link: {
     textDecoration: "none",

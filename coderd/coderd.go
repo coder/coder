@@ -334,7 +334,7 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
-	r.NotFound(site.DefaultHandler().ServeHTTP)
+	r.NotFound(site.Handler(site.FS()).ServeHTTP)
 
 	return api
 }

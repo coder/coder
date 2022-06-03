@@ -116,7 +116,7 @@ const useStyles = makeStyles((theme) => ({
         content: `" "`,
         bottom: 0,
         left: theme.spacing(3),
-        background: "#C16800",
+        background: theme.palette.secondary.dark,
         right: theme.spacing(3),
         height: 2,
         position: "absolute",

@@ -9,19 +9,28 @@ type LogsContext = {
   getBuildError?: Error | unknown
   // Logs
   logs?: ProvisionerJobLog[]
-  getBuildLogsError?: Error | unknown
 }
+
+type LogsEvent =
+  | {
+      type: "ADD_LOG"
+      log: ProvisionerJobLog
+    }
+  | {
+      type: "NO_MORE_LOGS"
+    }
 
 export const workspaceBuildMachine = createMachine(
   {
     id: "workspaceBuildState",
     schema: {
       context: {} as LogsContext,
+      events: {} as LogsEvent,
       services: {} as {
         getWorkspaceBuild: {
           data: WorkspaceBuild
         }
-        getWorkspaceBuildLogs: {
+        getLogs: {
           data: ProvisionerJobLog[]
         }
       },
@@ -50,23 +59,36 @@ export const workspaceBuildMachine = createMachine(
         },
       },
       logs: {
-        initial: "gettingLogs",
+        initial: "gettingExistentLogs",
         states: {
-          gettingLogs: {
-            entry: "clearGetBuildLogsError",
+          gettingExistentLogs: {
             invoke: {
-              src: "getWorkspaceBuildLogs",
+              id: "getLogs",
+              src: "getLogs",
               onDone: {
-                target: "idle",
-                actions: "assignLogs",
-              },
-              onError: {
-                target: "idle",
-                actions: "assignGetBuildLogsError",
+                actions: ["assignLogs"],
+                target: "watchingLogs",
               },
             },
           },
-          idle: {},
+          watchingLogs: {
+            id: "watchingLogs",
+            invoke: {
+              id: "streamWorkspaceBuildLogs",
+              src: "streamWorkspaceBuildLogs",
+            },
+          },
+          loaded: {
+            type: "final",
+          },
+        },
+        on: {
+          ADD_LOG: {
+            actions: "addLog",
+          },
+          NO_MORE_LOGS: {
+            target: "logs.loaded",
+          },
         },
       },
     },
@@ -87,16 +109,32 @@ export const workspaceBuildMachine = createMachine(
       assignLogs: assign({
         logs: (_, event) => event.data,
       }),
-      assignGetBuildLogsError: assign({
-        getBuildLogsError: (_, event) => event.data,
-      }),
-      clearGetBuildLogsError: assign({
-        getBuildLogsError: (_) => undefined,
+      addLog: assign({
+        logs: (context, event) => {
+          const previousLogs = context.logs ?? []
+          return [...previousLogs, event.log]
+        },
       }),
     },
     services: {
       getWorkspaceBuild: (ctx) => API.getWorkspaceBuild(ctx.buildId),
-      getWorkspaceBuildLogs: (ctx) => API.getWorkspaceBuildLogs(ctx.buildId),
+      getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId),
+      streamWorkspaceBuildLogs: (ctx) => async (callback) => {
+        const reader = await API.streamWorkspaceBuildLogs(ctx.buildId)
+
+        // Watching for the stream
+        // eslint-disable-next-line no-constant-condition, @typescript-eslint/no-unnecessary-condition
+        while (true) {
+          const { value, done } = await reader.read()
+
+          if (done) {
+            callback("NO_MORE_LOGS")
+            break
+          }
+
+          callback({ type: "ADD_LOG", log: value })
+        }
+      },
     },
   },
 )

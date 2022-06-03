@@ -29,6 +29,7 @@ export const WorkspaceBuildPage: FC = () => {
   const buildId = useBuildId()
   const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
   const { logs, build } = buildState.context
+  const isWaitingForLogs = !buildState.matches("logs.loaded")
   const styles = useStyles()
 
   return (
@@ -40,7 +41,7 @@ export const WorkspaceBuildPage: FC = () => {
 
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
-        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={isWaitingForLogs} />}
       </Stack>
     </Margins>
   )
