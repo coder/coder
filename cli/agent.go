@@ -6,9 +6,7 @@ import (
 	_ "net/http/pprof" //nolint: gosec
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -54,29 +52,14 @@ func workspaceAgent() *cobra.Command {
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
 
-			usr1 := make(chan os.Signal, 1)
 			if pprofEnabled {
-				close(usr1)
 				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
 				defer srvClose()
 			} else {
 				// If pprof wasn't enabled at startup, allow a
 				// `kill -USR1 $agent_pid` to start it.
-				signal.Notify(usr1, syscall.SIGUSR1)
-				go func() {
-					defer close(usr1)
-					defer signal.Stop(usr1)
-
-					select {
-					case <-usr1:
-						signal.Stop(usr1)
-						srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
-						defer srvClose()
-					case <-cmd.Context().Done():
-						return
-					}
-					<-cmd.Context().Done() // Prevent defer close until done.
-				}()
+				srvClose := agentPPROFStartOnUSR1(cmd.Context(), logger, pprofAddress)
+				defer srvClose()
 			}
 
 			// exchangeToken returns a session token.
@@ -164,7 +147,6 @@ func workspaceAgent() *cobra.Command {
 				},
 			})
 			<-cmd.Context().Done()
-			<-usr1 // Wait for server to close (if started).
 			return closer.Close()
 		},
 	}
