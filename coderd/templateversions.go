@@ -356,7 +356,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return database.ProvisionerJob{}, false
@@ -376,7 +376,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error unmarshaling job metadata",
+			Message: "Internal error unmarshaling job metadata",
 			Detail:  err.Error(),
 		})
 		return database.ProvisionerJob{}, false
@@ -414,7 +414,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				return err
 			} else if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Detail error fetching template version at after_id",
+					Message: "Internal error fetching template version at after_id",
 					Detail:  err.Error(),
 				})
 				return err
@@ -433,7 +433,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Detail error fetching template versions",
+				Message: "Internal error fetching template versions",
 				Detail:  err.Error(),
 			})
 			return err
@@ -446,7 +446,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		jobs, err := store.GetProvisionerJobsByIDs(r.Context(), jobIDs)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Detail error fetching provisioner job",
+				Message: "Internal error fetching provisioner job",
 				Detail:  err.Error(),
 			})
 			return err
@@ -498,7 +498,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template version",
+			Message: "Internal error fetching template version",
 			Detail:  err.Error(),
 		})
 		return
@@ -506,7 +506,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -534,7 +534,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template version",
+			Message: "Internal error fetching template version",
 			Detail:  err.Error(),
 		})
 		return
@@ -551,7 +551,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating active template version",
+			Message: "Internal error updating active template version",
 			Detail:  err.Error(),
 		})
 		return
@@ -580,7 +580,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Detail error fetching template",
+				Message: "Internal error fetching template",
 				Detail:  err.Error(),
 			})
 			return
@@ -596,7 +596,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching file",
+			Message: "Internal error fetching file",
 			Detail:  err.Error(),
 		})
 		return
@@ -695,7 +695,7 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -716,7 +716,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return

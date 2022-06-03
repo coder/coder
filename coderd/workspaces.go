@@ -430,7 +430,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template version job",
+			Message: "Internal error fetching template version job",
 			Detail:  err.Error(),
 		})
 		return
@@ -532,7 +532,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error creating workspace",
+			Message: "Internal error creating workspace",
 			Detail:  err.Error(),
 		})
 		return
@@ -540,7 +540,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	user, err := api.Database.GetUserByID(r.Context(), apiKey.UserID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching user",
+			Message: "Internal error fetching user",
 			Detail:  err.Error(),
 		})
 		return
@@ -576,7 +576,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating workspace autostart schedule",
+			Message: "Internal error updating workspace autostart schedule",
 			Detail:  err.Error(),
 		})
 		return
@@ -616,7 +616,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating workspace TTL",
+			Message: "Internal error updating workspace TTL",
 			Detail:  err.Error(),
 		})
 		return
@@ -729,7 +729,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: "Detail error fetching workspace",
+					Message: "Internal error fetching workspace",
 					Detail:  err.Error(),
 				})
 				return
@@ -737,7 +737,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: "Detail error fetching workspace build",
+					Message: "Internal error fetching workspace build",
 					Detail:  err.Error(),
 				})
 				return
@@ -763,7 +763,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			err = group.Wait()
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: "Detail error fetching resource",
+					Message: "Internal error fetching resource",
 					Detail:  err.Error(),
 				})
 				return

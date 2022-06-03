@@ -583,7 +583,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching user's organizations",
+			Message: "Internal error fetching user's organizations",
 			Detail:  err.Error(),
 		})
 		return
@@ -636,7 +636,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error",
+			Message: "Internal error",
 		})
 		return
 	}
@@ -645,7 +645,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error",
+			Message: "Internal error",
 		})
 	}
 	if !equal {
@@ -719,7 +719,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error deleting api key",
+			Message: "Internal error deleting api key",
 			Detail:  err.Error(),
 		})
 		return
@@ -749,7 +749,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error generating api key",
+			Message: "Internal error generating api key",
 			Detail:  err.Error(),
 		})
 		return "", false
@@ -782,7 +782,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error inserting api key",
+			Message: "Internal error inserting api key",
 			Detail:  err.Error(),
 		})
 		return "", false
