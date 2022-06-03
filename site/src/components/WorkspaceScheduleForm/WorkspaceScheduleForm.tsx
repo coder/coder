@@ -186,9 +186,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             {...formHelpers(
               "timezone",
               <>
-                Timezone must be a valid{" "}
+                Timezone must be a valid name from the{" "}
                 <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  tz database name
+                  timezone database
                 </Link>
               </>,
             )}
