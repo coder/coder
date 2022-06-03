@@ -44,7 +44,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	newKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's git ssh key",
+			Message:  "Internal error fetching user's git SSH key",
 			Internal: err.Error(),
 		})
 		return
