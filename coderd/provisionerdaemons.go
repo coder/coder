@@ -38,7 +38,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner daemons: %s", err),
+			Message: "Internal error fetching provisioner daemons",
+			Detail:  err.Error(),
 		})
 		return
 	}

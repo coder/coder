@@ -17,7 +17,6 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -35,7 +34,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -53,7 +53,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -67,7 +68,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -98,35 +100,40 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resource: %s", err),
+			Message: "Internal error fetching workspace resources",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace owner",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -149,7 +156,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resource: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -304,7 +312,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get remote address: %s", err),
+			Message: "Invalid remote address",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -312,7 +321,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	remoteAddress.Port, err = strconv.Atoi(port)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("remote address %q has no parsable port: %s", r.RemoteAddr, err),
+			Message: fmt.Sprintf("Port for remote address %q must be an integer.", r.RemoteAddr),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -322,7 +332,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -350,13 +361,14 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-			Message: fmt.Sprintf("agent must be in the connected state: %s", apiAgent.Status),
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
 	}
@@ -364,7 +376,10 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("reconnection must be a uuid: %s", err),
+			Message: "Query param 'reconnect' must be a valid UUID",
+			Validations: []httpapi.Error{
+				{Field: "reconnect", Detail: "invalid UUID"},
+			},
 		})
 		return
 	}
@@ -382,7 +397,8 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}

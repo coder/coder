@@ -2,10 +2,11 @@ package coderd_test
 
 import (
 	"context"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"net/http"
 	"testing"
+
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 
 	"github.com/stretchr/testify/require"
 
