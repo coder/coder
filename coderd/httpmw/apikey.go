@@ -96,7 +96,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-						Message: "Api key is invalid",
+						Message: "API key is invalid",
 					})
 					return
 				}
@@ -111,7 +111,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Checking to see if the secret is valid.
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashed[:]) != 1 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: "Api key secret is invalid",
+					Message: "API key secret is invalid",
 				})
 				return
 			}
@@ -156,7 +156,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Checking if the key is expired.
 			if key.ExpiresAt.Before(now) {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("Api key expired at %q", key.ExpiresAt.String()),
+					Message: fmt.Sprintf("API key expired at %q", key.ExpiresAt.String()),
 				})
 				return
 			}
@@ -184,7 +184,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 				})
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: fmt.Sprintf("Api key couldn't update: %s", err.Error()),
+						Message: fmt.Sprintf("API key couldn't update: %s", err.Error()),
 					})
 					return
 				}

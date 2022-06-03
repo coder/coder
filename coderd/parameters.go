@@ -269,10 +269,10 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("Invalid uuid %q", id),
+			Message: fmt.Sprintf("Invalid UUID %q", id),
 			Detail:  err.Error(),
 			Validations: []httpapi.Error{
-				{Field: "id", Detail: "Invalid uuid"},
+				{Field: "id", Detail: "Invalid UUID"},
 			},
 		})
 		return scope, uuid.Nil, false

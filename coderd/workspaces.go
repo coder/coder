@@ -150,10 +150,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		orgID, err := uuid.Parse(orgFilter)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "Query param \"organization_id\" must be a valid uuid",
+				Message: "Query param \"organization_id\" must be a valid UUID",
 				Detail:  err.Error(),
 				Validations: []httpapi.Error{
-					{Field: "organization_id", Detail: "Must be a valid uuid"},
+					{Field: "organization_id", Detail: "Must be a valid UUID"},
 				},
 			})
 			return
@@ -173,10 +173,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "Query param \"owner\" must be a valid uuid or username",
+					Message: "Query param \"owner\" must be a valid UUID or username",
 					Detail:  err.Error(),
 					Validations: []httpapi.Error{
-						{Field: "owner", Detail: "Must be a valid uuid or username"},
+						{Field: "owner", Detail: "Must be a valid UUID or username"},
 					},
 				})
 				return
@@ -375,7 +375,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace ttl",
+			Message: "Invalid workspace TTL",
 			Detail:  err.Error(),
 			Validations: []httpapi.Error{
 				{
@@ -598,7 +598,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace ttl",
+			Message: "Invalid workspace TTL",
 			Detail:  err.Error(),
 			Validations: []httpapi.Error{
 				{
@@ -616,7 +616,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating workspace ttl",
+			Message: "Detail error updating workspace TTL",
 			Detail:  err.Error(),
 		})
 		return

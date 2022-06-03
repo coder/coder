@@ -24,7 +24,7 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 		afterID, err = uuid.Parse(r.URL.Query().Get("after_id"))
 		if err != nil {
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: "Query param 'after_id' must be a valid uuid",
+				Message: "Query param 'after_id' must be a valid UUID",
 				Detail:  err.Error(),
 				Validations: []httpapi.Error{
 					{Field: "after_id", Detail: err.Error()},
