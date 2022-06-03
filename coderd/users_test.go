@@ -103,7 +103,7 @@ func TestPostLogin(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "contact an admin")
+		require.Contains(t, apiErr.Message, "Contact an admin")
 
 		// Test a new session
 		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{

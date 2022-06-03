@@ -441,17 +441,17 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			name:          "invalid location",
 			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
-			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+			expectedError: "status code 500: Invalid autostart schedule\n\tError: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      ptr.Ref("asdf asdf asdf "),
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 		{
 			name:          "only 3 values",
 			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 	}
 
@@ -480,7 +480,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			})
 
 			if testCase.expectedError != "" {
-				require.ErrorContains(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "Invalid autostart schedule")
 				return
 			}
 
@@ -521,7 +521,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, fmt.Sprintf("Workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
 	})
 }
 
