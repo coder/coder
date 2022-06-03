@@ -25,8 +25,8 @@ variable "zone" {
 }
 
 provider "google" {
-  zone        = var.zone
-  project     = var.project_id
+  zone    = var.zone
+  project = var.project_id
 }
 
 data "coder_workspace" "me" {

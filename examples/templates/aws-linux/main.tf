@@ -50,7 +50,7 @@ variable "disk_size" {
 }
 
 provider "aws" {
-  region     = var.region
+  region = var.region
 }
 
 data "coder_workspace" "me" {
