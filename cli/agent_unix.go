@@ -10,6 +10,8 @@ import (
 )
 
 func agentPPROFStartOnUSR1(ctx context.Context, logger slog.Logger, pprofAddress string) (srvClose func()) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	usr1 := make(chan os.Signal, 1)
 	signal.Notify(usr1, syscall.SIGUSR1)
 	go func() {
@@ -28,6 +30,7 @@ func agentPPROFStartOnUSR1(ctx context.Context, logger slog.Logger, pprofAddress
 	}()
 
 	return func() {
+		cancel()
 		<-usr1 // Wait until usr1 is closed, ensures srvClose was run.
 	}
 }
