@@ -3,10 +3,12 @@ package cli
 import (
 	"context"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint: gosec
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -53,8 +55,24 @@ func workspaceAgent() *cobra.Command {
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
-				//nolint:revive
-				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
+				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
+				defer srvClose()
+			} else {
+				// If pprof wasn't enabled at startup, allow a
+				// `kill -USR1 $agent_pid` to start it.
+				usr1 := make(chan os.Signal, 1)
+				signal.Notify(usr1, syscall.SIGUSR1)
+				go func() {
+					select {
+					case <-usr1:
+						signal.Stop(usr1)
+						srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
+						defer srvClose()
+					case <-cmd.Context().Done():
+						return
+					}
+					<-cmd.Context().Done() // Prevent defer close until done.
+				}()
 			}
 
 			// exchangeToken returns a session token.
