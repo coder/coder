@@ -6,6 +6,10 @@ import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
 
+const Language = {
+  seconds: "seconds",
+}
+
 type Stage = ProvisionerJobLog["stage"]
 
 const groupLogsByStage = (logs: ProvisionerJobLog[]) => {
@@ -63,7 +67,11 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isWaitin
             <div className={styles.header}>
               <div>{stage}</div>
               {shouldDisplaySpinner && <CircularProgress size={14} className={styles.spinner} />}
-              {shouldDisplayDuration && <div className={styles.duration}>{duration} seconds</div>}
+              {shouldDisplayDuration && (
+                <div className={styles.duration}>
+                  {duration} {Language.seconds}
+                </div>
+              )}
             </div>
             {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
           </div>
