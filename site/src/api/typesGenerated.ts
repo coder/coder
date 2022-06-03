@@ -245,6 +245,8 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly max_ttl_ms: number
+  readonly min_autostart_interval_ms: number
 }
 
 // From codersdk/templateversions.go:14:6
@@ -274,12 +276,12 @@ export interface TemplateVersionParameter {
   readonly default_source_value: boolean
 }
 
-// From codersdk/templates.go:73:6
+// From codersdk/templates.go:75:6
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
-// From codersdk/templates.go:27:6
+// From codersdk/templates.go:29:6
 export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
