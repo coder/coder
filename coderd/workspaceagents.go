@@ -321,7 +321,7 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	remoteAddress.Port, err = strconv.Atoi(port)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("Remote address %q has no parsable port, must be an integer.", r.RemoteAddr),
+			Message: fmt.Sprintf("Port for remote address %q must be an integer.", r.RemoteAddr),
 			Detail:  err.Error(),
 		})
 		return
@@ -368,7 +368,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-			Message: fmt.Sprintf("Agent state it %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
 	}
@@ -377,7 +377,6 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Query param 'reconnect' must be a valid UUID",
-			Detail:  err.Error(),
 			Validations: []httpapi.Error{
 				{Field: "reconnect", Detail: "invalid UUID"},
 			},

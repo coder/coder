@@ -42,7 +42,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching authenticated github user organizations",
+			Message: "Internal error fetching authenticated Github user organizations",
 			Detail:  err.Error(),
 		})
 		return
@@ -67,7 +67,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	emails, err := api.GithubOAuth2Config.ListEmails(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching personal github user",
+			Message: "Internal error fetching personal Github user",
 			Detail:  err.Error(),
 		})
 		return
@@ -122,7 +122,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Internal error fetching authenticated github user",
+				Message: "Internal error fetching authenticated Github user",
 				Detail:  err.Error(),
 			})
 			return

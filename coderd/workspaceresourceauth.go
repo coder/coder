@@ -26,7 +26,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "Invalid azure identity",
+			Message: "Invalid Azure identity",
 			Detail:  err.Error(),
 		})
 		return
@@ -45,7 +45,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 	identity, err := awsidentity.Validate(req.Signature, req.Document, api.AWSCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "Invalid aws identity",
+			Message: "Invalid AWS identity",
 			Detail:  err.Error(),
 		})
 		return
@@ -66,7 +66,7 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	payload, err := api.GoogleTokenValidator.Validate(r.Context(), req.JSONWebToken, "")
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "Invalid gcp identity",
+			Message: "Invalid GCP identity",
 			Detail:  err.Error(),
 		})
 		return
@@ -81,7 +81,7 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	err = mapstructure.Decode(payload.Claims, &claims)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Error decoding jwt claims",
+			Message: "Error decoding JWT claims",
 			Detail:  err.Error(),
 		})
 		return
@@ -149,7 +149,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error the latest workspace build",
+			Message: "Internal error fetching the latest workspace build",
 			Detail:  err.Error(),
 		})
 		return

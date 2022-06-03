@@ -660,7 +660,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	// If the user logged into a suspended account, reject the login request.
 	if user.Status != database.UserStatusActive {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "You are suspended, contact an admin to reactivate your account.",
+			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
 		return
 	}
@@ -719,7 +719,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error deleting api key",
+			Message: "Internal error deleting API key",
 			Detail:  err.Error(),
 		})
 		return
@@ -749,7 +749,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error generating api key",
+			Message: "Internal error generating API key",
 			Detail:  err.Error(),
 		})
 		return "", false
@@ -782,7 +782,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error inserting api key",
+			Message: "Internal error inserting API key",
 			Detail:  err.Error(),
 		})
 		return "", false

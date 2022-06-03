@@ -44,7 +44,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param \"after\" must be an integer",
-				Detail:  err.Error(),
 				Validations: []httpapi.Error{
 					{Field: "after", Detail: "Must be an integer"},
 				},
@@ -64,7 +63,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param \"before\" must be an integer",
-				Detail:  err.Error(),
 				Validations: []httpapi.Error{
 					{Field: "before", Detail: "Must be an integer"},
 				},

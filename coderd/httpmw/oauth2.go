@@ -120,7 +120,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 			oauthToken, err := config.Exchange(r.Context(), code)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error exchanging oauth code",
+					Message: "Internal error exchanging Oauth code",
 					Detail:  err.Error(),
 				})
 				return

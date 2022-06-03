@@ -73,7 +73,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("Invalid %q cookie api key format", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key format", SessionTokenKey),
 				})
 				return
 			}
@@ -82,13 +82,13 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("Invalid %q cookie api key id", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key id", SessionTokenKey),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("Invalid %q cookie api key secret", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key secret", SessionTokenKey),
 				})
 				return
 			}
@@ -101,7 +101,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 					return
 				}
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching api key by id",
+					Message: "Internal error fetching API key by id",
 					Detail:  err.Error(),
 				})
 				return
@@ -140,7 +140,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 					}).Token()
 					if err != nil {
 						httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-							Message: "Could not refresh expired oauth token",
+							Message: "Could not refresh expired Oauth token",
 							Detail:  err.Error(),
 						})
 						return
@@ -204,7 +204,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 
 			if roles.Status != database.UserStatusActive {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("User is not active (status = %q), contact an admin to reactivate your account", roles.Status),
+					Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", roles.Status),
 				})
 				return
 			}
