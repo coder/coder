@@ -52,7 +52,7 @@ SuccessDialog.args = {
 }
 
 export const SuccessDialogWithCancel = Template.bind({})
-SuccessDialog.args = {
+SuccessDialogWithCancel.args = {
   description: "I may be successful.",
   hideCancel: false,
   type: "success",
