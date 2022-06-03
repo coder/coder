@@ -88,6 +88,5 @@ func TestWorkspaceResource(t *testing.T) {
 		require.Equal(t, app.Command, got.Command)
 		require.Equal(t, app.Icon, got.Icon)
 		require.Equal(t, app.Name, got.Name)
-		require.Equal(t, app.Url, got.AccessURL)
 	})
 }
