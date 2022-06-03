@@ -104,7 +104,7 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		Write(rw, http.StatusBadRequest, Response{
-			Message:  "Request body must be valid json",
+			Message:  "Request body must be valid JSON",
 			Internal: err.Error(),
 		})
 		return false
