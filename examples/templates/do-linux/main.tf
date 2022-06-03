@@ -11,18 +11,7 @@ terraform {
   }
 }
 
-variable "step1_do_token" {
-  type        = string
-  description = "Enter token (see documentation at https://docs.digitalocean.com/reference/api/create-personal-access-token/)"
-  sensitive   = true
-
-  validation {
-    condition     = length(var.step1_do_token) == 71 && substr(var.step1_do_token, 0, 4) == "dop_"
-    error_message = "Invalid Digital Ocean Personal Access Token."
-  }
-}
-
-variable "step2_do_project_id" {
+variable "step1_do_project_id" {
   type        = string
   description = <<-EOF
     Enter project ID
@@ -32,17 +21,17 @@ variable "step2_do_project_id" {
   sensitive   = true
 
   validation {
-    condition     = length(var.step2_do_project_id) == 36
+    condition     = length(var.step1_do_project_id) == 36
     error_message = "Invalid Digital Ocean Project ID."
   }
 }
 
-variable "step3_do_admin_ssh_key" {
+variable "step2_do_admin_ssh_key" {
   type        = number
   description = <<-EOF
     Enter admin SSH key ID (some Droplet images require an SSH key to be set):
 
-    Can be set to zero.
+    Can be set to "0" for no key.
 
     Note: Setting this to zero will break Fedora images and notify root passwords via email.
 
@@ -51,7 +40,7 @@ variable "step3_do_admin_ssh_key" {
   sensitive   = true
 
   validation {
-    condition     = var.step3_do_admin_ssh_key >= 0
+    condition     = var.step2_do_admin_ssh_key >= 0
     error_message = "Invalid Digital Ocean SSH key ID, a number is required."
   }
 }
@@ -98,7 +87,8 @@ variable "region" {
 
 # Configure the DigitalOcean Provider
 provider "digitalocean" {
-  token = var.step1_do_token
+  # Recommended: use environment variable DIGITALOCEAN_TOKEN with your personal access token when starting coderd
+  # alternatively, you can pass the token via a variable.
 }
 
 data "coder_workspace" "me" {}
@@ -130,12 +120,12 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.dev.token
   })
   # Required to provision Fedora.
-  ssh_keys = var.step3_do_admin_ssh_key > 0 ? [var.step3_do_admin_ssh_key] : []
+  ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []
 }
 
 # Temporarily disabled because it breaks SSH. (https://github.com/coder/coder/issues/1750)
 # resource "digitalocean_project_resources" "project" {
-#   project = var.step2_do_project_id
+#   project = var.step1_do_project_id
 #   # Workaround for terraform plan when using count.
 #   resources = length(digitalocean_droplet.workspace) > 0 ? [
 #     digitalocean_volume.home_volume.urn,
