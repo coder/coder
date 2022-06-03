@@ -57,8 +57,8 @@ func workspaceAgent() *cobra.Command {
 				defer srvClose()
 			} else {
 				// If pprof wasn't enabled at startup, allow a
-				// `kill -USR1 $agent_pid` to start it.
-				srvClose := agentPPROFStartOnUSR1(cmd.Context(), logger, pprofAddress)
+				// `kill -USR1 $agent_pid` to start it (on Unix).
+				srvClose := agentStartPPROFOnUSR1(cmd.Context(), logger, pprofAddress)
 				defer srvClose()
 			}
 

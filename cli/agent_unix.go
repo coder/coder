@@ -9,7 +9,7 @@ import (
 	"cdr.dev/slog"
 )
 
-func agentPPROFStartOnUSR1(ctx context.Context, logger slog.Logger, pprofAddress string) (srvClose func()) {
+func agentStartPPROFOnUSR1(ctx context.Context, logger slog.Logger, pprofAddress string) (srvClose func()) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	usr1 := make(chan os.Signal, 1)
