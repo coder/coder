@@ -105,7 +105,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </Typography>
 
         {description && (
-          <Typography className={styles.description} variant="body2">
+          <Typography component="div" className={styles.description} variant="body2">
             {description}
           </Typography>
         )}
