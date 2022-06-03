@@ -5,7 +5,7 @@ import CloseIcon from "@material-ui/icons/Close"
 import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 
-type EnterpriseSnackbarVariant = "error" | "info"
+type EnterpriseSnackbarVariant = "error" | "info" | "success"
 
 export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
   /** Called when the snackbar should close, either from timeout or clicking close */
@@ -45,7 +45,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
         <div className={styles.actionWrapper}>
           {action}
           <IconButton onClick={onClose} className={styles.iconButton}>
-            <CloseIcon className={variant === "info" ? styles.closeIcon : styles.closeIconError} />
+            <CloseIcon className={styles.closeIcon} />
           </IconButton>
         </div>
       }
@@ -55,6 +55,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
           [styles.snackbarContent]: true,
           [styles.snackbarContentInfo]: variant === "info",
           [styles.snackbarContentError]: variant === "error",
+          [styles.snackbarContentSuccess]: variant === "success",
         }),
       }}
       onClose={onClose}
@@ -73,12 +74,7 @@ const useStyles = makeStyles((theme) => ({
   closeIcon: {
     width: 25,
     height: 25,
-    color: theme.palette.info.contrastText,
-  },
-  closeIconError: {
-    width: 25,
-    height: 25,
-    color: theme.palette.error.contrastText,
+    color: theme.palette.primary.contrastText,
   },
   snackbarContent: {
     border: `1px solid ${theme.palette.divider}`,
@@ -92,9 +88,12 @@ const useStyles = makeStyles((theme) => ({
   },
   snackbarContentInfo: {
     // Use success color as a highlight
-    borderLeftColor: theme.palette.success.main,
+    borderLeftColor: theme.palette.primary.main,
   },
   snackbarContentError: {
     borderLeftColor: theme.palette.error.main,
+  },
+  snackbarContentSuccess: {
+    borderLeftColor: theme.palette.success.main,
   },
 }))

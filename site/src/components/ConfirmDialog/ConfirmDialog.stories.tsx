@@ -38,8 +38,22 @@ InfoDialog.args = {
 }
 
 export const InfoDialogWithCancel = Template.bind({})
-InfoDialog.args = {
+InfoDialogWithCancel.args = {
   description: "Information can be cool!",
   hideCancel: false,
   type: "info",
+}
+
+export const SuccessDialog = Template.bind({})
+SuccessDialog.args = {
+  description: "I am successful.",
+  hideCancel: true,
+  type: "success",
+}
+
+export const SuccessDialogWithCancel = Template.bind({})
+SuccessDialog.args = {
+  description: "I may be successful.",
+  hideCancel: false,
+  type: "success",
 }

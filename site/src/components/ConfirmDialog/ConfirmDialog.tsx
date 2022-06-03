@@ -19,6 +19,10 @@ const CONFIRM_DIALOG_DEFAULTS: Record<ConfirmDialogType, ConfirmDialogTypeConfig
     confirmText: "OK",
     hideCancel: true,
   },
+  success: {
+    confirmText: "OK",
+    hideCancel: true,
+  },
 }
 
 export interface ConfirmDialogProps extends Omit<DialogActionButtonsProps, "color" | "confirmDialog" | "onCancel"> {
