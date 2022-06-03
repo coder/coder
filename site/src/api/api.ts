@@ -285,3 +285,10 @@ export const streamWorkspaceBuildLogs = async (
 
   return reader
 }
+
+export const putWorkspaceExtension = async (
+  workspaceId: string,
+  extendWorkspaceRequest: TypesGen.PutExtendWorkspaceRequest,
+): Promise<void> => {
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, extendWorkspaceRequest)
+}

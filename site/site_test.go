@@ -1,6 +1,3 @@
-//go:build embed
-// +build embed
-
 package site_test
 
 import (

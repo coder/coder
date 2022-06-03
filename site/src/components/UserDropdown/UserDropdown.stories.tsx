@@ -17,8 +17,8 @@ const Template: Story<UserDropdownProps> = (args: UserDropdownProps) => (
   </Box>
 )
 
-export const ExampleNoRoles = Template.bind({})
-ExampleNoRoles.args = {
+export const Example = Template.bind({})
+Example.args = {
   user: MockUser,
   onSignOut: () => {
     return Promise.resolve()

@@ -109,6 +109,11 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/ttl", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
+  rest.put("/api/v2/workspaces/:workspaceId/extend", async (req, res, ctx) => {
+    return res(ctx.status(200))
+  }),
+
+  // workspace builds
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     const { transition } = req.body as CreateWorkspaceBuildRequest
     const transitionToBuild = {
@@ -122,8 +127,6 @@ export const handlers = [
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuilds))
   }),
-
-  // workspace builds
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuild))
   }),

@@ -40,15 +40,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.statusLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: status.color }} role="status">
-            {status.status}
-          </span>
-        </span>
-      </div>
-      <div className={styles.statsDivider} />
-      <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.versionLabel}</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
@@ -63,6 +54,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
         <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
         <span className={styles.statsValue} data-chromatic="ignore">
           {dayjs().to(dayjs(workspace.latest_build.created_at))}
+        </span>
+      </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.statusLabel}</span>
+        <span className={styles.statsValue}>
+          <span style={{ color: status.color }} role="status">
+            {status.status}
+          </span>
         </span>
       </div>
     </div>
@@ -83,7 +83,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "20%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

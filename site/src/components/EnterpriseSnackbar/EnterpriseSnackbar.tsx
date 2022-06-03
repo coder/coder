@@ -81,8 +81,9 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.error.contrastText,
   },
   snackbarContent: {
+    border: `1px solid ${theme.palette.divider}`,
     borderLeft: `4px solid ${theme.palette.primary.main}`,
-    borderRadius: 0,
+    borderRadius: theme.shape.borderRadius,
     padding: `${theme.spacing(1)}px ${theme.spacing(3)}px ${theme.spacing(1)}px ${theme.spacing(2)}px`,
     boxShadow: theme.shadows[6],
     alignItems: "inherit",
@@ -94,8 +95,8 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.info.contrastText,
   },
   snackbarContentError: {
-    backgroundColor: theme.palette.error.dark,
+    backgroundColor: theme.palette.background.paper,
     borderLeftColor: theme.palette.error.main,
-    color: theme.palette.error.contrastText,
+    color: theme.palette.text.secondary,
   },
 }))

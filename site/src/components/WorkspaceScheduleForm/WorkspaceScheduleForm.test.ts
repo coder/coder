@@ -110,4 +110,22 @@ describe("validationSchema", () => {
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTimezone)
   })
+
+  it("allows a ttl of 7 days", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      ttl: 24 * 7,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a ttl of 7 days + 1 hour", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      ttl: 24 * 7 + 1,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError("ttl must be less than or equal to 168")
+  })
 })

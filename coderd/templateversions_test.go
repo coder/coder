@@ -694,9 +694,10 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		pagination codersdk.Pagination
 	}
 	tests := []struct {
-		name string
-		args args
-		want []codersdk.TemplateVersion
+		name          string
+		args          args
+		want          []codersdk.TemplateVersion
+		expectedError string
 	}{
 		{
 			name: "Single result",
@@ -728,6 +729,11 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			args: args{ctx: ctx, pagination: codersdk.Pagination{Limit: 2, Offset: 10}},
 			want: []codersdk.TemplateVersion{},
 		},
+		{
+			name:          "After_id does not exist",
+			args:          args{ctx: ctx, pagination: codersdk.Pagination{AfterID: uuid.New()}},
+			expectedError: "does not exist",
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -737,8 +743,13 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 				TemplateID: template.ID,
 				Pagination: tt.args.pagination,
 			})
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
 		})
 	}
 }
