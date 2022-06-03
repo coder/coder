@@ -613,7 +613,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, fmt.Sprintf("Workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
 	})
 }
 
