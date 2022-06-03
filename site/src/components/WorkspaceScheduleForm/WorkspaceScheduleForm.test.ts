@@ -128,7 +128,7 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorTimezone)
   })
 
-  it.each<[string]>(zones.map((zone) => [zone]))(`validation passes from tz=%p`, (zone) => {
+  it.each<[string]>(zones.map((zone) => [zone]))(`validation passes for tz=%p`, (zone) => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
       timezone: zone,
