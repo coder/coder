@@ -52,19 +52,22 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	// Message is for general user-friendly error messages. This message will
-	// be shown at the top/bottom of a form, or in a toast on the UI.
+	// Message is an actionable message that depicts actions the request took.
+	// These messages should be fully formed sentences with proper punctuation.
+	// Examples:
+	// - "A user has been created."
+	// - "Failed to create a user."
 	Message string `json:"message"`
-	// Detail has the technical error information (err.Error()). These details
-	// might come from external packages and might not be user friendly.
-	// Do not populate this error field with any sensitive information or
-	// any errors that may be a security implication. These details are still
-	// available to more technical users.
+	// Detail is a debug message that provides further insight into why the
+	// action failed. This information can be technical and a regular golang
+	// err.Error() text.
+	// - "database: too many open connections"
+	// - "stat: too many open files"
 	Detail string `json:"detail"`
-	// Errors are form field-specific friendly error messages. They will be
+	// Validations are form field-specific friendly error messages. They will be
 	// shown on a form field in the UI. These can also be used to add additional
 	// context if there is a set of errors in the primary 'Message'.
-	Errors []Error `json:"errors,omitempty"`
+	Validations []Error `json:"errors,omitempty"`
 }
 
 // Error represents a scoped error to a user input.
@@ -120,8 +123,8 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 			})
 		}
 		Write(rw, http.StatusBadRequest, Response{
-			Message: "Validation failed",
-			Errors:  apiErrors,
+			Message:     "Validation failed",
+			Validations: apiErrors,
 		})
 		return false
 	}

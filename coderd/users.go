@@ -125,7 +125,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 			default:
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 					Message: fmt.Sprintf("%q is not a valid user status", filter),
-					Errors: []httpapi.Error{
+					Validations: []httpapi.Error{
 						{Field: "status", Detail: "invalid status"},
 					},
 				})
@@ -298,8 +298,8 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: "User already exists",
-			Errors:  responseErrors,
+			Message:     "User already exists",
+			Validations: responseErrors,
 		})
 		return
 	}
@@ -400,7 +400,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Invalid password",
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{
 					Field:  "password",
 					Detail: err.Error(),
@@ -425,7 +425,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: "Old password is incorrect",
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{
 						Field:  "old_password",
 						Detail: "Old password is incorrect.",

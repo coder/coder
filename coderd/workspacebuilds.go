@@ -212,7 +212,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Template version not found",
-			Errors: []httpapi.Error{{
+			Validations: []httpapi.Error{{
 				Field:  "template_version_id",
 				Detail: "template version not found",
 			}},

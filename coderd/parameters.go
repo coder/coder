@@ -258,7 +258,7 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	default:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("Invalid scope %q", scope),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{Field: "scope", Detail: "invalid scope"},
 			},
 		})
@@ -271,7 +271,7 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("Invalid uuid %q", id),
 			Detail:  err.Error(),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{Field: "id", Detail: "Invalid uuid"},
 			},
 		})

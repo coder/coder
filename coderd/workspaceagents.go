@@ -378,7 +378,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Query param 'reconnect' must be a valid uuid",
 			Detail:  err.Error(),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{Field: "reconnect", Detail: "invalid uuid"},
 			},
 		})

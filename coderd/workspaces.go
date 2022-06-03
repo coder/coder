@@ -47,7 +47,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("Invalid boolean value %q for \"deleted\" query param", deletedStr),
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{Field: "deleted", Detail: "Must be a valid boolean"},
 				},
 			})
@@ -152,7 +152,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param \"organization_id\" must be a valid uuid",
 				Detail:  err.Error(),
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{Field: "organization_id", Detail: "Must be a valid uuid"},
 				},
 			})
@@ -175,7 +175,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 					Message: "Query param \"owner\" must be a valid uuid or username",
 					Detail:  err.Error(),
-					Errors: []httpapi.Error{
+					Validations: []httpapi.Error{
 						{Field: "owner", Detail: "Must be a valid uuid or username"},
 					},
 				})
@@ -319,7 +319,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("Template %q doesn't exist", createWorkspace.TemplateID.String()),
-			Errors: []httpapi.Error{{
+			Validations: []httpapi.Error{{
 				Field:  "template_id",
 				Detail: "template not found",
 			}},
@@ -377,7 +377,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Invalid workspace ttl",
 			Detail:  err.Error(),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{
 					Field:  "ttl",
 					Detail: err.Error(),
@@ -404,7 +404,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("Workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
-			Errors: []httpapi.Error{{
+			Validations: []httpapi.Error{{
 				Field:  "name",
 				Detail: "this value is already in use and should be unique",
 			}},
@@ -600,7 +600,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Invalid workspace ttl",
 			Detail:  err.Error(),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{
 					Field:  "ttl",
 					Detail: err.Error(),
@@ -656,7 +656,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if err := validWorkspaceDeadline(build.Deadline, newDeadline); err != nil {
 			code = http.StatusBadRequest
 			resp.Message = "bad extend workspace request"
-			resp.Errors = append(resp.Errors, httpapi.Error{Field: "deadline", Detail: err.Error()})
+			resp.Validations = append(resp.Validations, httpapi.Error{Field: "deadline", Detail: err.Error()})
 			return err
 		}
 

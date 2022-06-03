@@ -104,7 +104,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("Template with name %q already exists", createTemplate.Name),
-			Errors: []httpapi.Error{{
+			Validations: []httpapi.Error{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
 			}},
@@ -122,7 +122,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("Template version %q does not exist", createTemplate.VersionID),
-			Errors: []httpapi.Error{
+			Validations: []httpapi.Error{
 				{Field: "template_version_id", Detail: "Template version does not exist"},
 			},
 		})

@@ -26,7 +26,7 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param 'after_id' must be a valid uuid",
 				Detail:  err.Error(),
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{Field: "after_id", Detail: err.Error()},
 				},
 			})
@@ -39,7 +39,7 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param 'limit' must be a valid integer",
 				Detail:  err.Error(),
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{Field: "limit", Detail: err.Error()},
 				},
 			})
@@ -52,7 +52,7 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
 				Message: "Query param 'offset' must be a valid integer",
 				Detail:  err.Error(),
-				Errors: []httpapi.Error{
+				Validations: []httpapi.Error{
 					{Field: "offset", Detail: err.Error()},
 				},
 			})

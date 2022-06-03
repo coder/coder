@@ -74,9 +74,9 @@ func TestRead(t *testing.T) {
 		var v httpapi.Response
 		err := json.NewDecoder(rw.Body).Decode(&v)
 		require.NoError(t, err)
-		require.Len(t, v.Errors, 1)
-		require.Equal(t, "value", v.Errors[0].Field)
-		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Errors[0].Detail)
+		require.Len(t, v.Validations, 1)
+		require.Equal(t, "value", v.Validations[0].Field)
+		require.Equal(t, "Validation failed for tag \"required\" with value: \"\"", v.Validations[0].Detail)
 	})
 }
 
