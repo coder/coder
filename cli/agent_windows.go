@@ -2,9 +2,6 @@ package cli
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"cdr.dev/slog"
 )
