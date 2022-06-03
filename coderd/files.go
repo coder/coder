@@ -91,7 +91,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Internal error fetching file"),
+			Message: "Internal error fetching file",
 			Detail:  err.Error(),
 		})
 		return

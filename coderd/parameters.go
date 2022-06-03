@@ -140,7 +140,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Internal error fetching parameter"),
+			Message: "Internal error fetching parameter",
 			Detail:  err.Error(),
 		})
 		return
@@ -148,7 +148,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Internal error deleting parameter"),
+			Message: "Internal error deleting parameter",
 			Detail:  err.Error(),
 		})
 		return
