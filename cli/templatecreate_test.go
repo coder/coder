@@ -24,7 +24,16 @@ func TestTemplateCreate(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		args := []string{
+			"templates",
+			"create",
+			"my-template",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--max-ttl", "24h",
+			"--min-autostart-interval", "2h",
+		}
+		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
