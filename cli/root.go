@@ -192,7 +192,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID
 		owner = parts[0]
 		name = parts[1]
 	default:
-		return codersdk.Workspace{}, xerrors.New("invalid workspace name")
+		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
 	return client.WorkspaceByOwnerAndName(cmd.Context(), orgID, owner, name)
