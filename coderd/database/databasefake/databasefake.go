@@ -1575,6 +1575,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
 		ID:           arg.ID,
 		AgentID:      arg.AgentID,
