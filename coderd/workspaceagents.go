@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -72,17 +73,18 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
+	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
@@ -151,9 +153,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message:  "Failed to accept websocket",
@@ -161,62 +161,12 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Internal error fetching workspace resources",
-			Internal: err.Error(),
-		})
-		return
-	}
 
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
-		ChannelID: workspaceAgent.ID.String(),
-		Pubsub:    api.Pubsub,
-		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	defer closer.Close()
-	firstConnectedAt := workspaceAgent.FirstConnectedAt
-	if !firstConnectedAt.Valid {
-		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		}
-	}
-	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
-		Valid: true,
-	}
-	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(r.Context(), database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               workspaceAgent.ID,
-			FirstConnectedAt: firstConnectedAt,
-			LastConnectedAt:  lastConnectedAt,
-			DisconnectedAt:   disconnectedAt,
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build job: %s", err),
+		})
 		return
 	}
 	// Ensure the resource is still valid!
@@ -232,6 +182,75 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}
 
+	err = ensureLatestBuild()
+	if err != nil {
+		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
+			slog.F("resource", resource),
+			slog.F("agent", workspaceAgent),
+		)
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			Message: fmt.Sprintf("ensure latest build: %s", err),
+		})
+		return
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(wsNetConn, config)
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+
+	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
+		ChannelID: workspaceAgent.ID.String(),
+		Pubsub:    api.Pubsub,
+		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
+	})
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	defer closer.Close()
+
+	firstConnectedAt := workspaceAgent.FirstConnectedAt
+	if !firstConnectedAt.Valid {
+		firstConnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+	}
+	lastConnectedAt := sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	disconnectedAt := workspaceAgent.DisconnectedAt
+	updateConnectionTimes := func() error {
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               workspaceAgent.ID,
+			FirstConnectedAt: firstConnectedAt,
+			LastConnectedAt:  lastConnectedAt,
+			DisconnectedAt:   disconnectedAt,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	defer func() {
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
@@ -240,18 +259,13 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = updateConnectionTimes()
 	}()
 
-	err = ensureLatestBuild()
-	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, "")
-		return
-	}
 	err = updateConnectionTimes()
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
@@ -323,16 +337,16 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = wsConn.Close(websocket.StatusNormalClosure, "")
-	}()
-	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
-	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
-	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
-	case <-r.Context().Done():
+	case <-api.TURNServer.Accept(wsNetConn, remoteAddress, localAddress).Closed():
+	case <-ctx.Done():
 	}
-	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	api.Logger.Debug(ctx, "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -389,12 +403,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "ended")
-	}()
-	// Accept text connections, because it's more developer friendly.
-	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	agentConn, err := api.dialWorkspaceAgent(ctx, r, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
@@ -413,11 +426,13 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-// dialWorkspaceAgent connects to a workspace agent by ID.
-func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+// dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
+// r.Context() for cancellation if it's use is safe or r.Hijack() has
+// not been performed.
+func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
 	go func() {
-		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
+		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
 			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 			Pubsub:    api.Pubsub,
@@ -427,7 +442,7 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}()
 
 	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := peerClient.NegotiateConnection(r.Context())
+	stream, err := peerClient.NegotiateConnection(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
@@ -439,7 +454,7 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
 		clientPipe, serverPipe := net.Pipe()
 		go func() {
-			<-r.Context().Done()
+			<-ctx.Done()
 			_ = clientPipe.Close()
 			_ = serverPipe.Close()
 		}()
@@ -519,4 +534,45 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 	}
 
 	return workspaceAgent, nil
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if a read or write error is encountered.
+type wsNetConn struct {
+	cancel context.CancelFunc
+	net.Conn
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Close() error {
+	defer c.cancel()
+	return c.Conn.Close()
+}
+
+// websocketNetConn wraps websocket.NetConn and returns a context that
+// is tied to the parent context and the lifetime of the conn. Any error
+// during read or write will cancel the context, but not close the
+// conn. Close should be called to release context resources.
+func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	ctx, cancel := context.WithCancel(ctx)
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return ctx, &wsNetConn{
+		cancel: cancel,
+		Conn:   nc,
+	}
 }

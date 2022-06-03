@@ -1,11 +1,7 @@
-//go:build embed
-// +build embed
-
 package site
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
 	"io"
 	"io/fs"
@@ -20,26 +16,6 @@ import (
 	"github.com/unrolled/secure"
 	"golang.org/x/xerrors"
 )
-
-// The `embed` package ignores recursively including directories
-// that prefix with `_`. Wildcarding nested is janky, but seems to
-// work quite well for edge-cases.
-//go:embed out
-//go:embed out/bin/*
-var site embed.FS
-
-func DefaultHandler() http.Handler {
-	// the out directory is where webpack builds are created. It is in the same
-	// directory as this file (package site).
-	siteFS, err := fs.Sub(site, "out")
-
-	if err != nil {
-		// This can't happen... Go would throw a compilation error.
-		panic(err)
-	}
-
-	return Handler(siteFS)
-}
 
 // Handler returns an HTTP handler for serving the static site.
 func Handler(fileSystem fs.FS) http.Handler {

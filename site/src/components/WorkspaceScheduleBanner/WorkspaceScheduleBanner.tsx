@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import Alert from "@material-ui/lab/Alert"
 import AlertTitle from "@material-ui/lab/AlertTitle"
 import dayjs from "dayjs"
@@ -11,10 +12,13 @@ dayjs.extend(utc)
 dayjs.extend(isSameOrBefore)
 
 export const Language = {
+  bannerAction: "Extend",
   bannerTitle: "Your workspace is scheduled to automatically shut down soon.",
 }
 
 export interface WorkspaceScheduleBannerProps {
+  isLoading?: boolean
+  onExtend: () => void
   workspace: TypesGen.Workspace
 }
 
@@ -31,12 +35,19 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ workspace }) => {
+export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({ isLoading, onExtend, workspace }) => {
   if (!shouldDisplay(workspace)) {
     return null
   } else {
     return (
-      <Alert severity="warning">
+      <Alert
+        action={
+          <Button color="inherit" disabled={isLoading} onClick={onExtend} size="small">
+            {Language.bannerAction}
+          </Button>
+        }
+        severity="warning"
+      >
         <AlertTitle>{Language.bannerTitle}</AlertTitle>
       </Alert>
     )

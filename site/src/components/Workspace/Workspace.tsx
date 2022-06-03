@@ -13,6 +13,10 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export interface WorkspaceProps {
+  bannerProps: {
+    isLoading?: boolean
+    onExtend: () => void
+  }
   handleStart: () => void
   handleStop: () => void
   handleDelete: () => void
@@ -28,6 +32,7 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<WorkspaceProps> = ({
+  bannerProps,
   handleStart,
   handleStop,
   handleDelete,
@@ -54,6 +59,7 @@ export const Workspace: FC<WorkspaceProps> = ({
                 {workspace.owner_name}
               </Typography>
             </div>
+
             <WorkspaceActions
               workspace={workspace}
               handleStart={handleStart}
@@ -70,9 +76,16 @@ export const Workspace: FC<WorkspaceProps> = ({
 
       <Stack direction="row" spacing={3}>
         <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
-          <WorkspaceScheduleBanner workspace={workspace} />
+          <WorkspaceScheduleBanner
+            isLoading={bannerProps.isLoading}
+            onExtend={bannerProps.onExtend}
+            workspace={workspace}
+          />
+
           <WorkspaceStats workspace={workspace} />
+
           <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>

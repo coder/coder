@@ -1,9 +1,14 @@
+import CircularProgress from "@material-ui/core/CircularProgress"
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
+
+const Language = {
+  seconds: "seconds",
+}
 
 type Stage = ProvisionerJobLog["stage"]
 
@@ -35,16 +40,17 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 
 export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
+  isWaitingForLogs: boolean
 }
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isWaitingForLogs }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()
 
   return (
     <div className={styles.logs}>
-      {stages.map((stage) => {
+      {stages.map((stage, stageIndex) => {
         const logs = groupedLogsByStage[stage]
         const isEmpty = logs.every((log) => log.output === "")
         const lines = logs.map((log) => ({
@@ -52,12 +58,20 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
           output: log.output,
         }))
         const duration = getStageDurationInSeconds(logs)
+        const isLastStage = stageIndex === stages.length - 1
+        const shouldDisplaySpinner = isWaitingForLogs && isLastStage
+        const shouldDisplayDuration = !isWaitingForLogs && duration
 
         return (
           <div key={stage}>
             <div className={styles.header}>
               <div>{stage}</div>
-              {duration && <div className={styles.duration}>{duration} seconds</div>}
+              {shouldDisplaySpinner && <CircularProgress size={14} className={styles.spinner} />}
+              {shouldDisplayDuration && (
+                <div className={styles.duration}>
+                  {duration} {Language.seconds}
+                </div>
+              )}
             </div>
             {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
           </div>
@@ -78,6 +92,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.body1.fontSize,
     padding: theme.spacing(2),
     paddingLeft: theme.spacing(4),
+    paddingRight: theme.spacing(4),
     borderBottom: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
     display: "flex",
@@ -93,5 +108,9 @@ const useStyles = makeStyles((theme) => ({
   codeBlock: {
     padding: theme.spacing(2),
     paddingLeft: theme.spacing(4),
+  },
+
+  spinner: {
+    marginLeft: "auto",
   },
 }))
