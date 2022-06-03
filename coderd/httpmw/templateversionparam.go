@@ -41,8 +41,8 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching template version",
-					Internal: err.Error(),
+					Message: "Internal error fetching template version",
+					Detail:  err.Error(),
 				})
 				return
 			}

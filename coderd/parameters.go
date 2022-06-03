@@ -47,8 +47,8 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching parameter",
-			Internal: err.Error(),
+			Message: "Detail error fetching parameter",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -66,8 +66,8 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error inserting parameter",
-			Internal: err.Error(),
+			Message: "Detail error inserting parameter",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -98,8 +98,8 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching parameter scope values",
-			Internal: err.Error(),
+			Message: "Detail error fetching parameter scope values",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -133,23 +133,23 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message:  fmt.Sprintf("No parameter found at the provided scope with name %q", name),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("No parameter found at the provided scope with name %q", name),
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  fmt.Sprintf("Internal error fetching parameter"),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("Detail error fetching parameter"),
+			Detail:  err.Error(),
 		})
 		return
 	}
 	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  fmt.Sprintf("Internal error deleting parameter"),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("Detail error deleting parameter"),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -269,8 +269,8 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  fmt.Sprintf("Invalid uuid %q", id),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("Invalid uuid %q", id),
+			Detail:  err.Error(),
 			Errors: []httpapi.Error{
 				{Field: "id", Detail: "Invalid uuid"},
 			},

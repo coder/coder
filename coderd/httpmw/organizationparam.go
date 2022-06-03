@@ -52,8 +52,8 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching organization",
-					Internal: err.Error(),
+					Message: "Internal error fetching organization",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -83,8 +83,8 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching organization member",
-					Internal: err.Error(),
+					Message: "Internal error fetching organization member",
+					Detail:  err.Error(),
 				})
 				return
 			}

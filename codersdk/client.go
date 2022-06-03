@@ -202,8 +202,8 @@ func (e *Error) Error() string {
 	if e.Helper != "" {
 		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
 	}
-	if e.Internal != "" {
-		_, _ = fmt.Fprintf(&builder, "\n\tError: %s", e.Internal)
+	if e.Detail != "" {
+		_, _ = fmt.Fprintf(&builder, "\n\tError: %s", e.Detail)
 	}
 	for _, err := range e.Errors {
 		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)

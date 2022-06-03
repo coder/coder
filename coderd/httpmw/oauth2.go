@@ -63,8 +63,8 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 				state, err := cryptorand.String(32)
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message:  "Internal error generating state string",
-						Internal: err.Error(),
+						Message: "Internal error generating state string",
+						Detail:  err.Error(),
 					})
 					return
 				}
@@ -120,8 +120,8 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 			oauthToken, err := config.Exchange(r.Context(), code)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error exchanging oauth code",
-					Internal: err.Error(),
+					Message: "Internal error exchanging oauth code",
+					Detail:  err.Error(),
 				})
 				return
 			}

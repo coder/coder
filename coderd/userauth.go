@@ -42,8 +42,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching authenticated github user organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching authenticated github user organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -67,8 +67,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	emails, err := api.GithubOAuth2Config.ListEmails(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching personal github user",
-			Internal: err.Error(),
+			Message: "Detail error fetching personal github user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -88,8 +88,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  fmt.Sprintf("Internal error fetching user by email %q", *email.Email),
-				Internal: err.Error(),
+				Message: fmt.Sprintf("Detail error fetching user by email %q", *email.Email),
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -122,8 +122,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error fetching authenticated github user",
-				Internal: err.Error(),
+				Message: "Detail error fetching authenticated github user",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -148,8 +148,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error creating user",
-				Internal: err.Error(),
+				Message: "Detail error creating user",
+				Detail:  err.Error(),
 			})
 			return
 		}

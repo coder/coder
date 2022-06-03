@@ -40,8 +40,8 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching provisioner resource",
-					Internal: err.Error(),
+					Message: "Internal error fetching provisioner resource",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -49,8 +49,8 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error provisioner job",
-					Internal: err.Error(),
+					Message: "Internal error provisioner job",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -63,8 +63,8 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error workspace build",
-					Internal: err.Error(),
+					Message: "Internal error workspace build",
+					Detail:  err.Error(),
 				})
 				return
 			}

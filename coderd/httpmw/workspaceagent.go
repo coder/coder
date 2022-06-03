@@ -53,8 +53,8 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace agent",
-					Internal: err.Error(),
+					Message: "Internal error fetching workspace agent",
+					Detail:  err.Error(),
 				})
 				return
 			}

@@ -26,8 +26,8 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message:  "Invalid azure identity",
-			Internal: err.Error(),
+			Message: "Invalid azure identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -45,8 +45,8 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 	identity, err := awsidentity.Validate(req.Signature, req.Document, api.AWSCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message:  "Invalid aws identity",
-			Internal: err.Error(),
+			Message: "Invalid aws identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -66,8 +66,8 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	payload, err := api.GoogleTokenValidator.Validate(r.Context(), req.JSONWebToken, "")
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message:  "Invalid gcp identity",
-			Internal: err.Error(),
+			Message: "Invalid gcp identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -81,8 +81,8 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	err = mapstructure.Decode(payload.Claims, &claims)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Error decoding jwt claims",
-			Internal: err.Error(),
+			Message: "Error decoding jwt claims",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -99,24 +99,24 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job agent",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job resource",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job resource",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -130,16 +130,16 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error extracting job data",
-			Internal: err.Error(),
+			Message: "Detail error extracting job data",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace build",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -149,8 +149,8 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error the latest workspace build",
-			Internal: err.Error(),
+			Message: "Detail error the latest workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}

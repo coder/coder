@@ -55,12 +55,12 @@ type Response struct {
 	// Message is for general user-friendly error messages. This message will
 	// be shown at the top/bottom of a form, or in a toast on the UI.
 	Message string `json:"message"`
-	// Internal has the technical error information (err.Error()). These details
+	// Detail has the technical error information (err.Error()). These details
 	// might come from external packages and might not be user friendly.
 	// Do not populate this error field with any sensitive information or
 	// any errors that may be a security implication. These details are still
 	// available to more technical users.
-	Internal string `json:"internal"`
+	Detail string `json:"detail"`
 	// Errors are form field-specific friendly error messages. They will be
 	// shown on a form field in the UI. These can also be used to add additional
 	// context if there is a set of errors in the primary 'Message'.
@@ -127,8 +127,8 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	}
 	if err != nil {
 		Write(rw, http.StatusInternalServerError, Response{
-			Message:  "Internal error validating request body payload",
-			Internal: err.Error(),
+			Message: "Internal error validating request body payload",
+			Detail:  err.Error(),
 		})
 		return false
 	}

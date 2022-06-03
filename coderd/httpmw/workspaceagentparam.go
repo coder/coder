@@ -38,16 +38,16 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace agent",
-					Internal: err.Error(),
+					Message: "Internal error fetching workspace agent",
+					Detail:  err.Error(),
 				})
 				return
 			}
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace resource",
-					Internal: err.Error(),
+					Message: "Internal error fetching workspace resource",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -55,8 +55,8 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching provisioner job",
-					Internal: err.Error(),
+					Message: "Internal error fetching provisioner job",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -69,16 +69,16 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace build",
-					Internal: err.Error(),
+					Message: "Internal error fetching workspace build",
+					Detail:  err.Error(),
 				})
 				return
 			}
 			workspace, err := db.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace",
-					Internal: err.Error(),
+					Message: "Internal error fetching workspace",
+					Detail:  err.Error(),
 				})
 				return
 			}

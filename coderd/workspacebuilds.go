@@ -31,8 +31,8 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -68,8 +68,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				return err
 			} else if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching workspace build at \"after_id\"",
-					Internal: err.Error(),
+					Message: "Detail error fetching workspace build at \"after_id\"",
+					Detail:  err.Error(),
 				})
 				return err
 			}
@@ -87,8 +87,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error fetching workspace build",
-				Internal: err.Error(),
+				Message: "Detail error fetching workspace build",
+				Detail:  err.Error(),
 			})
 			return err
 		}
@@ -109,8 +109,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner jobs",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner jobs",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -154,16 +154,16 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace build by name",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace build by name",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -201,8 +201,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error the latest workspace build",
-				Internal: err.Error(),
+				Message: "Detail error the latest workspace build",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -221,16 +221,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching template version",
-			Internal: err.Error(),
+			Message: "Detail error fetching template version",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -256,8 +256,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching template job",
-			Internal: err.Error(),
+			Message: "Detail error fetching template job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -277,8 +277,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		priorBuildNum = priorHistory.BuildNumber
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching prior workspace build",
-			Internal: err.Error(),
+			Message: "Detail error fetching prior workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -336,8 +336,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error inserting workspace build",
-			Internal: err.Error(),
+			Message: "Detail error inserting workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -364,8 +364,8 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -390,8 +390,8 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error updating provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error updating provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -418,8 +418,8 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -444,8 +444,8 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}

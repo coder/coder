@@ -49,8 +49,8 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				user, err = db.GetUserByID(r.Context(), APIKey(r).UserID)
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message:  "Internal error fetching user",
-						Internal: err.Error(),
+						Message: "Internal error fetching user",
+						Detail:  err.Error(),
 					})
 					return
 				}

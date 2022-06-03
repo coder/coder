@@ -30,8 +30,8 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user count",
-			Internal: err.Error(),
+			Message: "Detail error fetching user count",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -59,8 +59,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user count",
-			Internal: err.Error(),
+			Message: "Detail error fetching user count",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -80,8 +80,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error creating user",
-			Internal: err.Error(),
+			Message: "Detail error creating user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -96,8 +96,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error updating user's roles",
-			Internal: err.Error(),
+			Message: "Detail error updating user's roles",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -157,8 +157,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching users",
-			Internal: err.Error(),
+			Message: "Detail error fetching users",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -173,8 +173,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -219,8 +219,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user",
-			Internal: err.Error(),
+			Message: "Detail error fetching user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -234,8 +234,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching organization",
-			Internal: err.Error(),
+			Message: "Detail error fetching organization",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -243,8 +243,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	user, _, err := api.createUser(r.Context(), createUser)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error creating user",
-			Internal: err.Error(),
+			Message: "Detail error creating user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -264,8 +264,8 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -305,8 +305,8 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !errors.Is(err, sql.ErrNoRows) && isDifferentUser {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user",
-			Internal: err.Error(),
+			Message: "Detail error fetching user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -320,8 +320,8 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error updating user",
-			Internal: err.Error(),
+			Message: "Detail error updating user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -329,8 +329,8 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -362,8 +362,8 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  fmt.Sprintf("Internal error updating user's status to %q", status),
-				Internal: err.Error(),
+				Message: fmt.Sprintf("Detail error updating user's status to %q", status),
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -371,8 +371,8 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		organizations, err := userOrganizationIDs(r.Context(), api, user)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error fetching user's organizations",
-				Internal: err.Error(),
+				Message: "Detail error fetching user's organizations",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -417,8 +417,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error with passwords",
-				Internal: err.Error(),
+				Message: "Detail error with passwords",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -439,8 +439,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	hashedPassword, err := userpassword.Hash(params.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error hashing new password",
-			Internal: err.Error(),
+			Message: "Detail error hashing new password",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -450,8 +450,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error updating user's password",
-			Internal: err.Error(),
+			Message: "Detail error updating user's password",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -475,8 +475,8 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.Database.GetOrganizationMembershipsByUserID(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organization memberships",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organization memberships",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -542,8 +542,8 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -583,8 +583,8 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching user's organizations",
-			Internal: err.Error(),
+			Message: "Detail error fetching user's organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -636,7 +636,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error",
+			Message: "Detail error",
 		})
 		return
 	}
@@ -645,7 +645,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error",
+			Message: "Detail error",
 		})
 	}
 	if !equal {
@@ -719,8 +719,8 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error deleting api key",
-			Internal: err.Error(),
+			Message: "Detail error deleting api key",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -749,8 +749,8 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error generating api key",
-			Internal: err.Error(),
+			Message: "Detail error generating api key",
+			Detail:  err.Error(),
 		})
 		return "", false
 	}
@@ -782,8 +782,8 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error inserting api key",
-			Internal: err.Error(),
+			Message: "Detail error inserting api key",
+			Detail:  err.Error(),
 		})
 		return "", false
 	}

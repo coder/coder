@@ -41,8 +41,8 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Failed to read file from request",
-			Internal: err.Error(),
+			Message: "Failed to read file from request",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -65,8 +65,8 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error saving file",
-			Internal: err.Error(),
+			Message: "Detail error saving file",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -91,8 +91,8 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  fmt.Sprintf("Internal error fetching file"),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("Detail error fetching file"),
+			Detail:  err.Error(),
 		})
 		return
 	}

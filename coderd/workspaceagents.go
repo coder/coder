@@ -34,8 +34,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error reading workspace agent",
-			Internal: err.Error(),
+			Message: "Detail error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -53,8 +53,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error reading workspace agent",
-			Internal: err.Error(),
+			Message: "Detail error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -68,8 +68,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Failed to accept websocket",
-			Internal: err.Error(),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -100,40 +100,40 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error reading workspace agent",
-			Internal: err.Error(),
+			Message: "Detail error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace resources",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace resources",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace build",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching workspace owner",
-			Internal: err.Error(),
+			Message: "Detail error fetching workspace owner",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -156,8 +156,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Failed to accept websocket",
-			Internal: err.Error(),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -312,8 +312,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Invalid remote address",
-			Internal: err.Error(),
+			Message: "Invalid remote address",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -321,8 +321,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	remoteAddress.Port, err = strconv.Atoi(port)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  fmt.Sprintf("Remote address %q has no parsable port, must be an integer.", r.RemoteAddr),
-			Internal: err.Error(),
+			Message: fmt.Sprintf("Remote address %q has no parsable port, must be an integer.", r.RemoteAddr),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -332,8 +332,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Failed to accept websocket",
-			Internal: err.Error(),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -361,8 +361,8 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error reading workspace agent",
-			Internal: err.Error(),
+			Message: "Detail error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -376,8 +376,8 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Query param 'reconnect' must be a valid uuid",
-			Internal: err.Error(),
+			Message: "Query param 'reconnect' must be a valid uuid",
+			Detail:  err.Error(),
 			Errors: []httpapi.Error{
 				{Field: "reconnect", Detail: "invalid uuid"},
 			},
@@ -398,8 +398,8 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:  "Failed to accept websocket",
-			Internal: err.Error(),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}

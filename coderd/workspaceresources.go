@@ -24,8 +24,8 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -41,8 +41,8 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching provisioner job agents",
-			Internal: err.Error(),
+			Message: "Detail error fetching provisioner job agents",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -51,8 +51,8 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		convertedAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message:  "Internal error reading workspace agent",
-				Internal: err.Error(),
+				Message: "Detail error reading workspace agent",
+				Detail:  err.Error(),
 			})
 			return
 		}

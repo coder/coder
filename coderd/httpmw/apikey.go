@@ -101,8 +101,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 					return
 				}
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message:  "Internal error fetching api key by id",
-					Internal: err.Error(),
+					Message: "Internal error fetching api key by id",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -140,8 +140,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 					}).Token()
 					if err != nil {
 						httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-							Message:  "Could not refresh expired oauth token",
-							Internal: err.Error(),
+							Message: "Could not refresh expired oauth token",
+							Detail:  err.Error(),
 						})
 						return
 					}
@@ -196,8 +196,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			roles, err := db.GetAuthorizationUserRoles(r.Context(), key.UserID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message:  "Internal error fetching user's roles",
-					Internal: err.Error(),
+					Message: "Internal error fetching user's roles",
+					Detail:  err.Error(),
 				})
 				return
 			}
