@@ -456,6 +456,7 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	t.Parallel()
 
 	var (
+		sched    = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh   = make(chan time.Time)
 		tickCh2  = make(chan time.Time)
 		statsCh1 = make(chan executor.Stats)
@@ -471,15 +472,17 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 			AutobuildStats:      statsCh2,
 		})
 		// Given: we have a user with a workspace that has autostart enabled (default)
-		workspace = mustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
 	)
 	// Given: workspace is stopped
 	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-	// When: the autobuild executor ticks
+	// When: the autobuild executor ticks past the scheduled time
 	go func() {
-		tickCh <- time.Now().UTC().Add(time.Minute)
-		tickCh2 <- time.Now().UTC().Add(time.Minute)
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickCh2 <- sched.Next(workspace.LatestBuild.CreatedAt)
 		close(tickCh)
 		close(tickCh2)
 	}()
