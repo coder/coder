@@ -11,5 +11,5 @@ type WorkspaceApp struct {
 	Command string `json:"command,omitempty"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
-	Icon string `json:"icon"`
+	Icon string `json:"icon,omitempty"`
 }

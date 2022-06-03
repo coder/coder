@@ -426,7 +426,7 @@ export interface WorkspaceApp {
   readonly id: string
   readonly name: string
   readonly command?: string
-  readonly icon: string
+  readonly icon?: string
 }
 
 // From codersdk/workspacebuilds.go:24:6
