@@ -29,16 +29,25 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
     try {
       await window.navigator.clipboard.writeText(text)
       setIsCopied(true)
-
       window.setTimeout(() => {
         setIsCopied(false)
       }, 1000)
     } catch (err) {
-      const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
-      if (err instanceof Error) {
-        wrappedErr.stack = err.stack
+      const input = document.createElement("input")
+      input.hidden = true
+      input.value = text
+      document.body.appendChild(input)
+      input.focus()
+      input.select()
+      const result = document.execCommand("copy")
+      document.body.removeChild(input)
+      if (!result) {
+        const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
+        if (err instanceof Error) {
+          wrappedErr.stack = err.stack
+        }
+        console.error(wrappedErr)
       }
-      console.error(wrappedErr)
     }
   }
 
