@@ -27,6 +27,7 @@ dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
+  errorNoTime: "Start time is required",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
@@ -93,6 +94,25 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
+    .test("required-if-day-selected", Language.errorNoTime, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+
+      const isDaySelected = [
+        parent.sunday,
+        parent.monday,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day)
+
+      if (isDaySelected) {
+        return value !== ""
+      } else {
+        return true
+      }
+    })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true
@@ -186,13 +206,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             {...formHelpers(
               "timezone",
               <>
-                Timezone must be a valid{" "}
+                Timezone must be a valid name from the{" "}
                 <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  tz database name
+                  timezone database
                 </Link>
               </>,
             )}
-            disabled={isLoading || !form.values.startTime}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
@@ -210,7 +230,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || isLoading}
+                      disabled={isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
                       color="primary"

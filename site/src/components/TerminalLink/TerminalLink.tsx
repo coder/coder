@@ -7,6 +7,7 @@ import { combineClasses } from "../../util/combineClasses"
 
 export const Language = {
   linkText: "Open terminal",
+  terminalTitle: "Terminal",
 }
 
 export interface TerminalLinkProps {
@@ -25,12 +26,17 @@ export interface TerminalLinkProps {
  */
 export const TerminalLink: FC<TerminalLinkProps> = ({ agentName, userName = "me", workspaceName, className }) => {
   const styles = useStyles()
+  const href = `/${userName}/${workspaceName}${agentName ? `.${agentName}` : ""}/terminal`
 
   return (
     <Link
-      href={`/${userName}/${workspaceName}${agentName ? `.${agentName}` : ""}/terminal`}
+      href={href}
       className={combineClasses([styles.link, className])}
       target="_blank"
+      onClick={(event) => {
+        event.preventDefault()
+        window.open(href, Language.terminalTitle, "width=900,height=600")
+      }}
     >
       <ComputerIcon className={styles.icon} />
       {Language.linkText}

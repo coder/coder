@@ -106,7 +106,7 @@ const useStyles = makeStyles((theme) => ({
     },
 
     "&:focus": {
-      outline: `1px solid ${theme.palette.primary.dark}`,
+      outline: `1px solid ${theme.palette.secondary.dark}`,
     },
   },
 }))

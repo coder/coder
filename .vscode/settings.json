@@ -82,6 +82,7 @@
     "workspaceagent",
     "workspaceapp",
     "workspaceapps",
+    "workspacebuilds",
     "wsconncache",
     "xerrors",
     "xstate",
