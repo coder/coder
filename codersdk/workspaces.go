@@ -198,9 +198,10 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type WorkspaceFilter struct {
-	OrganizationID uuid.UUID
+	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
 	// Owner can be a user_id (uuid), "me", or a username
-	Owner string
+	Owner string `json:"owner,omitempty"`
+	Name  string `json:"name,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -213,6 +214,9 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		}
 		if f.Owner != "" {
 			q.Set("owner", f.Owner)
+		}
+		if f.Name != "" {
+			q.Set("name", f.Name)
 		}
 		r.URL.RawQuery = q.Encode()
 	}
@@ -233,4 +237,20 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 
 	var workspaces []Workspace
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+// WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return Workspace{}, readBodyAsError(res)
+	}
+
+	var workspace Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }

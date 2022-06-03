@@ -117,11 +117,14 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.OrganizationID) {
-    searchParams.append("organization_id", filter.OrganizationID)
+  if (filter?.organization_id) {
+    searchParams.append("organization_id", filter.organization_id)
   }
-  if (filter?.Owner) {
-    searchParams.append("owner", filter.Owner)
+  if (filter?.owner) {
+    searchParams.append("owner", filter.owner)
+  }
+  if (filter?.name) {
+    searchParams.append("name", filter.name)
   }
 
   const searchString = searchParams.toString()
@@ -136,13 +139,10 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 }
 
 export const getWorkspaceByOwnerAndName = async (
-  organizationID: string,
   username = "me",
   workspaceName: string,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
-  )
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
   return response.data
 }
 

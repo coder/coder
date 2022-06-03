@@ -49,7 +49,7 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:81:6
+// From codersdk/parameters.go:79:6
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
@@ -158,7 +158,7 @@ export interface Pagination {
   readonly offset?: number
 }
 
-// From codersdk/parameters.go:46:6
+// From codersdk/parameters.go:44:6
 export interface Parameter {
   readonly id: string
   readonly created_at: string
@@ -170,7 +170,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/parameters.go:57:6
+// From codersdk/parameters.go:55:6
 export interface ParameterSchema {
   readonly id: string
   readonly created_at: string
@@ -452,8 +452,9 @@ export interface WorkspaceBuildsRequest extends Pagination {
 
 // From codersdk/workspaces.go:200:6
 export interface WorkspaceFilter {
-  readonly OrganizationID: string
-  readonly Owner: string
+  readonly organization_id?: string
+  readonly owner?: string
+  readonly name?: string
 }
 
 // From codersdk/workspaceresources.go:21:6
@@ -473,16 +474,16 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 // From codersdk/provisionerdaemons.go:16:6
 export type LogSource = "provisioner" | "provisioner_daemon"
 
-// From codersdk/parameters.go:30:6
+// From codersdk/parameters.go:28:6
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
 
 // From codersdk/parameters.go:14:6
-export type ParameterScope = "organization" | "template" | "user" | "workspace"
+export type ParameterScope = "template" | "workspace"
 
-// From codersdk/parameters.go:23:6
+// From codersdk/parameters.go:21:6
 export type ParameterSourceScheme = "data" | "none"
 
-// From codersdk/parameters.go:38:6
+// From codersdk/parameters.go:36:6
 export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go:42:6

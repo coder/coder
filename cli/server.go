@@ -412,11 +412,9 @@ func server() *cobra.Command {
 					"Interrupt caught, gracefully exiting.  Use ctrl+\\ to force quit"))
 
 			if dev {
-				organizations, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
-				if err != nil {
-					return xerrors.Errorf("get organizations: %w", err)
-				}
-				workspaces, err := client.WorkspacesByOwner(cmd.Context(), organizations[0].ID, codersdk.Me)
+				workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+					Owner: codersdk.Me,
+				})
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}

@@ -11,7 +11,6 @@ import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 
 export const Language = {
-  organizationsErrorMessagePrefix: "Unable to fetch organizations: ",
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
@@ -58,8 +57,7 @@ const TerminalPage: FC<{
   })
   const isConnected = terminalState.matches("connected")
   const isDisconnected = terminalState.matches("disconnected")
-  const { organizationsError, workspaceError, workspaceAgentError, workspaceAgent, websocketError } =
-    terminalState.context
+  const { workspaceError, workspaceAgentError, workspaceAgent, websocketError } = terminalState.context
 
   // Create the terminal!
   useEffect(() => {
@@ -145,9 +143,6 @@ const TerminalPage: FC<{
       terminal.options = {
         disableStdin: true,
       }
-      if (organizationsError instanceof Error) {
-        terminal.writeln(Language.organizationsErrorMessagePrefix + organizationsError.message)
-      }
       if (workspaceError instanceof Error) {
         terminal.writeln(Language.workspaceErrorMessagePrefix + workspaceError.message)
       }
@@ -180,17 +175,7 @@ const TerminalPage: FC<{
         width: terminal.cols,
       },
     })
-  }, [
-    workspaceError,
-    organizationsError,
-    workspaceAgentError,
-    websocketError,
-    workspaceAgent,
-    terminal,
-    fitAddon,
-    isConnected,
-    sendEvent,
-  ])
+  }, [workspaceError, workspaceAgentError, websocketError, workspaceAgent, terminal, fitAddon, isConnected, sendEvent])
 
   return (
     <>

@@ -100,35 +100,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, owner))
 }
 
-func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	organization := httpmw.OrganizationParam(r)
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OrganizationID: organization.ID,
-		Deleted:        false,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
-
-	// Rbac filter
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
-}
-
 // workspaces returns all workspaces a user can read.
 // Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
@@ -137,17 +108,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// Empty strings mean no filter
 	orgFilter := r.URL.Query().Get("organization_id")
 	ownerFilter := r.URL.Query().Get("owner")
+	nameFilter := r.URL.Query().Get("name")
 
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("organization_id must be a uuid: %s", err.Error()),
-			})
-			return
+		if err == nil {
+			filter.OrganizationID = orgID
 		}
-		filter.OrganizationID = orgID
 	}
 	if ownerFilter == "me" {
 		filter.OwnerID = apiKey.UserID
@@ -160,15 +128,15 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 				Username: ownerFilter,
 				Email:    ownerFilter,
 			})
-			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "owner must be a uuid or username",
-				})
-				return
+			if err == nil {
+				filter.OwnerID = user.ID
 			}
-			userID = user.ID
+		} else {
+			filter.OwnerID = userID
 		}
-		filter.OwnerID = userID
+	}
+	if nameFilter != "" {
+		filter.Name = nameFilter
 	}
 
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
@@ -192,38 +160,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
-	owner := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OwnerID: owner.ID,
-		Deleted: false,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
-
-	// Only return workspaces the user can read
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
-}
-
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
-	organization := httpmw.OrganizationParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -241,14 +179,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-
-	if workspace.OrganizationID != organization.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
-		})
-		return
-	}
-
 	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}

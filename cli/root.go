@@ -176,6 +176,27 @@ func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.
 	return orgs[0], nil
 }
 
+// namedWorkspace fetches and returns a workspace by an identifier, which may be either
+// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
+// where user is either a username or UUID.
+func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	parts := strings.Split(identifier, "/")
+
+	var owner, name string
+	switch len(parts) {
+	case 1:
+		owner = codersdk.Me
+		name = parts[0]
+	case 2:
+		owner = parts[0]
+		name = parts[1]
+	default:
+		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
+	}
+
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name)
+}
+
 // createConfig consumes the global configuration flag to produce a config root.
 func createConfig(cmd *cobra.Command) config.Root {
 	globalRoot, err := cmd.Flags().GetString(varGlobalConfig)
