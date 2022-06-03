@@ -21,7 +21,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error generating a new ssh keypair",
+			Message:  "Internal error generating a new SSH keypair",
 			Internal: err.Error(),
 		})
 		return
