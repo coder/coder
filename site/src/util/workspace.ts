@@ -235,10 +235,10 @@ export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter
         const [username, name] = part.split("/")
         return {
           owner: username,
-          name: name,
+          name: name === "" ? undefined : name,
         }
       }
-      
+
       return {
         name: part,
       }
