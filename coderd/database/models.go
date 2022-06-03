@@ -117,11 +117,9 @@ func (e *ParameterDestinationScheme) Scan(src interface{}) error {
 type ParameterScope string
 
 const (
-	ParameterScopeOrganization ParameterScope = "organization"
-	ParameterScopeTemplate     ParameterScope = "template"
-	ParameterScopeImportJob    ParameterScope = "import_job"
-	ParameterScopeUser         ParameterScope = "user"
-	ParameterScopeWorkspace    ParameterScope = "workspace"
+	ParameterScopeTemplate  ParameterScope = "template"
+	ParameterScopeImportJob ParameterScope = "import_job"
+	ParameterScopeWorkspace ParameterScope = "workspace"
 )
 
 func (e *ParameterScope) Scan(src interface{}) error {

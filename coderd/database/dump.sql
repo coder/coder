@@ -31,10 +31,8 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 );
 
 CREATE TYPE parameter_scope AS ENUM (
-    'organization',
     'template',
     'import_job',
-    'user',
     'workspace'
 );
 

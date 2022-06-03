@@ -61,14 +61,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
-	organizationParam, err := client.CreateParameter(ctx, codersdk.ParameterOrganization, organization.ID, codersdk.CreateParameterRequest{
-		Name:              "test-param",
-		SourceValue:       "hello world",
-		SourceScheme:      codersdk.ParameterSourceSchemeData,
-		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-	})
-	require.NoError(t, err, "create org param")
-
 	// Setup some data in the database.
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -100,6 +92,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		ParameterValues: []codersdk.CreateParameterRequest{},
 	})
 	require.NoError(t, err, "template version dry-run")
+
+	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		Name:              "test-param",
+		SourceValue:       "hello world",
+		SourceScheme:      codersdk.ParameterSourceSchemeData,
+		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+	})
+	require.NoError(t, err, "create template param")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -294,15 +294,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"GET:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
@@ -377,9 +377,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
 			route = strings.ReplaceAll(route, "{templateversiondryrun}", templateVersionDryRun.ID.String())
 			route = strings.ReplaceAll(route, "{templatename}", template.Name)
-			// Only checking org scoped params here
-			route = strings.ReplaceAll(route, "{scope}", string(organizationParam.Scope))
-			route = strings.ReplaceAll(route, "{id}", organizationParam.ScopeID.String())
+			// Only checking template scoped params here
+			route = strings.ReplaceAll(route, "{scope}", string(templateParam.Scope))
+			route = strings.ReplaceAll(route, "{id}", templateParam.ScopeID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
