@@ -35,7 +35,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error updating user's git ssh key",
+			Message:  "Internal error updating user's git SSH key",
 			Internal: err.Error(),
 		})
 		return
