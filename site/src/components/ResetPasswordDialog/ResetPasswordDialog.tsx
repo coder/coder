@@ -34,13 +34,14 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 }) => {
   const styles = useStyles()
 
-  const description =
+  const description = (
     <>
       <DialogContentText variant="subtitle2">{Language.message(user?.username)}</DialogContentText>
       <DialogContentText component="div" className={styles.codeBlock}>
         <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
       </DialogContentText>
     </>
+  )
 
   return (
     <ConfirmDialog
