@@ -10,6 +10,13 @@ tags: [cloud, aws]
 
 Pick this template in `coder templates init` and follow instructions.
 
+## Authentication
+
+This template assumes that coderd is run in an environment that is authenticated
+with AWS. For example, run `aws configure import` to import credentials on the
+system and user running coderd.  For other ways to authenticate [consult the
+Terraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).
+
 ## Required permissions / policy
 
 This example policy allows Coder to create EC2 instances and modify instances provisioned by Coder.
