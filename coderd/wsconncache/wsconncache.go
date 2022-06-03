@@ -54,6 +54,8 @@ func (c *Conn) CloseWithError(err error) error {
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
+	c.timeoutMutex.Lock()
+	defer c.timeoutMutex.Unlock()
 	if c.timeout != nil {
 		c.timeout.Stop()
 	}

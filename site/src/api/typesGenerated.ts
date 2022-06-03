@@ -426,7 +426,6 @@ export interface WorkspaceApp {
   readonly id: string
   readonly name: string
   readonly command?: string
-  readonly access_url?: string
   readonly icon: string
 }
 
