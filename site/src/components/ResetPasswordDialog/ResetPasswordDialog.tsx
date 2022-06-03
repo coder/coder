@@ -1,11 +1,9 @@
-import DialogActions from "@material-ui/core/DialogActions"
-import DialogContent from "@material-ui/core/DialogContent"
 import DialogContentText from "@material-ui/core/DialogContentText"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { CodeBlock } from "../CodeBlock/CodeBlock"
-import { Dialog, DialogActionButtons, DialogTitle } from "../Dialog/Dialog"
+import { CodeExample } from "../CodeExample/CodeExample"
+import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
 export interface ResetPasswordDialogProps {
   open: boolean
@@ -36,32 +34,34 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 }) => {
   const styles = useStyles()
 
+  const description =
+    <>
+      <DialogContentText variant="subtitle2">{Language.message(user?.username)}</DialogContentText>
+      <DialogContentText component="div" className={styles.codeBlock}>
+        <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
+      </DialogContentText>
+    </>
+
   return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle title={Language.title} />
-
-      <DialogContent>
-        <DialogContentText variant="subtitle2">{Language.message(user?.username)}</DialogContentText>
-
-        <DialogContentText component="div">
-          <CodeBlock lines={[newPassword ?? ""]} className={styles.codeBlock} />
-        </DialogContentText>
-      </DialogContent>
-
-      <DialogActions>
-        <DialogActionButtons
-          onCancel={onClose}
-          confirmText={Language.confirmText}
-          onConfirm={onConfirm}
-          confirmLoading={loading}
-        />
-      </DialogActions>
-    </Dialog>
+    <ConfirmDialog
+      type="info"
+      hideCancel={false}
+      open={open}
+      onConfirm={onConfirm}
+      onClose={onClose}
+      title={Language.title}
+      confirmLoading={loading}
+      confirmText={Language.confirmText}
+      description={description}
+    />
   )
 }
 
 const useStyles = makeStyles(() => ({
   codeBlock: {
+    marginBottom: 0,
+  },
+  codeExample: {
     minHeight: "auto",
     userSelect: "all",
     width: "100%",
