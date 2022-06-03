@@ -29,7 +29,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -47,7 +47,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -73,7 +73,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating provisioner job",
+			Message: "Internal error updating provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -92,7 +92,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -109,7 +109,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error listing parameter schemas",
+			Message: "Internal error listing parameter schemas",
 			Detail:  err.Error(),
 		})
 		return
@@ -119,7 +119,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		apiSchema, err := convertParameterSchema(schema)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("Detail error converting schema %s", schema.Name),
+				Message: fmt.Sprintf("Internal error converting schema %s", schema.Name),
 				Detail:  err.Error(),
 			})
 			return
@@ -139,7 +139,7 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -160,7 +160,7 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error computing values",
+			Message: "Internal error computing values",
 			Detail:  err.Error(),
 		})
 		return
@@ -193,7 +193,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating provisioner job",
+			Message: "Internal error updating provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -228,7 +228,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error unmarshalling provisioner job",
+			Message: "Internal error unmarshalling provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -250,7 +250,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error inserting provisioner job",
+			Message: "Internal error inserting provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -320,7 +320,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error updating provisioner job",
+			Message: "Internal error updating provisioner job",
 			Detail:  err.Error(),
 		})
 		return

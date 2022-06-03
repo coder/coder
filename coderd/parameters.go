@@ -47,7 +47,7 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching parameter",
+			Message: "Internal error fetching parameter",
 			Detail:  err.Error(),
 		})
 		return
@@ -66,7 +66,7 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error inserting parameter",
+			Message: "Internal error inserting parameter",
 			Detail:  err.Error(),
 		})
 		return
@@ -98,7 +98,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching parameter scope values",
+			Message: "Internal error fetching parameter scope values",
 			Detail:  err.Error(),
 		})
 		return
@@ -140,7 +140,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Detail error fetching parameter"),
+			Message: fmt.Sprintf("Internal error fetching parameter"),
 			Detail:  err.Error(),
 		})
 		return
@@ -148,7 +148,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Detail error deleting parameter"),
+			Message: fmt.Sprintf("Internal error deleting parameter"),
 			Detail:  err.Error(),
 		})
 		return

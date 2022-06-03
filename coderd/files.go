@@ -65,7 +65,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error saving file",
+			Message: "Internal error saving file",
 			Detail:  err.Error(),
 		})
 		return
@@ -91,7 +91,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Detail error fetching file"),
+			Message: fmt.Sprintf("Internal error fetching file"),
 			Detail:  err.Error(),
 		})
 		return

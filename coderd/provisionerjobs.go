@@ -87,7 +87,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Detail error fetching provisioner logs",
+				Message: "Internal error fetching provisioner logs",
 				Detail:  err.Error(),
 			})
 			return
@@ -121,7 +121,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error watching provisioner logs",
+			Message: "Internal error watching provisioner logs",
 			Detail:  err.Error(),
 		})
 		return
@@ -138,7 +138,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner logs",
+			Message: "Internal error fetching provisioner logs",
 			Detail:  err.Error(),
 		})
 		return
@@ -202,7 +202,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching job resources",
+			Message: "Internal error fetching job resources",
 			Detail:  err.Error(),
 		})
 		return
@@ -217,7 +217,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace agent",
+			Message: "Internal error fetching workspace agent",
 			Detail:  err.Error(),
 		})
 		return
@@ -233,7 +233,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Detail error reading job agent",
+					Message: "Internal error reading job agent",
 					Detail:  err.Error(),
 				})
 				return

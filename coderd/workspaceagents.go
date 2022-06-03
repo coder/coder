@@ -34,7 +34,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspace agent",
+			Message: "Internal error reading workspace agent",
 			Detail:  err.Error(),
 		})
 		return
@@ -53,7 +53,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspace agent",
+			Message: "Internal error reading workspace agent",
 			Detail:  err.Error(),
 		})
 		return
@@ -100,7 +100,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspace agent",
+			Message: "Internal error reading workspace agent",
 			Detail:  err.Error(),
 		})
 		return
@@ -108,7 +108,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace resources",
+			Message: "Internal error fetching workspace resources",
 			Detail:  err.Error(),
 		})
 		return
@@ -116,7 +116,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace build",
+			Message: "Internal error fetching workspace build",
 			Detail:  err.Error(),
 		})
 		return
@@ -124,7 +124,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace",
+			Message: "Internal error fetching workspace",
 			Detail:  err.Error(),
 		})
 		return
@@ -132,7 +132,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace owner",
+			Message: "Internal error fetching workspace owner",
 			Detail:  err.Error(),
 		})
 		return
@@ -361,7 +361,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspace agent",
+			Message: "Internal error reading workspace agent",
 			Detail:  err.Error(),
 		})
 		return

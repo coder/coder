@@ -70,7 +70,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace build",
+			Message: "Internal error fetching workspace build",
 			Detail:  err.Error(),
 		})
 		return
@@ -96,7 +96,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	err = group.Wait()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching resource",
+			Message: "Internal error fetching resource",
 			Detail:  err.Error(),
 		})
 		return
@@ -116,7 +116,7 @@ func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspaces",
+			Message: "Internal error fetching workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -128,7 +128,7 @@ func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspaces",
+			Message: "Internal error reading workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -189,7 +189,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspaces",
+			Message: "Internal error fetching workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -201,7 +201,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspaces",
+			Message: "Internal error reading workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -220,7 +220,7 @@ func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspaces",
+			Message: "Internal error fetching workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -232,7 +232,7 @@ func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error reading workspaces",
+			Message: "Internal error reading workspaces",
 			Detail:  err.Error(),
 		})
 		return
@@ -256,7 +256,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace by name",
+			Message: "Internal error fetching workspace by name",
 			Detail:  err.Error(),
 		})
 		return
@@ -276,7 +276,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace build",
+			Message: "Internal error fetching workspace build",
 			Detail:  err.Error(),
 		})
 		return
@@ -284,7 +284,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -292,7 +292,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template",
+			Message: "Internal error fetching template",
 			Detail:  err.Error(),
 		})
 		return
@@ -328,7 +328,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template",
+			Message: "Internal error fetching template",
 			Detail:  err.Error(),
 		})
 		return
@@ -352,7 +352,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching organization member",
+			Message: "Internal error fetching organization member",
 			Detail:  err.Error(),
 		})
 		return
@@ -413,7 +413,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Detail error fetching workspace by name %q", createWorkspace.Name),
+			Message: fmt.Sprintf("Internal error fetching workspace by name %q", createWorkspace.Name),
 			Detail:  err.Error(),
 		})
 		return
@@ -422,7 +422,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template version",
+			Message: "Internal error fetching template version",
 			Detail:  err.Error(),
 		})
 		return

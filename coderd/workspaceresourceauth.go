@@ -99,7 +99,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job agent",
+			Message: "Internal error fetching provisioner job agent",
 			Detail:  err.Error(),
 		})
 		return
@@ -107,7 +107,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job resource",
+			Message: "Internal error fetching provisioner job resource",
 			Detail:  err.Error(),
 		})
 		return
@@ -115,7 +115,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -130,7 +130,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error extracting job data",
+			Message: "Internal error extracting job data",
 			Detail:  err.Error(),
 		})
 		return
@@ -138,7 +138,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace build",
+			Message: "Internal error fetching workspace build",
 			Detail:  err.Error(),
 		})
 		return
@@ -149,7 +149,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error the latest workspace build",
+			Message: "Internal error the latest workspace build",
 			Detail:  err.Error(),
 		})
 		return

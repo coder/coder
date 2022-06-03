@@ -27,7 +27,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace count",
+			Message: "Internal error fetching workspace count",
 			Detail:  err.Error(),
 		})
 		return
@@ -59,7 +59,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspaces by template id",
+			Message: "Internal error fetching workspaces by template id",
 			Detail:  err.Error(),
 		})
 		return
@@ -76,7 +76,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error deleting template",
+			Message: "Internal error deleting template",
 			Detail:  err.Error(),
 		})
 		return
@@ -113,7 +113,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template by name",
+			Message: "Internal error fetching template by name",
 			Detail:  err.Error(),
 		})
 		return
@@ -130,7 +130,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template version",
+			Message: "Internal error fetching template version",
 			Detail:  err.Error(),
 		})
 		return
@@ -138,7 +138,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching provisioner job",
+			Message: "Internal error fetching provisioner job",
 			Detail:  err.Error(),
 		})
 		return
@@ -194,7 +194,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error inserting template",
+			Message: "Internal error inserting template",
 			Detail:  err.Error(),
 		})
 		return
@@ -213,7 +213,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching templates in organization",
+			Message: "Internal error fetching templates in organization",
 			Detail:  err.Error(),
 		})
 		return
@@ -233,7 +233,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace counts",
+			Message: "Internal error fetching workspace counts",
 			Detail:  err.Error(),
 		})
 		return
@@ -258,7 +258,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		}
 
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching template",
+			Message: "Internal error fetching template",
 			Detail:  err.Error(),
 		})
 		return
@@ -274,7 +274,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Detail error fetching workspace counts",
+			Message: "Internal error fetching workspace counts",
 			Detail:  err.Error(),
 		})
 		return
