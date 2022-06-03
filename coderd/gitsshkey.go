@@ -116,7 +116,7 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message:  "Internal error fetching git ssh key",
+			Message:  "Internal error fetching git SSH key",
 			Internal: err.Error(),
 		})
 		return
