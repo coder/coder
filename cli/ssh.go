@@ -48,10 +48,6 @@ func ssh() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
 
 			if shuffle {
 				err := cobra.ExactArgs(0)(cmd, args)
@@ -65,7 +61,7 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0], shuffle)
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
@@ -185,7 +181,7 @@ func ssh() *cobra.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	ctx := cmd.Context()
 
 	var (
@@ -209,7 +205,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	} else {
-		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), orgID, userID, workspaceParts[0])
+		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), userID, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
