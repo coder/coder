@@ -49,7 +49,7 @@ func create() *cobra.Command {
 				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
+						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName)
 						if err == nil {
 							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 						}
@@ -75,7 +75,7 @@ func create() *cobra.Command {
 				return xerrors.Errorf("TTL must be at least 1 minute")
 			}
 
-			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
+			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}

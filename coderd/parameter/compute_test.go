@@ -92,42 +92,6 @@ func TestCompute(t *testing.T) {
 		require.Equal(t, computedValue.SourceValue, parameterSchema.DefaultSourceValue)
 	})
 
-	t.Run("OverrideOrganizationWithImportJob", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		scope := generateScope()
-		parameterSchema := generateParameter(t, db, parameterOptions{
-			TemplateImportJobID: scope.TemplateImportJobID,
-		})
-		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-			ID:                uuid.New(),
-			Name:              parameterSchema.Name,
-			Scope:             database.ParameterScopeOrganization,
-			ScopeID:           scope.OrganizationID,
-			SourceScheme:      database.ParameterSourceSchemeData,
-			SourceValue:       "firstnop",
-			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-		})
-		require.NoError(t, err)
-
-		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-			ID:                uuid.New(),
-			Name:              parameterSchema.Name,
-			Scope:             database.ParameterScopeImportJob,
-			ScopeID:           scope.TemplateImportJobID,
-			SourceScheme:      database.ParameterSourceSchemeData,
-			SourceValue:       "secondnop",
-			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-		})
-		require.NoError(t, err)
-
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
-		require.NoError(t, err)
-		require.Len(t, computed, 1)
-		require.Equal(t, false, computed[0].DefaultSourceValue)
-		require.Equal(t, value.SourceValue, computed[0].SourceValue)
-	})
-
 	t.Run("TemplateOverridesTemplateDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()

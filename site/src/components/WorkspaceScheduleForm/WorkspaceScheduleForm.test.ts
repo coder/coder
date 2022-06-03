@@ -1,4 +1,5 @@
 import { Language, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
   sunday: false,
@@ -57,6 +58,22 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
+  it("disallows empty startTime when at least one day is set", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      sunday: false,
+      monday: true,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      startTime: "",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError(Language.errorNoTime)
+  })
+
   it("allows startTime 16:20", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
@@ -109,6 +126,15 @@ describe("validationSchema", () => {
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTimezone)
+  })
+
+  it.each<[string]>(zones.map((zone) => [zone]))(`validation passes for tz=%p`, (zone) => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      timezone: zone,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrow()
   })
 
   it("allows a ttl of 7 days", () => {

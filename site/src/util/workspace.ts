@@ -207,3 +207,40 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
     deadline: NinetyMinutesFromNow.format(),
   }
 }
+
+export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter => {
+  const defaultFilter: TypesGen.WorkspaceFilter = {}
+  const preparedQuery = query?.trim().replace(/  +/g, " ")
+
+  if (!preparedQuery) {
+    return defaultFilter
+  } else {
+    const parts = preparedQuery.split(" ")
+
+    for (const part of parts) {
+      const [key, val] = part.split(":")
+      if (key && val) {
+        if (key === "owner") {
+          return {
+            owner: val,
+          }
+        }
+        // skip invalid key pairs
+        continue
+      }
+
+      const [username, name] = part.split("/")
+      if (username && name) {
+        return {
+          owner: username,
+          name: name,
+        }
+      }
+      return {
+        name: part,
+      }
+    }
+
+    return defaultFilter
+  }
+}

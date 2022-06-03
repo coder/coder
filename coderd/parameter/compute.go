@@ -60,15 +60,6 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		compute.parameterSchemasByName[parameterSchema.Name] = parameterSchema
 	}
 
-	// Organization parameters come first!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeOrganization,
-		ScopeID: scope.OrganizationID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// Job parameters come second!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeImportJob,
@@ -121,15 +112,6 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	// User parameters come fourth!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeUser,
-		ScopeID: scope.UserID,
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	if scope.WorkspaceID.Valid {
@@ -194,9 +176,8 @@ func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultV
 	_, hasParameterValue := c.computedParameterByName[scopedParameter.Name]
 	if hasParameterValue {
 		if !parameterSchema.AllowOverrideSource &&
-			// Users and workspaces cannot override anything on a template!
-			(scopedParameter.Scope == database.ParameterScopeUser ||
-				scopedParameter.Scope == database.ParameterScopeWorkspace) {
+			// Workspaces cannot override anything on a template!
+			scopedParameter.Scope == database.ParameterScopeWorkspace {
 			return nil
 		}
 	}

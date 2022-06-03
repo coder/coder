@@ -216,16 +216,6 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 		resource, err = api.Database.GetWorkspaceByID(ctx, scopeID)
 	case database.ParameterScopeTemplate:
 		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
-	case database.ParameterScopeOrganization:
-		resource, err = api.Database.GetOrganizationByID(ctx, scopeID)
-	case database.ParameterScopeUser:
-		user, userErr := api.Database.GetUserByID(ctx, scopeID)
-		err = userErr
-		if err != nil {
-			// Use the userdata resource instead of the user. This way users
-			// can add user scoped params.
-			resource = rbac.ResourceUserData.WithID(user.ID.String()).WithOwner(user.ID.String())
-		}
 	default:
 		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
 	}
@@ -247,12 +237,8 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {
 	var scope database.ParameterScope
 	switch chi.URLParam(r, "scope") {
-	case string(codersdk.ParameterOrganization):
-		scope = database.ParameterScopeOrganization
 	case string(codersdk.ParameterTemplate):
 		scope = database.ParameterScopeTemplate
-	case string(codersdk.ParameterUser):
-		scope = database.ParameterScopeUser
 	case string(codersdk.ParameterWorkspace):
 		scope = database.ParameterScopeWorkspace
 	default:
