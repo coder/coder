@@ -6,7 +6,7 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import ReplyIcon from '@material-ui/icons/Reply';
 import SearchIcon from "@material-ui/icons/Search"
 import { useMachine } from "@xstate/react"
 import { FormikErrors, useFormik } from "formik"
@@ -25,7 +25,7 @@ interface FilterFormValues {
 
 const Language = {
   filterName: "Filters",
-  createWorkspaceButton: "Create workspace",
+  createWorkspaceButton: "Create from template",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
 }
@@ -125,8 +125,8 @@ const WorkspacesPage: FC = () => {
           </Stack>
         </Stack>
 
-        <Link underline="none" component={RouterLink} to="/workspaces/new">
-          <Button startIcon={<AddCircleOutline />} style={{ height: "44px" }}>
+        <Link underline="none" component={RouterLink} to="/templates">
+          <Button startIcon={<ReplyIcon style={{ transform: "scaleX(-1)" }}/>} style={{ height: "44px" }}>
             {Language.createWorkspaceButton}
           </Button>
         </Link>

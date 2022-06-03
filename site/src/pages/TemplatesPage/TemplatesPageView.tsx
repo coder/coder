@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -5,6 +6,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
@@ -15,6 +17,7 @@ import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
+import { Link as RouterLink } from "react-router-dom"
 
 dayjs.extend(relativeTime)
 
@@ -22,6 +25,7 @@ export const Language = {
   developerCount: (ownerCount: number): string => {
     return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
   },
+  createButton: "Create workspace",
   nameLabel: "Name",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
@@ -55,6 +59,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
               <TableCell>{Language.nameLabel}</TableCell>
               <TableCell>{Language.usedByLabel}</TableCell>
               <TableCell>{Language.lastUpdatedLabel}</TableCell>
+              <TableCell> </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -84,6 +89,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
                 <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
+
+                <TableCell data-chromatic="ignore">
+                  <Link underline="none" component={RouterLink} to={`/workspaces/new?template=${template.name}`}>
+                    <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+                  </Link>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
