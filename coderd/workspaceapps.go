@@ -123,7 +123,22 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	defer release()
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
+	// Write the error directly using our format!
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		httpapi.Write(w, http.StatusBadGateway, httpapi.Response{
+			Message: err.Error(),
+		})
+	}
 	proxy.Transport = conn.HTTPTransport()
-	r.URL.Path = chi.URLParam(r, "*")
+	path := chi.URLParam(r, "*")
+	if !strings.HasSuffix(r.URL.Path, "/") && path == "" {
+		// Web applications typically request paths relative to the
+		// root URL. This allows for routing behind a proxy or subpath.
+		// See https://github.com/coder/code-server/issues/241 for examples.
+		r.URL.Path += "/"
+		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		return
+	}
+	r.URL.Path = path
 	proxy.ServeHTTP(rw, r)
 }

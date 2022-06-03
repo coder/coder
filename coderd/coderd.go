@@ -15,8 +15,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
-	"github.com/go-chi/cors"
-
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
@@ -97,7 +95,7 @@ func New(options *Options) *API {
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
-	r.Route("/{user}/{workspaceagent}/{application}", func(r chi.Router) {
+	r.Route("/@{user}/{workspaceagent}/apps/{application}", func(r chi.Router) {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			apiKeyMiddleware,
@@ -327,9 +325,6 @@ func New(options *Options) *API {
 				r.Put("/extend", api.putExtendWorkspace)
 			})
 		})
-		r.Route("/wildcardauth", func(r chi.Router) {
-			r.Use(cors.Handler(cors.Options{}))
-		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -357,10 +352,12 @@ type API struct {
 }
 
 // Close waits for all WebSocket connections to drain before returning.
-func (api *API) Close() {
+func (api *API) Close() error {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Wait()
 	api.websocketWaitMutex.Unlock()
+
+	return api.workspaceAgentCache.Close()
 }
 
 func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {

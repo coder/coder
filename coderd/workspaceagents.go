@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -382,12 +383,12 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}()
 	// Accept text connections, because it's more developer friendly.
 	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
-	defer agentConn.Close()
+	defer release()
 	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), "")
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
@@ -404,8 +405,9 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // dialWorkspaceAgent connects to a workspace agent by ID.
 func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
-		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
+		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
 			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 			Pubsub:    api.Pubsub,
@@ -415,8 +417,9 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}()
 
 	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := peerClient.NegotiateConnection(r.Context())
+	stream, err := peerClient.NegotiateConnection(ctx)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
 	options := &peer.ConnOptions{
@@ -452,8 +455,13 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}))
 	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
+	go func() {
+		<-peerConn.Closed()
+		cancelFunc()
+	}()
 	return &agent.Conn{
 		Negotiator: peerClient,
 		Conn:       peerConn,

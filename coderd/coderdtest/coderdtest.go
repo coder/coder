@@ -172,7 +172,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		coderAPI.Close()
+		_ = coderAPI.Close()
 	})
 
 	return codersdk.New(serverURL), coderAPI

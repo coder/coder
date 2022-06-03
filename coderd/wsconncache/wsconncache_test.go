@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 
 func TestCache(t *testing.T) {
 	t.Parallel()
-	t.Run("Cache", func(t *testing.T) {
+	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
 		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
@@ -42,8 +43,11 @@ func TestCache(t *testing.T) {
 		t.Cleanup(func() {
 			_ = cache.Close()
 		})
-		_, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
+		conn2, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		require.NoError(t, err)
+		require.True(t, conn1 == conn2)
 	})
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
@@ -94,6 +98,9 @@ func TestCache(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}),
 		}
+		t.Cleanup(func() {
+			_ = server.Close()
+		})
 		go server.Serve(random)
 
 		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
@@ -102,33 +109,47 @@ func TestCache(t *testing.T) {
 		t.Cleanup(func() {
 			_ = cache.Close()
 		})
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		conn, release, err := cache.Acquire(req, uuid.Nil)
-		require.NoError(t, err)
-		t.Cleanup(release)
-		proxy := httputil.NewSingleHostReverseProxy(&url.URL{
-			Scheme: "http",
-			Host:   fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port),
-			Path:   "/",
-		})
-		proxy.Transport = conn.HTTPTransport()
-		res := httptest.NewRecorder()
-		proxy.ServeHTTP(res, req)
-		require.Equal(t, http.StatusOK, res.Result().StatusCode)
-		req = httptest.NewRequest(http.MethodGet, "/", nil)
-		res = httptest.NewRecorder()
-		proxy.ServeHTTP(res, req)
-		require.Equal(t, http.StatusOK, res.Result().StatusCode)
+
+		var wg sync.WaitGroup
+		// Perform many requests in parallel to simulate
+		// simultaneous HTTP requests.
+		for i := 0; i < 50; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proxy := httputil.NewSingleHostReverseProxy(&url.URL{
+					Scheme: "http",
+					Host:   fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port),
+					Path:   "/",
+				})
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				conn, release, err := cache.Acquire(req, uuid.Nil)
+				if !assert.NoError(t, err) {
+					return
+				}
+				defer release()
+				proxy.Transport = conn.HTTPTransport()
+				res := httptest.NewRecorder()
+				proxy.ServeHTTP(res, req)
+				res.Result().Body.Close()
+				require.Equal(t, http.StatusOK, res.Result().StatusCode)
+			}()
+		}
+		wg.Wait()
 	})
 }
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
-		listener, err := peerbroker.Listen(server, nil)
+		listener, err := peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+			return nil, &peer.ConnOptions{
+				Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+			}, nil
+		})
 		return metadata, listener, err
 	}, &agent.Options{
-		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
@@ -140,7 +161,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	stream, err := api.NegotiateConnection(context.Background())
 	assert.NoError(t, err)
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil),
+		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

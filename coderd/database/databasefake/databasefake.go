@@ -1061,7 +1061,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
