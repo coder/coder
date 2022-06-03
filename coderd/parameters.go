@@ -226,12 +226,6 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 			// can add user scoped params.
 			resource = rbac.ResourceUserData.WithID(user.ID.String()).WithOwner(user.ID.String())
 		}
-	case database.ParameterScopeImportJob:
-		// This scope does not make sense from this api.
-		// ImportJob params are created with the job, and the job id cannot
-		// be predicted.
-		// Just fallthrough to the unsupported error
-		fallthrough
 	default:
 		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
 	}
