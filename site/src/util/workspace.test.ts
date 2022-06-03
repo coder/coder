@@ -1,7 +1,7 @@
 import dayjs from "dayjs"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
-import { defaultWorkspaceExtension, isWorkspaceOn } from "./workspace"
+import { defaultWorkspaceExtension, isWorkspaceOn, workspaceQueryToFilter } from "./workspace"
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
@@ -61,6 +61,19 @@ describe("util > workspace", () => {
       ],
     ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
       expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request)
+    })
+  })
+  describe("workspaceQueryToFilter", () => {
+    it.each<[string | undefined, TypesGen.WorkspaceFilter]>([
+      [undefined, {}],
+      ["", {}],
+      ["asdkfvjn", { name: "asdkfvjn" }],
+      ["owner:me", { owner: "me" }],
+      ["owner:me owner:me2", { owner: "me" }],
+      ["me/dev", { owner: "me", name: "dev" }],
+      ["    key:val      owner:me       ", { owner: "me" }],
+    ])(`query=%p, filter=%p`, (query, filter) => {
+      expect(workspaceQueryToFilter(query)).toEqual(filter)
     })
   })
 })
