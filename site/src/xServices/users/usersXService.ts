@@ -1,25 +1,33 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
+import {
+  ApiError,
+  FieldErrors,
+  getErrorMessage,
+  hasApiFieldErrors,
+  isApiError,
+  mapApiErrorToFieldErrors,
+} from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
   createUserSuccess: "Successfully created user.",
+  createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
-  suspendUserError: "Error on suspend the user.",
+  suspendUserError: "Error on suspending the user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
-  resetUserPasswordError: "Error on reset the user password.",
+  resetUserPasswordError: "Error on resetting the user password.",
   updateUserRolesSuccess: "Successfully updated the user roles.",
-  updateUserRolesError: "Error on update the user roles.",
+  updateUserRolesError: "Error on updating the user roles.",
 }
 
 export interface UsersContext {
   // Get users
   users?: TypesGen.User[]
   getUsersError?: Error | unknown
-  createUserError?: Error | unknown
+  createUserErrorMessage?: string
   createUserFormErrors?: FieldErrors
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
@@ -122,7 +130,7 @@ export const usersMachine = createMachine(
           onError: [
             {
               target: "idle",
-              cond: "isFormError",
+              cond: "hasFieldErrors",
               actions: ["assignCreateUserFormErrors"],
             },
             {
@@ -235,7 +243,7 @@ export const usersMachine = createMachine(
       },
     },
     guards: {
-      isFormError: (_, event) => isApiError(event.data),
+      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
     },
     actions: {
       assignUsers: assign({
@@ -258,7 +266,7 @@ export const usersMachine = createMachine(
         getUsersError: undefined,
       })),
       assignCreateUserError: assign({
-        createUserError: (_, event) => event.data,
+        createUserErrorMessage: (_, event) => getErrorMessage(event.data, Language.createUserError),
       }),
       assignCreateUserFormErrors: assign({
         // the guard ensures it is ApiError
@@ -292,17 +300,20 @@ export const usersMachine = createMachine(
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)
       },
-      displaySuspendedErrorMessage: () => {
-        displayError(Language.suspendUserError)
+      displaySuspendedErrorMessage: (context) => {
+        const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        displayError(message)
       },
       displayResetPasswordSuccess: () => {
         displaySuccess(Language.resetUserPasswordSuccess)
       },
-      displayResetPasswordErrorMessage: () => {
-        displayError(Language.resetUserPasswordError)
+      displayResetPasswordErrorMessage: (context) => {
+        const message = getErrorMessage(context.resetUserPasswordError, Language.resetUserPasswordError)
+        displayError(message)
       },
-      displayUpdateRolesErrorMessage: () => {
-        displayError(Language.updateUserRolesError)
+      displayUpdateRolesErrorMessage: (context) => {
+        const message = getErrorMessage(context.updateUserRolesError, Language.updateUserRolesError)
+        displayError(message)
       },
       generateRandomPassword: assign({
         newUserPassword: (_) => generateRandomString(12),

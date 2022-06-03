@@ -31,6 +31,19 @@ func APIKey(r *http.Request) database.APIKey {
 	return apiKey
 }
 
+// User roles are the 'subject' field of Authorize()
+type userRolesKey struct{}
+
+// AuthorizationUserRoles returns the roles used for authorization.
+// Comes from the ExtractAPIKey handler.
+func AuthorizationUserRoles(r *http.Request) database.GetAuthorizationUserRolesRow {
+	apiKey, ok := r.Context().Value(userRolesKey{}).(database.GetAuthorizationUserRolesRow)
+	if !ok {
+		panic("developer error: user roles middleware not provided")
+	}
+	return apiKey
+}
+
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
@@ -153,7 +166,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			}
 			// Only update the ExpiresAt once an hour to prevent database spam.
 			// We extend the ExpiresAt to reduce re-authentication.
-			apiKeyLifetime := 24 * time.Hour
+			apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
 			if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
 				key.ExpiresAt = now.Add(apiKeyLifetime)
 				changed = true
@@ -178,7 +191,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// If the key is valid, we also fetch the user roles and status.
 			// The roles are used for RBAC authorize checks, and the status
 			// is to block 'suspended' users from accessing the platform.
-			roles, err := db.GetAllUserRoles(r.Context(), key.UserID)
+			roles, err := db.GetAuthorizationUserRoles(r.Context(), key.UserID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: "roles not found",

@@ -8,11 +8,13 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -129,6 +131,99 @@ func TestPostLogin(t *testing.T) {
 			Password: req.Password,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("Lifetime&Expire", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		split := strings.Split(client.SessionToken, "-")
+		loginKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch login key")
+		require.Equal(t, int64(86400), loginKey.LifetimeSeconds, "default should be 86400")
+
+		// Generated tokens have a longer life
+		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
+		require.NoError(t, err, "make new api key")
+		split = strings.Split(token.Key, "-")
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch api key")
+
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
+		require.True(t, apiKey.ExpiresAt.After(loginKey.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
+		require.Greater(t, apiKey.LifetimeSeconds, loginKey.LifetimeSeconds, "api key should have longer lifetime")
+	})
+
+	t.Run("APIKeyExtend", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
+		require.NoError(t, err, "make new api key")
+		client.SessionToken = token.Key
+		split := strings.Split(token.Key, "-")
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch api key")
+
+		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:       apiKey.ID,
+			LastUsed: apiKey.LastUsed,
+			// This should cause a refresh
+			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
+			OAuthAccessToken:  apiKey.OAuthAccessToken,
+			OAuthRefreshToken: apiKey.OAuthRefreshToken,
+			OAuthExpiry:       apiKey.OAuthExpiry,
+		})
+		require.NoError(t, err, "update api key")
+
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch user")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch refreshed api key")
+		// 1 minute tolerance
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*7).Add(time.Minute*-1)), "api key lasts 7 days")
+	})
+
+	t.Run("LoginKeyExtend", func(t *testing.T) {
+		t.Parallel()
+		var (
+			ctx = context.Background()
+		)
+		client, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		split := strings.Split(client.SessionToken, "-")
+
+		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch login key")
+
+		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:       apiKey.ID,
+			LastUsed: apiKey.LastUsed,
+			// This should cause a refresh
+			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
+			OAuthAccessToken:  apiKey.OAuthAccessToken,
+			OAuthRefreshToken: apiKey.OAuthRefreshToken,
+			OAuthExpiry:       apiKey.OAuthExpiry,
+		})
+		require.NoError(t, err, "update login key")
+
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch user")
+
+		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
+		require.NoError(t, err, "fetch refreshed login key")
+		// 1 minute tolerance
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24).Add(time.Minute*-1)), "login key lasts 24 hrs")
 	})
 }
 
@@ -409,53 +504,65 @@ func TestGrantRoles(t *testing.T) {
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
+		var err error
+
 		admin := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, admin)
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "member user")
 
 		_, err = admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+			Roles: []string{rbac.RoleOrgAdmin(first.OrganizationID)},
 		})
 		require.Error(t, err, "org role in site")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateUserRoles(ctx, uuid.New().String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+			Roles: []string{rbac.RoleOrgAdmin(first.OrganizationID)},
 		})
 		require.Error(t, err, "user does not exist")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{rbac.RoleAdmin()},
 		})
 		require.Error(t, err, "site role in org")
 		requireStatusCode(t, err, http.StatusBadRequest)
 
 		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "role in org without membership")
 		requireStatusCode(t, err, http.StatusNotFound)
 
 		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change other's roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
-		_, err = member.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change any roles")
 		requireStatusCode(t, err, http.StatusForbidden)
 
 		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleMember()},
+			Roles: []string{},
 		})
 		require.Error(t, err, "member cannot change other's org roles")
 		requireStatusCode(t, err, http.StatusForbidden)
+
+		_, err = admin.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
+			Roles: []string{},
+		})
+		require.Error(t, err, "admin cannot change self org roles")
+		requireStatusCode(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
@@ -468,11 +575,9 @@ func TestGrantRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
 			rbac.RoleAdmin(),
-			rbac.RoleMember(),
 		}, "should be a member and admin")
 
 		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
 	})
@@ -486,12 +591,10 @@ func TestGrantRoles(t *testing.T) {
 		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
 		roles, err := member.GetUserRoles(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.ElementsMatch(t, roles.Roles, []string{
-			rbac.RoleMember(),
-		}, "should be a member and admin")
+		require.ElementsMatch(t, roles.Roles, []string{}, "should be a member")
 		require.ElementsMatch(t,
 			roles.OrganizationRoles[first.OrganizationID],
-			[]string{rbac.RoleOrgMember(first.OrganizationID)},
+			[]string{},
 		)
 
 		memberUser, err := member.User(ctx, codersdk.Me)
@@ -501,17 +604,15 @@ func TestGrantRoles(t *testing.T) {
 		_, err = admin.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to site admin
-				rbac.RoleMember(),
 				rbac.RoleAdmin(),
 			},
 		})
 		require.NoError(t, err, "grant member admin role")
 
 		// Promote to org admin
-		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to org admin
-				rbac.RoleOrgMember(first.OrganizationID),
 				rbac.RoleOrgAdmin(first.OrganizationID),
 			},
 		})
@@ -520,12 +621,10 @@ func TestGrantRoles(t *testing.T) {
 		roles, err = member.GetUserRoles(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
-			rbac.RoleMember(),
 			rbac.RoleAdmin(),
 		}, "should be a member and admin")
 
 		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
 	})
@@ -729,6 +828,50 @@ func TestWorkspacesByUser(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
+}
+
+// TestSuspendedPagination is when the after_id is a suspended record.
+// The database query should still return the correct page, as the after_id
+// is in a subquery that finds the record regardless of its status.
+// This is mainly to confirm the db fake has the same behavior.
+func TestSuspendedPagination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err)
+	orgID := me.OrganizationIDs[0]
+
+	total := 10
+	users := make([]codersdk.User, 0, total)
+	// Create users
+	for i := 0; i < total; i++ {
+		email := fmt.Sprintf("%d@coder.com", i)
+		username := fmt.Sprintf("user%d", i)
+		user, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          email,
+			Username:       username,
+			Password:       "password",
+			OrganizationID: orgID,
+		})
+		require.NoError(t, err)
+		users = append(users, user)
+	}
+	sortUsers(users)
+	deletedUser := users[2]
+	expected := users[3:8]
+	_, err = client.UpdateUserStatus(ctx, deletedUser.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "suspend user")
+
+	page, err := client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Limit:   len(expected),
+			AfterID: deletedUser.ID,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, expected, page, "expected page")
 }
 
 // TestPaginatedUsers creates a list of users, then tries to paginate through

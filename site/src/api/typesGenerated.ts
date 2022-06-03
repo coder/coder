@@ -65,6 +65,12 @@ export interface CreateTemplateRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+// From codersdk/templateversions.go:121:6
+export interface CreateTemplateVersionDryRunRequest {
+  readonly WorkspaceName: string
+  readonly ParameterValues: CreateParameterRequest[]
+}
+
 // From codersdk/organizations.go:36:6
 export interface CreateTemplateVersionRequest {
   readonly template_id?: string
@@ -95,8 +101,7 @@ export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
   readonly autostart_schedule?: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -244,6 +249,7 @@ export interface Template {
 export interface TemplateVersion {
   readonly id: string
   readonly template_id?: string
+  readonly organization_id?: string
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
@@ -251,7 +257,7 @@ export interface TemplateVersion {
   readonly readme: string
 }
 
-// From codersdk/templateversions.go:25:6
+// From codersdk/templateversions.go:26:6
 export interface TemplateVersionParameter {
   readonly id: string
   readonly created_at: string
@@ -294,13 +300,12 @@ export interface UpdateUserProfileRequest {
 
 // From codersdk/workspaces.go:141:6
 export interface UpdateWorkspaceAutostartRequest {
-  readonly schedule: string
+  readonly schedule?: string
 }
 
 // From codersdk/workspaces.go:161:6
 export interface UpdateWorkspaceTTLRequest {
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
 }
 
 // From codersdk/files.go:16:6
@@ -365,9 +370,8 @@ export interface Workspace {
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
-  readonly autostart_schedule: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly autostart_schedule?: string
+  readonly ttl_ms?: number
 }
 
 // From codersdk/workspaceresources.go:31:6
@@ -432,6 +436,7 @@ export interface WorkspaceBuild {
   readonly created_at: string
   readonly updated_at: string
   readonly workspace_id: string
+  readonly workspace_name: string
   readonly template_version_id: string
   readonly build_number: number
   readonly name: string

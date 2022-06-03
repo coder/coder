@@ -1,6 +1,3 @@
-//go:build embed
-// +build embed
-
 package site_test
 
 import (
@@ -40,7 +37,7 @@ func TestCaching(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.HandlerWithFS(rootFS))
+	srv := httptest.NewServer(site.Handler(rootFS))
 	defer srv.Close()
 
 	// Create a context
@@ -99,7 +96,7 @@ func TestServingFiles(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.HandlerWithFS(rootFS))
+	srv := httptest.NewServer(site.Handler(rootFS))
 	defer srv.Close()
 
 	// Create a context
@@ -190,7 +187,7 @@ func TestServeAPIResponse(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(site.WithAPIResponse(r.Context(), apiResponse))
-		site.HandlerWithFS(rootFS).ServeHTTP(w, r)
+		site.Handler(rootFS).ServeHTTP(w, r)
 	}))
 	defer srv.Close()
 

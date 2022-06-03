@@ -50,7 +50,8 @@ CREATE TYPE parameter_type_system AS ENUM (
 
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
-    'workspace_build'
+    'workspace_build',
+    'template_version_dry_run'
 );
 
 CREATE TYPE provisioner_storage_method AS ENUM (
@@ -93,7 +94,8 @@ CREATE TABLE api_keys (
     oauth_access_token text DEFAULT ''::text NOT NULL,
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_id_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    lifetime_seconds bigint DEFAULT 86400 NOT NULL
 );
 
 CREATE TABLE audit_logs (

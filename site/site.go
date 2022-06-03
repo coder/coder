@@ -1,12 +1,9 @@
-//go:build embed
-// +build embed
-
 package site
 
 import (
 	"bytes"
 	"context"
-	"embed"
+
 	"fmt"
 	"io"
 	"io/fs"
@@ -22,13 +19,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// The `embed` package ignores recursively including directories
-// that prefix with `_`. Wildcarding nested is janky, but seems to
-// work quite well for edge-cases.
-//go:embed out
-//go:embed out/bin/*
-var site embed.FS
-
 type apiResponseContextKey struct{}
 
 // WithAPIResponse returns a context with the APIResponse value attached.
@@ -38,21 +28,8 @@ func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Conte
 	return context.WithValue(ctx, apiResponseContextKey{}, apiResponse)
 }
 
-func Handler() http.Handler {
-	// the out directory is where webpack builds are created. It is in the same
-	// directory as this file (package site).
-	siteFS, err := fs.Sub(site, "out")
-
-	if err != nil {
-		// This can't happen... Go would throw a compilation error.
-		panic(err)
-	}
-
-	return HandlerWithFS(siteFS)
-}
-
 // Handler returns an HTTP handler for serving the static site.
-func HandlerWithFS(fileSystem fs.FS) http.Handler {
+func Handler(fileSystem fs.FS) http.Handler {
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
 	//

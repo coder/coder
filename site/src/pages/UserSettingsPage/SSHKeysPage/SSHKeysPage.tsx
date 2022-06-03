@@ -3,7 +3,7 @@ import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
-import { CodeBlock } from "../../../components/CodeBlock/CodeBlock"
+import { CodeExample } from "../../../components/CodeExample/CodeExample"
 import { ConfirmDialog } from "../../../components/ConfirmDialog/ConfirmDialog"
 import { Section } from "../../../components/Section/Section"
 import { Stack } from "../../../components/Stack/Stack"
@@ -41,10 +41,10 @@ export const SSHKeysPage: React.FC = () => {
 
         {sshKey && (
           <Stack>
-            <CodeBlock lines={[sshKey.public_key.trim()]} />
+            <CodeExample code={sshKey.public_key.trim()} />
             <div>
               <Button
-                color="primary"
+                variant="outlined"
                 onClick={() => {
                   authSend({ type: "REGENERATE_SSH_KEY" })
                 }}

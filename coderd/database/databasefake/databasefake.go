@@ -233,17 +233,19 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = tmp
 	}
 
-	if len(params.Status) > 0 {
-		usersFilteredByStatus := make([]database.User, 0, len(users))
-		for i, user := range users {
-			for _, status := range params.Status {
-				if user.Status == status {
-					usersFilteredByStatus = append(usersFilteredByStatus, users[i])
-				}
+	if len(params.Status) == 0 {
+		params.Status = []database.UserStatus{database.UserStatusActive}
+	}
+
+	usersFilteredByStatus := make([]database.User, 0, len(users))
+	for i, user := range users {
+		for _, status := range params.Status {
+			if user.Status == status {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
 			}
 		}
-		users = usersFilteredByStatus
 	}
+	users = usersFilteredByStatus
 
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
@@ -278,7 +280,7 @@ func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
+func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -288,6 +290,7 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 		if u.ID == userID {
 			u := u
 			roles = append(roles, u.RBACRoles...)
+			roles = append(roles, "member")
 			user = &u
 			break
 		}
@@ -296,14 +299,15 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
 			roles = append(roles, mem.Roles...)
+			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
 
 	if user == nil {
-		return database.GetAllUserRolesRow{}, sql.ErrNoRows
+		return database.GetAuthorizationUserRolesRow{}, sql.ErrNoRows
 	}
 
-	return database.GetAllUserRolesRow{
+	return database.GetAuthorizationUserRolesRow{
 		ID:       userID,
 		Username: user.Username,
 		Status:   user.Status,
@@ -1179,9 +1183,14 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if arg.LifetimeSeconds == 0 {
+		arg.LifetimeSeconds = 86400
+	}
+
 	//nolint:gosimple
 	key := database.APIKey{
 		ID:                arg.ID,
+		LifetimeSeconds:   arg.LifetimeSeconds,
 		HashedSecret:      arg.HashedSecret,
 		UserID:            arg.UserID,
 		ExpiresAt:         arg.ExpiresAt,

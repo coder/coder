@@ -242,7 +242,7 @@ describe("Users Page", () => {
         }, MockAuditorRole)
 
         // Check if the select text was updated with the Auditor role
-        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Member, Auditor"))
+        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Auditor"))
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
@@ -271,6 +271,26 @@ describe("Users Page", () => {
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
         expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+      })
+      it("shows an error from the backend", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        server.use(
+          rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
+            return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
+          }),
+        )
+
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        await updateUserRole(() => {}, MockAuditorRole)
+
+        // Check if the error message is displayed
+        await screen.findByText("message from the backend")
       })
     })
   })

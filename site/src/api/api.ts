@@ -270,3 +270,10 @@ export const getWorkspaceBuildLogs = async (buildname: string): Promise<TypesGen
   const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
 }
+
+export const putWorkspaceExtension = async (
+  workspaceId: string,
+  extendWorkspaceRequest: TypesGen.PutExtendWorkspaceRequest,
+): Promise<void> => {
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, extendWorkspaceRequest)
+}

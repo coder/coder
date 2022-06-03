@@ -78,7 +78,7 @@ func New(options *Options) *API {
 	api := &API{
 		Options:     options,
 		Handler:     r,
-		siteHandler: site.Handler(),
+		siteHandler: site.Handler(site.FS()),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
@@ -224,6 +224,13 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
+			r.Route("/dry-run", func(r chi.Router) {
+				r.Post("/", api.postTemplateVersionDryRun)
+				r.Get("/{jobID}", api.templateVersionDryRun)
+				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
+				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
+			})
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)

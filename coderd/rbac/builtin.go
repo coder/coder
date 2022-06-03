@@ -63,7 +63,7 @@ var (
 		member: func(_ string) Role {
 			return Role{
 				Name:        member,
-				DisplayName: "Member",
+				DisplayName: "",
 				Site: permissions(map[Object][]Action{
 					// All users can read all other users and know they exist.
 					ResourceUser:           {ActionRead},
@@ -116,7 +116,7 @@ var (
 		orgMember: func(organizationID string) Role {
 			return Role{
 				Name:        roleName(orgMember, organizationID),
-				DisplayName: "Organization Member",
+				DisplayName: "",
 				Org: map[string][]Permission{
 					organizationID: {
 						{

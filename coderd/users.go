@@ -88,7 +88,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
 	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleAdmin(), rbac.RoleMember()},
+		GrantedRoles: []string{rbac.RoleAdmin()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -473,14 +473,24 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
+	roles := httpmw.AuthorizationUserRoles(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID == user.ID {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "You cannot change your own roles.",
+		})
+		return
+	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	added, removed := rbac.ChangeRoleSet(roles.Roles, params.Roles)
+	// The member role is always implied.
+	impliedTypes := append(params.Roles, rbac.RoleMember())
+	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
 		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
@@ -650,9 +660,14 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lifeTime := time.Hour * 24 * 7
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
+		// All api generated keys will last 1 week. Browser login tokens have
+		// a shorter life.
+		ExpiresAt:       database.Now().Add(lifeTime),
+		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if !created {
 		return
@@ -713,10 +728,21 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
+	// Default expires at to now+lifetime, or just 24hrs if not set
+	if params.ExpiresAt.IsZero() {
+		if params.LifetimeSeconds != 0 {
+			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
+		} else {
+			params.ExpiresAt = database.Now().Add(24 * time.Hour)
+		}
+	}
+
 	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:                keyID,
-		UserID:            params.UserID,
-		ExpiresAt:         database.Now().Add(24 * time.Hour),
+		ID:              keyID,
+		UserID:          params.UserID,
+		LifetimeSeconds: params.LifetimeSeconds,
+		// Make sure in UTC time for common time zone
+		ExpiresAt:         params.ExpiresAt.UTC(),
 		CreatedAt:         database.Now(),
 		UpdatedAt:         database.Now(),
 		HashedSecret:      hashed[:],
@@ -749,7 +775,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
-		var orgRoles []string
+		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
 			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
@@ -764,8 +790,6 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			req.OrganizationID = organization.ID
 			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
 		}
-		// Always also be a member.
-		orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
 
 		params := database.InsertUserParams{
 			ID:        uuid.New(),
@@ -774,7 +798,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
-			RBACRoles: []string{rbac.RoleMember()},
+			RBACRoles: []string{},
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

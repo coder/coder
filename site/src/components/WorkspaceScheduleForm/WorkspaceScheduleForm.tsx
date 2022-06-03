@@ -40,8 +40,8 @@ export const Language = {
   startTimeLabel: "Start time",
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
-  ttlLabel: "TTL (hours)",
-  ttlHelperText: "Your workspace will automatically shutdown after the TTL.",
+  ttlLabel: "Time until shutdown (hours)",
+  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
 }
 
 export interface WorkspaceScheduleFormProps {
@@ -124,7 +124,10 @@ export const validationSchema = Yup.object({
         }
       }
     }),
-  ttl: Yup.number().min(0).integer(),
+  ttl: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * 7 /* 7 days */),
 })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
@@ -167,17 +170,16 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack className={styles.stack}>
+      <form onSubmit={form.handleSubmit} className={styles.form}>
+        <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.startTimeLabel}
             type="time"
-            variant="standard"
           />
 
           <TextField
@@ -190,12 +192,11 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                 </Link>
               </>,
             )}
-            disabled={form.isSubmitting || isLoading || !form.values.startTime}
+            disabled={isLoading || !form.values.startTime}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.timezoneLabel}
-            variant="standard"
           />
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
@@ -209,9 +210,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || form.isSubmitting || isLoading}
+                      disabled={!form.values.startTime || isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
+                      color="primary"
+                      size="small"
+                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -225,14 +229,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <TextField
             {...formHelpers("ttl", Language.ttlHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            variant="standard"
           />
 
-          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
+          <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
       </form>
     </FullPageForm>
@@ -241,16 +244,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
 const useStyles = makeStyles({
   form: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  stack: {
-    // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
-    //         to render on one line. If we change the text, we might want to
-    //         adjust these. Without constraining the width, the date picker
-    //         and number inputs aren't visually appealing or maximally usable.
-    maxWidth: 360,
-    minWidth: 360,
+    "& input": {
+      colorScheme: "dark",
+    },
   },
   daysOfWeekLabel: {
     fontSize: 12,

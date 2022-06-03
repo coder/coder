@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin(), rbac.RoleMember())
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin())
 	otherWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 
@@ -177,8 +178,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              "testing",
-				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-				TTL:               ptr(59 * time.Second),
+				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+				TTLMillis:         ptr.Ref((59 * time.Second).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -197,8 +198,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              "testing",
-				AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-				TTL:               ptr(24*7*time.Hour + time.Minute),
+				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+				TTLMillis:         ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -451,7 +452,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		schedule         string
+		schedule         *string
 		expectedError    string
 		at               time.Time
 		expectedNext     time.Time
@@ -459,12 +460,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	}{
 		{
 			name:          "disable autostart",
-			schedule:      "",
+			schedule:      ptr.Ref(""),
 			expectedError: "",
 		},
 		{
 			name:             "friday to monday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
@@ -472,7 +473,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
@@ -481,7 +482,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
@@ -490,7 +491,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
@@ -498,17 +499,17 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      "CRON_TZ=Imaginary/Place 30 9 * * 1-5",
+			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
 			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
-			schedule:      "asdf asdf asdf ",
+			schedule:      ptr.Ref("asdf asdf asdf "),
 			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{
 			name:          "only 3 values",
-			schedule:      "CRON_TZ=Europe/Dublin 30 9 *",
+			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
 			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
@@ -526,7 +527,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
-					cwr.TTL = nil
+					cwr.TTLMillis = nil
 				})
 			)
 
@@ -538,7 +539,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			})
 
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
 				return
 			}
 
@@ -547,12 +548,14 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			updated, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
-			require.Equal(t, testCase.schedule, updated.AutostartSchedule, "expected autostart schedule to equal requested")
-
-			if testCase.schedule == "" {
+			if testCase.schedule == nil || *testCase.schedule == "" {
+				require.Nil(t, updated.AutostartSchedule)
 				return
 			}
-			sched, err := schedule.Weekly(updated.AutostartSchedule)
+
+			require.EqualValues(t, *testCase.schedule, *updated.AutostartSchedule, "expected autostart schedule to equal requested")
+
+			sched, err := schedule.Weekly(*updated.AutostartSchedule)
 			require.NoError(t, err, "parse returned schedule")
 
 			next := sched.Next(testCase.at)
@@ -569,7 +572,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: "9 30 1-5",
+				Schedule: ptr.Ref("9 30 1-5"),
 			}
 		)
 
@@ -586,32 +589,32 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		ttl           *time.Duration
+		ttlMillis     *int64
 		expectedError string
 	}{
 		{
 			name:          "disable ttl",
-			ttl:           nil,
+			ttlMillis:     nil,
 			expectedError: "",
 		},
 		{
 			name:          "below minimum ttl",
-			ttl:           ptr(30 * time.Second),
+			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
 			expectedError: "ttl must be at least one minute",
 		},
 		{
 			name:          "minimum ttl",
-			ttl:           ptr(time.Minute),
+			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "maximum ttl",
-			ttl:           ptr(24 * 7 * time.Hour),
+			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
-			ttl:           ptr(24*7*time.Hour + time.Minute),
+			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "ttl must be less than 7 days",
 		},
 	}
@@ -629,15 +632,15 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
-					cwr.TTL = nil
+					cwr.TTLMillis = nil
 				})
 			)
 
 			// ensure test invariant: new workspaces have no autostop schedule.
-			require.Nil(t, workspace.TTL, "expected newly-minted workspace to have no TTL")
+			require.Nil(t, workspace.TTLMillis, "expected newly-minted workspace to have no TTL")
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTL: testCase.ttl,
+				TTLMillis: testCase.ttlMillis,
 			})
 
 			if testCase.expectedError != "" {
@@ -650,7 +653,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			updated, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
-			require.Equal(t, testCase.ttl, updated.TTL, "expected autostop ttl to equal requested")
+			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 		})
 	}
 
@@ -661,7 +664,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceTTLRequest{
-				TTL: ptr(time.Hour),
+				TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
 			}
 		)
 
@@ -685,8 +688,8 @@ func TestWorkspaceExtend(t *testing.T) {
 		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 		extend      = 90 * time.Minute
 		_           = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		oldDeadline = time.Now().Add(*workspace.TTL).UTC()
-		newDeadline = time.Now().Add(*workspace.TTL + extend).UTC()
+		oldDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond).UTC()
+		newDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis)*time.Millisecond + extend).UTC()
 	)
 
 	workspace, err := client.Workspace(ctx, workspace.ID)
@@ -760,8 +763,4 @@ func mustLocation(t *testing.T, location string) *time.Location {
 	}
 
 	return loc
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

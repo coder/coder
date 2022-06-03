@@ -21,13 +21,7 @@ import (
 
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "no workspace exists for this job",
-		})
-		return
-	}
+	workspace := httpmw.WorkspaceParam(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
@@ -42,7 +36,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspace, workspaceBuild, job))
 }
 
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -57,22 +51,51 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req := database.GetWorkspaceBuildByWorkspaceIDParams{
-		WorkspaceID: workspace.ID,
-		AfterID:     paginationParams.AfterID,
-		OffsetOpt:   int32(paginationParams.Offset),
-		LimitOpt:    int32(paginationParams.Limit),
-	}
-	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+
+	var builds []database.WorkspaceBuild
+	// Ensure all db calls happen in the same tx
+	err := api.Database.InTx(func(store database.Store) error {
+		var err error
+		if paginationParams.AfterID != uuid.Nil {
+			// See if the record exists first. If the record does not exist, the pagination
+			// query will not work.
+			_, err := store.GetWorkspaceBuildByID(r.Context(), paginationParams.AfterID)
+			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("record at \"after_id\" (%q) does not exist", paginationParams.AfterID.String()),
+				})
+				return err
+			} else if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("get workspace build at after_id: %s", err),
+				})
+				return err
+			}
+		}
+
+		req := database.GetWorkspaceBuildByWorkspaceIDParams{
+			WorkspaceID: workspace.ID,
+			AfterID:     paginationParams.AfterID,
+			OffsetOpt:   int32(paginationParams.Offset),
+			LimitOpt:    int32(paginationParams.Limit),
+		}
+		builds, err = store.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get workspace builds: %s", err),
+			})
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace builds: %s", err),
-		})
 		return
 	}
+
 	jobIDs := make([]uuid.UUID, 0, len(builds))
 	for _, version := range builds {
 		jobIDs = append(jobIDs, version.JobID)
@@ -101,7 +124,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		apiBuilds = append(apiBuilds, convertWorkspaceBuild(build, convertProvisionerJob(job)))
+		apiBuilds = append(apiBuilds, convertWorkspaceBuild(workspace, build, job))
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
@@ -139,7 +162,7 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspace, workspaceBuild, job))
 }
 
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -307,7 +330,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
+	httpapi.Write(rw, http.StatusCreated,
+		convertWorkspaceBuild(workspace, workspaceBuild, provisionerJob))
 }
 
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
@@ -432,19 +456,26 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
 
-func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.ProvisionerJob) codersdk.WorkspaceBuild {
+func convertWorkspaceBuild(
+	workspace database.Workspace,
+	workspaceBuild database.WorkspaceBuild,
+	job database.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
+	if workspace.ID != workspaceBuild.WorkspaceID {
+		panic("workspace and build do not match")
+	}
 	return codersdk.WorkspaceBuild{
 		ID:                workspaceBuild.ID,
 		CreatedAt:         workspaceBuild.CreatedAt,
 		UpdatedAt:         workspaceBuild.UpdatedAt,
 		WorkspaceID:       workspaceBuild.WorkspaceID,
+		WorkspaceName:     workspace.Name,
 		TemplateVersionID: workspaceBuild.TemplateVersionID,
 		BuildNumber:       workspaceBuild.BuildNumber,
 		Name:              workspaceBuild.Name,
 		Transition:        codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:       workspaceBuild.InitiatorID,
-		Job:               job,
+		Job:               convertProvisionerJob(job),
 		Deadline:          workspaceBuild.Deadline,
 	}
 }
