@@ -23,7 +23,6 @@ import (
 
 func TestCreate(t *testing.T) {
 	t.Parallel()
-	t.Fatal("CIAN FIX THIS")
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -66,7 +65,6 @@ func TestCreate(t *testing.T) {
 
 	t.Run("AboveTemplateMaxTTL", func(t *testing.T) {
 		t.Parallel()
-		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -78,24 +76,20 @@ func TestCreate(t *testing.T) {
 			"create",
 			"my-workspace",
 			"--template", template.Name,
-			"--ttl", "24h",
+			"--ttl", "12h1m",
+			"-y", // don't bother with waiting
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		errCh := make(chan error)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(errCh)
-			errCh <- cmd.Execute()
-		}()
-		require.EqualError(t, <-errCh, "TODO what is the error")
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "ttl_ms: ttl must be below template maximum 12h0m0s")
 	})
 
 	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
 		t.Parallel()
-		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -109,18 +103,15 @@ func TestCreate(t *testing.T) {
 			"--template", template.Name,
 			"--autostart-minute", "*", // Every minute
 			"--autostart-hour", "*", // Every hour
+			"-y", // don't bother with waiting
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		errCh := make(chan error)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(errCh)
-			errCh <- cmd.Execute()
-		}()
-		require.EqualError(t, <-errCh, "TODO what is the error")
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
 
 	t.Run("CreateErrInvalidTz", func(t *testing.T) {
@@ -135,24 +126,19 @@ func TestCreate(t *testing.T) {
 			"my-workspace",
 			"--template", template.Name,
 			"--tz", "invalid",
+			"-y",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
-		}()
-		<-doneChan
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "schedule: parse schedule: provided bad location invalid: unknown time zone invalid")
 	})
 
 	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
 		t.Parallel()
-		t.Fatal("CIAN FIX THIS")
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -163,19 +149,15 @@ func TestCreate(t *testing.T) {
 			"my-workspace",
 			"--template", template.Name,
 			"--ttl", "0s",
+			"-y",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.EqualError(t, err, "TTL must be at least 1 minute")
-		}()
-		<-doneChan
+		err := cmd.Execute()
+		assert.EqualError(t, err, "TTL must be at least 1 minute")
 	})
 
 	t.Run("CreateFromListWithSkip", func(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -59,20 +58,6 @@ func create() *cobra.Command {
 				if err != nil {
 					return err
 				}
-			}
-
-			tz, err := time.LoadLocation(tzName)
-			if err != nil {
-				return xerrors.Errorf("Invalid workspace autostart timezone: %w", err)
-			}
-			schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tz.String(), autostartMinute, autostartHour, autostartDow)
-			_, err = schedule.Weekly(schedSpec)
-			if err != nil {
-				return xerrors.Errorf("invalid workspace autostart schedule: %w", err)
-			}
-
-			if ttl == 0 {
-				return xerrors.Errorf("TTL must be at least 1 minute")
 			}
 
 			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
@@ -127,6 +112,11 @@ func create() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
+			}
+
+			schedSpec := buildSchedule(autostartMinute, autostartHour, autostartDow, tzName)
+			if ttl < time.Minute {
+				return xerrors.Errorf("TTL must be at least 1 minute")
 			}
 
 			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
@@ -226,7 +216,7 @@ func create() *cobra.Command {
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
-				AutostartSchedule: &schedSpec,
+				AutostartSchedule: schedSpec,
 				TTLMillis:         ptr.Ref(ttl.Milliseconds()),
 				ParameterValues:   parameters,
 			})
@@ -262,7 +252,16 @@ func create() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &autostartMinute, "autostart-minute", "", "CODER_WORKSPACE_AUTOSTART_MINUTE", "0", "Specify the minute(s) at which the workspace should autostart (e.g. 0).")
 	cliflag.StringVarP(cmd.Flags(), &autostartHour, "autostart-hour", "", "CODER_WORKSPACE_AUTOSTART_HOUR", "9", "Specify the hour(s) at which the workspace should autostart (e.g. 9).")
 	cliflag.StringVarP(cmd.Flags(), &autostartDow, "autostart-day-of-week", "", "CODER_WORKSPACE_AUTOSTART_DOW", "MON-FRI", "Specify the days(s) on which the workspace should autostart (e.g. MON,TUE,WED,THU,FRI)")
-	cliflag.StringVarP(cmd.Flags(), &tzName, "tz", "", "TZ", "", "Specify your timezone location for workspace autostart (e.g. US/Central).")
+	cliflag.StringVarP(cmd.Flags(), &tzName, "tz", "", "TZ", "UTC", "Specify your timezone location for workspace autostart (e.g. US/Central).")
 	cliflag.DurationVarP(cmd.Flags(), &ttl, "ttl", "", "CODER_WORKSPACE_TTL", 8*time.Hour, "Specify a time-to-live (TTL) for the workspace (e.g. 8h).")
 	return cmd
+}
+
+func buildSchedule(minute, hour, dow, tzName string) *string {
+	if minute == "" || hour == "" || dow == "" {
+		return nil
+	}
+
+	schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tzName, minute, hour, dow)
+	return &schedSpec
 }

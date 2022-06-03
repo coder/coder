@@ -647,7 +647,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:           "above template maximum ttl",
 			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
-			expectedError:  "requested value is 12h0m0s but template max is 8h0m0s",
+			expectedError:  "ttl_ms: ttl must be below template maximum 8h0m0s",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
 		},
 	}

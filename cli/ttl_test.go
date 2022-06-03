@@ -193,12 +193,12 @@ func TestTTL(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		err := cmd.Execute()
-		require.EqualError(t, err, "TODO what is the error")
+		require.ErrorContains(t, err, "ttl_ms: ttl must be below template maximum 8h0m0s")
 
 		// Ensure ttl not updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.NotNil(t, updated.TTLMillis)
-		require.Equal(t, (8 * time.Hour).Milliseconds, *updated.TTLMillis)
+		require.Equal(t, (8 * time.Hour).Milliseconds(), *updated.TTLMillis)
 	})
 }

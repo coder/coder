@@ -164,7 +164,6 @@ func TestAutostart(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx     = context.Background()
 			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -180,11 +179,6 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.NoError(t, err, "unexpected error")
-
-		// Ensure nothing happened
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, *workspace.AutostartSchedule, *updated.AutostartSchedule, "expected previous autostart schedule")
+		require.ErrorContains(t, err, "schedule: Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
 }

@@ -342,7 +342,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, time.Duration(template.MaxTtl))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Invalid Workspace TTL",
@@ -560,20 +560,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "validate workspace ttl",
-			Errors: []httpapi.Error{
-				{
-					Field:  "ttl_ms",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
-	}
-
 	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -582,16 +568,18 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if dbTTL.Valid && dbTTL.Int64 > template.MaxTtl {
+	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
+	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Constrained by template",
+			Message: "Invalid workspace TTL",
 			Errors: []httpapi.Error{
 				{
 					Field:  "ttl_ms",
-					Detail: fmt.Sprintf("requested value is %s but template max is %s", time.Duration(dbTTL.Int64), time.Duration(template.MaxTtl)),
+					Detail: err.Error(),
 				},
 			},
 		})
+		return
 	}
 
 	err = api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
@@ -883,7 +871,7 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64) (sql.NullInt64, error) {
+func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
 		return sql.NullInt64{}, nil
 	}
@@ -896,6 +884,10 @@ func validWorkspaceTTLMillis(millis *int64) (sql.NullInt64, error) {
 
 	if truncated > 24*7*time.Hour {
 		return sql.NullInt64{}, xerrors.New("ttl must be less than 7 days")
+	}
+
+	if truncated > max {
+		return sql.NullInt64{}, xerrors.Errorf("ttl must be below template maximum %s", max.String())
 	}
 
 	return sql.NullInt64{
