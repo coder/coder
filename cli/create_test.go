@@ -85,7 +85,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 		err := cmd.Execute()
-		assert.ErrorContains(t, err, "ttl_ms: ttl must be below template maximum 12h0m0s")
+		assert.ErrorContains(t, err, "TTL must be below template maximum 12h0m0s")
 	})
 
 	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 		err := cmd.Execute()
-		assert.ErrorContains(t, err, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
+		assert.ErrorContains(t, err, "minimum autostart interval 1m0s is above template constraint 1h0m0s")
 	})
 
 	t.Run("CreateErrInvalidTz", func(t *testing.T) {

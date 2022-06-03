@@ -314,14 +314,16 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 
 func convertTemplate(template database.Template, workspaceOwnerCount uint32) codersdk.Template {
 	return codersdk.Template{
-		ID:                  template.ID,
-		CreatedAt:           template.CreatedAt,
-		UpdatedAt:           template.UpdatedAt,
-		OrganizationID:      template.OrganizationID,
-		Name:                template.Name,
-		Provisioner:         codersdk.ProvisionerType(template.Provisioner),
-		ActiveVersionID:     template.ActiveVersionID,
-		WorkspaceOwnerCount: workspaceOwnerCount,
-		Description:         template.Description,
+		ID:                         template.ID,
+		CreatedAt:                  template.CreatedAt,
+		UpdatedAt:                  template.UpdatedAt,
+		OrganizationID:             template.OrganizationID,
+		Name:                       template.Name,
+		Provisioner:                codersdk.ProvisionerType(template.Provisioner),
+		ActiveVersionID:            template.ActiveVersionID,
+		WorkspaceOwnerCount:        workspaceOwnerCount,
+		Description:                template.Description,
+		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
+		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -114,9 +115,21 @@ func create() *cobra.Command {
 				}
 			}
 
-			schedSpec := buildSchedule(autostartMinute, autostartHour, autostartDow, tzName)
+			schedSpec, err := validSchedule(
+				autostartMinute,
+				autostartHour,
+				autostartDow,
+				tzName,
+				time.Duration(template.MinAutostartIntervalMillis)*time.Millisecond,
+			)
+			if err != nil {
+				return xerrors.Errorf("Invalid autostart schedule: %w", err)
+			}
 			if ttl < time.Minute {
 				return xerrors.Errorf("TTL must be at least 1 minute")
+			}
+			if ttlMax := time.Duration(template.MaxTTLMillis) * time.Millisecond; ttl > ttlMax {
+				return xerrors.Errorf("TTL must be below template maximum %s", ttlMax)
 			}
 
 			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
@@ -257,11 +270,17 @@ func create() *cobra.Command {
 	return cmd
 }
 
-func buildSchedule(minute, hour, dow, tzName string) *string {
-	if minute == "" || hour == "" || dow == "" {
-		return nil
+func validSchedule(minute, hour, dow, tzName string, min time.Duration) (*string, error) {
+	schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tzName, minute, hour, dow)
+
+	sched, err := schedule.Weekly(schedSpec)
+	if err != nil {
+		return nil, err
 	}
 
-	schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tzName, minute, hour, dow)
-	return &schedSpec
+	if schedMin := sched.Min(); schedMin < min {
+		return nil, xerrors.Errorf("minimum autostart interval %s is above template constraint %s", schedMin, min)
+	}
+
+	return &schedSpec, nil
 }
