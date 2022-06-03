@@ -4,7 +4,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
-import Link from "@material-ui/core/Link"
+import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
@@ -18,6 +18,7 @@ import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { zones } from "./zones"
 
 // REMARK: timezone plugin depends on UTC
 //
@@ -27,6 +28,7 @@ dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
+  errorNoTime: "Start time is required",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
@@ -93,6 +95,25 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
+    .test("required-if-day-selected", Language.errorNoTime, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+
+      const isDaySelected = [
+        parent.sunday,
+        parent.monday,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day)
+
+      if (isDaySelected) {
+        return value !== ""
+      } else {
+        return true
+      }
+    })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true
@@ -183,21 +204,20 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           />
 
           <TextField
-            {...formHelpers(
-              "timezone",
-              <>
-                Timezone must be a valid{" "}
-                <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  tz database name
-                </Link>
-              </>,
-            )}
-            disabled={isLoading || !form.values.startTime}
+            {...formHelpers("timezone")}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.timezoneLabel}
-          />
+            select
+          >
+            {zones.map((zone) => (
+              <MenuItem key={zone} value={zone}>
+                {zone}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
@@ -210,7 +230,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || isLoading}
+                      disabled={isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
                       color="primary"

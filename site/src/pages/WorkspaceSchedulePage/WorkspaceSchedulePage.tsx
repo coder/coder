@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import * as cronParser from "cron-parser"
 import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
@@ -12,7 +13,7 @@ import {
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
-import { dowToWeeklyFlag, extractTimezone, stripTimezone } from "../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 
 // REMARK: timezone plugin depends on UTC
@@ -91,9 +92,12 @@ export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): Typ
   }
 }
 
-export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
+export const workspaceToInitialValues = (
+  workspace: TypesGen.Workspace,
+  defaultTimeZone = "",
+): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
+  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : 0
 
   if (!schedule) {
     return {
@@ -105,23 +109,23 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
       friday: false,
       saturday: false,
       startTime: "",
-      timezone: "",
-      ttl,
+      timezone: defaultTimeZone,
+      ttl: ttlHours,
     }
   }
 
-  const timezone = extractTimezone(schedule, dayjs.tz.guess())
-  const cronString = stripTimezone(schedule)
+  const timezone = extractTimezone(schedule, defaultTimeZone)
 
-  // parts has the following format: "mm HH * * dow"
-  const parts = cronString.split(" ")
+  const expression = cronParser.parseExpression(stripTimezone(schedule))
 
-  // -> we skip month and day-of-month
-  const mm = parts[0]
-  const HH = parts[1]
-  const dow = parts[4]
+  const HH = expression.fields.hour.join("").padStart(2, "0")
+  const mm = expression.fields.minute.join("").padStart(2, "0")
 
-  const weeklyFlags = dowToWeeklyFlag(dow)
+  const weeklyFlags = [false, false, false, false, false, false, false]
+
+  for (const day of expression.fields.dayOfWeek) {
+    weeklyFlags[day % 7] = true
+  }
 
   return {
     sunday: weeklyFlags[0],
@@ -131,9 +135,9 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     thursday: weeklyFlags[4],
     friday: weeklyFlags[5],
     saturday: weeklyFlags[6],
-    startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
+    startTime: `${HH}:${mm}`,
     timezone,
-    ttl,
+    ttl: ttlHours,
   }
 }
 
@@ -161,7 +165,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         fieldErrors={formErrors}
-        initialValues={workspaceToInitialValues(workspace)}
+        initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/workspaces/${workspaceId}`)

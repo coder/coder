@@ -48,7 +48,7 @@ func bump() *cobra.Command {
 				return xerrors.Errorf("get current org: %w", err)
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, organization.ID, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}

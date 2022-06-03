@@ -198,9 +198,10 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type WorkspaceFilter struct {
-	OrganizationID uuid.UUID
+	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
 	// Owner can be a user_id (uuid), "me", or a username
-	Owner string
+	Owner string `json:"owner,omitempty"`
+	Name  string `json:"name,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -213,6 +214,9 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		}
 		if f.Owner != "" {
 			q.Set("owner", f.Owner)
+		}
+		if f.Name != "" {
+			q.Set("name", f.Name)
 		}
 		r.URL.RawQuery = q.Encode()
 	}

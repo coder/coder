@@ -28,6 +28,12 @@ WHERE
 				owner_id = @owner_id
 		  ELSE true
 	END
+	-- Filter by name
+	AND CASE
+		  WHEN @name :: text != '' THEN
+				LOWER(name) = LOWER(@name)
+		  ELSE true
+	END
 ;
 
 -- name: GetWorkspacesByOrganizationIDs :many

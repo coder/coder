@@ -19,7 +19,7 @@ coverage:
 ignore:
   # This is generated code.
   - coderd/database/models.go
-  - coderd/database/query.sql.go
+  - coderd/database/queries.sql.go
   - coderd/database/databasefake
   # These are generated or don't require tests.
   - cmd
