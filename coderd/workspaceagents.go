@@ -419,7 +419,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
 // r.Context() for cancellation if it's use is safe or r.Hijack() has
 // not been performed.
-func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
