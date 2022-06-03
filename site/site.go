@@ -134,7 +134,11 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 	apiResponseRaw := req.Context().Value(apiResponseContextKey{})
 	if apiResponseRaw != nil {
-		state.APIResponse = apiResponseRaw.(APIResponse)
+		apiResponse, ok := apiResponseRaw.(APIResponse)
+		if !ok {
+			panic("dev error: api response in context isn't the correct type")
+		}
+		state.APIResponse = apiResponse
 	}
 
 	// First check if it's a file we have in our templates

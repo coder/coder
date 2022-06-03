@@ -18,6 +18,8 @@ import (
 	"github.com/coder/coder/site"
 )
 
+// workspaceAppsProxyPath proxies requests to a workspace application
+// through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	// This can be in the form of: "<workspace-name>.[workspace-agent]" or "<workspace-name>"
@@ -115,12 +117,15 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
-	// Write an error using our embed handler
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		// This is a browser-facing route so JSON responses are not viable here.
+		// To pass friendly errors to the frontend, special meta tags are overridden
+		// in the index.html with the content passed here.
 		r = r.WithContext(site.WithAPIResponse(r.Context(), site.APIResponse{
 			StatusCode: http.StatusBadGateway,
 			Message:    err.Error(),
 		}))
+		w.WriteHeader(http.StatusBadGateway)
 		api.siteHandler.ServeHTTP(w, r)
 	}
 	path := chi.URLParam(r, "*")

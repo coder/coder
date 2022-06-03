@@ -57,6 +57,9 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 							Apps: []*proto.App{{
 								Name: "example",
 								Url:  fmt.Sprintf("http://127.0.0.1:%d?query=true", tcpAddr.Port),
+							}, {
+								Name: "fake",
+								Url:  "http://127.0.0.2",
 							}},
 						}},
 					}},
@@ -110,5 +113,13 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "", string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("ProxyError", func(t *testing.T) {
+		t.Parallel()
+		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 	})
 }
