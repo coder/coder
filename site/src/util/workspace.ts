@@ -230,7 +230,7 @@ export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter
       }
 
       const [username, name] = part.split("/")
-      if (username && name) {
+      if (username) {
         return {
           owner: username,
           name: name,
