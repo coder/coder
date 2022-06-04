@@ -210,7 +210,14 @@ export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, late
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
+export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
+  id: "test-app",
+  name: "test-app",
+  icon: "",
+}
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
+  apps: [MockWorkspaceApp],
   architecture: "amd64",
   created_at: "",
   environment_variables: {},

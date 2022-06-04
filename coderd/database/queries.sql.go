@@ -2785,6 +2785,155 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1 AND name = $2
+`
+
+type GetWorkspaceAppByAgentIDAndNameParams struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	Name    string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg GetWorkspaceAppByAgentIDAndNameParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAppByAgentIDAndName, arg.AgentID, arg.Name)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.RelativePath,
+	)
+	return i, err
+}
+
+const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Url,
+			&i.RelativePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Url,
+			&i.RelativePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceApp = `-- name: InsertWorkspaceApp :one
+INSERT INTO
+    workspace_apps (
+        id,
+        created_at,
+        agent_id,
+        name,
+        icon,
+        command,
+        url,
+        relative_path
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path
+`
+
+type InsertWorkspaceAppParams struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name         string         `db:"name" json:"name"`
+	Icon         string         `db:"icon" json:"icon"`
+	Command      sql.NullString `db:"command" json:"command"`
+	Url          sql.NullString `db:"url" json:"url"`
+	RelativePath bool           `db:"relative_path" json:"relative_path"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceApp,
+		arg.ID,
+		arg.CreatedAt,
+		arg.AgentID,
+		arg.Name,
+		arg.Icon,
+		arg.Command,
+		arg.Url,
+		arg.RelativePath,
+	)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.RelativePath,
+	)
+	return i, err
+}
+
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline

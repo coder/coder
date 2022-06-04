@@ -220,6 +220,20 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+	resourceAgentIDs := make([]uuid.UUID, 0)
+	for _, agent := range resourceAgents {
+		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
+	}
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace apps: %s", err),
+		})
+		return
+	}
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
@@ -228,7 +242,14 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			if agent.ResourceID != resource.ID {
 				continue
 			}
-			apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+			dbApps := make([]database.WorkspaceApp, 0)
+			for _, app := range apps {
+				if app.AgentID == agent.ID {
+					dbApps = append(dbApps, app)
+				}
+			}
+
+			apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: "Internal error reading job agent",

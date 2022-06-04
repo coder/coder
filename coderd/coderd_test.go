@@ -74,6 +74,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 						Agents: []*proto.Agent{{
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
+							Apps: []*proto.App{{
+								Name: "app",
+								Url:  "http://localhost:3000",
+							}},
 						}},
 					}},
 				},
@@ -127,6 +131,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
+
+		"GET:/%40{user}/{workspacename}/apps/{application}/*": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/@{user}/{workspacename}/apps/{application}/*": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -368,6 +381,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
+			route = strings.ReplaceAll(route, "{workspaceapp}", workspaceResources[0].Agents[0].Apps[0].Name)
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
 			route = strings.ReplaceAll(route, "{templateversiondryrun}", templateVersionDryRun.ID.String())
 			route = strings.ReplaceAll(route, "{templatename}", template.Name)

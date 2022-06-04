@@ -493,6 +493,17 @@ type WorkspaceAgent struct {
 	Directory            string                `db:"directory" json:"directory"`
 }
 
+type WorkspaceApp struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name         string         `db:"name" json:"name"`
+	Icon         string         `db:"icon" json:"icon"`
+	Command      sql.NullString `db:"command" json:"command"`
+	Url          sql.NullString `db:"url" json:"url"`
+	RelativePath bool           `db:"relative_path" json:"relative_path"`
+}
+
 type WorkspaceBuild struct {
 	ID                uuid.UUID           `db:"id" json:"id"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`

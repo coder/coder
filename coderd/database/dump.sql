@@ -280,6 +280,17 @@ CREATE TABLE workspace_agents (
     directory character varying(4096) DEFAULT ''::character varying NOT NULL
 );
 
+CREATE TABLE workspace_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    agent_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    command character varying(65534),
+    url character varying(65534),
+    relative_path boolean DEFAULT false NOT NULL
+);
+
 CREATE TABLE workspace_builds (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -382,6 +393,12 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_apps
+    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+
+ALTER TABLE ONLY workspace_apps
+    ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 
@@ -462,6 +479,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_apps
+    ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

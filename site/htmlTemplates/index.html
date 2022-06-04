@@ -17,6 +17,7 @@
   <meta property="og:type" content="website" />
   <meta property="csp-nonce" content="{{ .CSP.Nonce }}" />
   <meta property="csrf-token" content="{{ .CSRF.Token }}" />
+  <meta id="api-response" data-statuscode="{{ .APIResponse.StatusCode }}" data-message="{{ .APIResponse.Message }}" />
   <link rel="mask-icon" href="/static/favicon.svg" color="#000000" crossorigin="use-credentials" />
   <link rel="alternate icon" type="image/png" href="/favicon.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
