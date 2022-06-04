@@ -7,26 +7,6 @@ terraform {
   }
 }
 
-variable "access_key" {
-  description = <<EOT
-Create an AWS access key to provision resources with Coder:
-- https://console.aws.amazon.com/iam/home#/users
-
-See the template README for an example permissions policy,
-if needed.
-  
-AWS Access Key ID
-EOT
-  sensitive   = true
-}
-
-variable "secret_key" {
-  description = <<EOT
-AWS Secret Key
-EOT
-  sensitive   = true
-}
-
 # Last updated 2022-05-31
 # aws ec2 describe-regions | jq -r '[.Regions[].RegionName] | sort'
 variable "region" {
@@ -70,9 +50,7 @@ variable "disk_size" {
 }
 
 provider "aws" {
-  region     = var.region
-  access_key = var.access_key
-  secret_key = var.secret_key
+  region = var.region
 }
 
 data "coder_workspace" "me" {

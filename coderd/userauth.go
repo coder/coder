@@ -42,7 +42,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get authenticated github user organizations: %s", err),
+			Message: "Internal error fetching authenticated Github user organizations",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -66,7 +67,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	emails, err := api.GithubOAuth2Config.ListEmails(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get personal github user: %s", err),
+			Message: "Internal error fetching personal Github user",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -86,7 +88,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get user by email: %s", err),
+				Message: fmt.Sprintf("Internal error fetching user by email %q", *email.Email),
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -119,7 +122,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get authenticated github user: %s", err),
+				Message: "Internal error fetching authenticated Github user",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -144,7 +148,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("create user: %s", err),
+				Message: "Internal error creating user",
+				Detail:  err.Error(),
 			})
 			return
 		}

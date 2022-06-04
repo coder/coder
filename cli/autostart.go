@@ -55,7 +55,7 @@ func autostartShow() *cobra.Command {
 			validSchedule, err := schedule.Weekly(*workspace.AutostartSchedule)
 			if err != nil {
 				// This should never happen.
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())
 				return nil
 			}
 

@@ -108,7 +108,7 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
 
 	t.Run("Disable_NotFound", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
 
 	t.Run("Enable_DefaultSchedule", func(t *testing.T) {

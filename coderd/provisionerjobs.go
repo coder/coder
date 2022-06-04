@@ -32,7 +32,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	beforeRaw := r.URL.Query().Get("before")
 	if beforeRaw != "" && follow {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "before cannot be used with follow",
+			Message: "Query param \"before\" cannot be used with \"follow\"",
 		})
 		return
 	}
@@ -43,7 +43,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		afterMS, err := strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("unable to parse after %q: %s", afterRaw, err),
+				Message: "Query param \"after\" must be an integer",
+				Validations: []httpapi.Error{
+					{Field: "after", Detail: "Must be an integer"},
+				},
 			})
 			return
 		}
@@ -59,7 +62,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		beforeMS, err := strconv.ParseInt(beforeRaw, 10, 64)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("unable to parse before %q: %s", beforeRaw, err),
+				Message: "Query param \"before\" must be an integer",
+				Validations: []httpapi.Error{
+					{Field: "before", Detail: "Must be an integer"},
+				},
 			})
 			return
 		}
@@ -79,7 +85,8 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get provisioner logs: %s", err),
+				Message: "Internal error fetching provisioner logs",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -112,7 +119,8 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("subscribe to provisioner job logs: %s", err),
+			Message: "Internal error watching provisioner logs",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -128,7 +136,8 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprint("get provisioner job logs: %w", err),
+			Message: "Internal error fetching provisioner logs",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -191,7 +200,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job resources: %s", err),
+			Message: "Internal error fetching job resources",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -205,7 +215,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace agents by resources: %s", err),
+			Message: "Internal error fetching workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -241,7 +252,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("convert provisioner job agent: %s", err),
+					Message: "Internal error reading job agent",
+					Detail:  err.Error(),
 				})
 				return
 			}

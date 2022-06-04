@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -50,7 +49,8 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				user, err = db.GetUserByID(r.Context(), APIKey(r).UserID)
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: fmt.Sprintf("get user: %s", err.Error()),
+						Message: "Internal error fetching user",
+						Detail:  err.Error(),
 					})
 					return
 				}

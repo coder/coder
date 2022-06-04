@@ -11,20 +11,8 @@ terraform {
   }
 }
 
-variable "service_account" {
-  description = <<EOF
-Coder requires a Google Cloud Service Account to provision workspaces.
-
-1. Create a service account:
-   https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts/create
-2. Add the roles:
-   - Compute Admin
-   - Service Account User
-3. Click on the created key, and navigate to the "Keys" tab.
-4. Click "Add key", then "Create new key".
-5. Generate a JSON private key, and paste the contents below.
-EOF
-  sensitive   = true
+variable "project_id" {
+  description = "Which Google Compute Project should your workspace live in?"
 }
 
 variable "zone" {
@@ -37,9 +25,8 @@ variable "zone" {
 }
 
 provider "google" {
-  zone        = var.zone
-  credentials = var.service_account
-  project     = jsondecode(var.service_account).project_id
+  zone    = var.zone
+  project = var.project_id
 }
 
 data "coder_workspace" "me" {
