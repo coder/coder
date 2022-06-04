@@ -5,14 +5,16 @@
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
 import { Configuration } from "webpack"
 import "webpack-dev-server"
-import { commonWebpackConfig } from "./webpack.common"
+import { createCommonWebpackConfig } from "./webpack.common"
+
+const commonWebpackConfig = createCommonWebpackConfig()
 
 const commonPlugins = commonWebpackConfig.plugins || []
 
 const commonRules = commonWebpackConfig.module?.rules || []
 
 const config: Configuration = {
-  ...commonWebpackConfig,
+  ...createCommonWebpackConfig,
 
   // devtool controls how source maps are generated. In development, we want
   // more details (less optimized) for more readability and an easier time
