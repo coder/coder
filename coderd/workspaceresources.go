@@ -51,9 +51,6 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		agentIDs = append(agentIDs, agent.ID)
 	}
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), agentIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace apps: %s", err),

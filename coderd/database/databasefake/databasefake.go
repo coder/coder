@@ -419,9 +419,6 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 			}
 		}
 	}
-	if len(apps) == 0 {
-		return nil, sql.ErrNoRows
-	}
 	return apps, nil
 }
 
