@@ -371,16 +371,11 @@ jobs:
       - name: Build site
         run: make -B site/out/index.html
 
-      - name: Build Linux Release
-        run: |
-          goreleaser build --snapshot --rm-dist --id coder-slim
-          goreleaser build --snapshot --rm-dist --id coder-linux
-
-      - uses: actions/upload-artifact@v3
+      - name: Build Release
+        uses: goreleaser/goreleaser-action@v3
         with:
-          name: coder_linux_amd64.tar.gz
-          path: ./dist/coder_*_linux_amd64.tar.gz
-          retention-days: 7
+          version: latest
+          args: release --snapshot --rm-dist --skip-sign
 
       - name: Install Release
         run: |
@@ -393,9 +388,11 @@ jobs:
       - name: Start
         run: gcloud compute ssh coder -- sudo service coder restart
 
-      - name: Build Windows Release
-        run: |
-          goreleaser build --snapshot --rm-dist --id coder-windows
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coder_linux_amd64.tar.gz
+          path: ./dist/coder_*_linux_amd64.tar.gz
+          retention-days: 7
 
       - uses: actions/upload-artifact@v3
         with:
