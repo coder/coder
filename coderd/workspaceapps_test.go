@@ -120,6 +120,6 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }

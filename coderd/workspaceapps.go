@@ -129,7 +129,6 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 			StatusCode: http.StatusBadGateway,
 			Message:    err.Error(),
 		}))
-		w.WriteHeader(http.StatusBadGateway)
 		api.siteHandler.ServeHTTP(w, r)
 	}
 	path := chi.URLParam(r, "*")
