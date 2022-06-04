@@ -315,7 +315,7 @@ jobs:
     name: "deploy"
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     permissions:
       contents: read
       id-token: write
