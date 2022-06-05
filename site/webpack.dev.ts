@@ -14,7 +14,7 @@ const commonPlugins = commonWebpackConfig.plugins || []
 const commonRules = commonWebpackConfig.module?.rules || []
 
 const config: Configuration = {
-  ...createCommonWebpackConfig,
+  ...commonWebpackConfig,
 
   // devtool controls how source maps are generated. In development, we want
   // more details (less optimized) for more readability and an easier time
