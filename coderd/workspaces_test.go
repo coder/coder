@@ -46,10 +46,9 @@ func TestWorkspace(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		// Getting with deleted=true should fail.
+		// Getting with deleted=true should still work.
 		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "400") // bad request
+		require.NoError(t, err)
 
 		// Delete the workspace
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{

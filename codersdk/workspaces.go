@@ -38,6 +38,22 @@ type CreateWorkspaceBuildRequest struct {
 	ProvisionerState  []byte              `json:"state,omitempty"`
 }
 
+type WorkspaceOptions struct {
+	Deleted bool `json:"deleted,omitempty"`
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (o WorkspaceOptions) asRequestOption() requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if o.Deleted {
+			q.Set("deleted", "true")
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // Workspace returns a single workspace.
 func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
 	return c.getWorkspace(ctx, id)
@@ -45,7 +61,10 @@ func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 
 // DeletedWorkspace returns a single workspace that was deleted.
 func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	return c.getWorkspace(ctx, id, queryParam("deleted", "true"))
+	o := WorkspaceOptions{
+		Deleted: true,
+	}
+	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
 
 func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {

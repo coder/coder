@@ -60,12 +60,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !workspace.Deleted && showDeleted {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("Workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
-		})
-		return
-	}
 
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
