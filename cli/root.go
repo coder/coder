@@ -117,12 +117,12 @@ func versionCmd() *cobra.Command {
 		Example: "coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var str strings.Builder
-			str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
+			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
 			buildTime, valid := buildinfo.Time()
 			if valid {
-				str.WriteString(" " + buildTime.Format(time.UnixDate))
+				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
 			}
-			str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n")
+			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n")
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
 			return nil
