@@ -26,7 +26,7 @@ export interface TerminalLinkProps {
  */
 export const TerminalLink: FC<TerminalLinkProps> = ({ agentName, userName = "me", workspaceName, className }) => {
   const styles = useStyles()
-  const href = `/${userName}/${workspaceName}${agentName ? `.${agentName}` : ""}/terminal`
+  const href = `/@${userName}/${workspaceName}${agentName ? `.${agentName}` : ""}/terminal`
 
   return (
     <Link
