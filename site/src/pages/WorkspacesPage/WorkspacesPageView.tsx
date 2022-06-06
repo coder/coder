@@ -134,8 +134,10 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
         }
       >
         <PageHeaderTitle>
-          Workspaces
-          <WorkspaceHelpTooltip />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <span>Workspaces</span>
+            <WorkspaceHelpTooltip />
+          </Stack>
         </PageHeaderTitle>
       </PageHeader>
 

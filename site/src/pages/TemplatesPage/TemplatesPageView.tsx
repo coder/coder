@@ -21,6 +21,7 @@ import {
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 
 dayjs.extend(relativeTime)
@@ -74,8 +75,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
     <Margins>
       <PageHeader>
         <PageHeaderTitle>
-          Templates
-          <TemplateHelpTooltip />
+          <Stack spacing={1} direction="row" alignItems="center">
+            Templates
+            <TemplateHelpTooltip />
+          </Stack>
         </PageHeaderTitle>
       </PageHeader>
 
