@@ -1,8 +1,10 @@
 import { useActor, useSelector } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
+import { Helmet } from "react-helmet"
 import { useNavigate } from "react-router"
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
+import { pageTitle } from "../../util/page"
 import { selectPermissions } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
@@ -48,6 +50,9 @@ export const UsersPage: React.FC = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle("Users")}</title>
+      </Helmet>
       <UsersPageView
         roles={roles}
         users={users}

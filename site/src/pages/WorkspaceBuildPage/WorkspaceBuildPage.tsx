@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
+import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
@@ -9,6 +10,7 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
+import { pageTitle } from "../../util/page"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
@@ -34,6 +36,9 @@ export const WorkspaceBuildPage: FC = () => {
 
   return (
     <Margins>
+      <Helmet>
+        <title>{build ? pageTitle(`Build #${build.build_number} · ${build.workspace_name}`) : ""}</title>
+      </Helmet>
       <Stack>
         <Typography variant="h4" className={styles.title}>
           Logs

@@ -11,11 +11,13 @@ import SearchIcon from "@material-ui/icons/Search"
 import { useMachine } from "@xstate/react"
 import { FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
+import { Helmet } from "react-helmet"
 import { Link as RouterLink } from "react-router-dom"
 import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { pageTitle } from "../../util/page"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
@@ -74,6 +76,9 @@ const WorkspacesPage: FC = () => {
 
   return (
     <Margins>
+      <Helmet>
+        <title>{pageTitle("Workspaces")}</title>
+      </Helmet>
       <Stack direction="row" className={styles.workspacesHeaderContainer}>
         <Stack direction="column" className={styles.filterColumn}>
           <Stack direction="row" spacing={0} className={styles.filterContainer}>

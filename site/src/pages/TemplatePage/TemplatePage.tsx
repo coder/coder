@@ -1,8 +1,10 @@
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
+import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
 import { Loader } from "../../components/Loader/Loader"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
+import { pageTitle } from "../../util/page"
 import { templateMachine } from "../../xServices/template/templateXService"
 import { TemplatePageView } from "./TemplatePageView"
 
@@ -33,10 +35,15 @@ export const TemplatePage: FC = () => {
   }
 
   return (
-    <TemplatePageView
-      template={template}
-      activeTemplateVersion={activeTemplateVersion}
-      templateResources={templateResources}
-    />
+    <>
+      <Helmet>
+        <title>{pageTitle(`${template.name} · Template`)}</title>
+      </Helmet>
+      <TemplatePageView
+        template={template}
+        activeTemplateVersion={activeTemplateVersion}
+        templateResources={templateResources}
+      />
+    </>
   )
 }
