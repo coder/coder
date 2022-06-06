@@ -11,70 +11,32 @@ terraform {
   }
 }
 
-variable "step1_use_kubeconfig" {
+variable "use_kubeconfig" {
   type        = bool
   sensitive   = true
   description = <<-EOF
   Use host kubeconfig? (true/false)
 
-  If true, a valid "~/.kube/config" must be present on the Coder host. This
+  Set this to false if the Coder host is itself running as a Pod on the same
+  Kubernetes cluster as you are deploying workspaces to.
+
+  Set this to true if the Coder host is running outside the Kubernetes cluster
+  for workspaces.  A valid "~/.kube/config" must be present on the Coder host. This
   is likely not your local machine unless you are using `coder server --dev.`
 
-  If false, proceed for instructions creating a ServiceAccount on your existing
-  Kubernetes cluster.
   EOF
 }
 
-variable "step2_cluster_host" {
+variable "workspaces_namespace" {
   type        = string
   sensitive   = true
-  description = <<-EOF
-  Hint: You can use:
-  $ kubectl cluster-info | grep "control plane"
-
-
-  Leave blank if using ~/.kube/config (from step 1)
-  EOF
-}
-
-variable "step3_certificate" {
-  type        = string
-  sensitive   = true
-  description = <<-EOF
-  Use docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount to create a ServiceAccount for Coder and grab values.
-
-  Enter CA certificate
-
-  Leave blank if using ~/.kube/config (from step 1)
-  EOF
-}
-
-variable "step4_token" {
-  type        = string
-  sensitive   = true
-  description = <<-EOF
-  Enter token (refer to docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount)
-
-  Leave blank if using ~/.kube/config (from step 1)
-  EOF
-}
-
-variable "step5_coder_namespace" {
-  type        = string
-  sensitive   = true
-  description = <<-EOF
-  Enter namespace (refer to docs at https://github.com/coder/coder/tree/main/examples/templates/kubernetes-multi-service#serviceaccount)
-
-  Leave blank if using ~/.kube/config (from step 1)
-  EOF
+  description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
+  default     = "coder-workspaces"
 }
 
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path            = var.step1_use_kubeconfig == true ? "~/.kube/config" : null
-  host                   = var.step1_use_kubeconfig == false ? var.step2_cluster_host : null
-  cluster_ca_certificate = var.step1_use_kubeconfig == false ? base64decode(var.step3_certificate) : null
-  token                  = var.step1_use_kubeconfig == false ? base64decode(var.step4_token) : null
+  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
@@ -97,7 +59,8 @@ resource "coder_agent" "ubuntu" {
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    namespace = var.workspaces_namespace
   }
   spec {
     container {

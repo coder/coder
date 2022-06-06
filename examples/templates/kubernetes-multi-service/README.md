@@ -4,75 +4,71 @@ description: Get started with Kubernetes development.
 tags: [cloud, kubernetes]
 ---
 
-# Authentication
+# Getting started
 
-This template features two ways to authenticate to a Kubernetes cluster.
+## RBAC
 
-## kubeconfig (Coder host)
+The Coder provisioner requires permission to administer pods to use this template.  The template
+creates workspaces in a single Kubernetes namespace, using the `workspaces_namespace` parameter set
+while creating the template.
+
+Create a role as follows and bind it to the user or service account that runs the coder host.
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["*"]
+```
+
+## Authentication
+
+This template can authenticate using in-cluster authentication, or using a kubeconfig local to the
+Coder host.  For additional authentication options, consult the [Kubernetes provider
+documentation](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs).
+
+### kubeconfig on Coder host
 
 If the Coder host has a local `~/.kube/config`, you can use this to authenticate
 with Coder. Make sure this is done with same user that's running the `coder` service.
 
-## ServiceAccount
+To use this authentication, set the parameter `use_kubeconfig` to true.
 
-Create a ServiceAccount and role on your cluster to authenticate your template with Coder.
+### In-cluster authentication
 
-1. Run the following command on a device with Kubernetes context:
+If the Coder host runs in a Pod on the same Kubernetes cluster as you are creating workspaces in,
+you can use in-cluster authentication.
 
-    ```sh
-    CODER_NAMESPACE=default
-    kubectl apply -n $CODER_NAMESPACE -f - <<EOF
-    apiVersion: v1
-    kind: ServiceAccount
-    metadata:
+To use this authentication, set the parameter `use_kubeconfig` to false.
+
+The Terraform provisioner will automatically use the service account associated with the pod to
+authenticate to Kubernetes.  Be sure to bind a [role with appropriate permission](#rbac) to the
+service account.  For example, assuming the Coder host runs in the same namespace as you intend
+to create workspaces:
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder
+subjects:
+  - kind: ServiceAccount
     name: coder
-    ---
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: Role
-    metadata:
-    name: coder
-    rules:
-    - apiGroups: ["", "apps", "networking.k8s.io"] # "" indicates the core API group
-        resources: ["persistentvolumeclaims", "pods", "deployments", "services", "secrets", "pods/exec","pods/log", "events", "networkpolicies", "serviceaccounts"]
-        verbs: ["create", "get", "list", "watch", "update", "patch", "delete", "deletecollection"]
-    - apiGroups: ["metrics.k8s.io", "storage.k8s.io"]
-        resources: ["pods", "storageclasses"]
-        verbs: ["get", "list", "watch"]
-    ---
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: RoleBinding
-    metadata:
-    name: coder
-    subjects:
-    - kind: ServiceAccount
-        name: coder
-    roleRef:
-    kind: Role
-    name: coder
-    apiGroup: rbac.authorization.k8s.io
-    EOF
-    ```
+roleRef:
+  kind: Role
+  name: coder
+  apiGroup: rbac.authorization.k8s.io
+```
 
-1. Use the following commands to fetch the values:
+Then start the Coder host with `serviceAccountName: coder` in the pod spec.
 
-     **Cluster IP:**
-
-     ```sh
-     kubectl cluster-info | grep "control plane"
-     ```
-
-     **CA certificate**
-
-     ```sh
-     kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['ca\.crt']}{'\n'}"
-     ```
-
-     **Token**
-
-     ```sh
-     kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['token']}{'\n'}"
-     ```
-
-     **Namespace**
-
-     This should be the same as `$CODER_NAMESPACE`, set in step 1.
