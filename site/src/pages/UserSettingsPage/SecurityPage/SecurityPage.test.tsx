@@ -49,7 +49,10 @@ describe("SecurityPage", () => {
       jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
         isAxiosError: true,
         response: {
-          data: { message: "Incorrect password.", validations: [{ detail: "Incorrect password.", field: "old_password" }] },
+          data: {
+            message: "Incorrect password.",
+            validations: [{ detail: "Incorrect password.", field: "old_password" }],
+          },
         },
       })
 
