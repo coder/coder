@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       snapshot:
-        description: Perform a snapshot/dry-run release (required if the ref is not a tag)
+        description: Perform a snapshot/dry-run release (will not create a GitHub release, required if the ref is not a tag)
         type: boolean
         required: true
 
