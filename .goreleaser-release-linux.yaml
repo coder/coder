@@ -1,0 +1,52 @@
+before:
+  hooks:
+    - go mod tidy
+    - rm -f site/out/bin/coder*
+
+archives:
+  - id: coder-linux
+    builds: [coder-linux]
+    format: tar.gz
+
+  - id: coder-windows
+    builds: [coder-windows]
+    format: zip
+
+builds:
+  - id: coder-slim
+    dir: cmd/coder
+    ldflags: ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm, arm64]
+    goarm: ["7"]
+    # Only build arm 7 for Linux
+    ignore:
+      - goos: windows
+        goarm: "7"
+      - goos: darwin
+        goarm: "7"
+    hooks:
+      # The "trimprefix" appends ".exe" on Windows.
+      post: |
+        cp {{.Path}} site/out/bin/coder-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ trimprefix .Name "coder" }}
+
+  - id: coder-linux
+    dir: cmd/coder
+    flags: [-tags=embed]
+    ldflags: ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm, arm64]
+    goarm: ["7"]
+
+  - id: coder-windows
+    dir: cmd/coder
+    flags: [-tags=embed]
+    ldflags: ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+
+snapshot:
+  name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"

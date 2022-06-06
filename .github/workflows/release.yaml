@@ -49,29 +49,17 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Build Linux binaries with GoReleaser
+      - name: Build Linux and Windows binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: build --rm-dist --timeout 60m --id coder-linux
+          args: release -f ./.goreleaser-linux.yaml --rm-dist --timeout 60m --snapshot
 
-      - name: Build Windows binaries with GoReleaser
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: build --rm-dist --timeout 60m --id coder-windows
-
-      - name: Upload Linux binary artifacts
+      - name: Upload binary artifacts
         uses: actions/upload-artifact@v3
         with:
           name: linux
-          path: ./dist/coder-linux-*
-
-      - name: Upload Windows binary artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: windows
-          path: ./dist/coder-windows-*
+          path: ./dist/coder*
 
   # The mac binaries get built on mac runners because they need to be signed,
   # and the signing tool only runs on mac. This darwin job only builds the Mac
@@ -133,11 +121,11 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Build darwin binaries with GoReleaser
+      - name: Build Darwin binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: build --rm-dist --timeout 60m --id coder-darwin
+          args: release -f ./.goreleaser-darwin.yaml --rm-dist --timeout 60m --snapshot
         env:
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
@@ -146,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: darwin
-          path: ./dist/coder-darwin-*
+          path: ./dist/coder*
 
   publish:
     runs-on: ubuntu-latest
@@ -171,23 +159,20 @@ jobs:
       - name: mkdir artifacts
         run: mkdir artifacts
 
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: linux
-          path: ./artifacts
-
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: windows
-          path: ./artifacts
-
       - name: Download darwin artifacts
         uses: actions/download-artifact@v3
         with:
           name: darwin
           path: ./artifacts
+
+      - name: Download Linux and Windows artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux
+          path: ./artifacts
+
+      - name: ls ./artifacts
+        run: ls ./artifacts
 
       # This will build Docker images and Linux packages.
       - name: Publish release
@@ -196,7 +181,7 @@ jobs:
           # we use the "prebuilt" builder here which is a pro-only feature
           distribution: goreleaser-pro
           version: latest
-          args: release -f ./.goreleaser-release.yaml --rm-dist --timeout 60m
+          args: release -f ./.goreleaser-release.yaml --rm-dist --timeout 60m --snapshot
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

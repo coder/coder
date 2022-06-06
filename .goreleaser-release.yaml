@@ -3,14 +3,6 @@ archives:
     builds: [release-prebuilt-linux]
     format: tar.gz
 
-  - id: coder-windows
-    builds: [release-prebuilt-windows]
-    format: zip
-
-  - id: coder-darwin
-    builds: [release-prebuilt-darwin]
-    format: zip
-
 builds:
   - id: release-prebuilt-linux
     builder: prebuilt
@@ -20,24 +12,7 @@ builds:
     prebuilt:
       path: artifacts/coder-linux_{{.Os}}_{{.Arch}}/coder
 
-  - id: release-prebuilt-windows
-    builder: prebuilt
-    goos: [windows]
-    goarch: [amd64, arm64]
-    prebuilt:
-      path: artifacts/coder-windows_{{.Os}}_{{.Arch}}/coder.exe
-
-  - id: release-prebuilt-darwin
-    builder: prebuilt
-    goos: [darwin]
-    goarch: [amd64, arm64]
-    prebuilt:
-      path: artifacts/coder-darwin_{{.Os}}_{{.Arch}}/coder
-
-env:
-  # Apple identity for signing!
-  - AC_APPLICATION_IDENTITY=BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
-
+# This section is also contained in .goreleaser.yaml.
 nfpms:
   - id: packages
     vendor: Coder
@@ -52,7 +27,7 @@ nfpms:
     suggests:
       - postgresql
     builds:
-      - coder-linux
+      - release-prebuilt-linux
     bindir: /usr/bin
     contents:
       - src: coder.env
@@ -65,7 +40,7 @@ nfpms:
 # development.
 dockers:
   - image_templates: ["{{ if not .IsSnapshot }}ghcr.io/coder/coder:{{ .Tag }}-amd64{{ end }}"]
-    id: coder-linux
+    id: release-prebuilt-linux
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -113,14 +88,12 @@ docker_manifests:
       - ghcr.io/coder/coder:{{ .Tag }}-armv7
 
 release:
-  ids: [release-prebuilt-linux, release-prebuilt-windows, release-prebuilt-darwin, packages]
+  ids: [release-prebuilt-linux, packages]
   footer: |
     ## Container Image
     - `docker pull ghcr.io/coder/coder:{{ .Tag }}`
-
-signs:
-  - ids: [coder-darwin]
-    artifacts: archive
-    cmd: ./scripts/sign_macos.sh
-    args: ["${artifact}"]
-    output: true
+  # All non-Linux files should just be used as is. We have to import the Linux
+  # builds so that the docker images get built and package creation works.
+  extra_files:
+    - glob: ./artifacts/coder_*_darwin*
+    - glob: ./artifacts/coder_*_windows*
