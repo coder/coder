@@ -168,8 +168,6 @@ func TestConfigSSH(t *testing.T) {
 
 	<-doneChan
 
-	t.Log(coderConfigFile)
-	t.Log(sshConfigFileRead(t, coderConfigFile))
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
 	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
