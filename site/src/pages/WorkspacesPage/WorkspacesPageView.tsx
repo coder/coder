@@ -218,9 +218,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
               ) : (
                 <TableRow>
                   <TableCell colSpan={999}>
-                    <EmptyState
-                      message={Language.emptyResultsMessage}
-                    />
+                    <EmptyState message={Language.emptyResultsMessage} />
                   </TableCell>
                 </TableRow>
               )}
