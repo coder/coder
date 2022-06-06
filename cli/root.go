@@ -53,7 +53,6 @@ func init() {
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
-		Version:       buildinfo.Version(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
@@ -94,7 +93,6 @@ func Root() *cobra.Command {
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
-	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
@@ -108,28 +106,26 @@ func Root() *cobra.Command {
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 
-	// Cobra automatically uses "-v" and "--version" for printing the version on
-	// the root cmd. If we decide to use "-v" as a verbose flag on the root,
-	// then that will be a behavior change. So we should just reserve "-v"
-	// and make users use "coder --version" or "coder version"
-	cmd.Flags().BoolP("placeholder", "v", false, "This flag is a placeholder to make the cobra version flag work appropriately")
-	_ = cmd.Flags().MarkHidden("placeholder")
-
 	return cmd
 }
 
-// versionCmd comes from example in cobra issue.
-//	https://github.com/spf13/cobra/issues/724
+// versionCmd prints the coder version
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
-		Short:   "Version for coder",
+		Short:   "Show coder version",
 		Example: "coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Use "--version" behavior on root.
-			root := cmd.Root()
-			root.SetArgs([]string{"--version"})
-			return root.Execute()
+			var str strings.Builder
+			str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
+			buildTime, valid := buildinfo.Time()
+			if valid {
+				str.WriteString(" " + buildTime.Format(time.UnixDate))
+			}
+			str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n")
+
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
+			return nil
 		},
 	}
 }
@@ -308,17 +304,6 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 {{end}}`
-}
-
-func versionTemplate() string {
-	template := `Coder {{printf "%s" .Version}}`
-	buildTime, valid := buildinfo.Time()
-	if valid {
-		template += " " + buildTime.Format(time.UnixDate)
-	}
-	template += "\r\n" + buildinfo.ExternalURL()
-	template += "\r\n"
-	return template
 }
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
