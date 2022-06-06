@@ -1,5 +1,6 @@
 import { useMachine } from "@xstate/react"
 import React, { useEffect } from "react"
+import { Helmet } from "react-helmet"
 import { useNavigate, useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -8,6 +9,7 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
+import { pageTitle } from "../../util/page"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
@@ -36,6 +38,9 @@ export const WorkspacePage: React.FC = () => {
   } else {
     return (
       <Margins>
+        <Helmet>
+          <title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+        </Helmet>
         <Stack spacing={4}>
           <>
             <Workspace

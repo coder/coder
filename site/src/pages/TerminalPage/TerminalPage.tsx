@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
+import { Helmet } from "react-helmet"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -8,6 +9,7 @@ import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { pageTitle } from "../../util/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 
 export const Language = {
@@ -179,6 +181,15 @@ const TerminalPage: FC<{
 
   return (
     <>
+      <Helmet>
+        <title>
+          {terminalState.context.workspace
+            ? pageTitle(
+                `Terminal · ${terminalState.context.workspace.owner_name}/${terminalState.context.workspace.name}`,
+              )
+            : ""}
+        </title>
+      </Helmet>
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
       <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
