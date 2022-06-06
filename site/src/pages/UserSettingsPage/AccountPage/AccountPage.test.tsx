@@ -54,7 +54,7 @@ describe("AccountPage", () => {
       jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
         isAxiosError: true,
         response: {
-          data: { message: "Invalid profile", errors: [{ detail: "Username is already in use", field: "username" }] },
+          data: { message: "Invalid profile", validations: [{ detail: "Username is already in use", field: "username" }] },
         },
       })
 
