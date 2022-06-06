@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet"
 import { pageTitle } from "../../util/page"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
+import { workspaceFilterQuery } from "../../util/workspace"
 
 const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine)

@@ -35,7 +35,7 @@ import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHea
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
-import { getDisplayStatus } from "../../util/workspace"
+import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
@@ -201,7 +201,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           {!workspaces && loading && <TableLoader />}
           {workspaces && workspaces.length === 0 && (
             <>
-              {filter === "owner:me" || filter === "" ? (
+              {query === workspaceFilterQuery.me || query === workspaceFilterQuery.all ? (
                 <TableRow>
                   <TableCell colSpan={999}>
                     <EmptyState

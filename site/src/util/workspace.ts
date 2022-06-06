@@ -297,3 +297,8 @@ export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter
     return defaultFilter
   }
 }
+
+export const workspaceFilterQuery = {
+  me: "owner:me",
+  all: "",
+}
