@@ -330,7 +330,7 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 		if !arg.Deleted && workspace.Deleted {
 			continue
 		}
-		if arg.Name != "" && workspace.Name != arg.Name {
+		if arg.Name != "" && !strings.Contains(workspace.Name, arg.Name) {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
