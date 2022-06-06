@@ -42,6 +42,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
           <TableCell width="20%">{Language.durationLabel}</TableCell>
           <TableCell width="40%">{Language.startedAtLabel}</TableCell>
           <TableCell width="20%">{Language.statusLabel}</TableCell>
+          <TableCell></TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -78,8 +79,10 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <div className={styles.statusCell}>
-                    <span style={{ color: status.color }}>{status.status}</span>
+                  <span style={{ color: status.color }}>{status.status}</span>
+                </TableCell>
+                <TableCell>
+                  <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />
                   </div>
                 </TableCell>
@@ -122,8 +125,7 @@ const useStyles = makeStyles((theme) => ({
     width: 20,
     height: 20,
   },
-  statusCell: {
+  arrowCell: {
     display: "flex",
-    justifyContent: "space-between",
   },
 }))

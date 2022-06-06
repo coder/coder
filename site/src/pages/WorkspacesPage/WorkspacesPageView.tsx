@@ -4,7 +4,7 @@ import InputAdornment from "@material-ui/core/InputAdornment"
 import Link from "@material-ui/core/Link"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -12,13 +12,14 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import SearchIcon from "@material-ui/icons/Search"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
@@ -90,6 +91,7 @@ export interface WorkspacesPageViewProps {
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces, filter, onFilter }) => {
   const styles = useStyles()
+  const navigate = useNavigate()
   const theme: Theme = useTheme()
 
   const form = useFormik<FilterFormValues>({
@@ -190,11 +192,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Template</TableCell>
-            <TableCell>Version</TableCell>
-            <TableCell>Last Built</TableCell>
-            <TableCell>Status</TableCell>
+            <TableCell width="20%">Name</TableCell>
+            <TableCell width="20%">Template</TableCell>
+            <TableCell width="20%">Version</TableCell>
+            <TableCell width="20%">Last Built</TableCell>
+            <TableCell width="20%">Status</TableCell>
+            <TableCell></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -217,14 +220,25 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           {workspaces &&
             workspaces.map((workspace) => {
               const status = getDisplayStatus(theme, workspace.latest_build)
+              const navigateToWorkspacePage = () => {
+                navigate(`/@${workspace.owner_name}/${workspace.name}`)
+              }
               return (
-                <TableRow key={workspace.id}>
+                <TableRow
+                  key={workspace.id}
+                  hover
+                  data-testid={`workspace-${workspace.id}`}
+                  tabIndex={0}
+                  onClick={navigateToWorkspacePage}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      navigateToWorkspacePage()
+                    }
+                  }}
+                  className={styles.clickableTableRow}
+                >
                   <TableCell>
-                    <AvatarData
-                      title={workspace.name}
-                      subtitle={workspace.owner_name}
-                      link={`/@${workspace.owner_name}/${workspace.name}`}
-                    />
+                    <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
                   </TableCell>
                   <TableCell>{workspace.template_name}</TableCell>
                   <TableCell>
@@ -241,6 +255,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                   </TableCell>
                   <TableCell>
                     <span style={{ color: status.color }}>{status.status}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className={styles.arrowCell}>
+                      <KeyboardArrowRight className={styles.arrowRight} />
+                    </div>
                   </TableCell>
                 </TableRow>
               )
@@ -285,5 +304,28 @@ const useStyles = makeStyles((theme) => ({
     "& fieldset": {
       border: "none",
     },
+  },
+  clickableTableRow: {
+    cursor: "pointer",
+
+    "&:hover td": {
+      backgroundColor: fade(theme.palette.primary.light, 0.1),
+    },
+
+    "&:focus": {
+      outline: `1px solid ${theme.palette.secondary.dark}`,
+    },
+
+    "& .MuiTableCell-root:last-child": {
+      paddingRight: theme.spacing(2),
+    },
+  },
+  arrowRight: {
+    color: fade(theme.palette.primary.contrastText, 0.7),
+    width: 20,
+    height: 20,
+  },
+  arrowCell: {
+    display: "flex",
   },
 }))

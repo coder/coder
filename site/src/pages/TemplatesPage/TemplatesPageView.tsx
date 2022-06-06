@@ -1,13 +1,15 @@
 import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
+import { fade, makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -71,6 +73,8 @@ export interface TemplatesPageViewProps {
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
+  const navigate = useNavigate()
+
   return (
     <Margins>
       <PageHeader>
@@ -85,9 +89,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>{Language.nameLabel}</TableCell>
-            <TableCell>{Language.usedByLabel}</TableCell>
-            <TableCell>{Language.lastUpdatedLabel}</TableCell>
+            <TableCell width="33%">{Language.nameLabel}</TableCell>
+            <TableCell width="33%">{Language.usedByLabel}</TableCell>
+            <TableCell width="33%">{Language.lastUpdatedLabel}</TableCell>
+            <TableCell></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -104,21 +109,39 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
               </TableCell>
             </TableRow>
           )}
-          {props.templates?.map((template) => (
-            <TableRow key={template.id}>
-              <TableCell>
-                <AvatarData
-                  title={template.name}
-                  subtitle={template.description}
-                  link={`/templates/${template.name}`}
-                />
-              </TableCell>
+          {props.templates?.map((template) => {
+            const navigateToTemplatePage = () => {
+              navigate(`/templates/${template.name}`)
+            }
+            return (
+              <TableRow
+                key={template.id}
+                hover
+                data-testid={`template-${template.id}`}
+                tabIndex={0}
+                onClick={navigateToTemplatePage}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    navigateToTemplatePage()
+                  }
+                }}
+                className={styles.clickableTableRow}
+              >
+                <TableCell>
+                  <AvatarData title={template.name} subtitle={template.description} />
+                </TableCell>
 
-              <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
+                <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
-              <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
-            </TableRow>
-          ))}
+                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell>
+                  <div className={styles.arrowCell}>
+                    <KeyboardArrowRight className={styles.arrowRight} />
+                  </div>
+                </TableCell>
+              </TableRow>
+              )
+            })}
         </TableBody>
       </Table>
     </Margins>
@@ -128,5 +151,28 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
 const useStyles = makeStyles((theme) => ({
   emptyDescription: {
     maxWidth: theme.spacing(62),
+  },
+  clickableTableRow: {
+    cursor: "pointer",
+
+    "&:hover td": {
+      backgroundColor: fade(theme.palette.primary.light, 0.1),
+    },
+
+    "&:focus": {
+      outline: `1px solid ${theme.palette.secondary.dark}`,
+    },
+
+    "& .MuiTableCell-root:last-child": {
+      paddingRight: theme.spacing(2),
+    },
+  },
+  arrowRight: {
+    color: fade(theme.palette.primary.contrastText, 0.7),
+    width: 20,
+    height: 20,
+  },
+  arrowCell: {
+    display: "flex",
   },
 }))
