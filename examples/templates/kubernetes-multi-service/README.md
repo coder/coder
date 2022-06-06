@@ -33,7 +33,8 @@ documentation](https://registry.terraform.io/providers/hashicorp/kubernetes/late
 
 ### kubeconfig on Coder host
 
-If the Coder host has a local `~/.kube/config`, this can be used to authenticate with Coder. Make sure this is on the same user running the `coder` service.
+If the Coder host has a local `~/.kube/config`, you can use this to authenticate
+with Coder. Make sure this is done with same user that's running the `coder` service.
 
 To use this authentication, set the parameter `use_kubeconfig` to true.
 

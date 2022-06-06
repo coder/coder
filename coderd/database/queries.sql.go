@@ -3658,10 +3658,10 @@ WHERE
 				owner_id = $3
 		  ELSE true
 	END
-	-- Filter by name
+	-- Filter by name, matching on substring
 	AND CASE
 		  WHEN $4 :: text != '' THEN
-				LOWER(name) = LOWER($4)
+				LOWER(name) LIKE '%' || LOWER($4) || '%'
 		  ELSE true
 	END
 `

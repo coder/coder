@@ -36,14 +36,6 @@ type Client struct {
 
 type requestOption func(*http.Request)
 
-func queryParam(k, v string) requestOption {
-	return func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set(k, v)
-		r.URL.RawQuery = q.Encode()
-	}
-}
-
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {

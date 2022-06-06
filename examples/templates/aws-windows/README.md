@@ -8,7 +8,8 @@ tags: [cloud, aws]
 
 ## Getting started
 
-Pick this template in `coder templates init` and follow instructions.
+To get started, run `coder templates init`. When prompted, select this template.
+Follow the on-screen instructions to proceed.
 
 ## Authentication
 
@@ -19,7 +20,8 @@ Terraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/doc
 
 ## Required permissions / policy
 
-This example policy allows Coder to create EC2 instances and modify instances provisioned by Coder.
+The following sample policy allows Coder to create EC2 instances and modify
+instances provisioned by Coder:
 
 ```json
 {
@@ -68,4 +70,3 @@ This example policy allows Coder to create EC2 instances and modify instances pr
     ]
 }
 ```
-

@@ -46,10 +46,9 @@ func TestWorkspace(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		// Getting with deleted=true should fail.
+		// Getting with deleted=true should still work.
 		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "400") // bad request
+		require.NoError(t, err)
 
 		// Delete the workspace
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -230,6 +229,42 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name)
 		require.NoError(t, err)
+	})
+}
+
+func TestWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		// full match
+		ws, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: workspace.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1, workspace.Name)
+		require.Equal(t, workspace.ID, ws[0].ID)
+
+		// partial match
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: workspace.Name[1 : len(workspace.Name)-2],
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1)
+		require.Equal(t, workspace.ID, ws[0].ID)
+
+		// no match
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: "$$$$",
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 0)
 	})
 }
 
