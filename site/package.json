@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "4.5.9",
-    "@fontsource/inter": "4.5.10",
+    "@fontsource/inter": "4.5.11",
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
@@ -111,7 +111,7 @@
     "ts-jest": "27.1.4",
     "ts-loader": "9.3.0",
     "ts-node": "10.7.0",
-    "typescript": "4.6.4",
+    "typescript": "4.7.3",
     "webpack": "5.72.0",
     "webpack-bundle-analyzer": "4.5.0",
     "webpack-cli": "4.9.2",
