@@ -18,4 +18,23 @@ jq -r --null-input --arg path "$(pwd)/$1" '{
 		}
 	]
 }' >"$config"
-gon "$config"
+
+# The notarization process is very fragile and heavily dependent on Apple's
+# notarization server not returning server errors, so we retry this step 5
+# times with a delay of 30 seconds between each attempt.
+rc=0
+for i in $(seq 1 5); do
+	gon "$config" && rc=0 && break || rc=$?
+	echo "gon exit code: $rc"
+	if [ "$i" -lt 5 ]; then
+		echo
+		echo "Retrying notarization in 30 seconds"
+		echo
+		sleep 30
+	else
+		echo
+		echo "Giving up :("
+	fi
+done
+
+exit $rc
