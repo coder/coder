@@ -103,54 +103,56 @@ type sshWorkspaceConfig struct {
 	Hosts []string
 }
 
+func fetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]sshWorkspaceConfig, error) {
+	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Owner: codersdk.Me,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var errGroup errgroup.Group
+	workspaceConfigs := make([]sshWorkspaceConfig, len(workspaces))
+	for i, workspace := range workspaces {
+		i := i
+		workspace := workspace
+		errGroup.Go(func() error {
+			resources, err := client.TemplateVersionResources(ctx, workspace.LatestBuild.TemplateVersionID)
+			if err != nil {
+				return err
+			}
+
+			wc := sshWorkspaceConfig{Name: workspace.Name}
+			for _, resource := range resources {
+				if resource.Transition != codersdk.WorkspaceTransitionStart {
+					continue
+				}
+				for _, agent := range resource.Agents {
+					hostname := workspace.Name
+					if len(resource.Agents) > 1 {
+						hostname += "." + agent.Name
+					}
+					wc.Hosts = append(wc.Hosts, hostname)
+				}
+			}
+			workspaceConfigs[i] = wc
+
+			return nil
+		})
+	}
+	err = errGroup.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	return workspaceConfigs, nil
+}
+
 func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (receive func() ([]sshWorkspaceConfig, error)) {
 	wcC := make(chan []sshWorkspaceConfig, 1)
 	errC := make(chan error, 1)
 	go func() {
-		wc, err := func() ([]sshWorkspaceConfig, error) {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-				Owner: codersdk.Me,
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			var errGroup errgroup.Group
-			workspaceConfigs := make([]sshWorkspaceConfig, len(workspaces))
-			for i, workspace := range workspaces {
-				i := i
-				workspace := workspace
-				errGroup.Go(func() error {
-					resources, err := client.TemplateVersionResources(ctx, workspace.LatestBuild.TemplateVersionID)
-					if err != nil {
-						return err
-					}
-
-					wc := sshWorkspaceConfig{Name: workspace.Name}
-					for _, resource := range resources {
-						if resource.Transition != codersdk.WorkspaceTransitionStart {
-							continue
-						}
-						for _, agent := range resource.Agents {
-							hostname := workspace.Name
-							if len(resource.Agents) > 1 {
-								hostname += "." + agent.Name
-							}
-							wc.Hosts = append(wc.Hosts, hostname)
-						}
-					}
-					workspaceConfigs[i] = wc
-
-					return nil
-				})
-			}
-			err = errGroup.Wait()
-			if err != nil {
-				return nil, err
-			}
-
-			return workspaceConfigs, nil
-		}()
+		wc, err := fetchWorkspaceConfigs(ctx, client)
 		wcC <- wc
 		errC <- err
 	}()
