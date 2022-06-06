@@ -218,24 +218,27 @@ export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter
     const parts = preparedQuery.split(" ")
 
     for (const part of parts) {
-      const [key, val] = part.split(":")
-      if (key && val) {
-        if (key === "owner") {
-          return {
-            owner: val,
+      if (part.includes(":")) {
+        const [key, val] = part.split(":")
+        if (key && val) {
+          if (key === "owner") {
+            return {
+              owner: val,
+            }
           }
+          // skip invalid key pairs
+          continue
         }
-        // skip invalid key pairs
-        continue
       }
 
-      const [username, name] = part.split("/")
-      if (username && name) {
+      if (part.includes("/")) {
+        const [username, name] = part.split("/")
         return {
           owner: username,
-          name: name,
+          name: name === "" ? undefined : name,
         }
       }
+
       return {
         name: part,
       }

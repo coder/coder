@@ -71,6 +71,7 @@ describe("util > workspace", () => {
       ["owner:me", { owner: "me" }],
       ["owner:me owner:me2", { owner: "me" }],
       ["me/dev", { owner: "me", name: "dev" }],
+      ["me/", { owner: "me" }],
       ["    key:val      owner:me       ", { owner: "me" }],
     ])(`query=%p, filter=%p`, (query, filter) => {
       expect(workspaceQueryToFilter(query)).toEqual(filter)
