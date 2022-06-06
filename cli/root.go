@@ -90,6 +90,7 @@ func Root() *cobra.Command {
 		users(),
 		portForward(),
 		workspaceAgent(),
+		versionCmd(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
@@ -107,7 +108,30 @@ func Root() *cobra.Command {
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 
+	// Cobra automatically uses "-v" and "--version" for printing the version on
+	// the root cmd. If we decide to use "-v" as a verbose flag on the root,
+	// then that will be a behavior change. So we should just reserve "-v"
+	// and make users use "coder --version" or "coder version"
+	cmd.Flags().BoolP("placeholder", "v", false, "This flag is a placeholder to make the cobra version flag work appropriately")
+	_ = cmd.Flags().MarkHidden("placeholder")
+
 	return cmd
+}
+
+// versionCmd comes from example in cobra issue.
+//	https://github.com/spf13/cobra/issues/724
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "version",
+		Short:   "Version for coder",
+		Example: "coder version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Use "--version" behavior on root.
+			root := cmd.Root()
+			root.SetArgs([]string{"--version"})
+			return root.Execute()
+		},
+	}
 }
 
 // createClient returns a new client from the command context.
