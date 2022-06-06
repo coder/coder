@@ -98,8 +98,8 @@ release:
   # All non-Linux files should just be used as is. We have to import the Linux
   # builds so that the docker images get built and package creation works.
   extra_files:
-    - glob: ./artifacts/coder_*_darwin*/coder
-    - glob: ./artifacts/coder_*_windows*/coder.exe
+    - glob: ./artifacts/coder_*_darwin_*.zip
+    - glob: ./artifacts/coder_*_windows_*.zip
 
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"
