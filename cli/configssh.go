@@ -34,8 +34,8 @@ const (
 	sshCoderConfigHeader          = "# This file is managed by coder. DO NOT EDIT."
 	sshCoderConfigDocsHeader      = `
 #
-# You should not hand-edit this file, all changes will be lost upon workspace
-# creation, deletion or when running "coder config-ssh".`
+# You should not hand-edit this file, all changes will be lost when running
+# "coder config-ssh".`
 	sshCoderConfigOptionsHeader = `
 #
 # Last config-ssh options:

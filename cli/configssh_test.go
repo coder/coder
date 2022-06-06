@@ -301,8 +301,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				coder: strings.Join([]string{
 					"# This file is managed by coder. DO NOT EDIT.",
 					"#",
-					"# You should not hand-edit this file, all changes will be lost upon workspace",
-					"# creation, deletion or when running \"coder config-ssh\".",
+					"# You should not hand-edit this file, all changes will be lost when running",
+					"# \"coder config-ssh\".",
 					"#",
 					"# Last config-ssh options:",
 					"# :ssh-option=ForwardAgent=yes",
@@ -313,8 +313,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				coder: strings.Join([]string{
 					"# This file is managed by coder. DO NOT EDIT.",
 					"#",
-					"# You should not hand-edit this file, all changes will be lost upon workspace",
-					"# creation, deletion or when running \"coder config-ssh\".",
+					"# You should not hand-edit this file, all changes will be lost when running",
+					"# \"coder config-ssh\".",
 					"#",
 					"# Last config-ssh options:",
 					"#",
@@ -332,8 +332,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				coder: strings.Join([]string{
 					"# This file is managed by coder. DO NOT EDIT.",
 					"#",
-					"# You should not hand-edit this file, all changes will be lost upon workspace",
-					"# creation, deletion or when running \"coder config-ssh\".",
+					"# You should not hand-edit this file, all changes will be lost when running",
+					"# \"coder config-ssh\".",
 					"#",
 					"# Last config-ssh options:",
 					"# :ssh-option=ForwardAgent=yes",
@@ -344,8 +344,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				coder: strings.Join([]string{
 					"# This file is managed by coder. DO NOT EDIT.",
 					"#",
-					"# You should not hand-edit this file, all changes will be lost upon workspace",
-					"# creation, deletion or when running \"coder config-ssh\".",
+					"# You should not hand-edit this file, all changes will be lost when running",
+					"# \"coder config-ssh\".",
 					"#",
 					"# Last config-ssh options:",
 					"# :ssh-option=ForwardAgent=yes",
