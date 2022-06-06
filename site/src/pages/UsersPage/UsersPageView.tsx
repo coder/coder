@@ -4,7 +4,7 @@ import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderActions, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
@@ -41,15 +41,16 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 }) => {
   return (
     <Margins>
-      <PageHeader>
-        <PageHeaderTitle>Users</PageHeaderTitle>
-        <PageHeaderActions>
-          {canCreateUser && (
+      <PageHeader
+        actions={
+          canCreateUser ? (
             <Button onClick={openUserCreationDialog} startIcon={<AddCircleOutline />}>
               {Language.createButton}
             </Button>
-          )}
-        </PageHeaderActions>
+          ) : undefined
+        }
+      >
+        <PageHeaderTitle>Users</PageHeaderTitle>
       </PageHeader>
 
       {error ? (

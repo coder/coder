@@ -31,7 +31,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderActions, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
@@ -124,19 +124,19 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
 
   return (
     <Margins>
-      <PageHeader>
-        <PageHeaderTitle>
-          Workspaces
-          <WorkspaceHelpTooltip />
-        </PageHeaderTitle>
-
-        <PageHeaderActions>
+      <PageHeader
+        actions={
           <Link underline="none" component={RouterLink} to="/workspaces/new">
             <Button startIcon={<AddCircleOutline />} style={{ height: "44px" }}>
               {Language.createWorkspaceButton}
             </Button>
           </Link>
-        </PageHeaderActions>
+        }
+      >
+        <PageHeaderTitle>
+          Workspaces
+          <WorkspaceHelpTooltip />
+        </PageHeaderTitle>
       </PageHeader>
 
       <Stack direction="row" spacing={0} className={styles.filterContainer}>

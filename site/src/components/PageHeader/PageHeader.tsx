@@ -1,10 +1,21 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Stack } from "../Stack/Stack"
 
-export const PageHeader: React.FC = ({ children }) => {
+export interface PageHeaderProps {
+  actions?: JSX.Element
+}
+
+export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions }) => {
   const styles = useStyles()
 
-  return <div className={styles.root}>{children}</div>
+  return (
+    <div className={styles.root}>
+      <hgroup>{children}</hgroup>
+      <Stack direction="row" className={styles.actions}>
+        {actions}
+      </Stack>
+    </div>
+  )
 }
 
 export const PageHeaderTitle: React.FC = ({ children }) => {
@@ -13,14 +24,10 @@ export const PageHeaderTitle: React.FC = ({ children }) => {
   return <h1 className={styles.title}>{children}</h1>
 }
 
-export const PageHeaderActions: React.FC = ({ children }) => {
+export const PageHeaderSubtitle: React.FC = ({ children }) => {
   const styles = useStyles()
 
-  return (
-    <Stack direction="row" className={styles.actions}>
-      {children}
-    </Stack>
-  )
+  return <h2 className={styles.subtitle}>{children}</h2>
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -37,6 +44,16 @@ const useStyles = makeStyles((theme) => ({
     margin: 0,
     display: "flex",
     alignItems: "center",
+    lineHeight: "140%",
+  },
+
+  subtitle: {
+    fontSize: theme.spacing(2.5),
+    color: theme.palette.text.secondary,
+    fontWeight: 400,
+    display: "block",
+    margin: 0,
+    marginTop: theme.spacing(1),
   },
 
   actions: {
