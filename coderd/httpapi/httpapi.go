@@ -67,7 +67,7 @@ type Response struct {
 	// Validations are form field-specific friendly error messages. They will be
 	// shown on a form field in the UI. These can also be used to add additional
 	// context if there is a set of errors in the primary 'Message'.
-	Validations []Error `json:"errors,omitempty"`
+	Validations []Error `json:"validations,omitempty"`
 }
 
 // Error represents a scoped error to a user input.
