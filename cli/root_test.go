@@ -18,7 +18,7 @@ func TestRoot(t *testing.T) {
 
 		cmd, _ := clitest.New(t, "delete")
 
-		err := cmd.Execute()
+		cmd, err := cmd.ExecuteC()
 		errStr := cli.FormatCobraError(err, cmd)
 		require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
 	})
