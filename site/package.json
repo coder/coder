@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "4.5.9",
-    "@fontsource/inter": "4.5.10",
+    "@fontsource/inter": "4.5.11",
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
