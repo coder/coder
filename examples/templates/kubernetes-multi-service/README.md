@@ -53,26 +53,26 @@ Create a ServiceAccount and role on your cluster to authenticate your template w
     EOF
     ```
 
-   1. Use the following commands to fetch the values:
+1. Use the following commands to fetch the values:
 
-        **Cluster IP:**
+     **Cluster IP:**
 
-        ```sh
-        kubectl cluster-info | grep "control plane"
-        ```
+     ```sh
+     kubectl cluster-info | grep "control plane"
+     ```
 
-        **CA certificate**
+     **CA certificate**
 
-        ```sh
-        kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['ca\.crt']}{'\n'}"
-        ```
+     ```sh
+     kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['ca\.crt']}{'\n'}"
+     ```
 
-        **Token**
+     **Token**
 
-        ```sh
-        kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['token']}{'\n'}"
-        ```
+     ```sh
+     kubectl get secrets -n $CODER_NAMESPACE -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='coder')].data['token']}{'\n'}"
+     ```
 
-        **Namespace**
+     **Namespace**
 
-        This should be the same as `$CODER_NAMESPACE`, set in step 1.
+     This should be the same as `$CODER_NAMESPACE`, set in step 1.
