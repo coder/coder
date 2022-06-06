@@ -65,7 +65,7 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.99.1
+	github.com/gohugoio/hugo v0.100.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
@@ -125,6 +125,8 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
+
+require github.com/yuin/goldmark v1.4.12 // indirect
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -231,7 +233,7 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
-	github.com/tdewolff/parse/v2 v2.5.29 // indirect
+	github.com/tdewolff/parse/v2 v2.5.31 // indirect
 	github.com/templexxx/cpufeat v0.0.0-20180724012125-cef66df7f161 // indirect
 	github.com/templexxx/xor v0.0.0-20191217153810-f85b25db303b // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
