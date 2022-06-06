@@ -155,19 +155,9 @@ func (a *agent) run(ctx context.Context) {
 	}
 }
 
-func (*agent) runStartupScript(ctx context.Context, script string) error {
+func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	if script == "" {
 		return nil
-	}
-	currentUser, err := user.Current()
-	if err != nil {
-		return xerrors.Errorf("get current user: %w", err)
-	}
-	username := currentUser.Username
-
-	shell, err := usershell.Get(username)
-	if err != nil {
-		return xerrors.Errorf("get user shell: %w", err)
 	}
 
 	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
@@ -178,12 +168,10 @@ func (*agent) runStartupScript(ctx context.Context, script string) error {
 		_ = writer.Close()
 	}()
 
-	caller := "-c"
-	if runtime.GOOS == "windows" {
-		caller = "/c"
+	cmd, err := a.createCommand(ctx, script, nil)
+	if err != nil {
+		return xerrors.Errorf("create command: %w", err)
 	}
-
-	cmd := exec.CommandContext(ctx, shell, caller, script)
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	err = cmd.Run()
