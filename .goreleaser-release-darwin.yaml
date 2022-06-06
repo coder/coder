@@ -35,12 +35,10 @@ builds:
     goos: [darwin]
     goarch: [amd64, arm64]
     hooks:
-      # This signs the binary that will be located inside the zip.
-      # MacOS requires the binary to be signed for notarization.
-      #
-      # If it doesn't successfully sign, the zip sign step will error.
+      # This signs the binary that will be located inside the zip. MacOS
+      # requires the binary to be signed for notarization.
       post: |
-        sh -c 'codesign -s {{.Env.AC_APPLICATION_IDENTITY}} -f -v --timestamp --options runtime {{.Path}} || true'
+        sh -c 'codesign -s {{.Env.AC_APPLICATION_IDENTITY}} -f -v --timestamp --options runtime {{.Path}}'
 
 env:
   # Apple identity for signing!
@@ -52,6 +50,9 @@ signs:
     cmd: ./scripts/sign_macos.sh
     args: ["${artifact}"]
     output: true
+
+release:
+  ids: [coder-darwin]
 
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"

@@ -10,7 +10,7 @@ builds:
     goarch: [amd64, arm, arm64]
     goarm: ["7"]
     prebuilt:
-      path: artifacts/coder-linux_{{.Os}}_{{.Arch}}/coder
+      path: artifacts/coder-linux_{{.Os}}_{{.Arch}}{{ with .Arm }}_{{ . }}{{ end }}/coder
 
 # This section is also contained in .goreleaser.yaml.
 nfpms:

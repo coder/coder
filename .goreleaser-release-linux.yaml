@@ -48,5 +48,8 @@ builds:
     goos: [windows]
     goarch: [amd64, arm64]
 
+release:
+  ids: [coder-windows, coder-linux]
+
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"
