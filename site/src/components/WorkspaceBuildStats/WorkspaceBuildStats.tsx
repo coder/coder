@@ -5,7 +5,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 
 export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
@@ -14,7 +14,7 @@ export interface WorkspaceBuildStatsProps {
 export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => {
   const styles = useStyles()
   const theme = useTheme()
-  const status = getDisplayStatus(theme, build)
+  const status = getDisplayWorkspaceBuildStatus(theme, build)
 
   return (
     <div className={styles.stats}>
