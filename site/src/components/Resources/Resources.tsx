@@ -8,6 +8,7 @@ import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
+import { AppLink } from "../AppLink/AppLink"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -91,6 +92,16 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                           userName={workspace.owner_name}
                         />
                       )}
+                      {agent.status === "connected" &&
+                        agent.apps.map((app) => (
+                          <AppLink
+                            key={app.name}
+                            appIcon={app.icon}
+                            appName={app.name}
+                            userName={workspace.owner_name}
+                            workspaceName={workspace.name}
+                          />
+                        ))}
                     </TableCell>
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
