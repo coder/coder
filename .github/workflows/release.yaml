@@ -4,6 +4,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Perform a snapshot/dry-run release (required if the ref is not a tag)
+        type: boolean
+        required: true
 
 jobs:
   linux-windows:
@@ -53,7 +58,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: release -f ./.goreleaser-linux.yaml --rm-dist --timeout 60m --snapshot
+          args: release -f ./.goreleaser-release-linux.yaml --rm-dist --timeout 60m --skip-publish --skip-announce ${{ github.event.inputs.snapshot && '--snapshot' }}
 
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v3
@@ -125,7 +130,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: release -f ./.goreleaser-darwin.yaml --rm-dist --timeout 60m --snapshot
+          args: release -f ./.goreleaser-release-darwin.yaml --rm-dist --timeout 60m --skip-publish --skip-announce ${{ github.event.inputs.snapshot && '--snapshot' }}
         env:
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
@@ -181,9 +186,15 @@ jobs:
           # we use the "prebuilt" builder here which is a pro-only feature
           distribution: goreleaser-pro
           version: latest
-          args: release -f ./.goreleaser-release.yaml --rm-dist --timeout 60m --snapshot
+          args: release -f ./.goreleaser-release.yaml --rm-dist --timeout 60m ${{ github.event.inputs.snapshot && '--snapshot' }}
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release
+          path: ./dist/*
