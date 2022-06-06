@@ -14,9 +14,10 @@ import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 export const WorkspacePage: React.FC = () => {
-  const { workspace: workspaceQueryParam } = useParams()
+  const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const navigate = useNavigate()
-  const workspaceId = firstOrItem(workspaceQueryParam, null)
+  const username = firstOrItem(usernameQueryParam, null)
+  const workspaceName = firstOrItem(workspaceQueryParam, null)
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
@@ -28,8 +29,8 @@ export const WorkspacePage: React.FC = () => {
    * workspaceSend should not change.
    */
   useEffect(() => {
-    workspaceId && workspaceSend({ type: "GET_WORKSPACE", workspaceId })
-  }, [workspaceId, workspaceSend])
+    username && workspaceName && workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
+  }, [username, workspaceName, workspaceSend])
 
   if (workspaceState.matches("error")) {
     return <ErrorSummary error={getWorkspaceError} />

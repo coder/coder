@@ -65,25 +65,6 @@ export const AppRouter: FC = () => (
             </RequireAuth>
           }
         />
-
-        <Route path=":workspace">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <WorkspacePage />
-              </AuthAndFrame>
-            }
-          />
-          <Route
-            path="schedule"
-            element={
-              <RequireAuth>
-                <WorkspaceSchedulePage />
-              </RequireAuth>
-            }
-          />
-        </Route>
       </Route>
 
       <Route path="templates">
@@ -142,6 +123,23 @@ export const AppRouter: FC = () => (
 
       <Route path="/@:username">
         <Route path=":workspace">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <WorkspacePage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="schedule"
+            element={
+              <RequireAuth>
+                <WorkspaceSchedulePage />
+              </RequireAuth>
+            }
+          />
+
           <Route
             path="terminal"
             element={

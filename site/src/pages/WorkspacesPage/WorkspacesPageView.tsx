@@ -74,7 +74,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                     <AvatarData
                       title={workspace.name}
                       subtitle={workspace.owner_name}
-                      link={`/workspaces/${workspace.id}`}
+                      link={`/@${workspace.owner_name}/${workspace.name}`}
                     />
                   </TableCell>
                   <TableCell>{workspace.template_name}</TableCell>
