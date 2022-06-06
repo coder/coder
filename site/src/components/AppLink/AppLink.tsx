@@ -2,6 +2,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import React, { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface AppLinkProps {
   userName: TypesGen.User["username"]
@@ -16,7 +17,11 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
 
   return (
     <Link href={href} target="_blank" className={styles.link}>
-      {appIcon && <img className={styles.icon} alt={`${appName} Icon`} src={appIcon} />}
+      <img
+        className={combineClasses([styles.icon, appIcon === "" ? "empty" : ""])}
+        alt={`${appName} Icon`}
+        src={appIcon || ""}
+      />
       {appName}
     </Link>
   )
@@ -33,5 +38,11 @@ const useStyles = makeStyles((theme) => ({
     width: 16,
     height: 16,
     marginRight: theme.spacing(1.5),
+
+    // If no icon is provided we still want the padding on the left
+    // to occur.
+    "&.empty": {
+      opacity: 0,
+    },
   },
 }))
