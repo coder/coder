@@ -9,6 +9,13 @@ import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
+import {
+  HelpTooltip,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../HelpTooltip/HelpTooltip"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
@@ -21,6 +28,31 @@ const Language = {
   agentLabel: "Agent",
   statusLabel: "Status",
   accessLabel: "Access",
+}
+
+const ResourcesHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>What is a resource?</HelpTooltipTitle>
+      <HelpTooltipText>
+        A resource is an infrastructure object that is create when the workspace is provisioned.
+      </HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#persistent-and-ephemeral-resources">
+          Persistent and ephemeral resources
+        </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
+}
+
+const AgentHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>What is an agent?</HelpTooltipTitle>
+      <HelpTooltipText>An agent is a software that executes Coder inside of the resource.</HelpTooltipText>
+    </HelpTooltip>
+  )
 }
 
 interface ResourcesProps {
@@ -41,8 +73,18 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
         <Table className={styles.table}>
           <TableHead>
             <TableHeaderRow>
-              <TableCell>{Language.resourceLabel}</TableCell>
-              <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
+              <TableCell>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {Language.resourceLabel}
+                  <ResourcesHelpTooltip />
+                </Stack>
+              </TableCell>
+              <TableCell className={styles.agentColumn}>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {Language.agentLabel}
+                  <AgentHelpTooltip />
+                </Stack>
+              </TableCell>
               <TableCell>{Language.accessLabel}</TableCell>
               <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>

@@ -6,13 +6,15 @@ import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import { useState } from "react"
 import { Stack } from "../Stack/Stack"
 
+type Size = "small" | "medium"
 export interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
+  size?: Size
 }
 
-export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open }) => {
-  const styles = useStyles()
+export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size = "medium" }) => {
+  const styles = useStyles({ size })
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
   open = open ?? Boolean(anchorEl)
   const id = open ? "help-popover" : undefined
@@ -78,19 +80,38 @@ export const HelpTooltipLinksGroup: React.FC = ({ children }) => {
   )
 }
 
+const getButtonSpacingFromSize = (size?: Size): number => {
+  switch (size) {
+    case "small":
+      return 2.75
+    case "medium":
+    default:
+      return 3
+  }
+}
+
+const getIconSpacingFromSize = (size?: Size): number => {
+  switch (size) {
+    case "small":
+      return 1.75
+    case "medium":
+    default:
+      return 2
+  }
+}
+
 const useStyles = makeStyles((theme) => ({
   button: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: theme.spacing(3),
-    height: theme.spacing(3),
+    width: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
     padding: 0,
     border: 0,
     background: "transparent",
     color: theme.palette.text.secondary,
     cursor: "pointer",
-    marginLeft: theme.spacing(1),
 
     "&:hover": {
       color: theme.palette.text.primary,
@@ -98,8 +119,8 @@ const useStyles = makeStyles((theme) => ({
   },
 
   icon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
   },
 
   popoverPaper: {
