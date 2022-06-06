@@ -1,3 +1,10 @@
+# GitHub release workflow.
+#
+# This workflow is a bit complicated because we have to build darwin binaries on
+# a mac runner, but the mac runners are extremely slow. So instead of running
+# the entire release on a mac (which will take an hour to run), we run only the
+# mac build on a mac, and the rest on a linux runner. The final release is then
+# published using a final linux runner.
 name: release
 on:
   push:

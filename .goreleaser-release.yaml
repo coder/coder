@@ -1,3 +1,6 @@
+# This goreleaser config file requires GoReleaser Pro as it uses the prebuilt
+# builder type.
+
 archives:
   - id: coder-linux
     builds: [release-prebuilt-linux]
@@ -97,3 +100,6 @@ release:
   extra_files:
     - glob: ./artifacts/coder_*_darwin*
     - glob: ./artifacts/coder_*_windows*
+
+snapshot:
+  name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"
