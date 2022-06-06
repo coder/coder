@@ -31,12 +31,12 @@ variable "workspaces_namespace" {
   type        = string
   sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
-  default = "coder-workspaces"
+  default     = "coder-workspaces"
 }
 
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path            = var.use_kubeconfig == true ? "~/.kube/config" : null
+  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
@@ -59,7 +59,7 @@ resource "coder_agent" "ubuntu" {
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     namespace = var.workspaces_namespace
   }
   spec {
