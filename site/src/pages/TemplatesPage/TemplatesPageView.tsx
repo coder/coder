@@ -12,8 +12,15 @@ import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
+import {
+  HelpTooltip,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { Stack } from "../../components/Stack/Stack"
+import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 
 dayjs.extend(relativeTime)
@@ -38,6 +45,23 @@ export const Language = {
   ),
 }
 
+const TemplateHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip>
+      <HelpTooltipTitle>What is template?</HelpTooltipTitle>
+      <HelpTooltipText>
+        With templates you can create a common configuration for your workspaces using Terraform. So, you and your team
+        can use the same environment to deliver great software.
+      </HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#manage-templates">
+          Manage templates
+        </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
+}
+
 export interface TemplatesPageViewProps {
   loading?: boolean
   canCreateTemplate?: boolean
@@ -47,56 +71,58 @@ export interface TemplatesPageViewProps {
 export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
   return (
-    <Stack spacing={4} className={styles.root}>
-      <Margins>
-        <Table>
-          <TableHead>
+    <Margins>
+      <PageHeader>
+        <PageHeaderTitle>
+          Templates
+          <TemplateHelpTooltip />
+        </PageHeaderTitle>
+      </PageHeader>
+
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>{Language.nameLabel}</TableCell>
+            <TableCell>{Language.usedByLabel}</TableCell>
+            <TableCell>{Language.lastUpdatedLabel}</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {props.loading && <TableLoader />}
+          {!props.loading && !props.templates?.length && (
             <TableRow>
-              <TableCell>{Language.nameLabel}</TableCell>
-              <TableCell>{Language.usedByLabel}</TableCell>
-              <TableCell>{Language.lastUpdatedLabel}</TableCell>
+              <TableCell colSpan={999}>
+                <EmptyState
+                  message={Language.emptyMessage}
+                  description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
+                  descriptionClassName={styles.emptyDescription}
+                  cta={<CodeExample code="coder template init" />}
+                />
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {props.loading && <TableLoader />}
-            {!props.loading && !props.templates?.length && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <EmptyState
-                    message={Language.emptyMessage}
-                    description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
-                    descriptionClassName={styles.emptyDescription}
-                    cta={<CodeExample code="coder template init" />}
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-            {props.templates?.map((template) => (
-              <TableRow key={template.id}>
-                <TableCell>
-                  <AvatarData
-                    title={template.name}
-                    subtitle={template.description}
-                    link={`/templates/${template.name}`}
-                  />
-                </TableCell>
+          )}
+          {props.templates?.map((template) => (
+            <TableRow key={template.id}>
+              <TableCell>
+                <AvatarData
+                  title={template.name}
+                  subtitle={template.description}
+                  link={`/templates/${template.name}`}
+                />
+              </TableCell>
 
-                <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
+              <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
-                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Margins>
-    </Stack>
+              <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Margins>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    marginTop: theme.spacing(10),
-  },
   emptyDescription: {
     maxWidth: theme.spacing(62),
   },
