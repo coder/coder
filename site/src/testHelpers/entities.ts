@@ -29,7 +29,7 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockAdminRole, MockAuditorRole, MockMemberRole]
+export const MockSiteRoles = [MockAdminRole, MockAuditorRole]
 
 export const MockUser: TypesGen.User = {
   id: "test-user",
@@ -38,7 +38,7 @@ export const MockUser: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockAdminRole, MockMemberRole],
+  roles: [MockAdminRole],
 }
 
 export const MockUser2: TypesGen.User = {
@@ -48,7 +48,7 @@ export const MockUser2: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockMemberRole],
+  roles: [],
 }
 
 export const MockOrganization: TypesGen.Organization = {
@@ -70,17 +70,22 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
 }
-
-export const MockFailedProvisionerJob = { ...MockProvisionerJob, status: "failed" as TypesGen.ProvisionerJobStatus }
-export const MockCancelingProvisionerJob = {
+export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceling" as TypesGen.ProvisionerJobStatus,
+  status: "failed",
 }
-export const MockCanceledProvisionerJob = {
+export const MockCancelingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
-  status: "canceled" as TypesGen.ProvisionerJobStatus,
+  status: "canceling",
 }
-export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
+export const MockCanceledProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceled",
+}
+export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "running",
+}
 
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
@@ -129,7 +134,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   template_version_id: "",
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
-  workspace_id: "test-workspace",
+  workspace_name: "test-workspace",
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
 }
 
@@ -158,18 +164,28 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours as nanoseconds
+  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
 }
 
-export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildStop,
+}
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuildStop,
+    job: MockRunningProvisionerJob,
+  },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockRunningProvisionerJob,
+    transition: "start",
+  },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -181,7 +197,10 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockFailedProvisionerJob,
+  },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -191,7 +210,14 @@ export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, late
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
+export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
+  id: "test-app",
+  name: "test-app",
+  icon: "",
+}
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
+  apps: [MockWorkspaceApp],
   architecture: "amd64",
   created_at: "",
   environment_variables: {},

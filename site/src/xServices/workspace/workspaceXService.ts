@@ -40,6 +40,9 @@ export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
+  | { type: "ASK_DELETE" }
+  | { type: "DELETE" }
+  | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
@@ -136,8 +139,15 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
+                  ASK_DELETE: "askingDelete",
                   UPDATE: "refreshingTemplate",
                   CANCEL: "requestingCancel",
+                },
+              },
+              askingDelete: {
+                on: {
+                  DELETE: "requestingDelete",
+                  CANCEL_DELETE: "idle",
                 },
               },
               requestingStart: {
@@ -160,6 +170,21 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError", "displayBuildError"],
+                  },
+                },
+              },
+              requestingDelete: {
+                entry: "clearBuildError",
+                invoke: {
+                  id: "deleteWorkspace",
+                  src: "deleteWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
@@ -427,6 +452,13 @@ export const workspaceMachine = createMachine(
           return await API.stopWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      deleteWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.deleteWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot delete workspace without workspace id")
         }
       },
       cancelWorkspace: async (context) => {

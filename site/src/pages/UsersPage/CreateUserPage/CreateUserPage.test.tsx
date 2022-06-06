@@ -7,7 +7,7 @@ import { Language as FooterLanguage } from "../../../components/FormFooter/FormF
 import { history, render } from "../../../testHelpers/renderHelpers"
 import { server } from "../../../testHelpers/server"
 import { Language as UserLanguage } from "../../../xServices/users/usersXService"
-import { CreateUserPage, Language } from "./CreateUserPage"
+import { CreateUserPage } from "./CreateUserPage"
 
 const fillForm = async ({
   username = "someuser",
@@ -46,7 +46,7 @@ describe("Create User Page", () => {
     })
     render(<CreateUserPage />)
     await fillForm({})
-    const errorMessage = await screen.findByText(Language.unknownError)
+    const errorMessage = await screen.findByText(UserLanguage.createUserError)
     expect(errorMessage).toBeDefined()
   })
 

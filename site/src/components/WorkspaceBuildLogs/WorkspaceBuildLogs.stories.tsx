@@ -13,3 +13,9 @@ export const Example = Template.bind({})
 Example.args = {
   logs: MockWorkspaceBuildLogs,
 }
+
+export const Loading = Template.bind({})
+Loading.args = {
+  logs: MockWorkspaceBuildLogs,
+  isWaitingForLogs: true,
+}

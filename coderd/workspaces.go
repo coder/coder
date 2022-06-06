@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -45,20 +46,23 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		showDeleted, err = strconv.ParseBool(deletedStr)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("invalid bool for 'deleted' query param: %s", err),
+				Message: fmt.Sprintf("Invalid boolean value %q for \"deleted\" query param", deletedStr),
+				Validations: []httpapi.Error{
+					{Field: "deleted", Detail: "Must be a valid boolean"},
+				},
 			})
 			return
 		}
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(rw, http.StatusGone, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
 		})
 		return
 	}
 	if !workspace.Deleted && showDeleted {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
 		})
 		return
 	}
@@ -66,7 +70,8 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -91,42 +96,13 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	err = group.Wait()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("fetch resource: %s", err),
+			Message: "Internal error fetching resource",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK,
-		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
-}
-
-func (api *API) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	organization := httpmw.OrganizationParam(r)
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OrganizationID: organization.ID,
-		Deleted:        false,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
-
-	// Rbac filter
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, owner))
 }
 
 // workspaces returns all workspaces a user can read.
@@ -137,17 +113,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// Empty strings mean no filter
 	orgFilter := r.URL.Query().Get("organization_id")
 	ownerFilter := r.URL.Query().Get("owner")
+	nameFilter := r.URL.Query().Get("name")
 
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("organization_id must be a uuid: %s", err.Error()),
-			})
-			return
+		if err == nil {
+			filter.OrganizationID = orgID
 		}
-		filter.OrganizationID = orgID
 	}
 	if ownerFilter == "me" {
 		filter.OwnerID = apiKey.UserID
@@ -160,50 +133,22 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 				Username: ownerFilter,
 				Email:    ownerFilter,
 			})
-			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "owner must be a uuid or username",
-				})
-				return
+			if err == nil {
+				filter.OwnerID = user.ID
 			}
-			userID = user.ID
+		} else {
+			filter.OwnerID = userID
 		}
-		filter.OwnerID = userID
+	}
+	if nameFilter != "" {
+		filter.Name = nameFilter
 	}
 
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces for user: %s", err),
-		})
-		return
-	}
-
-	// Only return workspaces the user can read
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
-}
-
-func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
-	owner := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OwnerID: owner.ID,
-		Deleted: false,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
+			Message: "Internal error fetching workspaces",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -223,7 +168,6 @@ func (api *API) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
-	organization := httpmw.OrganizationParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -237,18 +181,11 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace by name: %s", err),
+			Message: "Internal error fetching workspace by name",
+			Detail:  err.Error(),
 		})
 		return
 	}
-
-	if workspace.OrganizationID != organization.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
-		})
-		return
-	}
-
 	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
@@ -256,27 +193,29 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
+			Message: "Internal error fetching template",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
-		convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, owner))
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -296,8 +235,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
-			Errors: []httpapi.Error{{
+			Message: fmt.Sprintf("Template %q doesn't exist", createWorkspace.TemplateID.String()),
+			Validations: []httpapi.Error{{
 				Field:  "template_id",
 				Detail: "template not found",
 			}},
@@ -306,14 +245,15 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
+			Message: "Internal error fetching template",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("template is not in organization %q", organization.Name),
+			Message: fmt.Sprintf("Template is not in organization %q", organization.Name),
 		})
 		return
 	}
@@ -323,13 +263,14 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you aren't allowed to access templates in that organization",
+			Message: "You aren't allowed to access templates in that organization",
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization member: %s", err),
+			Message: "Internal error fetching organization member",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -339,7 +280,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		_, err := schedule.Weekly(*createWorkspace.AutostartSchedule)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("parse autostart schedule: %s", err.Error()),
+				Message: "Error parsing autostart schedule",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -347,11 +289,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		dbAutostartSchedule.String = *createWorkspace.AutostartSchedule
 	}
 
-	dbTTL, err := validWorkspaceTTL(createWorkspace.TTL)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "validate workspace ttl",
-			Errors: []httpapi.Error{
+			Message: "Invalid workspace TTL",
+			Detail:  err.Error(),
+			Validations: []httpapi.Error{
 				{
 					Field:  "ttl",
 					Detail: err.Error(),
@@ -370,14 +313,15 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("find template for conflicting workspace name %q: %s", createWorkspace.Name, err),
+				Message: fmt.Sprintf("Find template for conflicting workspace name %q", createWorkspace.Name),
+				Detail:  err.Error(),
 			})
 			return
 		}
 		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
-			Errors: []httpapi.Error{{
+			Message: fmt.Sprintf("Workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
+			Validations: []httpapi.Error{{
 				Field:  "name",
 				Detail: "this value is already in use and should be unique",
 			}},
@@ -386,7 +330,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
+			Message: fmt.Sprintf("Internal error fetching workspace by name %q", createWorkspace.Name),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -394,14 +339,16 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
+			Message: "Internal error fetching template version",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version job: %s", err),
+			Message: "Internal error fetching template version job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -502,20 +449,21 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("create workspace: %s", err),
+			Message: "Internal error creating workspace",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	user, err := api.Database.GetUserByID(r.Context(), apiKey.UserID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get user: %s", err),
+			Message: "Internal error fetching user",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
-		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template, user))
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace, workspaceBuild, templateVersionJob, template, user))
 }
 
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
@@ -530,26 +478,23 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbSched sql.NullString
-	if req.Schedule != "" {
-		validSched, err := schedule.Weekly(req.Schedule)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("invalid autostart schedule: %s", err),
-			})
-			return
-		}
-		dbSched.String = validSched.String()
-		dbSched.Valid = true
+	dbSched, err := validWorkspaceSchedule(req.Schedule)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Invalid autostart schedule",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
-	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
+	err = api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update workspace autostart schedule: %s", err),
+			Message: "Internal error updating workspace autostart schedule",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -567,11 +512,12 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTL(req.TTL)
+	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "validate workspace ttl",
-			Errors: []httpapi.Error{
+			Message: "Invalid workspace TTL",
+			Detail:  err.Error(),
+			Validations: []httpapi.Error{
 				{
 					Field:  "ttl",
 					Detail: err.Error(),
@@ -587,7 +533,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update workspace ttl: %s", err),
+			Message: "Internal error updating workspace TTL",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -626,7 +573,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if err := validWorkspaceDeadline(build.Deadline, newDeadline); err != nil {
 			code = http.StatusBadRequest
 			resp.Message = "bad extend workspace request"
-			resp.Errors = append(resp.Errors, httpapi.Error{Field: "deadline", Detail: err.Error()})
+			resp.Validations = append(resp.Validations, httpapi.Error{Field: "deadline", Detail: err.Error()})
 			return err
 		}
 
@@ -699,14 +646,16 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: fmt.Sprintf("get workspace: %s", err),
+					Message: "Internal error fetching workspace",
+					Detail:  err.Error(),
 				})
 				return
 			}
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: fmt.Sprintf("get workspace build: %s", err),
+					Message: "Internal error fetching workspace build",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -731,12 +680,13 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			err = group.Wait()
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
-					Message: fmt.Sprintf("fetch resource: %s", err),
+					Message: "Internal error fetching resource",
+					Detail:  err.Error(),
 				})
 				return
 			}
 
-			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, build, job, template, owner))
 		case <-ctx.Done():
 			return
 		}
@@ -829,13 +779,22 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		if !exists {
 			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
 		}
-		apiWorkspaces = append(apiWorkspaces,
-			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, user))
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, user))
 	}
 	return apiWorkspaces, nil
 }
+func convertWorkspace(
+	workspace database.Workspace,
+	workspaceBuild database.WorkspaceBuild,
+	job database.ProvisionerJob,
+	template database.Template,
+	owner database.User) codersdk.Workspace {
+	var autostartSchedule *string
+	if workspace.AutostartSchedule.Valid {
+		autostartSchedule = &workspace.AutostartSchedule.String
+	}
 
-func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template, owner database.User) codersdk.Workspace {
+	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	return codersdk.Workspace{
 		ID:                workspace.ID,
 		CreatedAt:         workspace.CreatedAt,
@@ -843,29 +802,31 @@ func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.Work
 		OwnerID:           workspace.OwnerID,
 		OwnerName:         owner.Username,
 		TemplateID:        workspace.TemplateID,
-		LatestBuild:       workspaceBuild,
+		LatestBuild:       convertWorkspaceBuild(workspace, workspaceBuild, job),
 		TemplateName:      template.Name,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
-		AutostartSchedule: workspace.AutostartSchedule.String,
-		TTL:               convertSQLNullInt64(workspace.Ttl),
+		AutostartSchedule: autostartSchedule,
+		TTLMillis:         ttlMillis,
 	}
 }
 
-func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
+func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	if !i.Valid {
 		return nil
 	}
 
-	return (*time.Duration)(&i.Int64)
+	millis := time.Duration(i.Int64).Milliseconds()
+	return &millis
 }
 
-func validWorkspaceTTL(ttl *time.Duration) (sql.NullInt64, error) {
-	if ttl == nil {
+func validWorkspaceTTLMillis(millis *int64) (sql.NullInt64, error) {
+	if ptr.NilOrZero(millis) {
 		return sql.NullInt64{}, nil
 	}
 
-	truncated := ttl.Truncate(time.Minute)
+	dur := time.Duration(*millis) * time.Millisecond
+	truncated := dur.Truncate(time.Minute)
 	if truncated < time.Minute {
 		return sql.NullInt64{}, xerrors.New("ttl must be at least one minute")
 	}
@@ -900,4 +861,20 @@ func validWorkspaceDeadline(old, new time.Time) error {
 	}
 
 	return nil
+}
+
+func validWorkspaceSchedule(s *string) (sql.NullString, error) {
+	if ptr.NilOrEmpty(s) {
+		return sql.NullString{}, nil
+	}
+
+	_, err := schedule.Weekly(*s)
+	if err != nil {
+		return sql.NullString{}, err
+	}
+
+	return sql.NullString{
+		Valid:  true,
+		String: *s,
+	}, nil
 }

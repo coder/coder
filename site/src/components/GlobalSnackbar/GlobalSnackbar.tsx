@@ -15,6 +15,16 @@ import {
   SnackbarEventType,
 } from "./utils"
 
+const variantFromMsgType = (type: MsgType) => {
+  if (type === MsgType.Error) {
+    return "error"
+  } else if (type === MsgType.Success) {
+    return "success"
+  } else {
+    return "info"
+  }
+}
+
 export const GlobalSnackbar: React.FC = () => {
   const styles = useStyles()
   const [open, setOpen] = useState<boolean>(false)
@@ -63,7 +73,7 @@ export const GlobalSnackbar: React.FC = () => {
   return (
     <EnterpriseSnackbar
       open={open}
-      variant={notification.msgType === MsgType.Error ? "error" : "info"}
+      variant={variantFromMsgType(notification.msgType)}
       message={
         <div className={styles.messageWrapper}>
           {notification.msgType === MsgType.Error && <ErrorIcon className={styles.errorIcon} />}

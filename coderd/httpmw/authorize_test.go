@@ -31,23 +31,23 @@ func TestExtractUserRoles(t *testing.T) {
 		{
 			Name: "Member",
 			AddUser: func(db database.Store) (database.User, []string, string) {
-				roles := []string{rbac.RoleMember()}
+				roles := []string{}
 				user, token := addUser(t, db, roles...)
-				return user, roles, token
+				return user, append(roles, rbac.RoleMember()), token
 			},
 		},
 		{
 			Name: "Admin",
 			AddUser: func(db database.Store) (database.User, []string, string) {
-				roles := []string{rbac.RoleMember(), rbac.RoleAdmin()}
+				roles := []string{rbac.RoleAdmin()}
 				user, token := addUser(t, db, roles...)
-				return user, roles, token
+				return user, append(roles, rbac.RoleMember()), token
 			},
 		},
 		{
 			Name: "OrgMember",
 			AddUser: func(db database.Store) (database.User, []string, string) {
-				roles := []string{rbac.RoleMember()}
+				roles := []string{}
 				user, token := addUser(t, db, roles...)
 				org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 					ID:          uuid.New(),
@@ -58,7 +58,7 @@ func TestExtractUserRoles(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				orgRoles := []string{rbac.RoleOrgMember(org.ID)}
+				orgRoles := []string{}
 				_, err = db.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
 					OrganizationID: org.ID,
 					UserID:         user.ID,
@@ -67,7 +67,7 @@ func TestExtractUserRoles(t *testing.T) {
 					Roles:          orgRoles,
 				})
 				require.NoError(t, err)
-				return user, append(roles, orgRoles...), token
+				return user, append(roles, append(orgRoles, rbac.RoleMember(), rbac.RoleOrgMember(org.ID))...), token
 			},
 		},
 	}
@@ -86,7 +86,7 @@ func TestExtractUserRoles(t *testing.T) {
 				httpmw.ExtractAPIKey(db, &httpmw.OAuth2Configs{}),
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
-				roles := httpmw.UserRoles(r)
+				roles := httpmw.AuthorizationUserRoles(r)
 				require.ElementsMatch(t, user.ID, roles.ID)
 				require.ElementsMatch(t, expRoles, roles.Roles)
 			})

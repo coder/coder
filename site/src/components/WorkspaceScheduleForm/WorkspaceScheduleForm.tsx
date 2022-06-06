@@ -4,7 +4,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
-import Link from "@material-ui/core/Link"
+import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
@@ -18,6 +18,7 @@ import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { zones } from "./zones"
 
 // REMARK: timezone plugin depends on UTC
 //
@@ -27,6 +28,7 @@ dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
+  errorNoTime: "Start time is required",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
@@ -40,8 +42,8 @@ export const Language = {
   startTimeLabel: "Start time",
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
-  ttlLabel: "TTL (hours)",
-  ttlHelperText: "Your workspace will automatically shutdown after the TTL.",
+  ttlLabel: "Time until shutdown (hours)",
+  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
 }
 
 export interface WorkspaceScheduleFormProps {
@@ -93,6 +95,25 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
+    .test("required-if-day-selected", Language.errorNoTime, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+
+      const isDaySelected = [
+        parent.sunday,
+        parent.monday,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day)
+
+      if (isDaySelected) {
+        return value !== ""
+      } else {
+        return true
+      }
+    })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true
@@ -124,7 +145,10 @@ export const validationSchema = Yup.object({
         }
       }
     }),
-  ttl: Yup.number().min(0).integer(),
+  ttl: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * 7 /* 7 days */),
 })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
@@ -167,36 +191,33 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack className={styles.stack}>
+      <form onSubmit={form.handleSubmit} className={styles.form}>
+        <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.startTimeLabel}
             type="time"
-            variant="standard"
           />
 
           <TextField
-            {...formHelpers(
-              "timezone",
-              <>
-                Timezone must be a valid{" "}
-                <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  tz database name
-                </Link>
-              </>,
-            )}
-            disabled={form.isSubmitting || isLoading || !form.values.startTime}
+            {...formHelpers("timezone")}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.timezoneLabel}
-            variant="standard"
-          />
+            select
+          >
+            {zones.map((zone) => (
+              <MenuItem key={zone} value={zone}>
+                {zone}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
@@ -209,9 +230,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || form.isSubmitting || isLoading}
+                      disabled={isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
+                      color="primary"
+                      size="small"
+                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -225,14 +249,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <TextField
             {...formHelpers("ttl", Language.ttlHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            variant="standard"
           />
 
-          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
+          <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
       </form>
     </FullPageForm>
@@ -241,16 +264,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
 const useStyles = makeStyles({
   form: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  stack: {
-    // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
-    //         to render on one line. If we change the text, we might want to
-    //         adjust these. Without constraining the width, the date picker
-    //         and number inputs aren't visually appealing or maximally usable.
-    maxWidth: 360,
-    minWidth: 360,
+    "& input": {
+      colorScheme: "dark",
+    },
   },
   daysOfWeekLabel: {
     fontSize: 12,

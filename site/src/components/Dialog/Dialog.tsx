@@ -114,7 +114,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           })}
           disabled={confirmLoading}
           onClick={onCancel}
-          variant="contained"
+          variant="outlined"
         >
           {cancelText}
         </LoadingButton>
@@ -126,11 +126,12 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           color={typeToColor(type)}
           loading={confirmLoading}
           type="submit"
-          className={combineClasses([
-            styles.dialogButton,
-            styles.submitButton,
-            type === "delete" ? styles.errorButton : "",
-          ])}
+          className={combineClasses({
+            [styles.dialogButton]: true,
+            [styles.submitButton]: true,
+            [styles.errorButton]: type === "delete",
+            [styles.successButton]: type === "success",
+          })}
         >
           {confirmText}
         </LoadingButton>
@@ -145,10 +146,10 @@ interface StyleProps {
 
 const useButtonStyles = makeStyles((theme) => ({
   dialogButton: {
-    borderRadius: 0,
+    borderRadius: theme.shape.borderRadius,
     fontSize: theme.typography.h6.fontSize,
     fontWeight: theme.typography.h5.fontWeight,
-    padding: theme.spacing(2.25),
+    padding: `${theme.spacing(0.75)}px ${theme.spacing(2)}px`,
     width: "100%",
     boxShadow: "none",
   },
@@ -237,6 +238,56 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.error.main,
       "&:hover": {
         backgroundColor: fade(theme.palette.error.main, theme.palette.action.hoverOpacity),
+        "@media (hover: none)": {
+          backgroundColor: "transparent",
+        },
+      },
+      "&.Mui-disabled": {
+        color: fade(theme.palette.text.disabled, 0.5),
+      },
+    },
+  },
+  successButton: {
+    "&.MuiButton-contained": {
+      backgroundColor: theme.palette.success.main,
+      color: theme.palette.primary.contrastText,
+      "&:hover": {
+        backgroundColor: darken(theme.palette.success.main, 0.3),
+        "@media (hover: none)": {
+          backgroundColor: "transparent",
+        },
+        "&.Mui-disabled": {
+          backgroundColor: "transparent",
+        },
+      },
+      "&.Mui-disabled": {
+        backgroundColor: theme.palette.action.disabledBackground,
+        color: fade(theme.palette.text.disabled, 0.5),
+      },
+    },
+
+    "&.MuiButton-outlined": {
+      color: theme.palette.success.main,
+      borderColor: theme.palette.success.main,
+      "&:hover": {
+        backgroundColor: fade(theme.palette.success.main, theme.palette.action.hoverOpacity),
+        "@media (hover: none)": {
+          backgroundColor: "transparent",
+        },
+        "&.Mui-disabled": {
+          backgroundColor: "transparent",
+        },
+      },
+      "&.Mui-disabled": {
+        color: fade(theme.palette.text.disabled, 0.5),
+        borderColor: theme.palette.action.disabled,
+      },
+    },
+
+    "&.MuiButton-text": {
+      color: theme.palette.success.main,
+      "&:hover": {
+        backgroundColor: fade(theme.palette.success.main, theme.palette.action.hoverOpacity),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },

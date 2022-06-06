@@ -14,60 +14,59 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
-import { Margins } from "../../components/Margins/Margins"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getDisplayStatus } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
   createButton: "Create workspace",
-  emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
+  emptyMessage: "Create your first workspace",
+  emptyDescription: "Start editing your source code and building your software",
 }
 
 export interface WorkspacesPageViewProps {
   loading?: boolean
   workspaces?: TypesGen.Workspace[]
-  error?: unknown
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
-  const styles = useStyles()
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces }) => {
+  useStyles()
   const theme: Theme = useTheme()
+
   return (
     <Stack spacing={4}>
-      <Margins>
-        <div className={styles.actions}>
-          <Link underline="none" component={RouterLink} to="/workspaces/new">
-            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-          </Link>
-        </div>
-        <Table>
-          <TableHead>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell>Template</TableCell>
+            <TableCell>Version</TableCell>
+            <TableCell>Last Built</TableCell>
+            <TableCell>Status</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {!workspaces && loading && <TableLoader />}
+          {workspaces && workspaces.length === 0 && (
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Template</TableCell>
-              <TableCell>Version</TableCell>
-              <TableCell>Last Built</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell colSpan={999}>
+                <EmptyState
+                  message={Language.emptyMessage}
+                  description={Language.emptyDescription}
+                  cta={
+                    <Link underline="none" component={RouterLink} to="/workspaces/new">
+                      <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+                    </Link>
+                  }
+                />
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {!props.loading && !props.workspaces?.length && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <div className={styles.welcome}>
-                    <span>
-                      <Link component={RouterLink} to="/templates">
-                        Create a workspace
-                      </Link>
-                      &nbsp;{Language.emptyView}
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {props.workspaces?.map((workspace) => {
+          )}
+          {workspaces &&
+            workspaces.map((workspace) => {
               const status = getDisplayStatus(theme, workspace.latest_build)
               return (
                 <TableRow key={workspace.id}>
@@ -97,24 +96,13 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = (props) => {
                 </TableRow>
               )
             })}
-          </TableBody>
-        </Table>
-      </Margins>
+        </TableBody>
+      </Table>
     </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  actions: {
-    marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-    display: "flex",
-    height: theme.spacing(6),
-
-    "& > *": {
-      marginLeft: "auto",
-    },
-  },
   welcome: {
     paddingTop: theme.spacing(12),
     paddingBottom: theme.spacing(12),

@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import CancelIcon from "@material-ui/icons/Cancel"
 import CloudDownloadIcon from "@material-ui/icons/CloudDownload"
+import DeleteIcon from "@material-ui/icons/Delete"
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import StopIcon from "@material-ui/icons/Stop"
 import { FC } from "react"
@@ -11,12 +12,14 @@ import { Stack } from "../Stack/Stack"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 export const Language = {
-  stop: "Stop workspace",
-  stopping: "Stopping workspace",
-  start: "Start workspace",
-  starting: "Starting workspace",
+  stop: "Stop",
+  stopping: "Stopping",
+  start: "Start",
+  starting: "Starting",
+  delete: "Delete",
+  deleting: "Deleting",
   cancel: "Cancel action",
-  update: "Update workspace",
+  update: "Update",
 }
 
 /**
@@ -38,10 +41,14 @@ const canStart = (workspaceStatus: WorkspaceStatus) => ["stopped", "canceled", "
 
 const canStop = (workspaceStatus: WorkspaceStatus) => ["started", "canceled", "error"].includes(workspaceStatus)
 
+const canDelete = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "stopped", "canceled", "error"].includes(workspaceStatus)
+
 export interface WorkspaceActionsProps {
   workspace: Workspace
   handleStart: () => void
   handleStop: () => void
+  handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
 }
@@ -50,6 +57,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
   handleStart,
   handleStop,
+  handleDelete,
   handleUpdate,
   handleCancel,
 }) => {
@@ -74,9 +82,17 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           label={Language.stop}
         />
       )}
-      {canCancelJobs(workspaceStatus) && (
+      {canDelete(workspaceStatus) && (
         <WorkspaceActionButton
           className={styles.actionButton}
+          icon={<DeleteIcon />}
+          onClick={handleDelete}
+          label={Language.delete}
+        />
+      )}
+      {canCancelJobs(workspaceStatus) && (
+        <WorkspaceActionButton
+          className={styles.cancelActionButton}
           icon={<CancelIcon />}
           onClick={handleCancel}
           label={Language.cancel}
@@ -95,6 +111,9 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
+    width: theme.spacing(16),
+  },
+  cancelActionButton: {
     width: theme.spacing(27),
   },
 }))

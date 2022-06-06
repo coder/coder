@@ -1,6 +1,8 @@
 import Box from "@material-ui/core/Box"
 import { FC } from "react"
+import { Helmet } from "react-helmet"
 import { Outlet } from "react-router-dom"
+import { pageTitle } from "../../util/page"
 import { AuthAndFrame } from "../AuthAndFrame/AuthAndFrame"
 import { Margins } from "../Margins/Margins"
 import { TabPanel } from "../TabPanel/TabPanel"
@@ -22,6 +24,9 @@ export const SettingsLayout: FC = () => {
   return (
     <AuthAndFrame>
       <Box display="flex" flexDirection="column">
+        <Helmet>
+          <title>{pageTitle("Settings")}</title>
+        </Helmet>
         <Margins>
           <TabPanel title={Language.settingsLabel} menuItems={menuItems}>
             <Outlet />

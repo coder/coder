@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -30,10 +31,18 @@ import (
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace agent apps: %s", err),
+		})
+		return
+	}
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -48,10 +57,11 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -65,21 +75,23 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
+	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
@@ -92,38 +104,43 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resource: %s", err),
+			Message: "Internal error fetching workspace resources",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace owner",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -143,70 +160,20 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
-		})
-		return
-	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
-		ChannelID: workspaceAgent.ID.String(),
-		Pubsub:    api.Pubsub,
-		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	defer closer.Close()
-	firstConnectedAt := workspaceAgent.FirstConnectedAt
-	if !firstConnectedAt.Valid {
-		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		}
-	}
-	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
-		Valid: true,
-	}
-	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(r.Context(), database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               workspaceAgent.ID,
-			FirstConnectedAt: firstConnectedAt,
-			LastConnectedAt:  lastConnectedAt,
-			DisconnectedAt:   disconnectedAt,
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build job: %s", err),
+		})
 		return
 	}
 	// Ensure the resource is still valid!
@@ -222,6 +189,75 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}
 
+	err = ensureLatestBuild()
+	if err != nil {
+		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
+			slog.F("resource", resource),
+			slog.F("agent", workspaceAgent),
+		)
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			Message: fmt.Sprintf("ensure latest build: %s", err),
+		})
+		return
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(wsNetConn, config)
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+
+	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
+		ChannelID: workspaceAgent.ID.String(),
+		Pubsub:    api.Pubsub,
+		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
+	})
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	defer closer.Close()
+
+	firstConnectedAt := workspaceAgent.FirstConnectedAt
+	if !firstConnectedAt.Valid {
+		firstConnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+	}
+	lastConnectedAt := sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	disconnectedAt := workspaceAgent.DisconnectedAt
+	updateConnectionTimes := func() error {
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               workspaceAgent.ID,
+			FirstConnectedAt: firstConnectedAt,
+			LastConnectedAt:  lastConnectedAt,
+			DisconnectedAt:   disconnectedAt,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	defer func() {
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
@@ -230,18 +266,13 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = updateConnectionTimes()
 	}()
 
-	err = ensureLatestBuild()
-	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, "")
-		return
-	}
 	err = updateConnectionTimes()
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
@@ -288,7 +319,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get remote address: %s", err),
+			Message: "Invalid remote address",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -296,7 +328,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	remoteAddress.Port, err = strconv.Atoi(port)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("remote address %q has no parsable port: %s", r.RemoteAddr, err),
+			Message: fmt.Sprintf("Port for remote address %q must be an integer.", r.RemoteAddr),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -306,20 +339,21 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	defer func() {
-		_ = wsConn.Close(websocket.StatusNormalClosure, "")
-	}()
-	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
-	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
-	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
-	case <-r.Context().Done():
+	case <-api.TURNServer.Accept(wsNetConn, remoteAddress, localAddress).Closed():
+	case <-ctx.Done():
 	}
-	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	api.Logger.Debug(ctx, "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -331,16 +365,17 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-			Message: fmt.Sprintf("agent must be in the connected state: %s", apiAgent.Status),
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
 	}
@@ -348,7 +383,10 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("reconnection must be a uuid: %s", err),
+			Message: "Query param 'reconnect' must be a valid UUID",
+			Validations: []httpapi.Error{
+				{Field: "reconnect", Detail: "invalid UUID"},
+			},
 		})
 		return
 	}
@@ -366,22 +404,22 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	defer func() {
-		_ = conn.Close(websocket.StatusNormalClosure, "ended")
-	}()
-	// Accept text connections, because it's more developer friendly.
-	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+
+	_, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close() // Also closes conn.
+
+	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
-	defer agentConn.Close()
-	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), "")
+	defer release()
+	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
@@ -394,11 +432,14 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-// dialWorkspaceAgent connects to a workspace agent by ID.
+// dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
+// r.Context() for cancellation if it's use is safe or r.Hijack() has
+// not been performed.
 func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
-		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
+		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
 			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 			Pubsub:    api.Pubsub,
@@ -408,11 +449,14 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}()
 
 	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := peerClient.NegotiateConnection(r.Context())
+	stream, err := peerClient.NegotiateConnection(ctx)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
-	options := &peer.ConnOptions{}
+	options := &peer.ConnOptions{
+		Logger: api.Logger.Named("agent-dialer"),
+	}
 	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	options.SettingEngine.SetRelayAcceptanceMinWait(0)
 	// Use the ProxyDialer for the TURN server.
@@ -420,7 +464,7 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
 		clientPipe, serverPipe := net.Pipe()
 		go func() {
-			<-r.Context().Done()
+			<-ctx.Done()
 			_ = clientPipe.Close()
 			_ = serverPipe.Close()
 		}()
@@ -443,15 +487,33 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}))
 	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
+	go func() {
+		<-peerConn.Closed()
+		cancelFunc()
+	}()
 	return &agent.Conn{
 		Negotiator: peerClient,
 		Conn:       peerConn,
 	}, nil
 }
 
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
+	apps := make([]codersdk.WorkspaceApp, 0)
+	for _, dbApp := range dbApps {
+		apps = append(apps, codersdk.WorkspaceApp{
+			ID:      dbApp.ID,
+			Name:    dbApp.Name,
+			Command: dbApp.Command.String,
+			Icon:    dbApp.Icon,
+		})
+	}
+	return apps
+}
+
+func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -471,6 +533,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 		StartupScript:        dbAgent.StartupScript.String,
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
+		Apps:                 apps,
 	}
 	if dbAgent.FirstConnectedAt.Valid {
 		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time
@@ -500,4 +563,45 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 	}
 
 	return workspaceAgent, nil
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if a read or write error is encountered.
+type wsNetConn struct {
+	cancel context.CancelFunc
+	net.Conn
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Close() error {
+	defer c.cancel()
+	return c.Conn.Close()
+}
+
+// websocketNetConn wraps websocket.NetConn and returns a context that
+// is tied to the parent context and the lifetime of the conn. Any error
+// during read or write will cancel the context, but not close the
+// conn. Close should be called to release context resources.
+func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	ctx, cancel := context.WithCancel(ctx)
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return ctx, &wsNetConn{
+		cancel: cancel,
+		Conn:   nc,
+	}
 }

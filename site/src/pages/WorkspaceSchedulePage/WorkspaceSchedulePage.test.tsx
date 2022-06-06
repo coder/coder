@@ -123,7 +123,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 0,
         },
         {
-          ttl: undefined,
+          ttl_ms: undefined,
         },
       ],
       [
@@ -133,7 +133,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 2,
         },
         {
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
       ],
       [
@@ -143,7 +143,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 8,
         },
         {
-          ttl: 28_800_000_000_000,
+          ttl_ms: 28_800_000,
         },
       ],
     ])(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
@@ -157,8 +157,8 @@ describe("WorkspaceSchedulePage", () => {
       [
         {
           ...Mocks.MockWorkspace,
-          autostart_schedule: "",
-          ttl: undefined,
+          autostart_schedule: undefined,
+          ttl_ms: undefined,
         },
         {
           sunday: false,
@@ -179,7 +179,7 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "",
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
         {
           sunday: false,
@@ -203,7 +203,7 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "CRON_TZ=UTC 30 9 * * 1-5",
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
         {
           sunday: false,
@@ -224,7 +224,7 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
-          ttl: 28_800_000_000_000,
+          ttl_ms: 28_800_000,
         },
         {
           sunday: false,

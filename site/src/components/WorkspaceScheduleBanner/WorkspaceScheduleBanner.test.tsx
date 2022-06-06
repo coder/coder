@@ -91,7 +91,6 @@ describe("WorkspaceScheduleBanner", () => {
         latest_build: {
           ...Mocks.MockWorkspaceBuild,
           deadline: dayjs().add(27, "minutes").utc().format(),
-          job: Mocks.MockRunningProvisionerJob,
           transition: "start",
         },
       }

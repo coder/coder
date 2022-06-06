@@ -44,6 +44,7 @@ type WorkspaceAgent struct {
 	OperatingSystem      string               `json:"operating_system"`
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
+	Apps                 []WorkspaceApp       `json:"apps"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

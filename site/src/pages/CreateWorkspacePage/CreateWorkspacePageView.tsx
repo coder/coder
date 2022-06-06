@@ -1,13 +1,18 @@
+import Link from "@material-ui/core/Link"
 import MenuItem from "@material-ui/core/MenuItem"
+import { makeStyles } from "@material-ui/core/styles"
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
+import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import { FormikContextType, useFormik } from "formik"
 import { FC, useState } from "react"
+import { Link as RouterLink } from "react-router-dom"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
 import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
-import { Margins } from "../../components/Margins/Margins"
 import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { Stack } from "../../components/Stack/Stack"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
@@ -15,6 +20,17 @@ import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formU
 export const Language = {
   templateLabel: "Template",
   nameLabel: "Name",
+  emptyMessage: "Let's create your first template",
+  emptyDescription: (
+    <>
+      To create a workspace you need to have a template. You can{" "}
+      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+        create one from scratch
+      </Link>{" "}
+      or use a built-in template by typing the following Coder CLI command:
+    </>
+  ),
+  templateLink: "Read more about this template",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -35,6 +51,7 @@ export const validationSchema = Yup.object({
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props) => {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
+  const styles = useStyles()
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
     initialValues: {
       name: "",
@@ -67,6 +84,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
     },
   })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(form)
+  const selectedTemplate =
+    props.templates &&
+    form.values.template_id &&
+    props.templates.find((template) => template.id === form.values.template_id)
 
   const handleTemplateChange: TextFieldProps["onChange"] = (event) => {
     if (!props.templates) {
@@ -85,67 +106,118 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
   }
 
   return (
-    <Margins>
-      <FullPageForm title="Create workspace" onCancel={props.onCancel}>
-        <form onSubmit={form.handleSubmit}>
-          {props.loadingTemplates && <Loader />}
+    <FullPageForm title="Create workspace" onCancel={props.onCancel}>
+      <form onSubmit={form.handleSubmit}>
+        {props.loadingTemplates && <Loader />}
 
-          <Stack>
-            {props.templates && (
+        <Stack>
+          {props.templates && props.templates.length === 0 && (
+            <EmptyState
+              className={styles.emptyState}
+              message={Language.emptyMessage}
+              description={Language.emptyDescription}
+              descriptionClassName={styles.emptyStateDescription}
+              cta={
+                <CodeExample className={styles.code} buttonClassName={styles.codeButton} code="coder template init" />
+              }
+            />
+          )}
+          {props.templates && props.templates.length > 0 && (
+            <TextField
+              {...getFieldHelpers("template_id")}
+              disabled={form.isSubmitting}
+              onChange={handleTemplateChange}
+              autoFocus
+              fullWidth
+              label={Language.templateLabel}
+              variant="outlined"
+              select
+              helperText={
+                selectedTemplate && (
+                  <Link
+                    className={styles.readMoreLink}
+                    component={RouterLink}
+                    to={`/templates/${selectedTemplate.name}`}
+                    target="_blank"
+                  >
+                    {Language.templateLink} <OpenInNewIcon />
+                  </Link>
+                )
+              }
+            >
+              {props.templates.map((template) => (
+                <MenuItem key={template.id} value={template.id}>
+                  {template.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          {props.selectedTemplate && props.templateSchema && (
+            <>
               <TextField
-                {...getFieldHelpers("template_id")}
+                {...getFieldHelpers("name")}
                 disabled={form.isSubmitting}
-                onChange={handleTemplateChange}
+                onChange={onChangeTrimmed(form)}
                 autoFocus
                 fullWidth
-                label={Language.templateLabel}
+                label={Language.nameLabel}
                 variant="outlined"
-                select
-              >
-                {props.templates.map((template) => (
-                  <MenuItem key={template.id} value={template.id}>
-                    {template.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
+              />
 
-            {props.selectedTemplate && props.templateSchema && (
-              <>
-                <TextField
-                  {...getFieldHelpers("name")}
-                  disabled={form.isSubmitting}
-                  onChange={onChangeTrimmed(form)}
-                  autoFocus
-                  fullWidth
-                  label={Language.nameLabel}
-                  variant="outlined"
-                />
+              {props.templateSchema.length > 0 && (
+                <Stack>
+                  {props.templateSchema.map((schema) => (
+                    <ParameterInput
+                      disabled={form.isSubmitting}
+                      key={schema.id}
+                      onChange={(value) => {
+                        setParameterValues({
+                          ...parameterValues,
+                          [schema.name]: value,
+                        })
+                      }}
+                      schema={schema}
+                    />
+                  ))}
+                </Stack>
+              )}
 
-                {props.templateSchema.length > 0 && (
-                  <Stack>
-                    {props.templateSchema.map((schema) => (
-                      <ParameterInput
-                        disabled={form.isSubmitting}
-                        key={schema.id}
-                        onChange={(value) => {
-                          setParameterValues({
-                            ...parameterValues,
-                            [schema.name]: value,
-                          })
-                        }}
-                        schema={schema}
-                      />
-                    ))}
-                  </Stack>
-                )}
-
-                <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
-              </>
-            )}
-          </Stack>
-        </form>
-      </FullPageForm>
-    </Margins>
+              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
+            </>
+          )}
+        </Stack>
+      </form>
+    </FullPageForm>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  readMoreLink: {
+    display: "flex",
+    alignItems: "center",
+
+    "& svg": {
+      width: 12,
+      height: 12,
+      marginLeft: theme.spacing(0.5),
+    },
+  },
+  emptyState: {
+    padding: 0,
+    fontFamily: "inherit",
+    textAlign: "left",
+    minHeight: "auto",
+    alignItems: "flex-start",
+  },
+  emptyStateDescription: {
+    lineHeight: "160%",
+  },
+  code: {
+    background: theme.palette.background.paper,
+    width: "100%",
+  },
+  codeButton: {
+    background: theme.palette.background.paper,
+  },
+}))

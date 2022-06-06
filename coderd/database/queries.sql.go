@@ -30,7 +30,7 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 FROM
 	api_keys
 WHERE
@@ -55,6 +55,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
@@ -63,6 +64,7 @@ const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
 		id,
+		lifetime_seconds,
 		hashed_secret,
 		user_id,
 		last_used,
@@ -76,11 +78,18 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	($1,
+	 -- If the lifetime is set to 0, default to 24hrs
+	 CASE $2::bigint
+	     WHEN 0 THEN 86400
+		 ELSE $2::bigint
+	 END
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds
 `
 
 type InsertAPIKeyParams struct {
 	ID                string    `db:"id" json:"id"`
+	LifetimeSeconds   int64     `db:"lifetime_seconds" json:"lifetime_seconds"`
 	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LastUsed          time.Time `db:"last_used" json:"last_used"`
@@ -97,6 +106,7 @@ type InsertAPIKeyParams struct {
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, insertAPIKey,
 		arg.ID,
+		arg.LifetimeSeconds,
 		arg.HashedSecret,
 		arg.UserID,
 		arg.LastUsed,
@@ -123,6 +133,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OAuthRefreshToken,
 		&i.OAuthIDToken,
 		&i.OAuthExpiry,
+		&i.LifetimeSeconds,
 	)
 	return i, err
 }
@@ -2088,12 +2099,18 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
-const getAllUserRoles = `-- name: GetAllUserRoles :one
+const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
-    -- username is returned just to help for logging purposes
-    -- status is used to enforce 'suspended' users, as all roles are ignored
-    --	when suspended.
-	id, username, status, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+	-- username is returned just to help for logging purposes
+	-- status is used to enforce 'suspended' users, as all roles are ignored
+	--	when suspended.
+	id, username, status,
+	array_cat(
+		-- All users are members
+			array_append(users.rbac_roles, 'member'),
+		-- All org_members get the org-member role for their orgs
+			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
+	    AS roles
 FROM
 	users
 LEFT JOIN organization_members
@@ -2102,16 +2119,18 @@ WHERE
     id = $1
 `
 
-type GetAllUserRolesRow struct {
+type GetAuthorizationUserRolesRow struct {
 	ID       uuid.UUID  `db:"id" json:"id"`
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
 	Roles    []string   `db:"roles" json:"roles"`
 }
 
-func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error) {
-	row := q.db.QueryRowContext(ctx, getAllUserRoles, userID)
-	var i GetAllUserRolesRow
+// This function returns roles for authorization purposes. Implied member roles
+// are included.
+func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
+	var i GetAuthorizationUserRolesRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
@@ -2764,6 +2783,155 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.DisconnectedAt,
 	)
 	return err
+}
+
+const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1 AND name = $2
+`
+
+type GetWorkspaceAppByAgentIDAndNameParams struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	Name    string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg GetWorkspaceAppByAgentIDAndNameParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAppByAgentIDAndName, arg.AgentID, arg.Name)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.RelativePath,
+	)
+	return i, err
+}
+
+const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Url,
+			&i.RelativePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Url,
+			&i.RelativePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceApp = `-- name: InsertWorkspaceApp :one
+INSERT INTO
+    workspace_apps (
+        id,
+        created_at,
+        agent_id,
+        name,
+        icon,
+        command,
+        url,
+        relative_path
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path
+`
+
+type InsertWorkspaceAppParams struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name         string         `db:"name" json:"name"`
+	Icon         string         `db:"icon" json:"icon"`
+	Command      sql.NullString `db:"command" json:"command"`
+	Url          sql.NullString `db:"url" json:"url"`
+	RelativePath bool           `db:"relative_path" json:"relative_path"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceApp,
+		arg.ID,
+		arg.CreatedAt,
+		arg.AgentID,
+		arg.Name,
+		arg.Icon,
+		arg.Command,
+		arg.Url,
+		arg.RelativePath,
+	)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.RelativePath,
+	)
+	return i, err
 }
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
@@ -3490,16 +3658,28 @@ WHERE
 				owner_id = $3
 		  ELSE true
 	END
+	-- Filter by name
+	AND CASE
+		  WHEN $4 :: text != '' THEN
+				LOWER(name) = LOWER($4)
+		  ELSE true
+	END
 `
 
 type GetWorkspacesWithFilterParams struct {
 	Deleted        bool      `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter, arg.Deleted, arg.OrganizationID, arg.OwnerID)
+	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter,
+		arg.Deleted,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+	)
 	if err != nil {
 		return nil, err
 	}

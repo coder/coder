@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof" //nolint: gosec
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,7 +26,9 @@ import (
 
 func workspaceAgent() *cobra.Command {
 	var (
-		auth string
+		auth         string
+		pprofEnabled bool
+		pprofAddress string
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -48,6 +51,16 @@ func workspaceAgent() *cobra.Command {
 			defer logWriter.Close()
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
+
+			if pprofEnabled {
+				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
+				defer srvClose()
+			} else {
+				// If pprof wasn't enabled at startup, allow a
+				// `kill -USR1 $agent_pid` to start it (on Unix).
+				srvClose := agentStartPPROFOnUSR1(cmd.Context(), logger, pprofAddress)
+				defer srvClose()
+			}
 
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
@@ -139,5 +152,7 @@ func workspaceAgent() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
+	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
+	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
 }

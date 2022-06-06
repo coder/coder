@@ -30,7 +30,7 @@ terraform {
 	required_providers {
 		coder = {
 			source = "coder/coder"
-			version = "0.3.4"
+			version = "0.4.2"
 		}
 	}
 }
@@ -433,6 +433,52 @@ provider "coder" {
 							OperatingSystem: "darwin",
 							Architecture:    "amd64",
 							Auth:            &proto.Agent_Token{},
+						}},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "agent-with-app",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				os = "darwin"
+				arch = "amd64"
+			}
+			resource "null_resource" "A" {
+				depends_on = [
+					coder_agent.A
+				]
+			}
+			resource "coder_app" "A" {
+				agent_id = coder_agent.A.id
+				command = "vim"
+			}
+			`,
+		},
+		Request: &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					Metadata: &proto.Provision_Metadata{},
+				},
+			},
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "darwin",
+							Architecture:    "amd64",
+							Auth:            &proto.Agent_Token{},
+							Apps: []*proto.App{{
+								Name:    "A",
+								Command: "vim",
+							}},
 						}},
 					}},
 				},

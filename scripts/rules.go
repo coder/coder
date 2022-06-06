@@ -69,3 +69,49 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
+
+// InTx checks to ensure the database used inside the transaction closure is the transaction
+// database, and not the original database that creates the tx.
+func InTx(m dsl.Matcher) {
+	// ':=' and '=' are 2 different matches :(
+	m.Match(`
+	$x.InTx(func($y) error {
+		$*_
+		$*_ = $x.$f($*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y) error {
+		$*_
+		$*_ := $x.$f($*_)
+		$*_
+	})
+	`).Where(m["x"].Text != m["y"].Text).
+		At(m["f"]).
+		Report("Do not use the database directly within the InTx closure. Use '$y' instead of '$x'.")
+
+	//When using a tx closure, ensure that if you pass the db to another
+	//function inside the closure, it is the tx.
+	//This will miss more complex cases such as passing the db as apart
+	//of another struct.
+	m.Match(`
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$*_ = $f($*_, $x, $*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$*_ := $f($*_, $x, $*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$f($*_, $x, $*_)
+		$*_
+	})
+	`).Where(m["x"].Text != m["y"].Text).
+		At(m["f"]).Report("Pass the tx database into the '$f' function inside the closure. Use '$y' over $x'")
+}

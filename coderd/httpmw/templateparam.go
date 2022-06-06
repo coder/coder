@@ -35,19 +35,20 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 			template, err := db.GetTemplateByID(r.Context(), templateID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("template %q does not exist", templateID),
+					Message: fmt.Sprintf("Template %q does not exist", templateID),
 				})
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get template: %s", err),
+					Message: "Internal error fetching template",
+					Detail:  err.Error(),
 				})
 				return
 			}
 
 			if template.Deleted {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("template %q does not exist", templateID),
+					Message: fmt.Sprintf("Template %q does not exist", templateID),
 				})
 				return
 			}

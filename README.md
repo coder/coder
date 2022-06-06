@@ -8,6 +8,11 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
+## Run Coder *now*
+
+```curl -L https://coder.com/install.sh | sh```
+
+## What Coder does
 Coder creates remote development machines so you can develop your code from anywhere. #coder
 
 > **Note**:
@@ -56,47 +61,25 @@ You can use any Web IDE ([code-server](https://github.com/coder/code-server), [p
 
 ## Installing Coder
 
-We recommend installing [the latest
-release](https://github.com/coder/coder/releases) on a system with at least 1
-CPU core and 2 GB RAM:
+There are a few ways to install Coder: [install script](./docs/install.md#installsh) (macOS, Linux), [docker-compose](./docs/install.md#docker-compose), or [manually](./docs/install.md#manual) via the latest release (macOS, Windows, and Linux).
 
-1. Download the [release asset](https://github.com/coder/coder/releases) appropriate for your operating system
-1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
+If you use the install script, you can preview what occurs during the install process:
 
-    ```sh
-    # ex. MacOS and Linux
-    mv coder /usr/local/bin 
-    ```
+```sh
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
+```
 
-    Windows: see [this guide](https://answers.microsoft.com/en-us/windows/forum/all/adding-path-variable/97300613-20cb-4d85-8d0e-cc9d3549ba23) on adding a folder to `PATH`
+To install, run:
 
-There are a few ways to run Coder:
+```sh
+curl -fsSL https://coder.com/install.sh | sh
+```
 
-- To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
+Once installed, you can run a temporary deployment in dev mode (all data is in-memory and destroyed on exit):
 
-  ```bash
-  coder server --dev
-  ```
-
-- To run a **production deployment** with PostgreSQL:
-
-  ```bash
-  CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-      coder server
-  ```
-
-- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, CentOS, RHEL, SUSE):
-
-  ```bash
-  # Edit the configuration!
-  sudo vim /etc/coder.d/coder.env
-  sudo service coder restart
-  ```
-
-  > macOS and Windows users: You'll need to write your own 
-  > configuration to run Coder as a system service.
-
-- See the [installation guide](./docs/install.md) for additional ways to run Coder (e.g., docker-compose)
+```sh
+coder server --dev
+```
 
 Use `coder --help` to get a complete list of flags and environment variables.
 

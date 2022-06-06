@@ -35,6 +35,7 @@ func New() database.Store {
 		templateVersions:        make([]database.TemplateVersion, 0),
 		templates:               make([]database.Template, 0),
 		workspaceBuilds:         make([]database.WorkspaceBuild, 0),
+		workspaceApps:           make([]database.WorkspaceApp, 0),
 		workspaces:              make([]database.Workspace, 0),
 	}
 }
@@ -63,6 +64,7 @@ type fakeQuerier struct {
 	templateVersions        []database.TemplateVersion
 	templates               []database.Template
 	workspaceBuilds         []database.WorkspaceBuild
+	workspaceApps           []database.WorkspaceApp
 	workspaces              []database.Workspace
 }
 
@@ -231,17 +233,19 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = tmp
 	}
 
-	if len(params.Status) > 0 {
-		usersFilteredByStatus := make([]database.User, 0, len(users))
-		for i, user := range users {
-			for _, status := range params.Status {
-				if user.Status == status {
-					usersFilteredByStatus = append(usersFilteredByStatus, users[i])
-				}
+	if len(params.Status) == 0 {
+		params.Status = []database.UserStatus{database.UserStatusActive}
+	}
+
+	usersFilteredByStatus := make([]database.User, 0, len(users))
+	for i, user := range users {
+		for _, status := range params.Status {
+			if user.Status == status {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
 			}
 		}
-		users = usersFilteredByStatus
 	}
+	users = usersFilteredByStatus
 
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
@@ -276,7 +280,7 @@ func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
+func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -286,6 +290,7 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 		if u.ID == userID {
 			u := u
 			roles = append(roles, u.RBACRoles...)
+			roles = append(roles, "member")
 			user = &u
 			break
 		}
@@ -294,14 +299,15 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
 			roles = append(roles, mem.Roles...)
+			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
 
 	if user == nil {
-		return database.GetAllUserRolesRow{}, sql.ErrNoRows
+		return database.GetAuthorizationUserRolesRow{}, sql.ErrNoRows
 	}
 
-	return database.GetAllUserRolesRow{
+	return database.GetAuthorizationUserRolesRow{
 		ID:       userID,
 		Username: user.Username,
 		Status:   user.Status,
@@ -322,6 +328,9 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 			continue
 		}
 		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+		if arg.Name != "" && workspace.Name != arg.Name {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
@@ -379,6 +388,38 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 		return workspace, nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apps := make([]database.WorkspaceApp, 0)
+	for _, app := range q.workspaceApps {
+		if app.AgentID == id {
+			apps = append(apps, app)
+		}
+	}
+	if len(apps) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return apps, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apps := make([]database.WorkspaceApp, 0)
+	for _, app := range q.workspaceApps {
+		for _, id := range ids {
+			if app.AgentID.String() == id.String() {
+				apps = append(apps, app)
+				break
+			}
+		}
+	}
+	return apps, nil
 }
 
 func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
@@ -1024,6 +1065,22 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 	return workspaceAgents, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, app := range q.workspaceApps {
+		if app.AgentID != arg.AgentID {
+			continue
+		}
+		if app.Name != arg.Name {
+			continue
+		}
+		return app, nil
+	}
+	return database.WorkspaceApp{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1126,9 +1183,14 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if arg.LifetimeSeconds == 0 {
+		arg.LifetimeSeconds = 86400
+	}
+
 	//nolint:gosimple
 	key := database.APIKey{
 		ID:                arg.ID,
+		LifetimeSeconds:   arg.LifetimeSeconds,
 		HashedSecret:      arg.HashedSecret,
 		UserID:            arg.UserID,
 		ExpiresAt:         arg.ExpiresAt,
@@ -1507,6 +1569,25 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// nolint:gosimple
+	workspaceApp := database.WorkspaceApp{
+		ID:           arg.ID,
+		AgentID:      arg.AgentID,
+		CreatedAt:    arg.CreatedAt,
+		Name:         arg.Name,
+		Icon:         arg.Icon,
+		Command:      arg.Command,
+		Url:          arg.Url,
+		RelativePath: arg.RelativePath,
+	}
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpmw"
@@ -45,7 +46,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// use the roles of the user specified, not the person making the request.
-	roles, err := api.Database.GetAllUserRoles(r.Context(), user.ID)
+	roles, err := api.Database.GetAuthorizationUserRoles(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Forbidden(rw)
 		return
@@ -60,7 +61,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "'resource_type' must be defined",
+				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q", k),
 			})
 			return
 		}
@@ -91,6 +92,10 @@ func convertRole(role rbac.Role) codersdk.Role {
 func convertRoles(roles []rbac.Role) []codersdk.Role {
 	converted := make([]codersdk.Role, 0, len(roles))
 	for _, role := range roles {
+		// Roles without display names should never be shown to the ui.
+		if role.DisplayName == "" {
+			continue
+		}
 		converted = append(converted, convertRole(role))
 	}
 	return converted

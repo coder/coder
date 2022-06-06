@@ -4,8 +4,6 @@ import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 
 export interface TerminalContext {
-  organizationsError?: Error | unknown
-  organizations?: TypesGen.Organization[]
   workspaceError?: Error | unknown
   workspace?: TypesGen.Workspace
   workspaceAgent?: TypesGen.WorkspaceAgent
@@ -37,9 +35,6 @@ export const terminalMachine =
         context: {} as TerminalContext,
         events: {} as TerminalEvent,
         services: {} as {
-          getOrganizations: {
-            data: TypesGen.Organization[]
-          }
           getWorkspace: {
             data: TypesGen.Workspace
           }
@@ -52,27 +47,8 @@ export const terminalMachine =
         },
       },
       id: "terminalState",
-      initial: "gettingOrganizations",
+      initial: "gettingWorkspace",
       states: {
-        gettingOrganizations: {
-          invoke: {
-            src: "getOrganizations",
-            id: "getOrganizations",
-            onDone: [
-              {
-                actions: ["assignOrganizations", "clearOrganizationsError"],
-                target: "gettingWorkspace",
-              },
-            ],
-            onError: [
-              {
-                actions: "assignOrganizationsError",
-                target: "disconnected",
-              },
-            ],
-          },
-          tags: "loading",
-        },
         gettingWorkspace: {
           invoke: {
             src: "getWorkspace",
@@ -145,7 +121,7 @@ export const terminalMachine =
           on: {
             CONNECT: {
               actions: "assignConnection",
-              target: "gettingOrganizations",
+              target: "gettingWorkspace",
             },
           },
         },
@@ -153,12 +129,11 @@ export const terminalMachine =
     },
     {
       services: {
-        getOrganizations: API.getOrganizations,
         getWorkspace: async (context) => {
-          if (!context.organizations || !context.workspaceName) {
-            throw new Error("organizations or workspace name not set")
+          if (!context.workspaceName) {
+            throw new Error("workspace name not set")
           }
-          return API.getWorkspaceByOwnerAndName(context.organizations[0].id, context.username, context.workspaceName)
+          return API.getWorkspaceByOwnerAndName(context.username, context.workspaceName)
         },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
@@ -219,16 +194,6 @@ export const terminalMachine =
           agentName: event.agentName ?? context.agentName,
           reconnection: event.reconnection ?? context.reconnection,
           workspaceName: event.workspaceName ?? context.workspaceName,
-        })),
-        assignOrganizations: assign({
-          organizations: (_, event) => event.data,
-        }),
-        assignOrganizationsError: assign({
-          organizationsError: (_, event) => event.data,
-        }),
-        clearOrganizationsError: assign((context) => ({
-          ...context,
-          organizationsError: undefined,
         })),
         assignWorkspace: assign({
           workspace: (_, event) => event.data,

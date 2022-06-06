@@ -33,6 +33,11 @@ export default {
 
 const Template: Story<CreateWorkspacePageViewProps> = (args) => <CreateWorkspacePageView {...args} />
 
+export const NoTemplates = Template.bind({})
+NoTemplates.args = {
+  templates: [],
+}
+
 export const NoParameters = Template.bind({})
 NoParameters.args = {
   templates: [MockTemplate],

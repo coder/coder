@@ -13,11 +13,12 @@ import (
 
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
-	TemplateImportJobID uuid.UUID
-	OrganizationID      uuid.UUID
-	UserID              uuid.UUID
-	TemplateID          uuid.NullUUID
-	WorkspaceID         uuid.NullUUID
+	TemplateImportJobID       uuid.UUID
+	OrganizationID            uuid.UUID
+	UserID                    uuid.UUID
+	TemplateID                uuid.NullUUID
+	WorkspaceID               uuid.NullUUID
+	AdditionalParameterValues []database.ParameterValue
 }
 
 type ComputeOptions struct {
@@ -57,15 +58,6 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	}
 	for _, parameterSchema := range parameterSchemas {
 		compute.parameterSchemasByName[parameterSchema.Name] = parameterSchema
-	}
-
-	// Organization parameters come first!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeOrganization,
-		ScopeID: scope.OrganizationID,
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	// Job parameters come second!
@@ -122,15 +114,6 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		}
 	}
 
-	// User parameters come fourth!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeUser,
-		ScopeID: scope.UserID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	if scope.WorkspaceID.Valid {
 		// Workspace parameters come last!
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
@@ -139,6 +122,14 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		})
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// Finally, any additional parameter values declared in the input
+	for _, v := range scope.AdditionalParameterValues {
+		err = compute.injectSingle(v, false)
+		if err != nil {
+			return nil, xerrors.Errorf("inject single parameter value: %w", err)
 		}
 	}
 
@@ -185,9 +176,8 @@ func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultV
 	_, hasParameterValue := c.computedParameterByName[scopedParameter.Name]
 	if hasParameterValue {
 		if !parameterSchema.AllowOverrideSource &&
-			// Users and workspaces cannot override anything on a template!
-			(scopedParameter.Scope == database.ParameterScopeUser ||
-				scopedParameter.Scope == database.ParameterScopeWorkspace) {
+			// Workspaces cannot override anything on a template!
+			scopedParameter.Scope == database.ParameterScopeWorkspace {
 			return nil
 		}
 	}

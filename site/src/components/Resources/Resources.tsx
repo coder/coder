@@ -8,6 +8,8 @@ import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
+import { AppLink } from "../AppLink/AppLink"
+import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -41,8 +43,8 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
             <TableHeaderRow>
               <TableCell>{Language.resourceLabel}</TableCell>
               <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
-              <TableCell>{Language.statusLabel}</TableCell>
               <TableCell>{Language.accessLabel}</TableCell>
+              <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -83,19 +85,31 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
                     <TableCell>
+                      <Stack>
+                        {agent.status === "connected" && (
+                          <TerminalLink
+                            className={styles.accessLink}
+                            workspaceName={workspace.name}
+                            agentName={agent.name}
+                            userName={workspace.owner_name}
+                          />
+                        )}
+                        {agent.status === "connected" &&
+                          agent.apps.map((app) => (
+                            <AppLink
+                              key={app.name}
+                              appIcon={app.icon}
+                              appName={app.name}
+                              userName={workspace.owner_name}
+                              workspaceName={workspace.name}
+                            />
+                          ))}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
                         {getDisplayAgentStatus(theme, agent).status}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      {agent.status === "connected" && (
-                        <TerminalLink
-                          className={styles.accessLink}
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                          userName={workspace.owner_name}
-                        />
-                      )}
                     </TableCell>
                   </TableRow>
                 )

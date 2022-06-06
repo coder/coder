@@ -5,7 +5,7 @@ import CloseIcon from "@material-ui/icons/Close"
 import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 
-type EnterpriseSnackbarVariant = "error" | "info"
+type EnterpriseSnackbarVariant = "error" | "info" | "success"
 
 export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
   /** Called when the snackbar should close, either from timeout or clicking close */
@@ -45,7 +45,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
         <div className={styles.actionWrapper}>
           {action}
           <IconButton onClick={onClose} className={styles.iconButton}>
-            <CloseIcon className={variant === "info" ? styles.closeIcon : styles.closeIconError} />
+            <CloseIcon className={styles.closeIcon} />
           </IconButton>
         </div>
       }
@@ -55,6 +55,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
           [styles.snackbarContent]: true,
           [styles.snackbarContentInfo]: variant === "info",
           [styles.snackbarContentError]: variant === "error",
+          [styles.snackbarContentSuccess]: variant === "success",
         }),
       }}
       onClose={onClose}
@@ -73,29 +74,26 @@ const useStyles = makeStyles((theme) => ({
   closeIcon: {
     width: 25,
     height: 25,
-    color: theme.palette.info.contrastText,
-  },
-  closeIconError: {
-    width: 25,
-    height: 25,
-    color: theme.palette.error.contrastText,
+    color: theme.palette.primary.contrastText,
   },
   snackbarContent: {
+    border: `1px solid ${theme.palette.divider}`,
     borderLeft: `4px solid ${theme.palette.primary.main}`,
-    borderRadius: 0,
+    borderRadius: theme.shape.borderRadius,
     padding: `${theme.spacing(1)}px ${theme.spacing(3)}px ${theme.spacing(1)}px ${theme.spacing(2)}px`,
     boxShadow: theme.shadows[6],
     alignItems: "inherit",
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.secondary,
   },
   snackbarContentInfo: {
-    backgroundColor: theme.palette.info.main,
-    // Use primary color as a highlight
+    // Use success color as a highlight
     borderLeftColor: theme.palette.primary.main,
-    color: theme.palette.info.contrastText,
   },
   snackbarContentError: {
-    backgroundColor: theme.palette.error.dark,
     borderLeftColor: theme.palette.error.main,
-    color: theme.palette.error.contrastText,
+  },
+  snackbarContentSuccess: {
+    borderLeftColor: theme.palette.success.main,
   },
 }))

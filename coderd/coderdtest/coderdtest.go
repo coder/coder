@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -172,7 +173,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		coderAPI.Close()
+		_ = coderAPI.Close()
 	})
 
 	return codersdk.New(serverURL), coderAPI
@@ -281,7 +282,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 			organizationID, err := uuid.Parse(orgID)
 			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
+				codersdk.UpdateRoles{Roles: roles})
 			require.NoError(t, err, "update org membership roles")
 		}
 	}
@@ -399,8 +400,8 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              randomUsername(),
-		AutostartSchedule: ptr("CRON_TZ=US/Central * * * * *"),
-		TTL:               ptr(8 * time.Hour),
+		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
 	for _, mutator := range mutators {
 		mutator(&req)
@@ -601,8 +602,4 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

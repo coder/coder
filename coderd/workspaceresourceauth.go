@@ -26,7 +26,8 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("validate: %s", err),
+			Message: "Invalid Azure identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -44,7 +45,8 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 	identity, err := awsidentity.Validate(req.Signature, req.Document, api.AWSCertificates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("validate: %s", err),
+			Message: "Invalid AWS identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -64,7 +66,8 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	payload, err := api.GoogleTokenValidator.Validate(r.Context(), req.JSONWebToken, "")
 	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("validate: %s", err),
+			Message: "Invalid GCP identity",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -78,7 +81,8 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	err = mapstructure.Decode(payload.Claims, &claims)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("decode jwt claims: %s", err),
+			Message: "Error decoding JWT claims",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -89,27 +93,30 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("instance with id %q not found", instanceID),
+			Message: fmt.Sprintf("Instance with id %q not found", instanceID),
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job agent: %s", err),
+			Message: "Internal error fetching provisioner job agent",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job resource: %s", err),
+			Message: "Internal error fetching provisioner job resource",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -123,14 +130,16 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("extract job data: %s", err),
+			Message: "Internal error extracting job data",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -140,13 +149,14 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get latest workspace build: %s", err),
+			Message: "Internal error fetching the latest workspace build",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if latestHistory.ID != resourceHistory.ID {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("resource found for id %q, but isn't registered on the latest history", instanceID),
+			Message: fmt.Sprintf("Resource found for id %q, but isn't registered on the latest history", instanceID),
 		})
 		return
 	}
