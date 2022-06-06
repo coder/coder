@@ -23,7 +23,7 @@ func TestRoot(t *testing.T) {
 		require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
 	})
 
-	t.Run("TestVersion", func(t *testing.T) {
+	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 
 		buf := new(bytes.Buffer)
