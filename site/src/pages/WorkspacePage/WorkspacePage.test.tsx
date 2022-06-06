@@ -27,7 +27,10 @@ import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+  renderWithAuth(<WorkspacePage />, {
+    route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+    path: "/@:username/:workspace",
+  })
   await screen.findByText(MockWorkspace.name)
 }
 
@@ -47,7 +50,7 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
 
 const testStatus = async (mock: Workspace, label: string) => {
   server.use(
-    rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+    rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(mock))
     }),
   )
@@ -87,7 +90,7 @@ describe("Workspace Page", () => {
   })
   it("requests a start job when the user presses Start", async () => {
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockStoppedWorkspace))
       }),
     )
@@ -98,7 +101,7 @@ describe("Workspace Page", () => {
   })
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockStartingWorkspace))
       }),
     )
@@ -110,7 +113,7 @@ describe("Workspace Page", () => {
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
       }),
     )
@@ -159,7 +162,10 @@ describe("Workspace Page", () => {
 
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
-      renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+      renderWithAuth(<WorkspacePage />, {
+        route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+        path: "/@:username/:workspace",
+      })
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(2)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
