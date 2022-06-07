@@ -1,4 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
+import ndjsonStream from "can-ndjson-stream"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
@@ -117,11 +118,14 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.OrganizationID) {
-    searchParams.append("organization_id", filter.OrganizationID)
+  if (filter?.organization_id) {
+    searchParams.append("organization_id", filter.organization_id)
   }
-  if (filter?.Owner) {
-    searchParams.append("owner", filter.Owner)
+  if (filter?.owner) {
+    searchParams.append("owner", filter.owner)
+  }
+  if (filter?.name) {
+    searchParams.append("name", filter.name)
   }
 
   const searchString = searchParams.toString()
@@ -136,13 +140,10 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 }
 
 export const getWorkspaceByOwnerAndName = async (
-  organizationID: string,
   username = "me",
   workspaceName: string,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
-  )
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
   return response.data
 }
 
@@ -270,6 +271,20 @@ export const getWorkspaceBuild = async (workspaceId: string): Promise<TypesGen.W
 export const getWorkspaceBuildLogs = async (buildname: string): Promise<TypesGen.ProvisionerJobLog[]> => {
   const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
+}
+
+export const streamWorkspaceBuildLogs = async (
+  buildname: string,
+): Promise<ReadableStreamDefaultReader<TypesGen.ProvisionerJobLog>> => {
+  // Axios does not support HTTP stream in the browser
+  // https://github.com/axios/axios/issues/1474
+  // So we are going to use window.fetch and return a "stream" reader
+  const reader = await window
+    .fetch(`/api/v2/workspacebuilds/${buildname}/logs?follow=true`)
+    .then((res) => ndjsonStream<TypesGen.ProvisionerJobLog>(res.body))
+    .then((stream) => stream.getReader())
+
+  return reader
 }
 
 export const putWorkspaceExtension = async (

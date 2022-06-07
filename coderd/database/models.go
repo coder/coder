@@ -117,11 +117,9 @@ func (e *ParameterDestinationScheme) Scan(src interface{}) error {
 type ParameterScope string
 
 const (
-	ParameterScopeOrganization ParameterScope = "organization"
-	ParameterScopeTemplate     ParameterScope = "template"
-	ParameterScopeImportJob    ParameterScope = "import_job"
-	ParameterScopeUser         ParameterScope = "user"
-	ParameterScopeWorkspace    ParameterScope = "workspace"
+	ParameterScopeTemplate  ParameterScope = "template"
+	ParameterScopeImportJob ParameterScope = "import_job"
+	ParameterScopeWorkspace ParameterScope = "workspace"
 )
 
 func (e *ParameterScope) Scan(src interface{}) error {
@@ -429,15 +427,17 @@ type ProvisionerJobLog struct {
 }
 
 type Template struct {
-	ID              uuid.UUID       `db:"id" json:"id"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted         bool            `db:"deleted" json:"deleted"`
-	Name            string          `db:"name" json:"name"`
-	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description     string          `db:"description" json:"description"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted              bool            `db:"deleted" json:"deleted"`
+	Name                 string          `db:"name" json:"name"`
+	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description          string          `db:"description" json:"description"`
+	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
+	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 }
 
 type TemplateVersion struct {
@@ -493,6 +493,17 @@ type WorkspaceAgent struct {
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory            string                `db:"directory" json:"directory"`
+}
+
+type WorkspaceApp struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name         string         `db:"name" json:"name"`
+	Icon         string         `db:"icon" json:"icon"`
+	Command      sql.NullString `db:"command" json:"command"`
+	Url          sql.NullString `db:"url" json:"url"`
+	RelativePath bool           `db:"relative_path" json:"relative_path"`
 }
 
 type WorkspaceBuild struct {

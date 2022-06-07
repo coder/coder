@@ -173,7 +173,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		coderAPI.Close()
+		_ = coderAPI.Close()
 	})
 
 	return codersdk.New(serverURL), coderAPI
@@ -322,12 +322,16 @@ func CreateWorkspaceBuild(
 
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {
-	template, err := client.CreateTemplate(context.Background(), organization, codersdk.CreateTemplateRequest{
+func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
+	req := codersdk.CreateTemplateRequest{
 		Name:        randomUsername(),
 		Description: randomUsername(),
 		VersionID:   version,
-	})
+	}
+	for _, mut := range mutators {
+		mut(&req)
+	}
+	template, err := client.CreateTemplate(context.Background(), organization, req)
 	require.NoError(t, err)
 	return template
 }
@@ -400,7 +404,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              randomUsername(),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
 	for _, mutator := range mutators {
@@ -409,6 +413,42 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
 	require.NoError(t, err)
 	return workspace
+}
+
+// TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
+func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+	t.Helper()
+	ctx := context.Background()
+	workspace, err := client.Workspace(ctx, workspaceID)
+	require.NoError(t, err, "unexpected error fetching workspace")
+	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
+
+	template, err := client.Template(ctx, workspace.TemplateID)
+	require.NoError(t, err, "fetch workspace template")
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Transition:        codersdk.WorkspaceTransition(to),
+	})
+	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
+
+	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+
+	updated := MustWorkspace(t, client, workspace.ID)
+	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
+	return updated
+}
+
+// MustWorkspace is a convenience method for fetching a workspace that should exist.
+func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+	t.Helper()
+	ctx := context.Background()
+	ws, err := client.Workspace(ctx, workspaceID)
+	if err != nil && strings.Contains(err.Error(), "status code 410") {
+		ws, err = client.DeletedWorkspace(ctx, workspaceID)
+	}
+	require.NoError(t, err, "no workspace found with id %s", workspaceID)
+	return ws
 }
 
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking

@@ -19,6 +19,7 @@ import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPag
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
+const WorkspaceAppErrorPage = lazy(() => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"))
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
@@ -26,138 +27,145 @@ const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/Creat
 export const AppRouter: FC = () => (
   <Suspense fallback={<></>}>
     <Routes>
-      <Route path="/">
+      <Route
+        index
+        element={
+          <RequireAuth>
+            <IndexPage />
+          </RequireAuth>
+        }
+      />
+
+      <Route path="login" element={<LoginPage />} />
+      <Route path="healthz" element={<HealthzPage />} />
+      <Route
+        path="cli-auth"
+        element={
+          <RequireAuth>
+            <CliAuthenticationPage />
+          </RequireAuth>
+        }
+      />
+
+      <Route path="workspaces">
         <Route
           index
           element={
-            <RequireAuth>
-              <IndexPage />
-            </RequireAuth>
-          }
-        />
-
-        <Route path="login" element={<LoginPage />} />
-        <Route path="healthz" element={<HealthzPage />} />
-        <Route
-          path="cli-auth"
-          element={
-            <RequireAuth>
-              <CliAuthenticationPage />
-            </RequireAuth>
-          }
-        />
-
-        <Route path="workspaces">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <WorkspacesPage />
-              </AuthAndFrame>
-            }
-          />
-
-          <Route
-            path="new"
-            element={
-              <RequireAuth>
-                <CreateWorkspacePage />
-              </RequireAuth>
-            }
-          />
-
-          <Route path=":workspace">
-            <Route
-              index
-              element={
-                <AuthAndFrame>
-                  <WorkspacePage />
-                </AuthAndFrame>
-              }
-            />
-            <Route
-              path="schedule"
-              element={
-                <RequireAuth>
-                  <WorkspaceSchedulePage />
-                </RequireAuth>
-              }
-            />
-          </Route>
-        </Route>
-
-        <Route path="templates">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <TemplatesPage />
-              </AuthAndFrame>
-            }
-          />
-
-          <Route
-            path=":template"
-            element={
-              <AuthAndFrame>
-                <TemplatePage />
-              </AuthAndFrame>
-            }
-          />
-        </Route>
-
-        <Route path="users">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <UsersPage />
-              </AuthAndFrame>
-            }
-          />
-          <Route
-            path="create"
-            element={
-              <RequireAuth>
-                <CreateUserPage />
-              </RequireAuth>
-            }
-          />
-        </Route>
-
-        <Route path="settings" element={<SettingsLayout />}>
-          <Route path="account" element={<AccountPage />} />
-          <Route path="security" element={<SecurityPage />} />
-          <Route path="ssh-keys" element={<SSHKeysPage />} />
-        </Route>
-
-        <Route path=":username">
-          <Route path=":workspace">
-            <Route
-              path="terminal"
-              element={
-                <RequireAuth>
-                  <TerminalPage />
-                </RequireAuth>
-              }
-            />
-          </Route>
-        </Route>
-
-        <Route
-          path="builds/:buildId"
-          element={
             <AuthAndFrame>
-              <WorkspaceBuildPage />
+              <WorkspacesPage />
             </AuthAndFrame>
           }
         />
 
-        {/* Using path="*"" means "match anything", so this route
+        <Route
+          path="new"
+          element={
+            <RequireAuth>
+              <CreateWorkspacePage />
+            </RequireAuth>
+          }
+        />
+      </Route>
+
+      <Route path="templates">
+        <Route
+          index
+          element={
+            <AuthAndFrame>
+              <TemplatesPage />
+            </AuthAndFrame>
+          }
+        />
+
+        <Route
+          path=":template"
+          element={
+            <AuthAndFrame>
+              <TemplatePage />
+            </AuthAndFrame>
+          }
+        />
+      </Route>
+
+      <Route path="users">
+        <Route
+          index
+          element={
+            <AuthAndFrame>
+              <UsersPage />
+            </AuthAndFrame>
+          }
+        />
+        <Route
+          path="create"
+          element={
+            <RequireAuth>
+              <CreateUserPage />
+            </RequireAuth>
+          }
+        />
+      </Route>
+
+      <Route path="settings" element={<SettingsLayout />}>
+        <Route path="account" element={<AccountPage />} />
+        <Route path="security" element={<SecurityPage />} />
+        <Route path="ssh-keys" element={<SSHKeysPage />} />
+      </Route>
+
+      <Route
+        path="builds/:buildId"
+        element={
+          <AuthAndFrame>
+            <WorkspaceBuildPage />
+          </AuthAndFrame>
+        }
+      />
+
+      <Route path="/@:username">
+        <Route path=":workspace">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <WorkspacePage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="schedule"
+            element={
+              <RequireAuth>
+                <WorkspaceSchedulePage />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="terminal"
+            element={
+              <RequireAuth>
+                <TerminalPage />
+              </RequireAuth>
+            }
+          />
+
+          <Route path="apps">
+            <Route
+              path=":app/*"
+              element={
+                <AuthAndFrame>
+                  <WorkspaceAppErrorPage />
+                </AuthAndFrame>
+              }
+            />
+          </Route>
+        </Route>
+      </Route>
+
+      {/* Using path="*"" means "match anything", so this route
         acts like a catch-all for URLs that we don't have explicit
         routes for. */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   </Suspense>
 )

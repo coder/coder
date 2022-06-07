@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -18,7 +17,7 @@ const (
 	// userErrorMessage is a constant so that no information about the state
 	// of the queried user can be gained. We return the same error if the user
 	// does not exist, or if the input is just garbage.
-	userErrorMessage = "\"user\" must be an existing uuid or username"
+	userErrorMessage = "\"user\" must be an existing uuid or username."
 )
 
 // UserParam returns the user from the ExtractUserParam handler.
@@ -41,7 +40,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 			userQuery := chi.URLParam(r, "user")
 			if userQuery == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "\"user\" must be provided",
+					Message: "\"user\" must be provided.",
 				})
 				return
 			}
@@ -50,7 +49,8 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				user, err = db.GetUserByID(r.Context(), APIKey(r).UserID)
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: fmt.Sprintf("get user: %s", err.Error()),
+						Message: "Internal error fetching user.",
+						Detail:  err.Error(),
 					})
 					return
 				}

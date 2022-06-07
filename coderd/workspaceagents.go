@@ -17,7 +17,6 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -32,10 +31,19 @@ import (
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching workspace agent applications.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -50,16 +58,17 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("Agent isn't connected! Status: %s", apiAgent.Status),
+			Message: fmt.Sprintf("Agent isn't connected! Status: %s.", apiAgent.Status),
 		})
 		return
 	}
@@ -67,7 +76,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -95,38 +105,43 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resource: %s", err),
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace owner.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -149,7 +164,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resource: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -157,7 +173,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build job: %s", err),
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -181,7 +198,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			slog.F("agent", workspaceAgent),
 		)
 		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
-			Message: fmt.Sprintf("ensure latest build: %s", err),
+			Message: "Agent trying to connect from non-latest build.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -191,7 +209,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -304,7 +323,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get remote address: %s", err),
+			Message: "Invalid remote address.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -312,7 +332,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	remoteAddress.Port, err = strconv.Atoi(port)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("remote address %q has no parsable port: %s", r.RemoteAddr, err),
+			Message: fmt.Sprintf("Port for remote address %q must be an integer.", r.RemoteAddr),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -322,7 +343,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -347,16 +369,17 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspace agent: %s", err),
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-			Message: fmt.Sprintf("agent must be in the connected state: %s", apiAgent.Status),
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
 	}
@@ -364,7 +387,10 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("reconnection must be a uuid: %s", err),
+			Message: "Query param 'reconnect' must be a valid UUID.",
+			Validations: []httpapi.Error{
+				{Field: "reconnect", Detail: "invalid UUID"},
+			},
 		})
 		return
 	}
@@ -382,21 +408,22 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
-	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	_, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
-	agentConn, err := api.dialWorkspaceAgent(ctx, r, workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
-	defer agentConn.Close()
-	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), "")
+	defer release()
+	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
@@ -412,8 +439,9 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
 // r.Context() for cancellation if it's use is safe or r.Hijack() has
 // not been performed.
-func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
 		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
 			ChannelID: agentID.String(),
@@ -427,9 +455,12 @@ func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID
 	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := peerClient.NegotiateConnection(ctx)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("negotiate: %w", err)
 	}
-	options := &peer.ConnOptions{}
+	options := &peer.ConnOptions{
+		Logger: api.Logger.Named("agent-dialer"),
+	}
 	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	options.SettingEngine.SetRelayAcceptanceMinWait(0)
 	// Use the ProxyDialer for the TURN server.
@@ -460,15 +491,33 @@ func (api *API) dialWorkspaceAgent(ctx context.Context, r *http.Request, agentID
 	}))
 	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
 	if err != nil {
+		cancelFunc()
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
+	go func() {
+		<-peerConn.Closed()
+		cancelFunc()
+	}()
 	return &agent.Conn{
 		Negotiator: peerClient,
 		Conn:       peerConn,
 	}, nil
 }
 
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
+	apps := make([]codersdk.WorkspaceApp, 0)
+	for _, dbApp := range dbApps {
+		apps = append(apps, codersdk.WorkspaceApp{
+			ID:      dbApp.ID,
+			Name:    dbApp.Name,
+			Command: dbApp.Command.String,
+			Icon:    dbApp.Icon,
+		})
+	}
+	return apps
+}
+
+func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -488,6 +537,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 		StartupScript:        dbAgent.StartupScript.String,
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
+		Apps:                 apps,
 	}
 	if dbAgent.FirstConnectedAt.Valid {
 		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time

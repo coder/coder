@@ -16,6 +16,7 @@ func Test_Weekly(t *testing.T) {
 		spec           string
 		at             time.Time
 		expectedNext   time.Time
+		expectedMin    time.Duration
 		expectedError  string
 		expectedCron   string
 		expectedTz     string
@@ -26,6 +27,7 @@ func Test_Weekly(t *testing.T) {
 			spec:           "CRON_TZ=US/Central 30 9 * * 1-5",
 			at:             time.Date(2022, 4, 1, 14, 29, 0, 0, time.UTC),
 			expectedNext:   time.Date(2022, 4, 1, 14, 30, 0, 0, time.UTC),
+			expectedMin:    24 * time.Hour,
 			expectedError:  "",
 			expectedCron:   "30 9 * * 1-5",
 			expectedTz:     "US/Central",
@@ -36,10 +38,33 @@ func Test_Weekly(t *testing.T) {
 			spec:           "30 9 * * 1-5",
 			at:             time.Date(2022, 4, 1, 9, 29, 0, 0, time.UTC),
 			expectedNext:   time.Date(2022, 4, 1, 9, 30, 0, 0, time.UTC),
+			expectedMin:    24 * time.Hour,
 			expectedError:  "",
 			expectedCron:   "30 9 * * 1-5",
 			expectedTz:     "UTC",
 			expectedString: "CRON_TZ=UTC 30 9 * * 1-5",
+		},
+		{
+			name:           "convoluted with timezone",
+			spec:           "CRON_TZ=US/Central */5 12-18 * * 1,3,6",
+			at:             time.Date(2022, 4, 1, 14, 29, 0, 0, time.UTC),
+			expectedNext:   time.Date(2022, 4, 2, 17, 0, 0, 0, time.UTC), // Apr 1 was a Friday in 2022
+			expectedMin:    5 * time.Minute,
+			expectedError:  "",
+			expectedCron:   "*/5 12-18 * * 1,3,6",
+			expectedTz:     "US/Central",
+			expectedString: "CRON_TZ=US/Central */5 12-18 * * 1,3,6",
+		},
+		{
+			name:           "another convoluted example",
+			spec:           "CRON_TZ=US/Central 10,20,40-50 * * * *",
+			at:             time.Date(2022, 4, 1, 14, 29, 0, 0, time.UTC),
+			expectedNext:   time.Date(2022, 4, 1, 14, 40, 0, 0, time.UTC),
+			expectedMin:    time.Minute,
+			expectedError:  "",
+			expectedCron:   "10,20,40-50 * * * *",
+			expectedTz:     "US/Central",
+			expectedString: "CRON_TZ=US/Central 10,20,40-50 * * * *",
 		},
 		{
 			name:          "time.Local will bite you",
@@ -104,6 +129,7 @@ func Test_Weekly(t *testing.T) {
 				require.Equal(t, testCase.expectedCron, actual.Cron())
 				require.Equal(t, testCase.expectedTz, actual.Timezone())
 				require.Equal(t, testCase.expectedString, actual.String())
+				require.Equal(t, testCase.expectedMin, actual.Min())
 			} else {
 				require.EqualError(t, err, testCase.expectedError)
 				require.Nil(t, actual)

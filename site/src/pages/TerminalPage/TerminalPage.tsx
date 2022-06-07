@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
+import { Helmet } from "react-helmet"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -8,10 +9,10 @@ import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { pageTitle } from "../../util/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 
 export const Language = {
-  organizationsErrorMessagePrefix: "Unable to fetch organizations: ",
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
@@ -58,8 +59,7 @@ const TerminalPage: FC<{
   })
   const isConnected = terminalState.matches("connected")
   const isDisconnected = terminalState.matches("disconnected")
-  const { organizationsError, workspaceError, workspaceAgentError, workspaceAgent, websocketError } =
-    terminalState.context
+  const { workspaceError, workspaceAgentError, workspaceAgent, websocketError } = terminalState.context
 
   // Create the terminal!
   useEffect(() => {
@@ -145,9 +145,6 @@ const TerminalPage: FC<{
       terminal.options = {
         disableStdin: true,
       }
-      if (organizationsError instanceof Error) {
-        terminal.writeln(Language.organizationsErrorMessagePrefix + organizationsError.message)
-      }
       if (workspaceError instanceof Error) {
         terminal.writeln(Language.workspaceErrorMessagePrefix + workspaceError.message)
       }
@@ -180,20 +177,19 @@ const TerminalPage: FC<{
         width: terminal.cols,
       },
     })
-  }, [
-    workspaceError,
-    organizationsError,
-    workspaceAgentError,
-    websocketError,
-    workspaceAgent,
-    terminal,
-    fitAddon,
-    isConnected,
-    sendEvent,
-  ])
+  }, [workspaceError, workspaceAgentError, websocketError, workspaceAgent, terminal, fitAddon, isConnected, sendEvent])
 
   return (
     <>
+      <Helmet>
+        <title>
+          {terminalState.context.workspace
+            ? pageTitle(
+                `Terminal · ${terminalState.context.workspace.owner_name}/${terminalState.context.workspace.name}`,
+              )
+            : ""}
+        </title>
+      </Helmet>
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
       <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>

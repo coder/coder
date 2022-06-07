@@ -48,10 +48,6 @@ func configSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
 			if strings.HasPrefix(sshConfigFile, "~/") {
 				dirname, _ := os.UserHomeDir()
 				sshConfigFile = filepath.Join(dirname, sshConfigFile[2:])
@@ -65,7 +61,9 @@ func configSSH() *cobra.Command {
 				sshConfigContent = sshConfigContent[:startIndex-1] + sshConfigContent[endIndex+len(sshEndToken):]
 			}
 
-			workspaces, err := client.WorkspacesByOwner(cmd.Context(), organization.ID, codersdk.Me)
+			workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+				Owner: codersdk.Me,
+			})
 			if err != nil {
 				return err
 			}

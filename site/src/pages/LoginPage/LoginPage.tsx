@@ -1,10 +1,12 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
+import { Helmet } from "react-helmet"
 import { Navigate, useLocation } from "react-router-dom"
 import { isApiError } from "../../api/errors"
 import { Footer } from "../../components/Footer/Footer"
 import { SignInForm } from "../../components/SignInForm/SignInForm"
+import { pageTitle } from "../../util/page"
 import { retrieveRedirect } from "../../util/redirect"
 import { XServiceContext } from "../../xServices/StateContext"
 
@@ -50,6 +52,9 @@ export const LoginPage: React.FC = () => {
   } else {
     return (
       <div className={styles.root}>
+        <Helmet>
+          <title>{pageTitle("Login")}</title>
+        </Helmet>
         <div className={styles.layout}>
           <div className={styles.container}>
             <SignInForm

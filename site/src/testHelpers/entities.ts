@@ -112,6 +112,8 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,
   description: "This is a test description.",
+  max_ttl_ms: 604800000,
+  min_autostart_interval_ms: 3600000,
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -135,6 +137,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
 }
@@ -210,7 +214,14 @@ export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, late
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
+export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
+  id: "test-app",
+  name: "test-app",
+  icon: "",
+}
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
+  apps: [MockWorkspaceApp],
   architecture: "amd64",
   created_at: "",
   environment_variables: {},

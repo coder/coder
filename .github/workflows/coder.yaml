@@ -226,7 +226,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   test-go-postgres:
@@ -310,7 +310,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   deploy:
@@ -355,10 +355,6 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
-
       - name: Cache Node
         id: cache-node
         uses: actions/cache@v3
@@ -366,9 +362,13 @@ jobs:
           path: |
             **/node_modules
             .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          key: js-${{ runner.os }}-release-node-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             js-${{ runner.os }}-
+
+      - uses: goreleaser/goreleaser-action@v3
+        with:
+          install-only: true
 
       - name: Build site
         run: make -B site/out/index.html
@@ -378,18 +378,6 @@ jobs:
         with:
           version: latest
           args: release --snapshot --rm-dist --skip-sign
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coder_windows_amd64.zip
-          path: ./dist/coder_*_windows_amd64.zip
-          retention-days: 7
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coder_linux_amd64.tar.gz
-          path: ./dist/coder_*_linux_amd64.tar.gz
-          retention-days: 7
 
       - name: Install Release
         run: |
@@ -401,6 +389,14 @@ jobs:
 
       - name: Start
         run: gcloud compute ssh coder -- sudo service coder restart
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coder
+          path: |
+            ./dist/coder_*_linux_amd64.tar.gz
+            ./dist/coder_*_windows_amd64.zip
+          retention-days: 7
 
   test-js:
     name: "test/js"
@@ -441,7 +437,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
       - name: Upload DataDog Trace

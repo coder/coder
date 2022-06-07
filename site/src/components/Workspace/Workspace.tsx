@@ -1,10 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { getWorkspaceStatus, succeededToStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Margins } from "../Margins/Margins"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
@@ -50,33 +50,23 @@ export const Workspace: FC<WorkspaceProps> = ({
   const isDeleted = getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
   console.log("isDeleted", isDeleted)
   return (
-    <div className={styles.root}>
-      <Stack direction="row" spacing={3}>
-        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
-          <div className={styles.header}>
-            <div>
-              <Typography variant="h4" className={styles.title}>
-                {workspace.name}
-              </Typography>
-
-              <Typography color="textSecondary" className={styles.subtitle}>
-                {workspace.owner_name}
-              </Typography>
-            </div>
-
-            <WorkspaceActions
-              workspace={workspace}
-              handleStart={handleStart}
-              handleStop={handleStop}
-              handleDelete={handleDelete}
-              handleUpdate={handleUpdate}
-              handleCancel={handleCancel}
-            />
-          </div>
-        </Stack>
-
-        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}></Stack>
-      </Stack>
+    <Margins>
+      <PageHeader
+        className={styles.header}
+        actions={
+          <WorkspaceActions
+            workspace={workspace}
+            handleStart={handleStart}
+            handleStop={handleStop}
+            handleDelete={handleDelete}
+            handleUpdate={handleUpdate}
+            handleCancel={handleCancel}
+          />
+        }
+      >
+        <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+        <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+      </PageHeader>
 
       <Stack direction="row" spacing={3}>
         <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
@@ -103,37 +93,23 @@ export const Workspace: FC<WorkspaceProps> = ({
           <WorkspaceSchedule workspace={workspace} />
         </Stack>
       </Stack>
-    </div>
+    </Margins>
   )
 }
 
+const spacerWidth = 300
+
 export const useStyles = makeStyles((theme) => {
   return {
-    root: {
-      display: "flex",
-      flexDirection: "column",
-    },
     firstColumnSpacer: {
       flex: 2,
     },
     secondColumnSpacer: {
-      flex: "0 0 300px",
+      flex: `0 0 ${spacerWidth}px`,
     },
     header: {
-      paddingTop: theme.spacing(5),
-      paddingBottom: theme.spacing(5),
-      fontFamily: MONOSPACE_FONT_FAMILY,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    title: {
-      fontWeight: 600,
-      fontFamily: "inherit",
-    },
-    subtitle: {
-      fontFamily: "inherit",
-      marginTop: theme.spacing(0.5),
+      // 100% - (the size of sidebar + the space between both )
+      maxWidth: `calc(100% - (${spacerWidth}px + ${theme.spacing(3)}px))`,
     },
     layout: {
       alignItems: "flex-start",

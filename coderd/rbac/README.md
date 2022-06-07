@@ -51,7 +51,7 @@ This can be represented by the following truth table, where Y represents *positi
 
 ## Example Permissions
 
-- `+site.*.*.read`: allowed to perform the `read` action against all objects of type `devurl` in a given Coder deployment.
+- `+site.*.*.read`: allowed to perform the `read` action against all objects of type `app` in a given Coder deployment.
 - `-user.workspace.*.create`: user is not allowed to create workspaces.
 
 ## Roles

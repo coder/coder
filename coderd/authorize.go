@@ -21,9 +21,7 @@ func (api *API) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.A
 	roles := httpmw.AuthorizationUserRoles(r)
 	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
 	if err != nil {
-		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
-			Message: err.Error(),
-		})
+		httpapi.Forbidden(rw)
 
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)

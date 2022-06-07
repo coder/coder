@@ -1,15 +1,16 @@
 import Box from "@material-ui/core/Box"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
 
@@ -41,13 +42,14 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
           <TableCell width="20%">{Language.durationLabel}</TableCell>
           <TableCell width="40%">{Language.startedAtLabel}</TableCell>
           <TableCell width="20%">{Language.statusLabel}</TableCell>
+          <TableCell></TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         {isLoading && <TableLoader />}
         {builds &&
           builds.map((build) => {
-            const status = getDisplayStatus(theme, build)
+            const status = getDisplayWorkspaceBuildStatus(theme, build)
 
             const navigateToBuildPage = () => {
               navigate(`/builds/${build.id}`)
@@ -79,6 +81,11 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
                 <TableCell>
                   <span style={{ color: status.color }}>{status.status}</span>
                 </TableCell>
+                <TableCell>
+                  <div className={styles.arrowCell}>
+                    <KeyboardArrowRight className={styles.arrowRight} />
+                  </div>
+                </TableCell>
               </TableRow>
             )
           })}
@@ -102,11 +109,23 @@ const useStyles = makeStyles((theme) => ({
     cursor: "pointer",
 
     "&:hover td": {
-      backgroundColor: theme.palette.background.default,
+      backgroundColor: fade(theme.palette.primary.light, 0.1),
     },
 
     "&:focus": {
-      outline: `1px solid ${theme.palette.primary.dark}`,
+      outline: `1px solid ${theme.palette.secondary.dark}`,
     },
+
+    "& .MuiTableCell-root:last-child": {
+      paddingRight: theme.spacing(2),
+    },
+  },
+  arrowRight: {
+    color: fade(theme.palette.primary.contrastText, 0.7),
+    width: 20,
+    height: 20,
+  },
+  arrowCell: {
+    display: "flex",
   },
 }))

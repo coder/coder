@@ -36,14 +36,6 @@ type Client struct {
 
 type requestOption func(*http.Request)
 
-func queryParam(k, v string) requestOption {
-	return func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set(k, v)
-		r.URL.RawQuery = q.Encode()
-	}
-}
-
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
@@ -202,7 +194,10 @@ func (e *Error) Error() string {
 	if e.Helper != "" {
 		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
 	}
-	for _, err := range e.Errors {
+	if e.Detail != "" {
+		_, _ = fmt.Fprintf(&builder, "\n\tError: %s", e.Detail)
+	}
+	for _, err := range e.Validations {
 		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
 	}
 	return builder.String()

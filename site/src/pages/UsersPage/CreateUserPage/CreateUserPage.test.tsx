@@ -58,7 +58,7 @@ describe("Create User Page", () => {
           ctx.status(400),
           ctx.json({
             message: "invalid field",
-            errors: [
+            validations: [
               {
                 detail: fieldErrorMessage,
                 field: "username",

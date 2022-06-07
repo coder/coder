@@ -297,7 +297,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	})
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 
-	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80)
+	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80, "/bin/bash")
 	require.NoError(t, err)
 	defer conn.Close()
 

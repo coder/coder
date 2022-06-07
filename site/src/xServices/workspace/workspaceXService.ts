@@ -37,7 +37,7 @@ export interface WorkspaceContext {
 }
 
 export type WorkspaceEvent =
-  | { type: "GET_WORKSPACE"; workspaceId: string }
+  | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
   | { type: "START" }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
@@ -431,8 +431,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        // { deleted: true }
-        return await API.getWorkspace(event.workspaceId)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -471,8 +470,7 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
-          // need to add {deleted: true} here but there is a BE bug rn
-          return await API.getWorkspace(context.workspace.id)
+          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name)
         } else {
           throw Error("Cannot refresh workspace without id")
         }

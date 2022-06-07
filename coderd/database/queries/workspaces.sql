@@ -28,6 +28,12 @@ WHERE
 				owner_id = @owner_id
 		  ELSE true
 	END
+	-- Filter by name, matching on substring
+	AND CASE
+		  WHEN @name :: text != '' THEN
+				LOWER(name) LIKE '%' || LOWER(@name) || '%'
+		  ELSE true
+	END
 ;
 
 -- name: GetWorkspacesByOrganizationIDs :many

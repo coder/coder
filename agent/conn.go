@@ -102,7 +102,7 @@ func (c *Conn) DialContext(ctx context.Context, network string, addr string) (ne
 	var res dialResponse
 	err = dec.Decode(&res)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to decode initial packet: %w", err)
+		return nil, xerrors.Errorf("decode agent dial response: %w", err)
 	}
 	if res.Error != "" {
 		_ = channel.Close()

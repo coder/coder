@@ -21,3 +21,10 @@ Info.args = {
   open: true,
   message: "Hey, something happened.",
 }
+
+export const Success = Template.bind({})
+Success.args = {
+  variant: "success",
+  open: true,
+  message: "Hey, something good happened.",
+}
