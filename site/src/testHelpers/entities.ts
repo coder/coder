@@ -112,6 +112,8 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,
   description: "This is a test description.",
+  max_ttl_ms: 604800000,
+  min_autostart_interval_ms: 3600000,
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {

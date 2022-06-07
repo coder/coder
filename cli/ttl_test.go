@@ -168,4 +168,37 @@ func TestTTL(t *testing.T) {
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
+
+	t.Run("TemplateMaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx     = context.Background()
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user    = coderdtest.CreateFirstUser(t, client)
+			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+			})
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.TTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+			})
+			cmdArgs   = []string{"ttl", "set", workspace.Name, "24h"}
+			stdoutBuf = &bytes.Buffer{}
+		)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "ttl_ms: ttl must be below template maximum 8h0m0s")
+
+		// Ensure ttl not updated
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch updated workspace")
+		require.NotNil(t, updated.TTLMillis)
+		require.Equal(t, (8 * time.Hour).Milliseconds(), *updated.TTLMillis)
+	})
 }

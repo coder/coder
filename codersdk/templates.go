@@ -13,15 +13,17 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                  uuid.UUID       `json:"id"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	OrganizationID      uuid.UUID       `json:"organization_id"`
-	Name                string          `json:"name"`
-	Provisioner         ProvisionerType `json:"provisioner"`
-	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
-	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
-	Description         string          `json:"description"`
+	ID                         uuid.UUID       `json:"id"`
+	CreatedAt                  time.Time       `json:"created_at"`
+	UpdatedAt                  time.Time       `json:"updated_at"`
+	OrganizationID             uuid.UUID       `json:"organization_id"`
+	Name                       string          `json:"name"`
+	Provisioner                ProvisionerType `json:"provisioner"`
+	ActiveVersionID            uuid.UUID       `json:"active_version_id"`
+	WorkspaceOwnerCount        uint32          `json:"workspace_owner_count"`
+	Description                string          `json:"description"`
+	MaxTTLMillis               int64           `json:"max_ttl_ms"`
+	MinAutostartIntervalMillis int64           `json:"min_autostart_interval_ms"`
 }
 
 type UpdateActiveTemplateVersion struct {

@@ -1277,16 +1277,26 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	// default values
+	if arg.MaxTtl == 0 {
+		arg.MaxTtl = int64(168 * time.Hour)
+	}
+	if arg.MinAutostartInterval == 0 {
+		arg.MinAutostartInterval = int64(time.Hour)
+	}
+
 	//nolint:gosimple
 	template := database.Template{
-		ID:              arg.ID,
-		CreatedAt:       arg.CreatedAt,
-		UpdatedAt:       arg.UpdatedAt,
-		OrganizationID:  arg.OrganizationID,
-		Name:            arg.Name,
-		Provisioner:     arg.Provisioner,
-		ActiveVersionID: arg.ActiveVersionID,
-		Description:     arg.Description,
+		ID:                   arg.ID,
+		CreatedAt:            arg.CreatedAt,
+		UpdatedAt:            arg.UpdatedAt,
+		OrganizationID:       arg.OrganizationID,
+		Name:                 arg.Name,
+		Provisioner:          arg.Provisioner,
+		ActiveVersionID:      arg.ActiveVersionID,
+		Description:          arg.Description,
+		MaxTtl:               arg.MaxTtl,
+		MinAutostartInterval: arg.MinAutostartInterval,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

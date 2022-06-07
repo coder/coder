@@ -63,6 +63,8 @@ export interface CreateTemplateRequest {
   readonly description?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
+  readonly max_ttl_ms?: number
+  readonly min_autostart_interval_ms?: number
 }
 
 // From codersdk/templateversions.go:121:6
@@ -96,7 +98,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly state?: string
 }
 
-// From codersdk/organizations.go:67:6
+// From codersdk/organizations.go:76:6
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
@@ -243,6 +245,8 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly max_ttl_ms: number
+  readonly min_autostart_interval_ms: number
 }
 
 // From codersdk/templateversions.go:14:6
@@ -272,12 +276,12 @@ export interface TemplateVersionParameter {
   readonly default_source_value: boolean
 }
 
-// From codersdk/templates.go:73:6
+// From codersdk/templates.go:75:6
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
-// From codersdk/templates.go:27:6
+// From codersdk/templates.go:29:6
 export interface UpdateActiveTemplateVersion {
   readonly id: string
 }

@@ -165,6 +165,24 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	})
 
+	t.Run("TemplateCustomTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateTTL := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref(templateTTL)
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil // ensure that no default TTL is set
+		})
+		// TTL should be set by the template
+		require.Equal(t, template.MaxTTLMillis, templateTTL)
+		require.Equal(t, template.MaxTTLMillis, template.MaxTTLMillis, workspace.TTLMillis)
+	})
+
 	t.Run("InvalidTTL", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BelowMin", func(t *testing.T) {
@@ -175,16 +193,18 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			req := codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              "testing",
-				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr.Ref((59 * time.Second).Milliseconds()),
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((59 * time.Second).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be at least one minute")
 		})
 
 		t.Run("AboveMax", func(t *testing.T) {
@@ -195,17 +215,41 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			req := codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              "testing",
-				AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
-				TTLMillis:         ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be less than 7 days")
 		})
+	})
+
+	t.Run("InvalidAutostart", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "testing",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		}
+		_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, apiErr.Validations[0].Field, "schedule")
+		require.Equal(t, apiErr.Validations[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
 }
 
@@ -476,17 +520,20 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			name:          "invalid location",
 			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
-			expectedError: "status code 500: Invalid autostart schedule\n\tError: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+			// expectedError: "status code 500: Invalid autostart schedule\n\tError: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      ptr.Ref("asdf asdf asdf "),
-			expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 		{
 			name:          "only 3 values",
 			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
-			expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 	}
 
@@ -564,9 +611,10 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		ttlMillis     *int64
-		expectedError string
+		name           string
+		ttlMillis      *int64
+		expectedError  string
+		modifyTemplate func(*codersdk.CreateTemplateRequest)
 	}{
 		{
 			name:          "disable ttl",
@@ -593,27 +641,35 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "ttl must be less than 7 days",
 		},
+		{
+			name:           "above template maximum ttl",
+			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
+			expectedError:  "ttl_ms: ttl must be below template maximum 8h0m0s",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+
+			mutators := make([]func(*codersdk.CreateTemplateRequest), 0)
+			if testCase.modifyTemplate != nil {
+				mutators = append(mutators, testCase.modifyTemplate)
+			}
 			var (
 				ctx       = context.Background()
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, mutators...)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
 					cwr.TTLMillis = nil
 				})
 			)
-
-			// ensure test invariant: new workspaces have no autostop schedule.
-			require.Nil(t, workspace.TTLMillis, "expected newly-minted workspace to have no TTL")
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: testCase.ttlMillis,
