@@ -34,7 +34,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace count",
+			Message: "Internal error fetching workspace count.",
 			Detail:  err.Error(),
 		})
 		return
@@ -66,7 +66,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspaces by template id",
+			Message: "Internal error fetching workspaces by template id.",
 			Detail:  err.Error(),
 		})
 		return
@@ -83,7 +83,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error deleting template",
+			Message: "Internal error deleting template.",
 			Detail:  err.Error(),
 		})
 		return
@@ -110,7 +110,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	})
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("Template with name %q already exists", createTemplate.Name),
+			Message: fmt.Sprintf("Template with name %q already exists.", createTemplate.Name),
 			Validations: []httpapi.Error{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
@@ -120,7 +120,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching template by name",
+			Message: "Internal error fetching template by name.",
 			Detail:  err.Error(),
 		})
 		return
@@ -128,7 +128,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("Template version %q does not exist", createTemplate.VersionID),
+			Message: fmt.Sprintf("Template version %q does not exist.", createTemplate.VersionID),
 			Validations: []httpapi.Error{
 				{Field: "template_version_id", Detail: "Template version does not exist"},
 			},
@@ -137,7 +137,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching template version",
+			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
 		})
 		return
@@ -145,7 +145,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -213,7 +213,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error inserting template",
+			Message: "Internal error inserting template.",
 			Detail:  err.Error(),
 		})
 		return
@@ -232,7 +232,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching templates in organization",
+			Message: "Internal error fetching templates in organization.",
 			Detail:  err.Error(),
 		})
 		return
@@ -252,7 +252,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace counts",
+			Message: "Internal error fetching workspace counts.",
 			Detail:  err.Error(),
 		})
 		return
@@ -271,13 +271,13 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-				Message: fmt.Sprintf("No template found by name %q in the %q organization", templateName, organization.Name),
+				Message: fmt.Sprintf("No template found by name %q in the %q organization.", templateName, organization.Name),
 			})
 			return
 		}
 
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching template",
+			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
 		return
@@ -293,7 +293,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace counts",
+			Message: "Internal error fetching workspace counts.",
 			Detail:  err.Error(),
 		})
 		return

@@ -33,13 +33,14 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "workspace not found",
+			Message: "Workspace not found.",
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace: %s", err),
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -50,7 +51,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -58,7 +60,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), build.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace resources: %s", err),
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -69,13 +72,14 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace agents: %s", err),
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if len(agents) == 0 {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "no agents exist",
+			Message: "No agents exist.",
 		})
 	}
 
@@ -95,19 +99,20 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "application not found",
+			Message: "Application not found.",
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace app: %s", err),
+			Message: "Internal error fetching workspace application.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if !app.Url.Valid {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("application does not have a url: %s", err),
+			Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
 		})
 		return
 	}
@@ -115,7 +120,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	appURL, err := url.Parse(app.Url.String)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("parse app url: %s", err),
+			Message: fmt.Sprintf("App url %q must be a valid url.", app.Url.String),
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -155,7 +161,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, agent.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("dial workspace agent: %s", err),
+			Message: "Failed to dial workspace agent.",
+			Detail:  err.Error(),
 		})
 		return
 	}

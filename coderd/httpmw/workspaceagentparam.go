@@ -32,13 +32,13 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			agent, err := db.GetWorkspaceAgentByID(r.Context(), agentUUID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: "Agent doesn't exist with that id",
+					Message: "Agent doesn't exist with that id.",
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace agent",
+					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})
 				return
@@ -46,7 +46,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace resource",
+					Message: "Internal error fetching workspace resource.",
 					Detail:  err.Error(),
 				})
 				return
@@ -55,7 +55,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching provisioner job",
+					Message: "Internal error fetching provisioner job.",
 					Detail:  err.Error(),
 				})
 				return
@@ -69,7 +69,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace build",
+					Message: "Internal error fetching workspace build.",
 					Detail:  err.Error(),
 				})
 				return
@@ -77,7 +77,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			workspace, err := db.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace",
+					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
 				return
@@ -86,7 +86,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			apiKey := APIKey(r)
 			if apiKey.UserID != workspace.OwnerID {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: "Getting non-personal agents isn't supported",
+					Message: "Getting non-personal agents isn't supported.",
 				})
 				return
 			}

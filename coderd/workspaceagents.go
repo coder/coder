@@ -34,14 +34,15 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace agent apps: %s", err),
+			Message: "Internal error fetching workspace agent applications.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error reading workspace agent",
+			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
@@ -60,14 +61,14 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error reading workspace agent",
+			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("Agent isn't connected! Status: %s", apiAgent.Status),
+			Message: fmt.Sprintf("Agent isn't connected! Status: %s.", apiAgent.Status),
 		})
 		return
 	}
@@ -75,7 +76,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to accept websocket",
+			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
@@ -107,7 +108,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error reading workspace agent",
+			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
@@ -115,7 +116,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace resources",
+			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
 		return
@@ -123,7 +124,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace build",
+			Message: "Internal error fetching workspace build.",
 			Detail:  err.Error(),
 		})
 		return
@@ -131,7 +132,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace",
+			Message: "Internal error fetching workspace.",
 			Detail:  err.Error(),
 		})
 		return
@@ -139,7 +140,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace owner",
+			Message: "Internal error fetching workspace owner.",
 			Detail:  err.Error(),
 		})
 		return
@@ -163,7 +164,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to accept websocket",
+			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
@@ -172,7 +173,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build job: %s", err),
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -196,7 +198,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			slog.F("agent", workspaceAgent),
 		)
 		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
-			Message: fmt.Sprintf("ensure latest build: %s", err),
+			Message: "Agent trying to connect from non-latest build.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -206,7 +209,8 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -319,7 +323,7 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid remote address",
+			Message: "Invalid remote address.",
 			Detail:  err.Error(),
 		})
 		return
@@ -339,7 +343,7 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to accept websocket",
+			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
@@ -368,7 +372,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error reading workspace agent",
+			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
@@ -383,7 +387,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Query param 'reconnect' must be a valid UUID",
+			Message: "Query param 'reconnect' must be a valid UUID.",
 			Validations: []httpapi.Error{
 				{Field: "reconnect", Detail: "invalid UUID"},
 			},
@@ -404,7 +408,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to accept websocket",
+			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return

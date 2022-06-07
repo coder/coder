@@ -32,7 +32,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	case "application/x-tar":
 	default:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("Unsupported content type header %q", contentType),
+			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
 		})
 		return
 	}
@@ -41,7 +41,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to read file from request",
+			Message: "Failed to read file from request.",
 			Detail:  err.Error(),
 		})
 		return
@@ -65,7 +65,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error saving file",
+			Message: "Internal error saving file.",
 			Detail:  err.Error(),
 		})
 		return
@@ -80,7 +80,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "File hash must be provided in url",
+			Message: "File hash must be provided in url.",
 		})
 		return
 	}
@@ -91,7 +91,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching file",
+			Message: "Internal error fetching file.",
 			Detail:  err.Error(),
 		})
 		return

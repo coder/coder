@@ -20,7 +20,7 @@ func TestWrite(t *testing.T) {
 		t.Parallel()
 		rw := httptest.NewRecorder()
 		httpapi.Write(rw, http.StatusOK, httpapi.Response{
-			Message: "wow",
+			Message: "Wow.",
 		})
 		var m map[string]interface{}
 		err := json.NewDecoder(rw.Body).Decode(&m)

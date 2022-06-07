@@ -38,7 +38,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner daemons",
+			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
 		return

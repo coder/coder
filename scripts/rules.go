@@ -115,3 +115,38 @@ func InTx(m dsl.Matcher) {
 	`).Where(m["x"].Text != m["y"].Text).
 		At(m["f"]).Report("Pass the tx database into the '$f' function inside the closure. Use '$y' over $x'")
 }
+
+// HttpAPIErrorMessage intends to enforce constructing proper sentences as
+// error messages for the api. A proper sentence includes proper capitalization
+// and ends with punctuation.
+// There are ways around the linter, but this should work in the common cases.
+func HttpAPIErrorMessage(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/coderd/httpapi")
+
+	isNotProperError := func(v dsl.Var) bool {
+		return v.Type.Is("string") &&
+			// Either starts with a lowercase, or ends without punctuation.
+			// The reason I don't check for NOT ^[A-Z].*[.!?]$ is because there
+			// are some exceptions. Any string starting with a formatting
+			// directive (%s) for example is exempt.
+			(m["m"].Text.Matches(`^"[a-z].*`) ||
+				m["m"].Text.Matches(`.*[^.!?]"$`))
+	}
+
+	m.Match(`
+	httpapi.Write($_, $s, httpapi.Response{
+		$*_,
+		Message: $m,
+		$*_,
+	})
+	`, `
+	httpapi.Write($_, $s, httpapi.Response{
+		$*_,
+		Message: fmt.$f($m, $*_),
+		$*_,
+	})
+	`,
+	).Where(isNotProperError(m["m"])).
+		At(m["m"]).
+		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
+}
