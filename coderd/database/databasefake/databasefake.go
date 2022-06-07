@@ -476,63 +476,63 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 	return res, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, history := range q.workspaceBuilds {
 		if history.ID.String() == id.String() {
-			return history, nil
+			return q.workspaceBuildWithInitiator(history), nil
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, build := range q.workspaceBuilds {
 		if build.JobID.String() == jobID.String() {
-			return build, nil
+			return q.workspaceBuildWithInitiator(build), nil
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var row database.WorkspaceBuild
+	var row database.WorkspaceBuildsWithInitiator
 	var buildNum int32
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
-			row = workspaceBuild
+			row = q.workspaceBuildWithInitiator(workspaceBuild)
 			buildNum = workspaceBuild.BuildNumber
 		}
 	}
 	if buildNum == 0 {
-		return database.WorkspaceBuild{}, sql.ErrNoRows
+		return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
 	}
 	return row, nil
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	builds := make(map[uuid.UUID]database.WorkspaceBuildsWithInitiator)
 	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
 			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > buildNumbers[id] {
-				builds[id] = workspaceBuild
+				builds[id] = q.workspaceBuildWithInitiator(workspaceBuild)
 				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
 		}
 	}
-	var returnBuilds []database.WorkspaceBuild
+	var returnBuilds []database.WorkspaceBuildsWithInitiator
 	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
@@ -546,19 +546,19 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
-	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
+	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	history := make([]database.WorkspaceBuild, 0)
+	history := make([]database.WorkspaceBuildsWithInitiator, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
-			history = append(history, workspaceBuild)
+			history = append(history, q.workspaceBuildWithInitiator(workspaceBuild))
 		}
 	}
 
 	// Order by build_number
-	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
+	slices.SortFunc(history, func(a, b database.WorkspaceBuildsWithInitiator) bool {
 		// use greater than since we want descending order
 		return a.BuildNumber > b.BuildNumber
 	})
@@ -600,7 +600,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuildsWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -611,9 +611,33 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 		if !strings.EqualFold(workspaceBuild.Name, arg.Name) {
 			continue
 		}
-		return workspaceBuild, nil
+
+		return q.workspaceBuildWithInitiator(workspaceBuild), nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) workspaceBuildWithInitiator(build database.WorkspaceBuild) database.WorkspaceBuildsWithInitiator {
+	username := "unknown"
+	usr, err := q.GetUserByID(context.Background(), build.InitiatorID)
+	if err == nil {
+		username = usr.Username
+	}
+	return database.WorkspaceBuildsWithInitiator{
+		ID:                build.ID,
+		CreatedAt:         build.CreatedAt,
+		UpdatedAt:         build.UpdatedAt,
+		WorkspaceID:       build.WorkspaceID,
+		TemplateVersionID: build.TemplateVersionID,
+		Name:              build.Name,
+		BuildNumber:       build.BuildNumber,
+		Transition:        build.Transition,
+		InitiatorID:       build.InitiatorID,
+		ProvisionerState:  build.ProvisionerState,
+		JobID:             build.JobID,
+		Deadline:          build.Deadline,
+		InitiatorUsername: username,
+	}
 }
 
 func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {

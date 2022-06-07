@@ -361,7 +361,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuild
+	var workspaceBuild database.WorkspaceBuildsWithInitiator
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
 		workspaceBuildID := uuid.New()
@@ -418,7 +418,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
-		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
+		insertedBuild, err := db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
@@ -433,6 +433,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		workspaceBuild, err = db.GetWorkspaceBuildByID(r.Context(), insertedBuild.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch inserted workspace build: %w", err)
 		}
 		return nil
 	})
@@ -738,9 +743,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		return nil, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
 
-	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
+	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuildsWithInitiator{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuild{
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuildsWithInitiator{
 			ID:                workspaceBuild.ID,
 			CreatedAt:         workspaceBuild.CreatedAt,
 			UpdatedAt:         workspaceBuild.UpdatedAt,
@@ -753,6 +758,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			ProvisionerState:  workspaceBuild.ProvisionerState,
 			JobID:             workspaceBuild.JobID,
 			Deadline:          workspaceBuild.Deadline,
+			InitiatorUsername: workspaceBuild.InitiatorUsername,
 		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
@@ -791,7 +797,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 }
 func convertWorkspace(
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuild,
+	workspaceBuild database.WorkspaceBuildsWithInitiator,
 	job database.ProvisionerJob,
 	template database.Template,
 	owner database.User) codersdk.Workspace {

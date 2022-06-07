@@ -308,6 +308,23 @@ CREATE TABLE workspace_builds (
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
+CREATE VIEW workspace_builds_with_initiator AS
+ SELECT workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.name,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    COALESCE(users.username, 'unknown'::text) AS initiator_username
+   FROM (public.workspace_builds
+     LEFT JOIN users ON ((workspace_builds.initiator_id = users.id)));
+
 CREATE TABLE workspace_resources (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,

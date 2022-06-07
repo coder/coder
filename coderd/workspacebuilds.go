@@ -62,7 +62,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var builds []database.WorkspaceBuild
+	var builds []database.WorkspaceBuildsWithInitiator
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
 		var err error
@@ -309,7 +309,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var workspaceBuild database.WorkspaceBuild
+	var workspaceBuild database.WorkspaceBuildsWithInitiator
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
@@ -341,7 +341,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			state = priorHistory.ProvisionerState
 		}
 
-		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
+		insertedBuild, err := db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         database.Now(),
 			UpdatedAt:         database.Now(),
@@ -356,6 +356,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		workspaceBuild, err = db.GetWorkspaceBuildByID(r.Context(), insertedBuild.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch inserted workspace build: %w", err)
 		}
 
 		return nil
@@ -510,7 +515,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspaceBuild(
 	workspaceOwner database.User,
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuild,
+	workspaceBuild database.WorkspaceBuildsWithInitiator,
 	job database.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
 	if workspace.ID != workspaceBuild.WorkspaceID {
@@ -529,6 +534,7 @@ func convertWorkspaceBuild(
 		Name:               workspaceBuild.Name,
 		Transition:         codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:        workspaceBuild.InitiatorID,
+		InitiatorUsername:  workspaceBuild.InitiatorUsername,
 		Job:                convertProvisionerJob(job),
 		Deadline:           workspaceBuild.Deadline,
 	}
