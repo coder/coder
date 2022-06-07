@@ -13,6 +13,7 @@ import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import ReplyIcon from "@material-ui/icons/Reply"
 import SearchIcon from "@material-ui/icons/Search"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
@@ -37,7 +38,6 @@ import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
-import ReplyIcon from '@material-ui/icons/Reply';
 
 dayjs.extend(relativeTime)
 
@@ -134,7 +134,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
       <PageHeader
         actions={
           <Link underline="none" component={RouterLink} to="/templates">
-            <Button startIcon={<ReplyIcon style={{ transform: "scaleX(-1)" }}/>} style={{ height: "44px" }}>
+            <Button startIcon={<ReplyIcon style={{ transform: "scaleX(-1)" }} />} style={{ height: "44px" }}>
               {Language.createFromTemplateButton}
             </Button>
           </Link>

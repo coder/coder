@@ -1,4 +1,3 @@
-import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
@@ -76,13 +75,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
         {props.loadingTemplates && <Loader />}
 
         <Stack>
-          <TextField
-            disabled
-            fullWidth
-            label={Language.templateLabel}
-            value={props.templateName}
-            variant="outlined"
-          />
+          <TextField disabled fullWidth label={Language.templateLabel} value={props.templateName} variant="outlined" />
 
           {props.selectedTemplate && props.templateSchema && (
             <>

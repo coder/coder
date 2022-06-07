@@ -12,11 +12,10 @@ type CreateWorkspaceContext = {
   createdWorkspace?: Workspace
 }
 
-type CreateWorkspaceEvent =
-  | {
-      type: "CREATE_WORKSPACE"
-      request: CreateWorkspaceRequest
-    }
+type CreateWorkspaceEvent = {
+  type: "CREATE_WORKSPACE"
+  request: CreateWorkspaceRequest
+}
 
 export const createWorkspaceMachine = createMachine(
   {
