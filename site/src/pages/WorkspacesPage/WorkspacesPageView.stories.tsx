@@ -1,8 +1,8 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import { ProvisionerJobStatus, Workspace, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
-import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 import { workspaceFilterQuery } from "../../util/workspace"
+import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 
 export default {
   title: "pages/WorkspacesPageView",
