@@ -63,7 +63,7 @@ type Response struct {
 	// err.Error() text.
 	// - "database: too many open connections"
 	// - "stat: too many open files"
-	Detail string `json:"detail"`
+	Detail string `json:"detail,omitempty"`
 	// Validations are form field-specific friendly error messages. They will be
 	// shown on a form field in the UI. These can also be used to add additional
 	// context if there is a set of errors in the primary 'Message'.
