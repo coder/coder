@@ -40,7 +40,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching user",
+			Message: "Internal error fetching user.",
 			Detail:  err.Error(),
 		})
 		return
@@ -131,7 +131,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching user",
+			Message: "Internal error fetching user.",
 			Detail:  err.Error(),
 		})
 		return
@@ -188,7 +188,7 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error getting user",
+			Message: "Internal error getting user.",
 			Detail:  err.Error(),
 		})
 		return
@@ -371,7 +371,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error getting user",
+			Message: "Internal error getting user.",
 			Detail:  err.Error(),
 		})
 		return
