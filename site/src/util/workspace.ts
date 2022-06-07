@@ -136,6 +136,56 @@ export const getDisplayStatus = (
   throw new Error("unknown status " + status)
 }
 
+export const DisplayWorkspaceBuildStatusLanguage = {
+  succeeded: "Succeeded",
+  pending: "Pending",
+  running: "Running",
+  canceling: "Canceling",
+  canceled: "Canceled",
+  failed: "Failed",
+}
+
+export const getDisplayWorkspaceBuildStatus = (
+  theme: Theme,
+  build: TypesGen.WorkspaceBuild,
+): {
+  color: string
+  status: string
+} => {
+  switch (build.job.status) {
+    case "succeeded":
+      return {
+        color: theme.palette.success.main,
+        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.succeeded}`,
+      }
+    case "pending":
+      return {
+        color: theme.palette.text.secondary,
+        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.pending}`,
+      }
+    case "running":
+      return {
+        color: theme.palette.primary.main,
+        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.running}`,
+      }
+    case "failed":
+      return {
+        color: theme.palette.text.secondary,
+        status: `⦸ ${DisplayWorkspaceBuildStatusLanguage.failed}`,
+      }
+    case "canceling":
+      return {
+        color: theme.palette.warning.light,
+        status: `◍ ${DisplayWorkspaceBuildStatusLanguage.canceling}`,
+      }
+    case "canceled":
+      return {
+        color: theme.palette.text.secondary,
+        status: `◍ ${DisplayWorkspaceBuildStatusLanguage.canceled}`,
+      }
+  }
+}
+
 export const getWorkspaceBuildDurationInSeconds = (build: TypesGen.WorkspaceBuild): number | undefined => {
   const isCompleted = build.job.started_at && build.job.completed_at
 

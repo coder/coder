@@ -9,7 +9,7 @@ import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
 
@@ -47,7 +47,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
         {isLoading && <TableLoader />}
         {builds &&
           builds.map((build) => {
-            const status = getDisplayStatus(theme, build)
+            const status = getDisplayWorkspaceBuildStatus(theme, build)
 
             const navigateToBuildPage = () => {
               navigate(`/builds/${build.id}`)
