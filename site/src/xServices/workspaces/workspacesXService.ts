@@ -24,10 +24,7 @@ export const workspacesMachine = createMachine(
       },
     },
     id: "workspaceState",
-    context: {
-      filter: "owner:me",
-    },
-    initial: "gettingWorkspaces",
+    initial: "ready",
     states: {
       ready: {
         on: {

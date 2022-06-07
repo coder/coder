@@ -93,6 +93,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
   const theme: Theme = useTheme()
 
   const form = useFormik<FilterFormValues>({
+    enableReinitialize: true,
     initialValues: {
       query: filter ?? "",
     },
