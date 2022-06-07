@@ -440,18 +440,19 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 	require.NoError(t, err)
 
-	// When: the autobuild executor ticks after the deadline
+	// When: the autobuild executor ticks after the original deadline
 	go func() {
 		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
 		close(tickCh)
 	}()
 
-	// Then: the workspace should still stop - sorry!
+	// Then: the workspace should not stop
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
-	assert.Len(t, stats.Transitions, 1)
-	assert.Contains(t, stats.Transitions, workspace.ID)
-	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
+	assert.Len(t, stats.Transitions, 0)
+	// And: the deadline should be updated
+	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.Zero(t, updated.LatestBuild.Deadline)
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
