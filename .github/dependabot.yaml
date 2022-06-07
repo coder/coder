@@ -6,6 +6,7 @@ updates:
       interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
+    labels:
     commit-message:
       prefix: "chore"
     ignore:
@@ -33,8 +34,6 @@ updates:
     commit-message:
       prefix: "chore"
     labels:
-      - "dependencies"
-      - "go"
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -45,8 +44,6 @@ updates:
     commit-message:
       prefix: "chore"
     labels:
-      - "dependencies"
-      - "typescript/js"
     ignore:
       # Ignore major updates to Node.js types, because they need to
       # correspond to the Node.js engine version
@@ -63,8 +60,6 @@ updates:
     commit-message:
       prefix: "chore"
     labels:
-      - "dependencies"
-      - "terraform"
     ignore:
       # We likely want to update this ourselves.
       - dependency-name: "coder/coder"
