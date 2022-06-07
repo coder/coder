@@ -35,16 +35,16 @@ import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHea
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
-import { getDisplayStatus } from "../../util/workspace"
+import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create workspace",
-  emptyMessage: "Create your first workspace",
-  emptyDescription: "Start editing your source code and building your software",
-  filterName: "Filters",
   createWorkspaceButton: "Create workspace",
+  emptyCreateWorkspaceMessage: "Create your first workspace",
+  emptyCreateWorkspaceDescription: "Start editing your source code and building your software",
+  emptyResultsMessage: "No results matched your search",
+  filterName: "Filters",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
   workspaceTooltipTitle: "What is workspace?",
@@ -93,6 +93,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
   const theme: Theme = useTheme()
 
   const form = useFormik<FilterFormValues>({
+    enableReinitialize: true,
     initialValues: {
       query: filter ?? "",
     },
@@ -200,19 +201,29 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
         <TableBody>
           {!workspaces && loading && <TableLoader />}
           {workspaces && workspaces.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={999}>
-                <EmptyState
-                  message={Language.emptyMessage}
-                  description={Language.emptyDescription}
-                  cta={
-                    <Link underline="none" component={RouterLink} to="/workspaces/new">
-                      <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-                    </Link>
-                  }
-                />
-              </TableCell>
-            </TableRow>
+            <>
+              {filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all ? (
+                <TableRow>
+                  <TableCell colSpan={999}>
+                    <EmptyState
+                      message={Language.emptyCreateWorkspaceMessage}
+                      description={Language.emptyCreateWorkspaceDescription}
+                      cta={
+                        <Link underline="none" component={RouterLink} to="/workspaces/new">
+                          <Button startIcon={<AddCircleOutline />}>{Language.createWorkspaceButton}</Button>
+                        </Link>
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={999}>
+                    <EmptyState message={Language.emptyResultsMessage} />
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
           )}
           {workspaces &&
             workspaces.map((workspace) => {
