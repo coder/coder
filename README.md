@@ -37,7 +37,6 @@ Coder creates remote development machines so you can develop your code from anyw
 - Automatically shut down expensive cloud resources
 - Keep your source code and data behind your firewall
 
-
 ## Installing Coder
 
 There are a few ways to install Coder: [install script](./docs/install.md#installsh) (macOS, Linux), [docker-compose](./docs/install.md#docker-compose), or [manually](./docs/install.md#manual) via the latest release (macOS, Windows, and Linux).
@@ -62,49 +61,9 @@ coder server --dev
 
 Use `coder --help` to get a complete list of flags and environment variables.
 
-## Creating your first template and workspace
-
-In a new terminal window, run the following to copy a sample template:
-
-```bash
-coder templates init
-```
-
-Follow the CLI instructions to modify and create the template specific for your
-usage (e.g., a template to **Develop in Linux on Google Cloud**).
-
-Create a workspace using your template:
-
-```bash
-coder create --template="yourTemplate" <workspaceName>
-```
-
-Connect to your workspace via SSH:
-
-```bash
-coder ssh <workspaceName>
-```
-
-## Modifying templates
-
-You can edit the Terraform template using a sample template:
-
-```sh
-coder templates init
-cd gcp-linux/
-vim main.tf
-coder templates update gcp-linux
-```
-
 ## Documentation
 
 Visit our docs [here](./docs/index.md).
-
-## Community
-
-Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
-
-[Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
 
 ## Comparison
 
@@ -119,7 +78,13 @@ Please file [an issue](https://github.com/coder/coder/issues/new) if any informa
 
 ---
 
-_As of 5/27/22_
+_Last updated: 5/27/22_
+
+## Community
+
+Join the community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq) #coder!
+
+[Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
 
 ## Contributing
 
