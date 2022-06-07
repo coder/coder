@@ -8,11 +8,12 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-## Run Coder *now*
+## Run Coder _now_
 
-```curl -L https://coder.com/install.sh | sh```
+`curl -L https://coder.com/install.sh | sh`
 
 ## What Coder does
+
 Coder creates remote development machines so you can develop your code from anywhere. #coder
 
 > **Note**:
@@ -119,22 +120,7 @@ coder templates update gcp-linux
 
 ## Documentation
 
-- [About Coder](./docs/about.md#about-coder)
-  - [Why remote development](./docs/about.md#why-remote-development)
-  - [Why Coder](./docs/about.md#why-coder)
-  - [What Coder is not](./docs/about.md#what-coder-is-not)
-  - [Comparison: Coder vs. [product]](./docs/about.md#comparison)
-- [Templates](./docs/templates.md)
-  - [Manage templates](./docs/templates.md#manage-templates)
-  - [Persistent and ephemeral
-    resources](./docs/templates.md#persistent-and-ephemeral-resources)
-  - [Parameters](./docs/templates.md#parameters)
-- [Workspaces](./docs/workspaces.md)
-  - [Create workspaces](./docs/workspaces.md#create-workspaces)
-  - [Connect with SSH](./docs/workspaces.md#connect-with-ssh)
-  - [Editors and IDEs](./docs/workspaces.md#editors-and-ides)
-  - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
-  - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
+Visit our docs [here](./docs/index.md).
 
 ## Community
 
