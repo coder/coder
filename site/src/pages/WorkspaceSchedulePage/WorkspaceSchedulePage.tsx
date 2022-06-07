@@ -149,7 +149,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
   const { formErrors, getWorkspaceError, workspace } = scheduleState.context
 
-  // Get workspace on mount and whenever workspaceId changes.
+  // Get workspace on mount and whenever the args for getting a workspace change.
   // scheduleSend should not change.
   useEffect(() => {
     username && workspaceName && scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
