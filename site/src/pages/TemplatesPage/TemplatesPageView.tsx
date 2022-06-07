@@ -89,10 +89,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="33%">{Language.nameLabel}</TableCell>
-            <TableCell width="33%">{Language.usedByLabel}</TableCell>
-            <TableCell width="33%">{Language.lastUpdatedLabel}</TableCell>
-            <TableCell></TableCell>
+            <TableCell>{Language.nameLabel}</TableCell>
+            <TableCell>{Language.usedByLabel}</TableCell>
+            <TableCell>{Language.lastUpdatedLabel}</TableCell>
+            <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -140,8 +140,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                   </div>
                 </TableCell>
               </TableRow>
-              )
-            })}
+            )
+          })}
         </TableBody>
       </Table>
     </Margins>

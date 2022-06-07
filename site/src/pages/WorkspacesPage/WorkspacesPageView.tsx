@@ -192,12 +192,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="20%">Name</TableCell>
-            <TableCell width="20%">Template</TableCell>
-            <TableCell width="20%">Version</TableCell>
-            <TableCell width="20%">Last Built</TableCell>
-            <TableCell width="20%">Status</TableCell>
-            <TableCell></TableCell>
+            <TableCell>Name</TableCell>
+            <TableCell>Template</TableCell>
+            <TableCell>Version</TableCell>
+            <TableCell>Last Built</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
