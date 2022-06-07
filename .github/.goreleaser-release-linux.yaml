@@ -3,6 +3,15 @@ before:
     - go mod tidy
     - rm -f site/out/bin/coder*
 
+archives:
+  - id: coder-linux
+    builds: [coder-linux]
+    format: tar.gz
+
+  - id: coder-windows
+    builds: [coder-windows]
+    format: zip
+
 builds:
   - id: coder-slim
     dir: cmd/coder
@@ -39,37 +48,8 @@ builds:
     goos: [windows]
     goarch: [amd64, arm64]
 
-  - id: coder-darwin
-    dir: cmd/coder
-    flags: [-tags=embed]
-    ldflags: ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
-    env: [CGO_ENABLED=0]
-    goos: [darwin]
-    goarch: [amd64, arm64]
-
-# This section is also contained in .goreleaser-release.yaml.
-nfpms:
-  - id: packages
-    vendor: Coder
-    homepage: https://coder.com
-    maintainer: Coder <support@coder.com>
-    description: |
-      Provision development environments with infrastructure with code
-    formats:
-      - apk
-      - deb
-      - rpm
-    suggests:
-      - postgresql
-    builds:
-      - coder-linux
-    bindir: /usr/bin
-    contents:
-      - src: coder.env
-        dst: /etc/coder.d/coder.env
-        type: "config|noreplace"
-      - src: coder.service
-        dst: /usr/lib/systemd/system/coder.service
+release:
+  ids: [coder-windows, coder-linux]
 
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"

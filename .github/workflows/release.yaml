@@ -1,33 +1,87 @@
+# GitHub release workflow.
+#
+# This workflow is a bit complicated because we have to build darwin binaries on
+# a mac runner, but the mac runners are extremely slow. So instead of running
+# the entire release on a mac (which will take an hour to run), we run only the
+# mac build on a mac, and the rest on a linux runner. The final release is then
+# published using a final linux runner.
 name: release
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Perform a snapshot/dry-run release (will not create a GitHub release, required if the ref is not a tag)
+        type: boolean
+        required: true
 
 jobs:
-  goreleaser:
-    runs-on: macos-latest
-    env:
-      # Necessary for Docker manifest
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
+  linux-windows:
+    runs-on: ubuntu-latest
     steps:
-      # Docker is not included on macos-latest
-      - uses: docker-practice/actions-setup-docker@1.0.10
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Docker Login
-        uses: docker/login-action@v2
+      - uses: actions/setup-go@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          go-version: "~1.18"
+
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+
+      - name: Go Build Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
+      - name: Build Site
+        run: make site/out/index.html
+
+      - name: Build Linux and Windows binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          version: latest
+          args: release -f ./.github/.goreleaser-release-linux.yaml --rm-dist --timeout 60m --skip-publish --skip-announce ${{ github.event.inputs.snapshot && '--snapshot' }}
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux
+          path: ./dist/coder*
+
+  # The mac binaries get built on mac runners because they need to be signed,
+  # and the signing tool only runs on mac. This darwin job only builds the Mac
+  # binaries and uploads them as job artifacts used by the publish step.
+  darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v3
         with:
@@ -79,12 +133,69 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Run GoReleaser
+      - name: Build Darwin binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: release --rm-dist --timeout 60m
+          args: release -f ./.github/.goreleaser-release-darwin.yaml --rm-dist --timeout 60m --skip-publish --skip-announce ${{ github.event.inputs.snapshot && '--snapshot' }}
         env:
+          AC_USERNAME: ${{ secrets.AC_USERNAME }}
+          AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: darwin
+          path: ./dist/coder*
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - linux-windows
+      - darwin
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Docker Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: mkdir artifacts
+        run: mkdir artifacts
+
+      - name: Download darwin artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: darwin
+          path: ./artifacts
+
+      - name: Download Linux and Windows artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux
+          path: ./artifacts
+
+      - name: ls ./artifacts
+        run: ls ./artifacts
+
+      # This will build Docker images and Linux packages.
+      - name: Publish release
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          # we use the "prebuilt" builder here which is a pro-only feature
+          distribution: goreleaser-pro
+          version: latest
+          args: release -f ./.github/.goreleaser-release.yaml --rm-dist --timeout 60m ${{ github.event.inputs.snapshot && '--snapshot' }}
+        env:
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
