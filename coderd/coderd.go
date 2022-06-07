@@ -123,6 +123,7 @@ func New(options *Options) *API {
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
+				//nolint:gocritic
 				Message: "👋",
 			})
 		})

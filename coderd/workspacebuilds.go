@@ -31,7 +31,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -63,12 +63,12 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			_, err := store.GetWorkspaceBuildByID(r.Context(), paginationParams.AfterID)
 			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exist", paginationParams.AfterID.String()),
+					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exist.", paginationParams.AfterID.String()),
 				})
 				return err
 			} else if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace build at \"after_id\"",
+					Message: "Internal error fetching workspace build at \"after_id\".",
 					Detail:  err.Error(),
 				})
 				return err
@@ -87,7 +87,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Internal error fetching workspace build",
+				Message: "Internal error fetching workspace build.",
 				Detail:  err.Error(),
 			})
 			return err
@@ -109,7 +109,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner jobs",
+			Message: "Internal error fetching provisioner jobs.",
 			Detail:  err.Error(),
 		})
 		return
@@ -124,7 +124,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		job, exists := jobByID[build.JobID.String()]
 		if !exists {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("Job %q doesn't exist for build %q", build.JobID, build.ID),
+				Message: fmt.Sprintf("Job %q doesn't exist for build %q.", build.JobID, build.ID),
 			})
 			return
 		}
@@ -148,13 +148,13 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("No workspace build found by name %q", workspaceBuildName),
+			Message: fmt.Sprintf("No workspace build found by name %q.", workspaceBuildName),
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspace build by name",
+			Message: "Internal error fetching workspace build by name.",
 			Detail:  err.Error(),
 		})
 		return
@@ -162,7 +162,7 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -188,7 +188,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		action = rbac.ActionUpdate
 	default:
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("Transition %q not supported", createBuild.Transition),
+			Message: fmt.Sprintf("Transition %q not supported.", createBuild.Transition),
 		})
 		return
 	}
@@ -201,7 +201,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Internal error fetching the latest workspace build",
+				Message: "Internal error fetching the latest workspace build.",
 				Detail:  err.Error(),
 			})
 			return
@@ -211,7 +211,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createBuild.TemplateVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Template version not found",
+			Message: "Template version not found.",
 			Validations: []httpapi.Error{{
 				Field:  "template_version_id",
 				Detail: "template version not found",
@@ -221,7 +221,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching template version",
+			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
 		})
 		return
@@ -229,7 +229,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -256,7 +256,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching template job",
+			Message: "Internal error fetching template job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -269,7 +269,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.JobID)
 		if err == nil && convertProvisionerJob(priorJob).Status.Active() {
 			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-				Message: "A workspace build is already active",
+				Message: "A workspace build is already active.",
 			})
 			return
 		}
@@ -277,7 +277,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		priorBuildNum = priorHistory.BuildNumber
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching prior workspace build",
+			Message: "Internal error fetching prior workspace build.",
 			Detail:  err.Error(),
 		})
 		return
@@ -336,7 +336,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error inserting workspace build",
+			Message: "Internal error inserting workspace build.",
 			Detail:  err.Error(),
 		})
 		return
@@ -351,7 +351,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "No workspace exists for this job",
+			Message: "No workspace exists for this job.",
 		})
 		return
 	}
@@ -364,7 +364,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -390,7 +390,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error updating provisioner job",
+			Message: "Internal error updating provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -405,7 +405,7 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "No workspace exists for this job",
+			Message: "No workspace exists for this job.",
 		})
 		return
 	}
@@ -418,7 +418,7 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -431,7 +431,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "No workspace exists for this job",
+			Message: "No workspace exists for this job.",
 		})
 		return
 	}
@@ -444,7 +444,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -457,7 +457,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "No workspace exists for this job",
+			Message: "No workspace exists for this job.",
 		})
 		return
 	}

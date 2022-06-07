@@ -3,7 +3,6 @@ package coderd
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -26,7 +25,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job",
+			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
@@ -43,7 +42,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching provisioner job agents",
+			Message: "Internal error fetching provisioner job agents.",
 			Detail:  err.Error(),
 		})
 		return
@@ -55,7 +54,8 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), agentIDs)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace apps: %s", err),
+			Message: "Internal error fetching workspace agent applications.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -71,7 +71,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Internal error reading workspace agent",
+				Message: "Internal error reading workspace agent.",
 				Detail:  err.Error(),
 			})
 			return

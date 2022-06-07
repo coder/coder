@@ -23,7 +23,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		api.Logger.Warn(ctx, "csp violation", slog.Error(err))
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Failed to read body, invalid json",
+			Message: "Failed to read body, invalid json.",
 			Detail:  err.Error(),
 		})
 		return

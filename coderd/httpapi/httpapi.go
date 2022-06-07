@@ -78,7 +78,7 @@ type Error struct {
 
 func Forbidden(rw http.ResponseWriter) {
 	Write(rw, http.StatusForbidden, Response{
-		Message: "Forbidden",
+		Message: "Forbidden.",
 	})
 }
 
@@ -107,7 +107,7 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		Write(rw, http.StatusBadRequest, Response{
-			Message: "Request body must be valid JSON",
+			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
 		})
 		return false
@@ -123,14 +123,14 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 			})
 		}
 		Write(rw, http.StatusBadRequest, Response{
-			Message:     "Validation failed",
+			Message:     "Validation failed.",
 			Validations: apiErrors,
 		})
 		return false
 	}
 	if err != nil {
 		Write(rw, http.StatusInternalServerError, Response{
-			Message: "Internal error validating request body payload",
+			Message: "Internal error validating request body payload.",
 			Detail:  err.Error(),
 		})
 		return false

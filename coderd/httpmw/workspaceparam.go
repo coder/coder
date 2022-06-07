@@ -33,13 +33,13 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Workspace %q does not exist", workspaceID),
+					Message: fmt.Sprintf("Workspace %q does not exist.", workspaceID),
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace",
+					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
 				return
