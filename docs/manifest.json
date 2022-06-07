@@ -43,11 +43,6 @@
           "path": "./CODE_OF_CONDUCT.md"
         },
         {
-          "title": "Contributors",
-          "description": "See a contributors to Coder.",
-          "path": "./CONTRIBUTORS.md"
-        },
-        {
           "title": "Security policy",
           "description": "Learn how to report vulnerabilities in Coder.",
           "path": "./SECURITY.md"
