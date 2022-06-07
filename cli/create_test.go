@@ -134,7 +134,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 		err := cmd.Execute()
-		assert.ErrorContains(t, err, "schedule: parse schedule: provided bad location invalid: unknown time zone invalid")
+		assert.ErrorContains(t, err, "Invalid autostart schedule: Invalid workspace autostart timezone: unknown time zone invalid")
 	})
 
 	t.Run("CreateErrInvalidTTL", func(t *testing.T) {

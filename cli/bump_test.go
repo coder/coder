@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -152,11 +153,22 @@ func TestBump(t *testing.T) {
 			cmdArgs   = []string{"bump", workspace.Name}
 			stdoutBuf = &bytes.Buffer{}
 		)
+		// Unset the workspace TTL
+		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
+		require.NoError(t, err)
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Nil(t, workspace.TTLMillis)
 
 		// Given: we wait for the workspace to build
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
+
+		// TODO(cian): need to stop and start the workspace as we do not update the deadline yet
+		//             see: https://github.com/coder/coder/issues/1783
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 
 		// Assert test invariant: workspace has no TTL set
 		require.Zero(t, workspace.LatestBuild.Deadline)

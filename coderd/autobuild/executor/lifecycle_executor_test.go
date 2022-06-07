@@ -3,7 +3,6 @@ package executor_test
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +37,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
@@ -75,7 +73,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace template has been updated
 	orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID.String())
@@ -100,7 +98,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
-	ws := mustWorkspace(t, client, workspace.ID)
+	ws := coderdtest.MustWorkspace(t, client, workspace.ID)
 	assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
 }
 
@@ -158,7 +156,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	require.Empty(t, workspace.AutostartSchedule)
 
 	// Given: workspace is stopped
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks way into the future
 	go func() {
@@ -273,7 +271,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
@@ -312,8 +310,8 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 
 	// TODO(cian): need to stop and start the workspace as we do not update the deadline yet
 	//             see: https://github.com/coder/coder/issues/1783
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
+	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
@@ -349,7 +347,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	)
 
 	// Given: workspace is deleted
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
 
 	// When: the autobuild executor ticks
 	go func() {
@@ -485,7 +483,7 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks past the scheduled time
 	go func() {
@@ -516,41 +514,7 @@ func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-	return mustWorkspace(t, client, ws.ID)
-}
-
-func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
-	t.Helper()
-	ctx := context.Background()
-	workspace, err := client.Workspace(ctx, workspaceID)
-	require.NoError(t, err, "unexpected error fetching workspace")
-	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
-
-	template, err := client.Template(ctx, workspace.TemplateID)
-	require.NoError(t, err, "fetch workspace template")
-
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: template.ActiveVersionID,
-		Transition:        codersdk.WorkspaceTransition(to),
-	})
-	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
-
-	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-
-	updated := mustWorkspace(t, client, workspace.ID)
-	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
-	return updated
-}
-
-func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
-	t.Helper()
-	ctx := context.Background()
-	ws, err := client.Workspace(ctx, workspaceID)
-	if err != nil && strings.Contains(err.Error(), "status code 410") {
-		ws, err = client.DeletedWorkspace(ctx, workspaceID)
-	}
-	require.NoError(t, err, "no workspace found with id %s", workspaceID)
-	return ws
+	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 
 func mustSchedule(t *testing.T, s string) *schedule.Schedule {
