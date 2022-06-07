@@ -120,12 +120,17 @@ func InTx(m dsl.Matcher) {
 // error messages for the api. A proper sentence includes proper capitalization
 // and ends with punctuation.
 // There are ways around the linter, but this should work in the common cases.
+// Example:
+//	Message:
 func HttpAPIErrorMessage(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/coderd/httpapi")
 
 	isNotProperError := func(v dsl.Var) bool {
 		return v.Type.Is("string") &&
-			// Either starts with a lowercase, or ends without punctuation
+			// Either starts with a lowercase, or ends without punctuation.
+			// The reason I don't check for NOT ^[A-Z].*[.!?]$ is because there
+			// are some exceptions. Any string starting with a formatting
+			// directive (%s) for example is exempt.
 			(m["m"].Text.Matches(`^"[a-z].*`) ||
 				m["m"].Text.Matches(`.*[^.!?]"$`))
 	}
