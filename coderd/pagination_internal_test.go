@@ -7,10 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/codersdk"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestPagination(t *testing.T) {
