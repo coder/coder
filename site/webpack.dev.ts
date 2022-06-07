@@ -5,7 +5,9 @@
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
 import { Configuration } from "webpack"
 import "webpack-dev-server"
-import { commonWebpackConfig } from "./webpack.common"
+import { createCommonWebpackConfig } from "./webpack.common"
+
+const commonWebpackConfig = createCommonWebpackConfig()
 
 const commonPlugins = commonWebpackConfig.plugins || []
 
@@ -61,7 +63,7 @@ const config: Configuration = {
     port: process.env.PORT || 8080,
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: "https://dev.coder.com",
         ws: true,
         secure: false,
       },

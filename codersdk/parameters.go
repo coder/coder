@@ -14,10 +14,8 @@ import (
 type ParameterScope string
 
 const (
-	ParameterOrganization ParameterScope = "organization"
-	ParameterTemplate     ParameterScope = "template"
-	ParameterUser         ParameterScope = "user"
-	ParameterWorkspace    ParameterScope = "workspace"
+	ParameterTemplate  ParameterScope = "template"
+	ParameterWorkspace ParameterScope = "workspace"
 )
 
 type ParameterSourceScheme string

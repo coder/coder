@@ -38,7 +38,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner daemons: %s", err),
+			Message: "Internal error fetching provisioner daemons",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -723,7 +724,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   uuid.New(),
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
@@ -742,6 +743,28 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
+		}
+
+		for _, app := range agent.Apps {
+			_, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+				ID:        uuid.New(),
+				CreatedAt: database.Now(),
+				AgentID:   dbAgent.ID,
+				Name:      app.Name,
+				Icon:      app.Icon,
+				Command: sql.NullString{
+					String: app.Command,
+					Valid:  app.Command != "",
+				},
+				Url: sql.NullString{
+					String: app.Url,
+					Valid:  app.Url != "",
+				},
+				RelativePath: app.RelativePath,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert app: %w", err)
+			}
 		}
 	}
 	return nil

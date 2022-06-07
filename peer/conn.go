@@ -114,6 +114,7 @@ type Conn struct {
 	closeMutex     sync.Mutex
 	closeError     error
 
+	dcCreateMutex         sync.Mutex
 	dcOpenChannel         chan *webrtc.DataChannel
 	dcDisconnectChannel   chan struct{}
 	dcDisconnectListeners atomic.Uint32
@@ -483,6 +484,11 @@ func (c *Conn) CreateChannel(ctx context.Context, label string, opts *ChannelOpt
 }
 
 func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
+	// pion/webrtc is slower when opening multiple channels
+	// in parallel than it is sequentially.
+	c.dcCreateMutex.Lock()
+	defer c.dcCreateMutex.Unlock()
+
 	c.logger().Debug(ctx, "creating data channel", slog.F("label", label), slog.F("opts", opts))
 	var id *uint16
 	if opts.ID != 0 {

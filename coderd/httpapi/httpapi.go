@@ -52,8 +52,22 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	Message string  `json:"message" validate:"required"`
-	Errors  []Error `json:"errors,omitempty" validate:"required"`
+	// Message is an actionable message that depicts actions the request took.
+	// These messages should be fully formed sentences with proper punctuation.
+	// Examples:
+	// - "A user has been created."
+	// - "Failed to create a user."
+	Message string `json:"message"`
+	// Detail is a debug message that provides further insight into why the
+	// action failed. This information can be technical and a regular golang
+	// err.Error() text.
+	// - "database: too many open connections"
+	// - "stat: too many open files"
+	Detail string `json:"detail"`
+	// Validations are form field-specific friendly error messages. They will be
+	// shown on a form field in the UI. These can also be used to add additional
+	// context if there is a set of errors in the primary 'Message'.
+	Validations []Error `json:"errors,omitempty"`
 }
 
 // Error represents a scoped error to a user input.
@@ -64,7 +78,7 @@ type Error struct {
 
 func Forbidden(rw http.ResponseWriter) {
 	Write(rw, http.StatusForbidden, Response{
-		Message: "forbidden",
+		Message: "Forbidden",
 	})
 }
 
@@ -93,7 +107,8 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		Write(rw, http.StatusBadRequest, Response{
-			Message: fmt.Sprintf("read body: %s", err.Error()),
+			Message: "Request body must be valid JSON",
+			Detail:  err.Error(),
 		})
 		return false
 	}
@@ -108,14 +123,15 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 			})
 		}
 		Write(rw, http.StatusBadRequest, Response{
-			Message: "Validation failed",
-			Errors:  apiErrors,
+			Message:     "Validation failed",
+			Validations: apiErrors,
 		})
 		return false
 	}
 	if err != nil {
 		Write(rw, http.StatusInternalServerError, Response{
-			Message: fmt.Sprintf("validation: %s", err.Error()),
+			Message: "Internal error validating request body payload",
+			Detail:  err.Error(),
 		})
 		return false
 	}

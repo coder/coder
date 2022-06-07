@@ -128,9 +128,8 @@ func (s Schedule) Min() time.Duration {
 		if dur < durMin {
 			durMin = dur
 		}
-		tmp := tCurr
-		tCurr = s.Next(tmp)
-		tPrev = tmp
+		tPrev = tCurr
+		tCurr = s.Next(tCurr)
 		if tCurr.After(tMax) {
 			break
 		}

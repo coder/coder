@@ -49,7 +49,7 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:81:6
+// From codersdk/parameters.go:79:6
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
@@ -160,7 +160,7 @@ export interface Pagination {
   readonly offset?: number
 }
 
-// From codersdk/parameters.go:46:6
+// From codersdk/parameters.go:44:6
 export interface Parameter {
   readonly id: string
   readonly created_at: string
@@ -172,7 +172,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/parameters.go:57:6
+// From codersdk/parameters.go:55:6
 export interface ParameterSchema {
   readonly id: string
   readonly created_at: string
@@ -223,7 +223,7 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
-// From codersdk/workspaces.go:182:6
+// From codersdk/workspaces.go:201:6
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
@@ -302,12 +302,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:141:6
+// From codersdk/workspaces.go:160:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
 }
 
-// From codersdk/workspaces.go:161:6
+// From codersdk/workspaces.go:180:6
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
@@ -395,6 +395,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly apps: WorkspaceApp[]
 }
 
 // From codersdk/workspaceagents.go:47:6
@@ -402,7 +403,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:57:6
+// From codersdk/workspaceresources.go:58:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -415,13 +416,21 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:49:6
+// From codersdk/workspaceresources.go:50:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
   readonly cpu_cores: number
   readonly cpu_model: string
   readonly cpu_mhz: number
+}
+
+// From codersdk/workspaceapps.go:7:6
+export interface WorkspaceApp {
+  readonly id: string
+  readonly name: string
+  readonly command?: string
+  readonly icon?: string
 }
 
 // From codersdk/workspacebuilds.go:24:6
@@ -440,15 +449,21 @@ export interface WorkspaceBuild {
   readonly deadline: string
 }
 
-// From codersdk/workspaces.go:64:6
+// From codersdk/workspaces.go:83:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:200:6
+// From codersdk/workspaces.go:219:6
 export interface WorkspaceFilter {
-  readonly OrganizationID: string
-  readonly Owner: string
+  readonly organization_id?: string
+  readonly owner?: string
+  readonly name?: string
+}
+
+// From codersdk/workspaces.go:41:6
+export interface WorkspaceOptions {
+  readonly deleted?: boolean
 }
 
 // From codersdk/workspaceresources.go:21:6
@@ -468,16 +483,16 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 // From codersdk/provisionerdaemons.go:16:6
 export type LogSource = "provisioner" | "provisioner_daemon"
 
-// From codersdk/parameters.go:30:6
+// From codersdk/parameters.go:28:6
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
 
 // From codersdk/parameters.go:14:6
-export type ParameterScope = "organization" | "template" | "user" | "workspace"
+export type ParameterScope = "template" | "workspace"
 
-// From codersdk/parameters.go:23:6
+// From codersdk/parameters.go:21:6
 export type ParameterSourceScheme = "data" | "none"
 
-// From codersdk/parameters.go:38:6
+// From codersdk/parameters.go:36:6
 export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go:42:6

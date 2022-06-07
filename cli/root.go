@@ -53,7 +53,6 @@ func init() {
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
-		Version:       buildinfo.Version(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
@@ -90,10 +89,10 @@ func Root() *cobra.Command {
 		users(),
 		portForward(),
 		workspaceAgent(),
+		versionCmd(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
-	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
@@ -108,6 +107,27 @@ func Root() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 
 	return cmd
+}
+
+// versionCmd prints the coder version
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "version",
+		Short:   "Show coder version",
+		Example: "coder version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var str strings.Builder
+			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
+			buildTime, valid := buildinfo.Time()
+			if valid {
+				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
+			}
+			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n")
+
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
+			return nil
+		},
+	}
 }
 
 // createClient returns a new client from the command context.
@@ -174,6 +194,27 @@ func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.
 	// For now, we won't use the config to set this.
 	// Eventually, we will support changing using "coder switch <org>"
 	return orgs[0], nil
+}
+
+// namedWorkspace fetches and returns a workspace by an identifier, which may be either
+// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
+// where user is either a username or UUID.
+func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	parts := strings.Split(identifier, "/")
+
+	var owner, name string
+	switch len(parts) {
+	case 1:
+		owner = codersdk.Me
+		name = parts[0]
+	case 2:
+		owner = parts[0]
+		name = parts[1]
+	default:
+		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
+	}
+
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name)
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
@@ -263,17 +304,6 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 {{end}}`
-}
-
-func versionTemplate() string {
-	template := `Coder {{printf "%s" .Version}}`
-	buildTime, valid := buildinfo.Time()
-	if valid {
-		template += " " + buildTime.Format(time.UnixDate)
-	}
-	template += "\r\n" + buildinfo.ExternalURL()
-	template += "\r\n"
-	return template
 }
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
