@@ -1,7 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
@@ -49,6 +48,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   return (
     <Margins>
       <PageHeader
+        className={styles.header}
         actions={
           <WorkspaceActions
             workspace={workspace}
@@ -89,29 +89,19 @@ export const Workspace: FC<WorkspaceProps> = ({
   )
 }
 
+const spacerWidth = 300
+
 export const useStyles = makeStyles((theme) => {
   return {
     firstColumnSpacer: {
       flex: 2,
     },
     secondColumnSpacer: {
-      flex: "0 0 300px",
+      flex: `0 0 ${spacerWidth}px`,
     },
     header: {
-      paddingTop: theme.spacing(5),
-      paddingBottom: theme.spacing(5),
-      fontFamily: MONOSPACE_FONT_FAMILY,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    title: {
-      fontWeight: 600,
-      fontFamily: "inherit",
-    },
-    subtitle: {
-      fontFamily: "inherit",
-      marginTop: theme.spacing(0.5),
+      // 100% - (the size of sidebar + the space between both )
+      maxWidth: `calc(100% - (${spacerWidth}px + ${theme.spacing(3)}px))`,
     },
     layout: {
       alignItems: "flex-start",
