@@ -165,6 +165,24 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	})
 
+	t.Run("TemplateCustomTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateTTL := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref(templateTTL)
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil // ensure that no default TTL is set
+		})
+		// TTL should be set by the template
+		require.Equal(t, template.MaxTTLMillis, templateTTL)
+		require.Equal(t, template.MaxTTLMillis, template.MaxTTLMillis, workspace.TTLMillis)
+	})
+
 	t.Run("InvalidTTL", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BelowMin", func(t *testing.T) {
@@ -652,9 +670,6 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 					cwr.TTLMillis = nil
 				})
 			)
-
-			// ensure test invariant: new workspaces have no autostop schedule.
-			require.Nil(t, workspace.TTLMillis, "expected newly-minted workspace to have no TTL")
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: testCase.ttlMillis,

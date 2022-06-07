@@ -287,6 +287,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !dbTTL.Valid {
+		// Default to template maximum when creating a new workspace
+		dbTTL = sql.NullInt64{Valid: true, Int64: template.MaxTtl}
+	}
+
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: apiKey.UserID,
 		Name:    createWorkspace.Name,
