@@ -17,7 +17,7 @@ const CreateWorkspacePage: FC = () => {
     context: { organizationId, preSelectedTemplateName },
     actions: {
       onCreateWorkspace: (_, event) => {
-        navigate("/workspaces/" + event.data.id)
+        navigate(`/@${event.data.owner_name}/${event.data.name}`)
       },
     },
   })

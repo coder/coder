@@ -142,25 +142,31 @@ export const workspaceToInitialValues = (
 }
 
 export const WorkspaceSchedulePage: React.FC = () => {
+  const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const navigate = useNavigate()
-  const { workspace: workspaceQueryParam } = useParams()
-  const workspaceId = firstOrItem(workspaceQueryParam, null)
+  const username = firstOrItem(usernameQueryParam, null)
+  const workspaceName = firstOrItem(workspaceQueryParam, null)
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
   const { formErrors, getWorkspaceError, workspace } = scheduleState.context
 
   // Get workspace on mount and whenever workspaceId changes.
   // scheduleSend should not change.
   useEffect(() => {
-    workspaceId && scheduleSend({ type: "GET_WORKSPACE", workspaceId })
-  }, [workspaceId, scheduleSend])
+    username && workspaceName && scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
+  }, [username, workspaceName, scheduleSend])
 
-  if (!workspaceId) {
+  if (!username || !workspaceName) {
     navigate("/workspaces")
     return null
   } else if (scheduleState.matches("idle") || scheduleState.matches("gettingWorkspace") || !workspace) {
     return <FullScreenLoader />
   } else if (scheduleState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError} retry={() => scheduleSend({ type: "GET_WORKSPACE", workspaceId })} />
+    return (
+      <ErrorSummary
+        error={getWorkspaceError}
+        retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
+      />
+    )
   } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
@@ -168,7 +174,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
         initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
-          navigate(`/workspaces/${workspaceId}`)
+          navigate(`/@${username}/${workspaceName}`)
         }}
         onSubmit={(values) => {
           scheduleSend({
@@ -180,7 +186,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
       />
     )
   } else if (scheduleState.matches("submitSuccess")) {
-    navigate(`/workspaces/${workspaceId}`)
+    navigate(`/@${username}/${workspaceName}`)
     return <FullScreenLoader />
   } else {
     // Theoretically impossible - log and bail

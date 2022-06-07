@@ -796,7 +796,7 @@ func convertWorkspace(
 		OwnerID:           workspace.OwnerID,
 		OwnerName:         owner.Username,
 		TemplateID:        workspace.TemplateID,
-		LatestBuild:       convertWorkspaceBuild(workspace, workspaceBuild, job),
+		LatestBuild:       convertWorkspaceBuild(owner, workspace, workspaceBuild, job),
 		TemplateName:      template.Name,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
