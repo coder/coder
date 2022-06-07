@@ -291,6 +291,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
+		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan executor.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
@@ -298,14 +299,21 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 			IncludeProvisionerD: true,
 			AutobuildStats:      statsCh,
 		})
-		// Given: we have a user with a workspace that has no TTL set
-		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = nil
-		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: workspace has no TTL set
+	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
+	require.NoError(t, err)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
 	require.Nil(t, workspace.TTLMillis)
+
+	// TODO(cian): need to stop and start the workspace as we do not update the deadline yet
+	//             see: https://github.com/coder/coder/issues/1783
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
