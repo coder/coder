@@ -31,7 +31,10 @@ export const CreateUserPage: React.FC = () => {
       <CreateUserForm
         formErrors={createUserFormErrors}
         onSubmit={(user: TypesGen.CreateUserRequest) => usersSend({ type: "CREATE", user })}
-        onCancel={() => navigate("/users")}
+        onCancel={() => {
+          usersSend("CANCEL_CREATE_USER")
+          navigate("/users")
+        }}
         isLoading={usersState.hasTag("loading")}
         error={genericError}
         myOrgId={myOrgId ?? ""}

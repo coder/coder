@@ -44,6 +44,7 @@ export interface UsersContext {
 export type UsersEvent =
   | { type: "GET_USERS" }
   | { type: "CREATE"; user: TypesGen.CreateUserRequest }
+  | { type: "CANCEL_CREATE_USER" }
   // Suspend events
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
@@ -86,6 +87,7 @@ export const usersMachine = createMachine(
         on: {
           GET_USERS: "gettingUsers",
           CREATE: "creatingUser",
+          CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
           SUSPEND_USER: {
             target: "confirmUserSuspension",
             actions: ["assignUserIdToSuspend"],
@@ -120,12 +122,13 @@ export const usersMachine = createMachine(
         tags: "loading",
       },
       creatingUser: {
+        entry: "clearCreateUserError",
         invoke: {
           src: "createUser",
           id: "createUser",
           onDone: {
             target: "idle",
-            actions: ["displayCreateUserSuccess", "redirectToUsersPage", "clearCreateUserError"],
+            actions: ["displayCreateUserSuccess", "redirectToUsersPage"],
           },
           onError: [
             {
@@ -283,7 +286,8 @@ export const usersMachine = createMachine(
       }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
-        createUserError: undefined,
+        createUserErrorMessage: undefined,
+        createUserFormErrors: undefined,
       })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
