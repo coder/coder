@@ -440,6 +440,8 @@ export interface WorkspaceBuild {
   readonly updated_at: string
   readonly workspace_id: string
   readonly workspace_name: string
+  readonly workspace_owner_id: string
+  readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
   readonly name: string

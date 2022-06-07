@@ -92,7 +92,11 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
           <span className={styles.scheduleValue}>{Language.autoStopDisplay(workspace)}</span>
         </div>
         <div>
-          <Link className={styles.scheduleAction} component={RouterLink} to={`/workspaces/${workspace.id}/schedule`}>
+          <Link
+            className={styles.scheduleAction}
+            component={RouterLink}
+            to={`/@${workspace.owner_name}/${workspace.name}/schedule`}
+          >
             {Language.editScheduleLink}
           </Link>
         </div>

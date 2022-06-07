@@ -22,7 +22,7 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
         <span className={styles.statsLabel}>Workspace Name</span>
         <Link
           component={RouterLink}
-          to={`/workspaces/${build.workspace_id}`}
+          to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
           {build.workspace_name}

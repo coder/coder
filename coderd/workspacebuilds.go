@@ -37,7 +37,16 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspace, workspaceBuild, job))
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching user",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(owner, workspace, workspaceBuild, job))
 }
 
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -100,8 +109,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	jobIDs := make([]uuid.UUID, 0, len(builds))
-	for _, version := range builds {
-		jobIDs = append(jobIDs, version.JobID)
+	for _, build := range builds {
+		jobIDs = append(jobIDs, build.JobID)
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -119,6 +128,15 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobByID[job.ID.String()] = job
 	}
 
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching user",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiBuilds := make([]codersdk.WorkspaceBuild, 0)
 	for _, build := range builds {
 		job, exists := jobByID[build.JobID.String()]
@@ -128,7 +146,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		apiBuilds = append(apiBuilds, convertWorkspaceBuild(workspace, build, job))
+		apiBuilds = append(apiBuilds, convertWorkspaceBuild(owner, workspace, build, job))
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
@@ -167,8 +185,16 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error getting user",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspace, workspaceBuild, job))
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(owner, workspace, workspaceBuild, job))
 }
 
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -342,8 +368,17 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error getting user",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(rw, http.StatusCreated,
-		convertWorkspaceBuild(workspace, workspaceBuild, provisionerJob))
+		convertWorkspaceBuild(owner, workspace, workspaceBuild, provisionerJob))
 }
 
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
@@ -473,6 +508,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 }
 
 func convertWorkspaceBuild(
+	workspaceOwner database.User,
 	workspace database.Workspace,
 	workspaceBuild database.WorkspaceBuild,
 	job database.ProvisionerJob) codersdk.WorkspaceBuild {
@@ -481,18 +517,20 @@ func convertWorkspaceBuild(
 		panic("workspace and build do not match")
 	}
 	return codersdk.WorkspaceBuild{
-		ID:                workspaceBuild.ID,
-		CreatedAt:         workspaceBuild.CreatedAt,
-		UpdatedAt:         workspaceBuild.UpdatedAt,
-		WorkspaceID:       workspaceBuild.WorkspaceID,
-		WorkspaceName:     workspace.Name,
-		TemplateVersionID: workspaceBuild.TemplateVersionID,
-		BuildNumber:       workspaceBuild.BuildNumber,
-		Name:              workspaceBuild.Name,
-		Transition:        codersdk.WorkspaceTransition(workspaceBuild.Transition),
-		InitiatorID:       workspaceBuild.InitiatorID,
-		Job:               convertProvisionerJob(job),
-		Deadline:          workspaceBuild.Deadline,
+		ID:                 workspaceBuild.ID,
+		CreatedAt:          workspaceBuild.CreatedAt,
+		UpdatedAt:          workspaceBuild.UpdatedAt,
+		WorkspaceOwnerID:   workspace.OwnerID,
+		WorkspaceOwnerName: workspaceOwner.Username,
+		WorkspaceID:        workspaceBuild.WorkspaceID,
+		WorkspaceName:      workspace.Name,
+		TemplateVersionID:  workspaceBuild.TemplateVersionID,
+		BuildNumber:        workspaceBuild.BuildNumber,
+		Name:               workspaceBuild.Name,
+		Transition:         codersdk.WorkspaceTransition(workspaceBuild.Transition),
+		InitiatorID:        workspaceBuild.InitiatorID,
+		Job:                convertProvisionerJob(job),
+		Deadline:           workspaceBuild.Deadline,
 	}
 }
 

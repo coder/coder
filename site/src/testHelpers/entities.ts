@@ -137,6 +137,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
 }
