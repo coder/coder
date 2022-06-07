@@ -1,11 +1,10 @@
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Margins } from "../../components/Margins/Margins"
-import { Stack } from "../../components/Stack/Stack"
+import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
@@ -40,48 +39,34 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
   canCreateUser,
   isLoading,
 }) => {
-  const styles = useStyles()
-
   return (
-    <Stack spacing={4}>
-      <Margins>
-        <div className={styles.actions}>
-          <div>
-            {canCreateUser && (
-              <Button onClick={openUserCreationDialog} startIcon={<AddCircleOutline />}>
-                {Language.createButton}
-              </Button>
-            )}
-          </div>
-        </div>
-        {error ? (
-          <ErrorSummary error={error} />
-        ) : (
-          <UsersTable
-            users={users}
-            roles={roles}
-            onSuspendUser={onSuspendUser}
-            onResetUserPassword={onResetUserPassword}
-            onUpdateUserRoles={onUpdateUserRoles}
-            isUpdatingUserRoles={isUpdatingUserRoles}
-            canEditUsers={canEditUsers}
-            isLoading={isLoading}
-          />
-        )}
-      </Margins>
-    </Stack>
+    <Margins>
+      <PageHeader
+        actions={
+          canCreateUser ? (
+            <Button onClick={openUserCreationDialog} startIcon={<AddCircleOutline />}>
+              {Language.createButton}
+            </Button>
+          ) : undefined
+        }
+      >
+        <PageHeaderTitle>Users</PageHeaderTitle>
+      </PageHeader>
+
+      {error ? (
+        <ErrorSummary error={error} />
+      ) : (
+        <UsersTable
+          users={users}
+          roles={roles}
+          onSuspendUser={onSuspendUser}
+          onResetUserPassword={onResetUserPassword}
+          onUpdateUserRoles={onUpdateUserRoles}
+          isUpdatingUserRoles={isUpdatingUserRoles}
+          canEditUsers={canEditUsers}
+          isLoading={isLoading}
+        />
+      )}
+    </Margins>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  actions: {
-    marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-    display: "flex",
-    height: theme.spacing(6),
-
-    "& > *": {
-      marginLeft: "auto",
-    },
-  },
-}))
