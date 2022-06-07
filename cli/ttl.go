@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -89,6 +91,27 @@ func ttlset() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s\n", truncated)
 			}
 
+			if changed, newDeadline := changedNewDeadline(workspace, truncated); changed {
+				// For the purposes of the user, "less than a minute" is essentially the same as "immediately".
+				timeRemaining := time.Until(newDeadline).Truncate(time.Minute)
+				humanRemaining := "in " + timeRemaining.String()
+				if timeRemaining <= 0 {
+					humanRemaining = "immediately"
+				}
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: fmt.Sprintf(
+						"Workspace %q will be stopped %s. Are you sure?",
+						workspace.Name,
+						humanRemaining,
+					),
+					Default:   "yes",
+					IsConfirm: true,
+				})
+				if errors.Is(err, cliui.Canceled) {
+					return nil
+				}
+			}
+
 			millis := truncated.Milliseconds()
 			if err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: &millis,
@@ -130,4 +153,19 @@ func ttlunset() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func changedNewDeadline(ws codersdk.Workspace, newTTL time.Duration) (changed bool, newDeadline time.Time) {
+	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+		// not running
+		return false, newDeadline
+	}
+
+	if ws.LatestBuild.Job.CompletedAt == nil {
+		// still building
+		return false, newDeadline
+	}
+
+	newDeadline = ws.LatestBuild.Job.CompletedAt.Add(newTTL)
+	return true, newDeadline
 }
