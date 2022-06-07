@@ -37,11 +37,12 @@ import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
+import ReplyIcon from '@material-ui/icons/Reply';
 
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createWorkspaceButton: "Create workspace",
+  createFromTemplateButton: "Create from template",
   emptyCreateWorkspaceMessage: "Create your first workspace",
   emptyCreateWorkspaceDescription: "Start editing your source code and building your software",
   emptyResultsMessage: "No results matched your search",
@@ -132,9 +133,9 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to="/workspaces/new">
-            <Button startIcon={<AddCircleOutline />} style={{ height: "44px" }}>
-              {Language.createWorkspaceButton}
+          <Link underline="none" component={RouterLink} to="/templates">
+            <Button startIcon={<ReplyIcon style={{ transform: "scaleX(-1)" }}/>} style={{ height: "44px" }}>
+              {Language.createFromTemplateButton}
             </Button>
           </Link>
         }
@@ -213,7 +214,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                       description={Language.emptyCreateWorkspaceDescription}
                       cta={
                         <Link underline="none" component={RouterLink} to="/workspaces/new">
-                          <Button startIcon={<AddCircleOutline />}>{Language.createWorkspaceButton}</Button>
+                          <Button startIcon={<AddCircleOutline />}>{Language.createFromTemplateButton}</Button>
                         </Link>
                       }
                     />
