@@ -28,6 +28,15 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetTemplatesByName :many
+SELECT
+	*
+FROM
+	templates
+WHERE
+	deleted = @deleted
+	AND LOWER("name") = LOWER(@name);
+
 -- name: GetTemplatesByOrganization :many
 SELECT
 	*

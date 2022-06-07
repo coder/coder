@@ -1713,6 +1713,56 @@ func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 	return items, nil
 }
 
+const getTemplatesByName = `-- name: GetTemplatesByName :many
+SELECT
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+FROM
+	templates
+WHERE
+	deleted = $1
+	AND LOWER("name") = LOWER($2)
+`
+
+type GetTemplatesByNameParams struct {
+	Deleted bool   `db:"deleted" json:"deleted"`
+	Name    string `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetTemplatesByName(ctx context.Context, arg GetTemplatesByNameParams) ([]Template, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplatesByName, arg.Deleted, arg.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Template
+	for rows.Next() {
+		var i Template
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
+			&i.Description,
+			&i.MaxTtl,
+			&i.MinAutostartInterval,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplatesByOrganization = `-- name: GetTemplatesByOrganization :many
 SELECT
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
@@ -3707,10 +3757,16 @@ WHERE
 				owner_id = $3
 		  ELSE true
 	END
+	-- Filter by template_id
+	AND CASE
+		  WHEN $4 :: uuid != '00000000-00000000-00000000-00000000' THEN
+				template_id = $4
+		  ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN $4 :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER($4) || '%'
+		  WHEN $5 :: text != '' THEN
+				LOWER(name) LIKE '%' || LOWER($5) || '%'
 		  ELSE true
 	END
 `
@@ -3719,6 +3775,7 @@ type GetWorkspacesWithFilterParams struct {
 	Deleted        bool      `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
 	Name           string    `db:"name" json:"name"`
 }
 
@@ -3727,6 +3784,7 @@ func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspa
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.OwnerID,
+		arg.TemplateID,
 		arg.Name,
 	)
 	if err != nil {

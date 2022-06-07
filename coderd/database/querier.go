@@ -54,6 +54,7 @@ type querier interface {
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error)
 	GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]Template, error)
+	GetTemplatesByName(ctx context.Context, arg GetTemplatesByNameParams) ([]Template, error)
 	GetTemplatesByOrganization(ctx context.Context, arg GetTemplatesByOrganizationParams) ([]Template, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)

@@ -761,6 +761,26 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetTemplatesByName(_ context.Context, arg database.GetTemplatesByNameParams) ([]database.Template, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var templates []database.Template
+	for _, template := range q.templates {
+		if !strings.EqualFold(template.Name, arg.Name) {
+			continue
+		}
+		if template.Deleted != arg.Deleted {
+			continue
+		}
+		templates = append(templates, template)
+	}
+	if len(templates) > 0 {
+		return templates, nil
+	}
+
+	return nil, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

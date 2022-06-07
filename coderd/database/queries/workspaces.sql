@@ -28,6 +28,12 @@ WHERE
 				owner_id = @owner_id
 		  ELSE true
 	END
+	-- Filter by template_id
+	AND CASE
+		  WHEN @template_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+				template_id = @template_id
+		  ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
 		  WHEN @name :: text != '' THEN

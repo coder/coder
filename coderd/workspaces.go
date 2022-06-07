@@ -103,48 +103,56 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
-
-	// Empty strings mean no filter
-	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner")
-	nameFilter := r.URL.Query().Get("name")
-
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
+
+	orgFilter := r.URL.Query().Get("organization_id")
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
 		if err == nil {
 			filter.OrganizationID = orgID
 		}
 	}
+
+	ownerFilter := r.URL.Query().Get("owner")
 	if ownerFilter == "me" {
 		filter.OwnerID = apiKey.UserID
 	} else if ownerFilter != "" {
-		userID, err := uuid.Parse(ownerFilter)
-		if err != nil {
-			// Maybe it's a username
-			user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-				// Why not just accept 1 arg and use it for both in the sql?
-				Username: ownerFilter,
-				Email:    ownerFilter,
-			})
-			if err == nil {
-				filter.OwnerID = user.ID
-			}
-		} else {
-			filter.OwnerID = userID
+		user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+			Username: ownerFilter,
+		})
+		if err == nil {
+			filter.OwnerID = user.ID
 		}
 	}
+
+	templateFilter := r.URL.Query().Get("template")
+	var templates []database.Template
+	if templateFilter != "" {
+		ts, err := api.Database.GetTemplatesByName(r.Context(), database.GetTemplatesByNameParams{
+			Name: templateFilter,
+		})
+		if err == nil {
+			templates = ts
+		}
+	}
+
+	nameFilter := r.URL.Query().Get("name")
 	if nameFilter != "" {
 		filter.Name = nameFilter
 	}
 
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  err.Error(),
-		})
-		return
+	var workspaces []database.Workspace
+	for _, template := range templates {
+		filter.TemplateID = template.ID
+		ws, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Internal error fetching workspaces.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		workspaces = append(workspaces, ws...)
 	}
 
 	// Only return workspaces the user can read

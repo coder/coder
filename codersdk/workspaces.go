@@ -218,9 +218,12 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 
 type WorkspaceFilter struct {
 	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
-	// Owner can be a user_id (uuid), "me", or a username
+	// Owner can be "me" or a username
 	Owner string `json:"owner,omitempty"`
-	Name  string `json:"name,omitempty"`
+	// Template is a template name
+	Template string `json:"template,omitempty"`
+	// Name will return partial matches
+	Name string `json:"name,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
