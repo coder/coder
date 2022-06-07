@@ -59,7 +59,7 @@ const WorkspaceHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.workspaceTooltipTitle}</HelpTooltipText>
+      <HelpTooltipText>{Language.workspaceTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/workspaces.md#create-workspaces">
           {Language.workspaceTooltipLink1}

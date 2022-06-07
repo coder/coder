@@ -54,7 +54,7 @@ const AgentHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip size="small">
       <HelpTooltipTitle>{Language.agentTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.agentTooltipTitle}</HelpTooltipText>
+      <HelpTooltipText>{Language.agentTooltipText}</HelpTooltipText>
     </HelpTooltip>
   )
 }
