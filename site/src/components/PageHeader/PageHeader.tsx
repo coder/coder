@@ -1,15 +1,17 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { combineClasses } from "../../util/combineClasses"
 import { Stack } from "../Stack/Stack"
 
 export interface PageHeaderProps {
   actions?: JSX.Element
+  className?: string
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions, className }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.root}>
+    <div className={combineClasses([styles.root, className])}>
       <hgroup>{children}</hgroup>
       <Stack direction="row" className={styles.actions}>
         {actions}
