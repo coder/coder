@@ -13,7 +13,7 @@ const WorkspacesPage: FC = () => {
 
   useEffect(() => {
     const filter = searchParams.get("filter")
-    const query = filter ? filter : workspaceFilterQuery.me
+    const query = filter !== null ? filter : workspaceFilterQuery.me
 
     send({
       type: "SET_FILTER",
