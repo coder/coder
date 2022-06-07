@@ -62,7 +62,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var builds []database.WorkspaceBuildsWithInitiator
+	var builds []database.WorkspaceBuildWithInitiator
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
 		var err error
@@ -309,7 +309,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var workspaceBuild database.WorkspaceBuildsWithInitiator
+	var workspaceBuild database.WorkspaceBuildWithInitiator
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
@@ -515,7 +515,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspaceBuild(
 	workspaceOwner database.User,
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuildsWithInitiator,
+	workspaceBuild database.WorkspaceBuildWithInitiator,
 	job database.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
 	if workspace.ID != workspaceBuild.WorkspaceID {

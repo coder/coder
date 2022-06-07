@@ -1,1 +1,1 @@
-DROP VIEW IF EXISTS workspace_builds_with_initiator;
+DROP VIEW IF EXISTS workspace_build_with_initiator;

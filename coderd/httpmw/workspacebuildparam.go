@@ -16,8 +16,8 @@ import (
 type workspaceBuildParamContextKey struct{}
 
 // WorkspaceBuildParam returns the workspace build from the ExtractWorkspaceBuildParam handler.
-func WorkspaceBuildParam(r *http.Request) database.WorkspaceBuildsWithInitiator {
-	workspaceBuild, ok := r.Context().Value(workspaceBuildParamContextKey{}).(database.WorkspaceBuildsWithInitiator)
+func WorkspaceBuildParam(r *http.Request) database.WorkspaceBuildWithInitiator {
+	workspaceBuild, ok := r.Context().Value(workspaceBuildParamContextKey{}).(database.WorkspaceBuildWithInitiator)
 	if !ok {
 		panic("developer error: workspace build param middleware not provided")
 	}

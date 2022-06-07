@@ -308,7 +308,7 @@ CREATE TABLE workspace_builds (
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
-CREATE VIEW workspace_builds_with_initiator AS
+CREATE VIEW workspace_build_with_initiator AS
  SELECT workspace_builds.id,
     workspace_builds.created_at,
     workspace_builds.updated_at,

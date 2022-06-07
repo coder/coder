@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	id = $1
 LIMIT
@@ -12,7 +12,7 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	job_id = $1
 LIMIT
@@ -22,7 +22,7 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	workspace_id = $1
 	AND "name" = $2;
@@ -31,9 +31,9 @@ WHERE
 SELECT
 	*
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
-	workspace_builds_with_initiator.workspace_id = $1
+	workspace_build_with_initiator.workspace_id = $1
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -63,7 +63,7 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	workspace_id = $1
 ORDER BY
@@ -77,14 +77,14 @@ FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-		workspace_builds_with_initiator
+		workspace_build_with_initiator
     WHERE
         workspace_id = ANY(@ids :: uuid [ ])
     GROUP BY
         workspace_id
 ) m
 JOIN
-	workspace_builds_with_initiator wb
+	workspace_build_with_initiator wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
 

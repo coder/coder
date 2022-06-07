@@ -476,7 +476,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 	return res, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -485,10 +485,10 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 			return q.workspaceBuildWithInitiator(history), nil
 		}
 	}
-	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
+	return database.WorkspaceBuildWithInitiator{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -497,14 +497,14 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 			return q.workspaceBuildWithInitiator(build), nil
 		}
 	}
-	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
+	return database.WorkspaceBuildWithInitiator{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuildsWithInitiator, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var row database.WorkspaceBuildsWithInitiator
+	var row database.WorkspaceBuildWithInitiator
 	var buildNum int32
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
@@ -513,16 +513,16 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 		}
 	}
 	if buildNum == 0 {
-		return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
+		return database.WorkspaceBuildWithInitiator{}, sql.ErrNoRows
 	}
 	return row, nil
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuildsWithInitiator, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make(map[uuid.UUID]database.WorkspaceBuildsWithInitiator)
+	builds := make(map[uuid.UUID]database.WorkspaceBuildWithInitiator)
 	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
@@ -532,7 +532,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 			}
 		}
 	}
-	var returnBuilds []database.WorkspaceBuildsWithInitiator
+	var returnBuilds []database.WorkspaceBuildWithInitiator
 	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
@@ -546,11 +546,11 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
-	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuildsWithInitiator, error) {
+	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	history := make([]database.WorkspaceBuildsWithInitiator, 0)
+	history := make([]database.WorkspaceBuildWithInitiator, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, q.workspaceBuildWithInitiator(workspaceBuild))
@@ -558,7 +558,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	}
 
 	// Order by build_number
-	slices.SortFunc(history, func(a, b database.WorkspaceBuildsWithInitiator) bool {
+	slices.SortFunc(history, func(a, b database.WorkspaceBuildWithInitiator) bool {
 		// use greater than since we want descending order
 		return a.BuildNumber > b.BuildNumber
 	})
@@ -600,7 +600,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuildsWithInitiator, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuildWithInitiator, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -614,16 +614,16 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 
 		return q.workspaceBuildWithInitiator(workspaceBuild), nil
 	}
-	return database.WorkspaceBuildsWithInitiator{}, sql.ErrNoRows
+	return database.WorkspaceBuildWithInitiator{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) workspaceBuildWithInitiator(build database.WorkspaceBuild) database.WorkspaceBuildsWithInitiator {
+func (q *fakeQuerier) workspaceBuildWithInitiator(build database.WorkspaceBuild) database.WorkspaceBuildWithInitiator {
 	username := "unknown"
 	usr, err := q.GetUserByID(context.Background(), build.InitiatorID)
 	if err == nil {
 		username = usr.Username
 	}
-	return database.WorkspaceBuildsWithInitiator{
+	return database.WorkspaceBuildWithInitiator{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,
 		UpdatedAt:         build.UpdatedAt,

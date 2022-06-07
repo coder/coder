@@ -2954,7 +2954,7 @@ const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildBy
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, initiator_username
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	workspace_id = $1
 ORDER BY
@@ -2963,9 +2963,9 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuildWithInitiator, error) {
 	row := q.db.QueryRowContext(ctx, getLatestWorkspaceBuildByWorkspaceID, workspaceID)
-	var i WorkspaceBuildsWithInitiator
+	var i WorkspaceBuildWithInitiator
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -2990,26 +2990,26 @@ FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-		workspace_builds_with_initiator
+		workspace_build_with_initiator
     WHERE
         workspace_id = ANY($1 :: uuid [ ])
     GROUP BY
         workspace_id
 ) m
 JOIN
-	workspace_builds_with_initiator wb
+	workspace_build_with_initiator wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
-func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuildWithInitiator, error) {
 	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuildsByWorkspaceIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceBuildsWithInitiator
+	var items []WorkspaceBuildWithInitiator
 	for rows.Next() {
-		var i WorkspaceBuildsWithInitiator
+		var i WorkspaceBuildWithInitiator
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -3042,16 +3042,16 @@ const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, initiator_username
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	id = $1
 LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuildWithInitiator, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByID, id)
-	var i WorkspaceBuildsWithInitiator
+	var i WorkspaceBuildWithInitiator
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -3074,16 +3074,16 @@ const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, initiator_username
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	job_id = $1
 LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuildWithInitiator, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByJobID, jobID)
-	var i WorkspaceBuildsWithInitiator
+	var i WorkspaceBuildWithInitiator
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -3106,9 +3106,9 @@ const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID 
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, initiator_username
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
-	workspace_builds_with_initiator.workspace_id = $1
+	workspace_build_with_initiator.workspace_id = $1
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -3142,7 +3142,7 @@ type GetWorkspaceBuildByWorkspaceIDParams struct {
 	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuildWithInitiator, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID,
 		arg.WorkspaceID,
 		arg.AfterID,
@@ -3153,9 +3153,9 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceBuildsWithInitiator
+	var items []WorkspaceBuildWithInitiator
 	for rows.Next() {
-		var i WorkspaceBuildsWithInitiator
+		var i WorkspaceBuildWithInitiator
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -3188,7 +3188,7 @@ const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorks
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, initiator_username
 FROM
-	workspace_builds_with_initiator
+	workspace_build_with_initiator
 WHERE
 	workspace_id = $1
 	AND "name" = $2
@@ -3199,9 +3199,9 @@ type GetWorkspaceBuildByWorkspaceIDAndNameParams struct {
 	Name        string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuildsWithInitiator, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuildWithInitiator, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
-	var i WorkspaceBuildsWithInitiator
+	var i WorkspaceBuildWithInitiator
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,

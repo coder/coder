@@ -361,7 +361,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuildsWithInitiator
+	var workspaceBuild database.WorkspaceBuildWithInitiator
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
 		workspaceBuildID := uuid.New()
@@ -743,9 +743,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		return nil, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
 
-	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuildsWithInitiator{}
+	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuildWithInitiator{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuildsWithInitiator{
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuildWithInitiator{
 			ID:                workspaceBuild.ID,
 			CreatedAt:         workspaceBuild.CreatedAt,
 			UpdatedAt:         workspaceBuild.UpdatedAt,
@@ -797,7 +797,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 }
 func convertWorkspace(
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuildsWithInitiator,
+	workspaceBuild database.WorkspaceBuildWithInitiator,
 	job database.ProvisionerJob,
 	template database.Template,
 	owner database.User) codersdk.Workspace {

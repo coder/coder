@@ -521,7 +521,7 @@ type WorkspaceBuild struct {
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 }
 
-type WorkspaceBuildsWithInitiator struct {
+type WorkspaceBuildWithInitiator struct {
 	ID                uuid.UUID           `db:"id" json:"id"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`

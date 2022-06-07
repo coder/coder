@@ -190,7 +190,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.
 // See: https://github.com/coder/coder/issues/1401
-func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuildsWithInitiator, priorJob database.ProvisionerJob) error {
+func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuildWithInitiator, priorJob database.ProvisionerJob) error {
 	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		return xerrors.Errorf("get workspace template: %w", err)
