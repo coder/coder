@@ -9,7 +9,7 @@
     {
       "title": "Installation",
       "description": "Learn how to install and deploy Coder.",
-      "path": "./INSTALL.md"
+      "path": "./install.md"
     },
     {
       "title": "Templates",
@@ -20,7 +20,7 @@
     {
       "title": "Workspaces",
       "description": "Learn about Coder workspaces.",
-      "path": "./WORKSPACES.md"
+      "path": "./workspaces.md"
     },
     {
       "title": "Contributing",
