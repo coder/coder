@@ -31,6 +31,7 @@ site/build-storybook.log
 # Build
 dist/
 site/out/
+artifacts
 
 *.tfstate
 *.tfplan
