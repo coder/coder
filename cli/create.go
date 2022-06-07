@@ -271,6 +271,11 @@ func create() *cobra.Command {
 }
 
 func validSchedule(minute, hour, dow, tzName string, min time.Duration) (*string, error) {
+	_, err := time.LoadLocation(tzName)
+	if err != nil {
+		return nil, xerrors.Errorf("Invalid workspace autostart timezone: %w", err)
+	}
+
 	schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tzName, minute, hour, dow)
 
 	sched, err := schedule.Weekly(schedSpec)
