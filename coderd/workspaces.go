@@ -472,6 +472,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Error fetching workspace template",
 		})
+		return
 	}
 
 	dbSched, err := validWorkspaceSchedule(req.Schedule, time.Duration(template.MinAutostartInterval))
