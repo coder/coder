@@ -35,7 +35,7 @@ import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
-import { getFormHelpers } from "../../util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
@@ -156,7 +156,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           <TextField
             {...getFieldHelpers("query")}
             className={styles.textFieldRoot}
-            onChange={form.handleChange}
+            onChange={onChangeTrimmed(form)}
             fullWidth
             variant="outlined"
             InputProps={{
