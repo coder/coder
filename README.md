@@ -37,28 +37,6 @@ Coder creates remote development machines so you can develop your code from anyw
 - Automatically shut down expensive cloud resources
 - Keep your source code and data behind your firewall
 
-## How it works
-
-Coder workspaces are represented with Terraform. But, no Terraform knowledge is
-required to get started. We have a database of pre-made templates built into the
-product.
-
-<p align="center">
-  <img src="./docs/images/providers-compute.png">
-</p>
-
-Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
-and whatever else Terraform lets you dream up.
-
-[Learn more about managing infrastructure.](./docs/templates.md)
-
-## IDE Support
-
-You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
-
-<p align="center">
-  <img src="./docs/images/ide-icons.svg" height=72>
-</p>
 
 ## Installing Coder
 
