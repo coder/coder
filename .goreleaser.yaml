@@ -46,13 +46,6 @@ builds:
     env: [CGO_ENABLED=0]
     goos: [darwin]
     goarch: [amd64, arm64]
-    hooks:
-      # This signs the binary that will be located inside the zip.
-      # MacOS requires the binary to be signed for notarization.
-      #
-      # If it doesn't successfully sign, the zip sign step will error.
-      post: |
-        sh -c 'codesign -s {{.Env.AC_APPLICATION_IDENTITY}} -f -v --timestamp --options runtime {{.Path}} || true'
 
 # This section is also contained in .goreleaser-release.yaml.
 nfpms:
@@ -77,10 +70,6 @@ nfpms:
         type: "config|noreplace"
       - src: coder.service
         dst: /usr/lib/systemd/system/coder.service
-
-env:
-  # Apple identity for signing!
-  - AC_APPLICATION_IDENTITY=BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
 
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"

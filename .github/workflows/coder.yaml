@@ -318,8 +318,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-    needs:
-      - test-go-postgres
     permissions:
       contents: read
       id-token: write
