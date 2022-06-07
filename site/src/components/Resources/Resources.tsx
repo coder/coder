@@ -28,18 +28,22 @@ const Language = {
   agentLabel: "Agent",
   statusLabel: "Status",
   accessLabel: "Access",
+  resourceTooltipTitle: "What is a resource?",
+  resourceTooltipText: "A resource is an infrastructure object that is create when the workspace is provisioned.",
+  resourceTooltipLink: "Persistent and ephemeral resources",
+  agentTooltipTitle: "What is an agent?",
+  agentTooltipText:
+    "The Coder agent runs inside your resource and gives you direct access to the shell via the UI or CLI.",
 }
 
 const ResourcesHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip size="small">
-      <HelpTooltipTitle>What is a resource?</HelpTooltipTitle>
-      <HelpTooltipText>
-        A resource is an infrastructure object that is create when the workspace is provisioned.
-      </HelpTooltipText>
+      <HelpTooltipTitle>{Language.resourceTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.resourceTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#persistent-and-ephemeral-resources">
-          Persistent and ephemeral resources
+          {Language.resourceTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
@@ -49,8 +53,8 @@ const ResourcesHelpTooltip: React.FC = () => {
 const AgentHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip size="small">
-      <HelpTooltipTitle>What is an agent?</HelpTooltipTitle>
-      <HelpTooltipText>An agent is a software that executes Coder inside of the resource.</HelpTooltipText>
+      <HelpTooltipTitle>{Language.agentTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.agentTooltipTitle}</HelpTooltipText>
     </HelpTooltip>
   )
 }

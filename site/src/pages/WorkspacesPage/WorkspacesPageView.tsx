@@ -47,25 +47,28 @@ export const Language = {
   createWorkspaceButton: "Create workspace",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
+  workspaceTooltipTitle: "What is workspace?",
+  workspaceTooltipText:
+    "It is your workstation. It is a workspace that will provide you the necessary compute and access to your development environment.",
+  workspaceTooltipLink1: "Create workspaces",
+  workspaceTooltipLink2: "Connect with SSH",
+  workspaceTooltipLink3: "Editors and IDEs",
 }
 
 const WorkspaceHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip>
-      <HelpTooltipTitle>What is workspace?</HelpTooltipTitle>
-      <HelpTooltipText>
-        It is your workstation. It is a workspace that will provide you the necessary compute and access to your
-        development environment.
-      </HelpTooltipText>
+      <HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.workspaceTooltipTitle}</HelpTooltipText>
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/workspaces.md#create-workspaces">
-          Create workspaces
+          {Language.workspaceTooltipLink1}
         </HelpTooltipLink>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/workspaces.md#connect-with-ssh">
-          Connect with SSH
+          {Language.workspaceTooltipLink2}
         </HelpTooltipLink>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/workspaces.md#editors-and-ides">
-          Editors and IDEs
+          {Language.workspaceTooltipLink3}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>

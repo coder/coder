@@ -44,19 +44,19 @@ export const Language = {
       or use a built-in template using the following Coder CLI command:
     </>
   ),
+  templateTooltipTitle: "What is template?",
+  templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
+  templateTooltipLink: "Manage templates",
 }
 
 const TemplateHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip>
-      <HelpTooltipTitle>What is template?</HelpTooltipTitle>
-      <HelpTooltipText>
-        With templates you can create a common configuration for your workspaces using Terraform. So, you and your team
-        can use the same environment to deliver great software.
-      </HelpTooltipText>
+      <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#manage-templates">
-          Manage templates
+          {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
