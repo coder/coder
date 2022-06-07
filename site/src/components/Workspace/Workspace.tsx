@@ -3,10 +3,12 @@ import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { getWorkspaceStatus, succeededToStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
+import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -44,7 +46,9 @@ export const Workspace: FC<WorkspaceProps> = ({
   builds,
 }) => {
   const styles = useStyles()
-
+  console.log("workspace", workspace)
+  const isDeleted = getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
+  console.log("isDeleted", isDeleted)
   return (
     <div className={styles.root}>
       <Stack direction="row" spacing={3}>
@@ -82,9 +86,13 @@ export const Workspace: FC<WorkspaceProps> = ({
             workspace={workspace}
           />
 
+          {isDeleted && <WorkspaceDeletedBanner />}
+
           <WorkspaceStats workspace={workspace} />
 
-          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          {!!resources && !!resources.length && (
+            <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          )}
 
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />

@@ -431,6 +431,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
+        // { deleted: true }
         return await API.getWorkspace(event.workspaceId)
       },
       getTemplate: async (context) => {
@@ -470,6 +471,7 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
+          // need to add {deleted: true} here but there is a BE bug rn
           return await API.getWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot refresh workspace without id")
