@@ -2,7 +2,6 @@ import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { Helmet } from "react-helmet"
 import { pageTitle } from "../../util/page"
-import { workspaceFilterQuery } from "../../util/workspace"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 

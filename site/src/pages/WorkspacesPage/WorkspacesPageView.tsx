@@ -201,7 +201,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           {!workspaces && loading && <TableLoader />}
           {workspaces && workspaces.length === 0 && (
             <>
-              {query === workspaceFilterQuery.me || query === workspaceFilterQuery.all ? (
+              {filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all ? (
                 <TableRow>
                   <TableCell colSpan={999}>
                     <EmptyState
