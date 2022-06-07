@@ -30,6 +30,7 @@ func TestPtytest(t *testing.T) {
 		}{
 			{name: "1024 is safe (does not exceed macOS buffer)", output: strings.Repeat(".", 1024)},
 			{name: "1025 exceeds macOS buffer (must not hang)", output: strings.Repeat(".", 1025)},
+			{name: "10241 large output", output: strings.Repeat(".", 10241)}, // 1024 * 10 + 1
 		}
 		for _, tt := range tests {
 			tt := tt
