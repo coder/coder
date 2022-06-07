@@ -29,7 +29,7 @@ describe("mapApiErrorToFieldErrors", () => {
     expect(
       mapApiErrorToFieldErrors({
         message: "Invalid entry",
-        errors: [{ detail: "Username is already in use", field: "username" }],
+        validations: [{ detail: "Username is already in use", field: "username" }],
       }),
     ).toEqual({
       username: "Username is already in use",
