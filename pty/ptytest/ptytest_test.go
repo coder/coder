@@ -28,7 +28,7 @@ func TestPtytest(t *testing.T) {
 		tests := []struct {
 			name          string
 			output        string
-			isPlatformBug bool // See https://github.com/coder/coder/issues/2122.
+			isPlatformBug bool // See https://github.com/coder/coder/issues/2122 for more info.
 		}{
 			{name: "1024 is safe (does not exceed macOS buffer)", output: strings.Repeat(".", 1024)},
 			{name: "1025 exceeds macOS buffer (must not hang)", output: strings.Repeat(".", 1025), isPlatformBug: true},
@@ -39,7 +39,7 @@ func TestPtytest(t *testing.T) {
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
 				if tt.isPlatformBug && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
-					t.Skip("This test does not (currently) work on macOS or Windows")
+					t.Skip("This test hangs on macOS and Windows, see https://github.com/coder/coder/issues/2122")
 				}
 
 				cmd := cobra.Command{
