@@ -1,0 +1,88 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.2.2",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev1",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "03857334-bbeb-4ad0-9562-faf04890191e",
+            "init_script": "",
+            "os": "linux",
+            "startup_script": null,
+            "token": "aebe14d8-06b9-49e2-8bd3-156612c5575e"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_agent.dev2",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev2",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "e677717c-8f42-422b-b5d5-4f7f2da0af87",
+            "init_script": "",
+            "os": "darwin",
+            "startup_script": null,
+            "token": "15c8bb04-48c3-40d5-9fc4-21d172890bf5"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_agent.dev3",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev3",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "arm64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "c6f4a383-e827-4404-8210-97b7c331d2fe",
+            "init_script": "",
+            "os": "windows",
+            "startup_script": null,
+            "token": "78c8ce5a-677d-429b-b1f6-dc32c03cee5c"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "4861314035639495631",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.dev1",
+            "coder_agent.dev2",
+            "coder_agent.dev3"
+          ]
+        }
+      ]
+    }
+  }
+}
