@@ -77,4 +77,5 @@ for format in "${formats[@]}"; do
         -t "$output_path"
 done
 
+cdroot
 rm -rf "$temp_dir"

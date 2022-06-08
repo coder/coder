@@ -59,6 +59,7 @@ realpath() {
     )"/"$base"
 }
 
+# error prints an error message and returns an error exit code.
 error() {
     echo "ERROR: $*" 1>&2
     exit 1

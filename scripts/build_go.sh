@@ -95,6 +95,7 @@ if [[ "$output_path" == "" ]]; then
 fi
 build_args+=(-o "$output_path")
 
+# TODO: GOARM
 CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
     "${build_args[@]}" \
     ./cmd/coder 1>&2
