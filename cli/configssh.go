@@ -105,7 +105,7 @@ type sshWorkspaceConfig struct {
 	Hosts []string
 }
 
-func fetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]sshWorkspaceConfig, error) {
+func sshFetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]sshWorkspaceConfig, error) {
 	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Owner: codersdk.Me,
 	})
@@ -154,7 +154,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	wcC := make(chan []sshWorkspaceConfig, 1)
 	errC := make(chan error, 1)
 	go func() {
-		wc, err := fetchWorkspaceConfigs(ctx, client)
+		wc, err := sshFetchWorkspaceConfigs(ctx, client)
 		wcC <- wc
 		errC <- err
 	}()
