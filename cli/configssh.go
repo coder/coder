@@ -353,7 +353,7 @@ func configSSH() *cobra.Command {
 			if showDiff {
 				if len(changes) > 0 {
 					// Write to stderr to avoid dirtying the diff output.
-					_, _ = fmt.Fprint(out, "Changes:\n\n")
+					_, _ = fmt.Fprint(out, "The following changes will be made to your SSH configuration:\n\n")
 					for _, change := range changes {
 						_, _ = fmt.Fprintf(out, "  * %s\n", change)
 					}
