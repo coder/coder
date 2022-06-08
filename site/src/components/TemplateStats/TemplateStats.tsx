@@ -13,6 +13,7 @@ const Language = {
   lastUpdateLabel: "Last updated",
   userPlural: "users",
   userSingular: "user",
+  createdByLabel: "Created by"
 }
 
 export interface TemplateStatsProps {
@@ -44,6 +45,11 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
         <span className={styles.statsValue} data-chromatic="ignore">
           {dayjs().to(dayjs(template.updated_at))}
         </span>
+      </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.createdByLabel}</span>
+        <span className={styles.statsValue}>admin</span>
       </div>
     </div>
   )
