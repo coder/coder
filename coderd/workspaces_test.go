@@ -611,19 +611,20 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		name             string
 		ttlMillis        *int64
 		expectedError    string
-		expectedDeadline time.Time
+		expectedDeadline *time.Time
 		modifyTemplate   func(*codersdk.CreateTemplateRequest)
 	}{
 		{
-			name:          "disable ttl",
-			ttlMillis:     nil,
-			expectedError: "",
+			name:             "disable ttl",
+			ttlMillis:        nil,
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Time{}),
 		},
 		{
 			name:             "update ttl",
 			ttlMillis:        ptr.Ref(12 * time.Hour.Milliseconds()),
 			expectedError:    "",
-			expectedDeadline: time.Now().Add(12 * time.Hour),
+			expectedDeadline: ptr.Ref(time.Now().Add(12 * time.Hour)),
 		},
 		{
 			name:          "below minimum ttl",
@@ -631,14 +632,16 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "ttl must be at least one minute",
 		},
 		{
-			name:          "minimum ttl",
-			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
-			expectedError: "",
+			name:             "minimum ttl",
+			ttlMillis:        ptr.Ref(time.Minute.Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(time.Minute)),
 		},
 		{
-			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
-			expectedError: "",
+			name:             "maximum ttl",
+			ttlMillis:        ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(24 * 7 * time.Hour)),
 		},
 		{
 			name:          "above maximum ttl",
@@ -690,8 +693,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
-			if !testCase.expectedDeadline.IsZero() {
-				require.WithinDuration(t, testCase.expectedDeadline, updated.LatestBuild.Deadline, time.Minute, "expected autostop deadline to be equal expected")
+			if testCase.expectedDeadline != nil {
+				require.WithinDuration(t, *testCase.expectedDeadline, updated.LatestBuild.Deadline, time.Minute, "expected autostop deadline to be equal expected")
 			}
 		})
 	}
