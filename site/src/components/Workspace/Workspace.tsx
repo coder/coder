@@ -46,9 +46,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   builds,
 }) => {
   const styles = useStyles()
-  console.log("workspace", workspace)
   const isDeleted = getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
-  console.log("isDeleted", isDeleted)
   return (
     <Margins>
       <PageHeader

@@ -108,8 +108,11 @@ export const getTemplateVersionResources = async (versionId: string): Promise<Ty
   return response.data
 }
 
-export const getWorkspace = async (workspaceId: string, params?: any): Promise<TypesGen.Workspace> => {
-  console.log("in here", params)
+export const getWorkspace = async (
+  workspaceId: string,
+  params?: TypesGen.WorkspaceOptions,
+): Promise<TypesGen.Workspace> => {
+  console.log("in get Workspace API method", params)
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`, { params })
   return response.data
 }

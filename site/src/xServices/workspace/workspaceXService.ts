@@ -58,6 +58,9 @@ export const workspaceMachine = createMachine(
         getWorkspace: {
           data: TypesGen.Workspace
         }
+        getDeletedWorkspace: {
+          data: TypesGen.Workspace
+        }
         getTemplate: {
           data: TypesGen.Template
         }
@@ -92,6 +95,9 @@ export const workspaceMachine = createMachine(
     states: {
       idle: {
         tags: "loading",
+      },
+      deleted: {
+        tags: "deleted",
       },
       gettingWorkspace: {
         entry: ["clearGetWorkspaceError", "clearContext"],
@@ -183,14 +189,29 @@ export const workspaceMachine = createMachine(
               requestingDelete: {
                 entry: "clearBuildError",
                 invoke: {
-                  id: "deleteWorkspace",
+                  id: "deleteWorkspace", // delete the workspace
                   src: "deleteWorkspace",
+                  onDone: {
+                    target: "gettingDeletedWorkspace",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError", "displayBuildError"],
+                  },
+                },
+              },
+              gettingDeletedWorkspace: {
+                entry: ["clearGetWorkspaceError", "clearContext"],
+                invoke: {
+                  id: "getDeletedWorkspace", // request deleted workspace
+                  src: "getDeletedWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
-                    target: "idle",
+                    target: "idle", // error
                     actions: ["assignBuildError", "displayBuildError"],
                   },
                 },
@@ -432,6 +453,13 @@ export const workspaceMachine = createMachine(
     services: {
       getWorkspace: async (_, event) => {
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+      },
+      getDeletedWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspace(context.workspace.id, { deleted: true })
+        } else {
+          throw Error("Cannot get workspace without id")
+        }
       },
       getTemplate: async (context) => {
         if (context.workspace) {
