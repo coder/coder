@@ -440,19 +440,41 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 	require.NoError(t, err)
 
+	// Then: the deadline should be the zero value
+	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.Zero(t, updated.LatestBuild.Deadline)
+
 	// When: the autobuild executor ticks after the original deadline
 	go func() {
 		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
-		close(tickCh)
 	}()
 
 	// Then: the workspace should not stop
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 0)
-	// And: the deadline should be updated
-	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.Zero(t, updated.LatestBuild.Deadline)
+
+	// Given: the user changes their mind again and wants to enable auto-stop
+	newTTL := 8 * time.Hour
+	expectedDeadline := workspace.LatestBuild.UpdatedAt.Add(newTTL)
+	err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: ptr.Ref(newTTL.Milliseconds())})
+	require.NoError(t, err)
+
+	// Then: the deadline should be updated based on the TTL
+	updated = coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.WithinDuration(t, expectedDeadline, updated.LatestBuild.Deadline, time.Minute)
+
+	// When: the relentless onward march of time continues
+	go func() {
+		tickCh <- workspace.LatestBuild.Deadline.Add(newTTL + time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should stop
+	stats = <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
