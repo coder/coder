@@ -1,0 +1,231 @@
+{
+  "format_version": "1.1",
+  "terraform_version": "1.2.2",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
+            "init_script": "",
+            "os": "linux",
+            "startup_script": null,
+            "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+          },
+          "sensitive_values": {}
+        }
+      ],
+      "child_modules": [
+        {
+          "resources": [
+            {
+              "address": "module.module.null_resource.example",
+              "mode": "managed",
+              "type": "null_resource",
+              "name": "example",
+              "provider_name": "registry.terraform.io/hashicorp/null",
+              "schema_version": 0,
+              "values": {
+                "id": "1186267609491350027",
+                "triggers": null
+              },
+              "sensitive_values": {}
+            }
+          ],
+          "address": "module.module"
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.dev",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "no-op"
+        ],
+        "before": {
+          "arch": "amd64",
+          "auth": "token",
+          "dir": null,
+          "env": null,
+          "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
+          "init_script": "",
+          "os": "linux",
+          "startup_script": null,
+          "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+        },
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "dir": null,
+          "env": null,
+          "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
+          "init_script": "",
+          "os": "linux",
+          "startup_script": null,
+          "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+        },
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "module.module.null_resource.example",
+      "module_address": "module.module",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "example",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "no-op"
+        ],
+        "before": {
+          "id": "1186267609491350027",
+          "triggers": null
+        },
+        "after": {
+          "id": "1186267609491350027",
+          "triggers": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.2.2",
+    "values": {
+      "root_module": {
+        "resources": [
+          {
+            "address": "coder_agent.dev",
+            "mode": "managed",
+            "type": "coder_agent",
+            "name": "dev",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "arch": "amd64",
+              "auth": "token",
+              "dir": null,
+              "env": null,
+              "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
+              "init_script": "",
+              "os": "linux",
+              "startup_script": null,
+              "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+            },
+            "sensitive_values": {}
+          }
+        ],
+        "child_modules": [
+          {
+            "resources": [
+              {
+                "address": "module.module.null_resource.example",
+                "mode": "managed",
+                "type": "null_resource",
+                "name": "example",
+                "provider_name": "registry.terraform.io/hashicorp/null",
+                "schema_version": 0,
+                "values": {
+                  "id": "1186267609491350027",
+                  "triggers": null
+                },
+                "sensitive_values": {},
+                "depends_on": [
+                  "coder_agent.dev"
+                ]
+              }
+            ],
+            "address": "module.module"
+          }
+        ]
+      }
+    }
+  },
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.4.2"
+      },
+      "module.module:null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null",
+        "module_address": "module.module"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 0
+        }
+      ],
+      "module_calls": {
+        "module": {
+          "source": "./module",
+          "expressions": {
+            "script": {
+              "references": [
+                "coder_agent.dev.init_script",
+                "coder_agent.dev"
+              ]
+            }
+          },
+          "module": {
+            "resources": [
+              {
+                "address": "null_resource.example",
+                "mode": "managed",
+                "type": "null_resource",
+                "name": "example",
+                "provider_config_key": "module.module:null",
+                "schema_version": 0,
+                "depends_on": [
+                  "var.script"
+                ]
+              }
+            ],
+            "variables": {
+              "script": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

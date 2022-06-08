@@ -3,3 +3,7 @@ coderd/database/dump.sql linguist-generated=true
 peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
 provisionersdk/proto/*.go linguist-generated=true
+*.tfplan.json linguist-generated=true
+*.tfstate.json linguist-generated=true
+*.tfstate.dot linguist-generated=true
+*.tfplan.dot linguist-generated=true

@@ -1,0 +1,198 @@
+{
+  "format_version": "1.1",
+  "terraform_version": "1.2.2",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "google-instance-identity",
+            "dir": null,
+            "env": null,
+            "os": "linux",
+            "startup_script": null
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_agent_instance.dev",
+          "mode": "managed",
+          "type": "coder_agent_instance",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "instance_id": "example"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.dev",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "google-instance-identity",
+          "dir": null,
+          "env": null,
+          "os": "linux",
+          "startup_script": null
+        },
+        "after_unknown": {
+          "id": true,
+          "init_script": true,
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "coder_agent_instance.dev",
+      "mode": "managed",
+      "type": "coder_agent_instance",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "instance_id": "example"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "null_resource.dev",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.4.2"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "auth": {
+              "constant_value": "google-instance-identity"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "coder_agent_instance.dev",
+          "mode": "managed",
+          "type": "coder_agent_instance",
+          "name": "dev",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev.id",
+                "coder_agent.dev"
+              ]
+            },
+            "instance_id": {
+              "constant_value": "example"
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_config_key": "null",
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.dev"
+          ]
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "coder_agent.dev",
+      "attribute": [
+        "id"
+      ]
+    }
+  ]
+}
