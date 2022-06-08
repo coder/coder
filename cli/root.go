@@ -244,6 +244,24 @@ func isTTY(cmd *cobra.Command) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
+// isTTYOut returns whether the passed reader is a TTY or not.
+// This accepts a reader to work with Cobra's "OutOrStdout"
+// function for simple testing.
+func isTTYOut(cmd *cobra.Command) bool {
+	// If the `--force-tty` command is available, and set,
+	// assume we're in a tty. This is primarily for cases on Windows
+	// where we may not be able to reliably detect this automatically (ie, tests)
+	forceTty, err := cmd.Flags().GetBool(varForceTty)
+	if forceTty && err == nil {
+		return true
+	}
+	file, ok := cmd.OutOrStdout().(*os.File)
+	if !ok {
+		return false
+	}
+	return isatty.IsTerminal(file.Fd())
+}
+
 func usageTemplate() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
