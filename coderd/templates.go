@@ -318,12 +318,28 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var validErrs []httpapi.Error
+	if req.MaxTTLMillis < 0 {
+		validErrs = append(validErrs, httpapi.Error{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MinAutostartIntervalMillis < 0 {
+		validErrs = append(validErrs, httpapi.Error{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
+	}
+
+	if len(validErrs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid request to update template metadata!",
+			Validations: validErrs,
+		})
+		return
+	}
+
 	count := uint32(0)
 	var updated database.Template
 	err := api.Database.InTx(func(s database.Store) error {
 		// Fetch workspace counts
 		workspaceCounts, err := s.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
-		if errors.Is(err, sql.ErrNoRows) {
+		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 		if err != nil {

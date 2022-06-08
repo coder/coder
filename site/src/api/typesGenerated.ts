@@ -293,9 +293,9 @@ export interface UpdateRoles {
 
 // From codersdk/templates.go:34:6
 export interface UpdateTemplateMeta {
-  readonly description: string
-  readonly max_ttl_ms: number
-  readonly min_autostart_interval_ms: number
+  readonly description?: string
+  readonly max_ttl_ms?: number
+  readonly min_autostart_interval_ms?: number
 }
 
 // From codersdk/users.go:66:6
