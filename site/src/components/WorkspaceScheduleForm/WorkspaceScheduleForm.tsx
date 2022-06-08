@@ -15,7 +15,7 @@ import { useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
-import { Workspace, WorkspaceBuild } from "../../api/typesGenerated"
+import { Workspace } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -47,8 +47,8 @@ export const Language = {
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
-  ttlCausesShutdownHelperText: "Your workspace will shut down ",
-  ttlCausesShutdownAt: "at ",
+  ttlCausesShutdownHelperText: "Your workspace will shut down",
+  ttlCausesShutdownAt: "at",
   ttlCausesShutdownImmediately: "immediately!",
   ttlCausesShutdownSoon: "within 30 minutes.",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
@@ -287,12 +287,13 @@ const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTT
   }
   const newDeadline = dayjs(workspace.latest_build.updated_at).add(newTTL, "hour")
   if (newDeadline.isBefore(now)) {
-    return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownImmediately
+    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
   }
   if (newDeadline.isBefore(now.add(30, "minute"))) {
-    return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownSoon
+    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
   }
-  return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownAt + newDeadline.tz(tz).format("hh:mm A z")
+  const newDeadlineString = newDeadline.tz(tz).format("hh:mm A z")
+  return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadlineString}.`
 }
 
 const useStyles = makeStyles({
