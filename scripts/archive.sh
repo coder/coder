@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# This script creates an archive containing the given binary, as well as the
-# README.md and LICENSE files.
+# This script creates an archive containing the given binary renamed to
+# `coder(.exe)?`, as well as the README.md and LICENSE files from the repo root.
 #
 # Usage: ./archive.sh --format tar.gz [--output path/to/output.tar.gz] [--sign-darwin] path/to/binary
 #
@@ -24,7 +24,7 @@ format=""
 output_path=""
 sign_darwin=0
 
-args="$(getopt -o "" -l version:,output:,slim,sign-darwin -- "$@")"
+args="$(getopt -o "" -l format:,output:,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
     case "$1" in
@@ -58,8 +58,12 @@ while true; do
     esac
 done
 
+if [[ "$format" == "" ]]; then
+    error "--format is a required parameter"
+fi
+
 if [[ "$#" != 1 ]]; then
-    error "Exactly one argument must be provided to this script"
+    error "Exactly one argument must be provided to this script, $# were supplied"
 fi
 if [[ ! -f "$1" ]]; then
     error "File '$1' does not exist or is not a regular file"
@@ -82,18 +86,21 @@ fi
 # be symlinked from.
 cdroot
 temp_dir="$(mktemp -d)"
-ln -s "$input_file" "$temp_dir/$output_path"
-ln -s README.md "$temp_dir/"
-ln -s LICENSE "$temp_dir/"
+ln -s "$input_file" "$temp_dir/$output_file"
+ln -s "$(realpath README.md)" "$temp_dir/"
+ln -s "$(realpath LICENSE)" "$temp_dir/"
 
-# Ensure parent output dir.
+# Ensure parent output dir and non-existent output file.
 mkdir -p "$(dirname "$output_path")"
+if [[ -e "$output_path" ]]; then
+    error "Output path '$output_path' already exists!"
+fi
 
 cd "$temp_dir"
 if [[ "$format" == "zip" ]]; then
     zip "$output_path" ./*
 else
-    tar -czvf "$output_path" ./*
+    tar --dereference -czvf "$output_path" ./*
 fi
 
 rm -rf "$temp_dir"
