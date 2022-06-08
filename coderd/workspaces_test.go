@@ -274,7 +274,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
 		require.NoError(t, err)
 	})
-	t.Run("deletedGetWorkspaceByOwnerAndName", func(t *testing.T) {
+	t.Run("Deleted", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
