@@ -307,6 +307,102 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
+func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, template) {
+		return
+	}
+
+	var req codersdk.UpdateTemplateMeta
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var validErrs []httpapi.Error
+	if req.MaxTTLMillis < 0 {
+		validErrs = append(validErrs, httpapi.Error{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MinAutostartIntervalMillis < 0 {
+		validErrs = append(validErrs, httpapi.Error{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
+	}
+
+	if len(validErrs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid request to update template metadata!",
+			Validations: validErrs,
+		})
+		return
+	}
+
+	count := uint32(0)
+	var updated database.Template
+	err := api.Database.InTx(func(s database.Store) error {
+		// Fetch workspace counts
+		workspaceCounts, err := s.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
+		if xerrors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return err
+		}
+
+		if len(workspaceCounts) > 0 {
+			count = uint32(workspaceCounts[0].Count)
+		}
+
+		if req.Description == template.Description &&
+			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
+			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
+			return nil
+		}
+
+		// Update template metadata -- empty fields are not overwritten.
+		desc := req.Description
+		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
+		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
+
+		if desc == "" {
+			desc = template.Description
+		}
+		if maxTTL == 0 {
+			maxTTL = time.Duration(template.MaxTtl)
+		}
+		if minAutostartInterval == 0 {
+			minAutostartInterval = time.Duration(template.MinAutostartInterval)
+		}
+
+		if err := s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
+			ID:                   template.ID,
+			UpdatedAt:            database.Now(),
+			Description:          desc,
+			MaxTtl:               int64(maxTTL),
+			MinAutostartInterval: int64(minAutostartInterval),
+		}); err != nil {
+			return err
+		}
+
+		updated, err = s.GetTemplateByID(r.Context(), template.ID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error updating template metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if updated.UpdatedAt.IsZero() {
+		httpapi.Write(rw, http.StatusNotModified, nil)
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count))
+}
+
 func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 	for _, template := range templates {
