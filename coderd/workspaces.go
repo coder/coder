@@ -165,10 +165,37 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 
+	var (
+		includeDeletedStr = r.URL.Query().Get("include_deleted")
+		includeDeleted    = false
+	)
+	if includeDeletedStr != "" {
+		var err error
+		includeDeleted, err = strconv.ParseBool(includeDeletedStr)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", includeDeletedStr),
+				Validations: []httpapi.Error{
+					{Field: "include_deleted", Detail: "Must be a valid boolean"},
+				},
+			})
+			return
+		}
+	}
+
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: owner.ID,
 		Name:    workspaceName,
 	})
+
+	if includeDeleted && errors.Is(err, sql.ErrNoRows) {
+		workspace, err = api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
+			OwnerID: owner.ID,
+			Name:    workspaceName,
+			Deleted: includeDeleted,
+		})
+	}
+
 	if errors.Is(err, sql.ErrNoRows) {
 		// Do not leak information if the workspace exists or not
 		httpapi.Forbidden(rw)
