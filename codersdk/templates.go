@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // Template is the JSON representation of a Coder template. This type matches the
@@ -28,6 +29,12 @@ type Template struct {
 
 type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
+}
+
+type UpdateTemplateMeta struct {
+	Description                string `json:"description" validate:"omitempty"`
+	MaxTTLMillis               int64  `json:"max_ttl_ms" validate:"omitempty"`
+	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms" validate:"omitempty"`
 }
 
 // Template returns a single template.
@@ -54,6 +61,22 @@ func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 		return readBodyAsError(res)
 	}
 	return nil
+}
+
+func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, req UpdateTemplateMeta) (Template, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s", templateID), req)
+	if err != nil {
+		return Template{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotModified {
+		return Template{}, xerrors.New("template metadata not modified")
+	}
+	if res.StatusCode != http.StatusOK {
+		return Template{}, readBodyAsError(res)
+	}
+	var updated Template
+	return updated, json.NewDecoder(res.Body).Decode(&updated)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.

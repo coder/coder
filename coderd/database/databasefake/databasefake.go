@@ -742,6 +742,25 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for idx, tpl := range q.templates {
+		if tpl.ID != arg.ID {
+			continue
+		}
+		tpl.UpdatedAt = database.Now()
+		tpl.Description = arg.Description
+		tpl.MaxTtl = arg.MaxTtl
+		tpl.MinAutostartInterval = arg.MinAutostartInterval
+		q.templates[idx] = tpl
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
