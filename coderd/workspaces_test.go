@@ -258,7 +258,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something")
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something", codersdk.WorkspaceByOwnerAndNameParams{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -271,8 +271,37 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name)
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
 		require.NoError(t, err)
+	})
+	t.Run("deletedGetWorkspaceByOwnerAndName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Given:
+		// We delete the workspace
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Then:
+		// when we call without includes_deleted, we don't expect to get the workspace back
+		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
+		require.ErrorContains(t, err, "403")
+
+		// Then:
+		// When we call with includes_deleted, we should get the workspace back
+		workspaceNew, err := client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{IncludeDeleted: true})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
 }
 

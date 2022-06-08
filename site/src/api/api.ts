@@ -142,7 +142,9 @@ export const getWorkspaceByOwnerAndName = async (
   username = "me",
   workspaceName: string,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`, {
+    params: { include_deleted: true },
+  })
   return response.data
 }
 
