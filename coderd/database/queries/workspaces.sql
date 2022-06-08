@@ -28,10 +28,10 @@ WHERE
 				owner_id = @owner_id
 		  ELSE true
 	END
-	-- Filter by template_id
+	-- Filter by template_ids
 	AND CASE
-		  WHEN @template_id :: uuid != '00000000-00000000-00000000-00000000' THEN
-				template_id = @template_id
+		  WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
+				template_id = ANY(@template_ids)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring

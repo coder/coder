@@ -125,34 +125,30 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	templateFilter := r.URL.Query().Get("template")
-	var templates []database.Template
-	if templateFilter != "" {
-		ts, err := api.Database.GetTemplatesByName(r.Context(), database.GetTemplatesByNameParams{
-			Name: templateFilter,
-		})
-		if err == nil {
-			templates = ts
-		}
-	}
-
 	nameFilter := r.URL.Query().Get("name")
 	if nameFilter != "" {
 		filter.Name = nameFilter
 	}
 
-	var workspaces []database.Workspace
-	for _, template := range templates {
-		filter.TemplateID = template.ID
-		ws, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Internal error fetching workspaces.",
-				Detail:  err.Error(),
-			})
-			return
+	templateFilter := r.URL.Query().Get("template")
+	if templateFilter != "" {
+		ts, err := api.Database.GetTemplatesByName(r.Context(), database.GetTemplatesByNameParams{
+			Name: templateFilter,
+		})
+		if err == nil {
+			for _, t := range ts {
+				filter.TemplateIds = append(filter.TemplateIds, t.ID)
+			}
 		}
-		workspaces = append(workspaces, ws...)
+	}
+
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	// Only return workspaces the user can read

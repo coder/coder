@@ -333,6 +333,18 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 		if arg.Name != "" && !strings.Contains(workspace.Name, arg.Name) {
 			continue
 		}
+		if len(arg.TemplateIds) > 0 {
+			match := false
+			for _, id := range arg.TemplateIds {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
 		workspaces = append(workspaces, workspace)
 	}
 

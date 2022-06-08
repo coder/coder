@@ -3757,10 +3757,10 @@ WHERE
 				owner_id = $3
 		  ELSE true
 	END
-	-- Filter by template_id
+	-- Filter by template_ids
 	AND CASE
-		  WHEN $4 :: uuid != '00000000-00000000-00000000-00000000' THEN
-				template_id = $4
+		  WHEN array_length($4 :: uuid[], 1) > 0 THEN
+				template_id = ANY($4)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring
@@ -3772,11 +3772,11 @@ WHERE
 `
 
 type GetWorkspacesWithFilterParams struct {
-	Deleted        bool      `db:"deleted" json:"deleted"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
-	Name           string    `db:"name" json:"name"`
+	Deleted        bool        `db:"deleted" json:"deleted"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
+	TemplateIds    []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name           string      `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
@@ -3784,7 +3784,7 @@ func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspa
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.OwnerID,
-		arg.TemplateID,
+		pq.Array(arg.TemplateIds),
 		arg.Name,
 	)
 	if err != nil {

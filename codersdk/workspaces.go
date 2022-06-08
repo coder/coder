@@ -240,6 +240,9 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		if f.Name != "" {
 			q.Set("name", f.Name)
 		}
+		if f.Template != "" {
+			q.Set("template", f.Template)
+		}
 		r.URL.RawQuery = q.Encode()
 	}
 }

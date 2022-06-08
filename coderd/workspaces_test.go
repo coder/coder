@@ -339,6 +339,30 @@ func TestWorkspaceFilter(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, ws, 0)
 	})
+	t.Run("Template", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
+
+		// empty
+		ws, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, ws, 2)
+
+		// single template
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Template: template.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1)
+		require.Equal(t, workspace.ID, ws[0].ID)
+	})
 }
 
 func TestPostWorkspaceBuild(t *testing.T) {
