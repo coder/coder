@@ -54,11 +54,13 @@ var (
 	// Find the semantically correct include statement. Since the user can
 	// modify their configuration as they see fit, there could be:
 	// - Leading indentation (space, tab)
-	// - Trailing indentation (space, tab), followed by e.g. a comment or
-	//   another file to Include (we don't want to support this, but
-	//   explicitly blocking it adds complexity)
-	// - Select newline after Include statement for removal purposes
-	sshCoderIncludedRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Include) coder([\t ].*)?[\r]?[\n]?$`)
+	// - Trailing indentation (space, tab)
+	// - Select newline after Include statement for cleaner removal
+	// In the following cases, we will not recognize the Include statement
+	// and leave as-is (i.e. they're not supported):
+	// - User adds another file to the Include statement
+	// - User adds a comment on the same line as the Include statement
+	sshCoderIncludedRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Include) coder[\t ]*[\r]?[\n]?$`)
 )
 
 // sshCoderConfigOptions represents options that can be stored and read

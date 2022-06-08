@@ -268,6 +268,86 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "Included file must be named exactly coder, otherwise leave as-is",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coders",
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					"Include coder",
+					"",
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coders",
+					"",
+				}, "\n"),
+			},
+			matches: []match{
+				{match: "Continue?", write: "yes"},
+			},
+		},
+		{
+			name: "Second file added, Include(s) left as-is, new one on top",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coder other",
+					"Include other coder",
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					"Include coder",
+					"",
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coder other",
+					"Include other coder",
+					"",
+				}, "\n"),
+			},
+			matches: []match{
+				{match: "Continue?", write: "yes"},
+			},
+		},
+		{
+			name: "Comment added, Include left as-is, new one on top",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coder # comment",
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					"Include coder",
+					"",
+					"Host test",
+					"  HostName test",
+					"",
+					"Include coder # comment",
+					"",
+				}, "\n"),
+			},
+			matches: []match{
+				{match: "Continue?", write: "yes"},
+			},
+		},
+		{
 			name: "SSH Config does not need modification",
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
