@@ -258,9 +258,17 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
+type WorkspaceByOwnerAndNameParams struct {
+	IncludeDeleted bool `json:"include_deleted,omitempty"`
+}
+
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil)
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceByOwnerAndNameParams) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))
+		r.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return Workspace{}, err
 	}

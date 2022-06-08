@@ -101,7 +101,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -E -u ubuntu sh -c '${coder_agent.dev.init_script}'
+sudo -u ubuntu sh -c '${coder_agent.dev.init_script}'
 --//--
 EOT
 

@@ -251,10 +251,10 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
 
 export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
   const now = __startDate ? dayjs(__startDate) : dayjs()
-  const NinetyMinutesFromNow = now.add(90, "minutes").utc()
+  const fourHoursFromNow = now.add(4, "hours").utc()
 
   return {
-    deadline: NinetyMinutesFromNow.format(),
+    deadline: fourHoursFromNow.format(),
   }
 }
 
