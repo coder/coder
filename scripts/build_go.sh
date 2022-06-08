@@ -29,7 +29,7 @@ slim="${CODER_SLIM_BUILD:-0}"
 sign_darwin=0
 output_path=""
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
     case "$1" in
@@ -99,7 +99,7 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
     "${build_args[@]}" \
     ./cmd/coder 1>&2
 
-if [[ "$GOOS" == "darwin" ]] && [[ "$sign_darwin" == 1 ]]; then
+if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
     codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
 fi
 

@@ -3,7 +3,7 @@
 # This script builds multiple Go binaries for Coder with the given OS and
 # architecture combinations.
 #
-# Usage: ./build_go_matrix.sh [--version 1.2.3+devel.abcdef] [--output dist/] [--slim] [--sign-darwin] os1:arch1,arch2 os2:arch1 os1:arch3
+# Usage: ./build_go_matrix.sh [--version 1.2.3+devel.abcdef] [--output dist/] [--slim] [--sign-darwin] [--archive] [--package-linux] os1:arch1,arch2 os2:arch1 os1:arch3
 #
 # If no OS:arch combinations are provided, nothing will happen and no error will
 # be returned. Slim builds are disabled by default. If no version is specified,
@@ -22,6 +22,14 @@
 # If the --sign-darwin parameter is specified, all darwin binaries will be
 # signed using the `codesign` utility. $AC_APPLICATION_IDENTITY must be set and
 # the signing certificate must be imported for this to work.
+#
+# If the --archive parameter is specified, all binaries will be archived using
+# ./archive.sh. The --sign-darwin parameter will be carried through, and all
+# archive files will be dropped in the output directory with the same name as
+# the binary and the .zip (for windows and darwin) or .tar.gz extension.
+#
+# If the --package-linux parameter is specified, all linux binaries will be
+# packaged using ./package.sh. Requires the nfpm binary.
 
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -31,8 +39,10 @@ version=""
 output_path=""
 slim=0
 sign_darwin=0
+archive=0
+package_linux=0
 
-args="$(getopt -o "" -l version:,output:,slim,sign-darwin -- "$@")"
+args="$(getopt -o "" -l version:,output:,slim,sign-darwin,archive,package-linux -- "$@")"
 eval set -- "$args"
 while true; do
     case "$1" in
@@ -57,6 +67,14 @@ while true; do
         sign_darwin=1
         shift
         ;;
+    --archive)
+        archive=1
+        shift
+        ;;
+    --package-linux)
+        package_linux=1
+        shift
+        ;;
     --)
         shift
         break
@@ -72,7 +90,8 @@ if [[ "$output_path" == "" ]]; then
     # Input paths are relative, so we don't cdroot at the top, but for this case
     # we want it to be relative to the root.
     cdroot
-    output_path="dist/coder_{version}_{os}_{arch}"
+    mkdir -p dist
+    output_path="$(realpath "dist/coder_{version}_{os}_{arch}")"
 elif [[ "$output_path" == */ ]]; then
     output_path="${output_path}coder_{version_{os}_{arch}"
 else
@@ -102,9 +121,12 @@ for spec in "$@"; do
             error "Could not parse matrix build spec '$spec': invalid architecture '$spec_arch'"
         fi
 
-        specs+=("$spec_os $spec_arch")
+        specs+=("$spec_os:$spec_arch")
     done
 done
+
+# Remove duplicate specs while maintaining the same order.
+mapfile -t specs < <(echo "${specs[@]}" | tr " " "\n" | awk '!a[$0]++')
 
 build_args=()
 if [[ "$slim" == 1 ]]; then
@@ -116,8 +138,8 @@ fi
 
 # Build each spec.
 for spec in "${specs[@]}"; do
-    spec_os="$(echo "$spec" | cut -d " " -f 1)"
-    spec_arch="$(echo "$spec" | cut -d " " -f 2)"
+    spec_os="$(echo "$spec" | cut -d ":" -f 1)"
+    spec_arch="$(echo "$spec" | cut -d ":" -f 2)"
 
     # Craft output path from the template.
     spec_output="$output_path"
@@ -142,4 +164,34 @@ for spec in "${specs[@]}"; do
         "${build_args[@]}"
     echo
     echo
+
+    if [[ "$archive" == 1 ]]; then
+        spec_archive_format="tar.gz"
+        if [[ "$spec_os" == "windows" ]] || [[ "$spec_os" == "darwin" ]]; then
+            spec_archive_format="zip"
+        fi
+        spec_output_archive="$spec_output.$spec_archive_format"
+
+        archive_args=()
+        if [[ "$sign_darwin" == 1 ]] && [[ "$spec_os" == "darwin" ]]; then
+            archive_args+=(--sign-darwin)
+        fi
+
+        echo "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
+        execrelative ./archive.sh \
+            --format "$spec_archive_format" \
+            --output "$spec_output_archive" \
+            "${archive_args[@]}" \
+            "$spec_output_binary"
+        echo
+        echo
+    fi
+
+    if [[ "$package_linux" == 1 ]] && [[ "$spec_os" == "linux" ]]; then
+        execrelative ./package.sh \
+            --arch "$spec_arch" \
+            --version "$version" \
+            "$spec_output_binary"
+        echo
+    fi
 done

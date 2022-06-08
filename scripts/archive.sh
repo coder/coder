@@ -15,6 +15,8 @@
 # $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
 # imported for this to work. Also, the input binary must already be signed with
 # the `codesign` tool.
+#
+# The absolute output path is printed on success.
 
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -93,19 +95,22 @@ ln -s "$(realpath LICENSE)" "$temp_dir/"
 # Ensure parent output dir and non-existent output file.
 mkdir -p "$(dirname "$output_path")"
 if [[ -e "$output_path" ]]; then
-    error "Output path '$output_path' already exists!"
+    rm "$output_path"
 fi
 
 cd "$temp_dir"
 if [[ "$format" == "zip" ]]; then
-    zip "$output_path" ./*
+    zip "$output_path" ./* 1>&2
 else
-    tar --dereference -czvf "$output_path" ./*
+    tar --dereference -czvf "$output_path" ./* 1>&2
 fi
 
+cdroot
 rm -rf "$temp_dir"
 
 if [[ "$sign_darwin" == 1 ]]; then
-    echo "Notarizing binary..."
+    echo "Notarizing archive..."
     execrelative ./sign_darwin.sh "$output_path"
 fi
+
+echo -n "$output_path"
