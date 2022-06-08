@@ -184,7 +184,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		OwnerID: owner.ID,
 		Name:    workspaceName,
 	})
-
 	if includeDeleted && errors.Is(err, sql.ErrNoRows) {
 		workspace, err = api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: owner.ID,
