@@ -463,7 +463,7 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:264:6
+// From codersdk/workspaces.go:267:6
 export interface WorkspaceByOwnerAndNameParams {
   readonly include_deleted?: boolean
 }
