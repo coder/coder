@@ -31,8 +31,6 @@ site/build-storybook.log
 # Build
 dist/
 site/out/
-# used by release CI for downloaded artifacts
-artifacts
 
 *.tfstate
 *.tfplan

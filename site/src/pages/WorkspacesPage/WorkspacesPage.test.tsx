@@ -23,7 +23,7 @@ describe("WorkspacesPage", () => {
     render(<WorkspacesPage />)
 
     // Then
-    await screen.findByText(Language.emptyMessage)
+    await screen.findByText(Language.emptyCreateWorkspaceMessage)
   })
 
   it("renders a filled workspaces page", async () => {

@@ -69,3 +69,16 @@ SET
 	deleted = $2
 WHERE
 	id = $1;
+
+-- name: UpdateTemplateMetaByID :exec
+UPDATE
+	templates
+SET
+	updated_at = $2,
+	description = $3,
+	max_ttl = $4,
+	min_autostart_interval = $5
+WHERE
+	id = $1
+RETURNING
+	*;

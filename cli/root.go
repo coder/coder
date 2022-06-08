@@ -214,7 +214,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
-	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name)
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceByOwnerAndNameParams{})
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
@@ -238,6 +238,24 @@ func isTTY(cmd *cobra.Command) bool {
 		return true
 	}
 	file, ok := cmd.InOrStdin().(*os.File)
+	if !ok {
+		return false
+	}
+	return isatty.IsTerminal(file.Fd())
+}
+
+// isTTYOut returns whether the passed reader is a TTY or not.
+// This accepts a reader to work with Cobra's "OutOrStdout"
+// function for simple testing.
+func isTTYOut(cmd *cobra.Command) bool {
+	// If the `--force-tty` command is available, and set,
+	// assume we're in a tty. This is primarily for cases on Windows
+	// where we may not be able to reliably detect this automatically (ie, tests)
+	forceTty, err := cmd.Flags().GetBool(varForceTty)
+	if forceTty && err == nil {
+		return true
+	}
+	file, ok := cmd.OutOrStdout().(*os.File)
 	if !ok {
 		return false
 	}
