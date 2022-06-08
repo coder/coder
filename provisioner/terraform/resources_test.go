@@ -19,7 +19,7 @@ func TestConvertResources(t *testing.T) {
 	t.Parallel()
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
-
+	// nolint:paralleltest
 	for folderName, expected := range map[string][]*proto.Resource{
 		"chaining-resources": {{
 			Name: "first",
@@ -75,6 +75,8 @@ func TestConvertResources(t *testing.T) {
 			}},
 		}},
 	} {
+		folderName := folderName
+		expected := expected
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(filepath.Dir(filename), "testdata", folderName)

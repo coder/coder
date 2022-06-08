@@ -1,48 +1,48 @@
 {
-    "versions": ["0.6.2"],
-    "routes": [
+  "versions": ["0.6.2"],
+  "routes": [
+    {
+      "title": "About",
+      "description": "About Coder",
+      "path": "./about.md"
+    },
+    {
+      "title": "Installation",
+      "description": "Learn how to install and deploy Coder.",
+      "path": "./install.md"
+    },
+    {
+      "title": "Templates",
+      "description": "Learn about templates, which define the infrastructure underlying workspaces.",
+      "path": "./templates.md",
+      "icon": ""
+    },
+    {
+      "title": "Workspaces",
+      "description": "Learn about Coder workspaces.",
+      "path": "./workspaces.md"
+    },
+    {
+      "title": "Contributing",
+      "description": "Learn how to contribute to Coder.",
+      "path": "./CONTRIBUTING.md",
+      "children": [
         {
-            "title": "About",
-            "description": "About Coder",
-            "path": "./about"
+          "title": "Code of Conduct",
+          "description": "See the code of conduct for contributing to Coder.",
+          "path": "./CODE_OF_CONDUCT.md"
         },
         {
-            "title": "Installation",
-            "description": "Learn how to install and deploy Coder.",
-            "path": "./INSTALL"
-        },
-        {
-            "title": "Templates",
-            "description": "Learn about templates, which define the infrastructure underlying workspaces.",
-            "path": "./templates.md",
-            "icon": ""
-        },
-        {
-            "title": "Workspaces",
-            "description": "Learn about Coder workspaces.",
-            "path": "./WORKSPACES"
-        },
-        {
-            "title": "Contributing",
-            "description": "Learn how to contribute to Coder.",
-            "path": "./CONTRIBUTING",
-            "children": [
-                {
-                    "title": "Code of Conduct",
-                    "description": "See the code of conduct for contributing to Coder.",
-                    "path": "./CODE_OF_CONDUCT"
-                },
-                {
-                    "title": "Contributors",
-                    "description": "See a contributors to Coder.",
-                    "path": "./CONTRIBUTORS"
-                }
-            ]
-        },
-        {
-            "title": "Security policy",
-            "description": "Learn how to report vulnerabilities in Coder.",
-            "path": "./SECURITY"
+          "title": "Contributors",
+          "description": "See a contributors to Coder.",
+          "path": "./CONTRIBUTORS.md"
         }
-    ]
+      ]
+    },
+    {
+      "title": "Security policy",
+      "description": "Learn how to report vulnerabilities in Coder.",
+      "path": "./SECURITY.md"
+    }
+  ]
 }

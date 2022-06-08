@@ -16,11 +16,8 @@
             "auth": "token",
             "dir": null,
             "env": null,
-            "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
-            "init_script": "",
             "os": "linux",
-            "startup_script": null,
-            "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+            "startup_script": null
           },
           "sensitive_values": {}
         }
@@ -36,7 +33,6 @@
               "provider_name": "registry.terraform.io/hashicorp/null",
               "schema_version": 0,
               "values": {
-                "id": "1186267609491350027",
                 "triggers": null
               },
               "sensitive_values": {}
@@ -56,32 +52,23 @@
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
-          "no-op"
+          "create"
         ],
-        "before": {
-          "arch": "amd64",
-          "auth": "token",
-          "dir": null,
-          "env": null,
-          "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
-          "init_script": "",
-          "os": "linux",
-          "startup_script": null,
-          "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
-        },
+        "before": null,
         "after": {
           "arch": "amd64",
           "auth": "token",
           "dir": null,
           "env": null,
-          "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
-          "init_script": "",
           "os": "linux",
-          "startup_script": null,
-          "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
+          "startup_script": null
         },
-        "after_unknown": {},
-        "before_sensitive": {},
+        "after_unknown": {
+          "id": true,
+          "init_script": true,
+          "token": true
+        },
+        "before_sensitive": false,
         "after_sensitive": {}
       }
     },
@@ -94,75 +81,20 @@
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
-          "no-op"
+          "create"
         ],
-        "before": {
-          "id": "1186267609491350027",
-          "triggers": null
-        },
+        "before": null,
         "after": {
-          "id": "1186267609491350027",
           "triggers": null
         },
-        "after_unknown": {},
-        "before_sensitive": {},
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
         "after_sensitive": {}
       }
     }
   ],
-  "prior_state": {
-    "format_version": "1.0",
-    "terraform_version": "1.2.2",
-    "values": {
-      "root_module": {
-        "resources": [
-          {
-            "address": "coder_agent.dev",
-            "mode": "managed",
-            "type": "coder_agent",
-            "name": "dev",
-            "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
-            "values": {
-              "arch": "amd64",
-              "auth": "token",
-              "dir": null,
-              "env": null,
-              "id": "7efd77eb-3133-4d07-9638-f1601f1d7982",
-              "init_script": "",
-              "os": "linux",
-              "startup_script": null,
-              "token": "362f7f17-309f-4987-8ba0-766a1439ed5f"
-            },
-            "sensitive_values": {}
-          }
-        ],
-        "child_modules": [
-          {
-            "resources": [
-              {
-                "address": "module.module.null_resource.example",
-                "mode": "managed",
-                "type": "null_resource",
-                "name": "example",
-                "provider_name": "registry.terraform.io/hashicorp/null",
-                "schema_version": 0,
-                "values": {
-                  "id": "1186267609491350027",
-                  "triggers": null
-                },
-                "sensitive_values": {},
-                "depends_on": [
-                  "coder_agent.dev"
-                ]
-              }
-            ],
-            "address": "module.module"
-          }
-        ]
-      }
-    }
-  },
   "configuration": {
     "provider_config": {
       "coder": {

@@ -1,9 +1,9 @@
 variable "script" {
-    type = string
+  type = string
 }
 
 resource "null_resource" "example" {
-    depends_on = [
-      var.script
-    ]
+  depends_on = [
+    var.script
+  ]
 }
