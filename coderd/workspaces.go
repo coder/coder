@@ -702,16 +702,20 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspaces(ctx context.Context, db database.Store, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
-	ownerIDs := make([]uuid.UUID, 0, len(workspaces))
+	userIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		workspaceIDs = append(workspaceIDs, workspace.ID)
 		templateIDs = append(templateIDs, workspace.TemplateID)
-		ownerIDs = append(ownerIDs, workspace.OwnerID)
+		userIDs = append(userIDs, workspace.OwnerID)
 	}
 	workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
+	for _, build := range workspaceBuilds {
+		userIDs = append(userIDs, build.InitiatorID)
+	}
+
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
@@ -722,7 +726,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	if err != nil {
 		return nil, xerrors.Errorf("get templates: %w", err)
 	}
-	users, err := db.GetUsersByIDs(ctx, ownerIDs)
+	users, err := db.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get users: %w", err)
 	}
