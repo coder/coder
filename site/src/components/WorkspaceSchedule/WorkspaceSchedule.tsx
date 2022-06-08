@@ -4,8 +4,10 @@ import Typography from "@material-ui/core/Typography"
 import ScheduleIcon from "@material-ui/icons/Schedule"
 import cronstrue from "cronstrue"
 import dayjs from "dayjs"
+import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
+import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
@@ -15,27 +17,31 @@ import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
+dayjs.extend(advancedFormat)
 dayjs.extend(utc)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
+dayjs.extend(timezone)
 
 export const Language = {
   autoStartDisplay: (schedule: string | undefined): string => {
     if (schedule) {
       return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
+    } else {
+      return "Manual"
     }
-    return "Manual"
   },
   autoStartLabel: (schedule: string | undefined): string => {
     const prefix = "Start"
 
     if (schedule) {
-      return `${prefix} (${extractTimezone(schedule)})`
+      return `${prefix} (${dayjs().tz(extractTimezone(schedule)).format("z")})`
     } else {
       return prefix
     }
   },
   autoStopDisplay: (workspace: Workspace): string => {
+    const schedule = workspace.autostart_schedule
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
@@ -52,7 +58,8 @@ export const Language = {
       if (now.isAfter(deadline)) {
         return "Workspace is shutting down"
       } else {
-        return now.to(deadline)
+        const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
+        return deadline.tz(timezone).format("HH:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
