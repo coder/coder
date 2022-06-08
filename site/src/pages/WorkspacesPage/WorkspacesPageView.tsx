@@ -33,7 +33,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderTitle, PageHeaderText } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
@@ -133,11 +133,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to="/templates">
-            <Button startIcon={<ReplyIcon style={{ transform: "scaleX(-1)" }} />} style={{ height: "44px" }}>
-              {Language.createFromTemplateButton}
-            </Button>
-          </Link>
+          <PageHeaderText>
+            Create a new workspace from a <Link
+              component={RouterLink}
+              to="/templates"
+            >
+              Template
+            </Link>.
+          </PageHeaderText>
         }
       >
         <PageHeaderTitle>
