@@ -30,7 +30,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		_, err := client.OrganizationByName(context.Background(), codersdk.Me, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("NoMember", func(t *testing.T) {

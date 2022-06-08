@@ -295,7 +295,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		// Then:
 		// When we call without includes_deleted, we don't expect to get the workspace back
 		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
-		require.ErrorContains(t, err, "403")
+		require.ErrorContains(t, err, "404")
 
 		// Then:
 		// When we call with includes_deleted, we should get the workspace back
