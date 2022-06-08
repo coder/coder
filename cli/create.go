@@ -242,19 +242,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspaceName,
-			})
-			if err != nil {
-				return err
-			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
 			return nil
 		},
 	}
