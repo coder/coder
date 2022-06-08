@@ -8,12 +8,14 @@ import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
+import advancedFormat from "dayjs/plugin/advancedFormat"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
+import { Workspace, WorkspaceBuild } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -23,6 +25,7 @@ import { zones } from "./zones"
 // REMARK: timezone plugin depends on UTC
 //
 // SEE: https://day.js.org/docs/en/timezone/timezone
+dayjs.extend(advancedFormat)
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
@@ -44,14 +47,21 @@ export const Language = {
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
+  ttlCausesShutdownHelperText: "Your workspace will shut down ",
+  ttlCausesShutdownAt: "at ",
+  ttlCausesShutdownImmediately: "immediately!",
+  ttlCausesShutdownSoon: "within 30 minutes.",
+  ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
 }
 
 export interface WorkspaceScheduleFormProps {
   fieldErrors?: FieldErrors
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
+  now: dayjs.Dayjs
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
+  workspace: Workspace
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -66,6 +76,20 @@ export interface WorkspaceScheduleFormValues {
   startTime: string
   timezone: string
   ttl: number
+}
+
+export const WorkspaceScheduleFormInitialValues = {
+  sunday: false,
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+
+  startTime: "09:30",
+  timezone: "",
+  ttl: 5,
 }
 
 export const validationSchema = Yup.object({
@@ -154,21 +178,13 @@ export const validationSchema = Yup.object({
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
   initialValues = {
-    sunday: false,
-    monday: true,
-    tuesday: true,
-    wednesday: true,
-    thursday: true,
-    friday: true,
-    saturday: false,
-
-    startTime: "09:30",
-    timezone: "",
-    ttl: 5,
+    ...WorkspaceScheduleFormInitialValues,
   },
   isLoading,
+  now: now,
   onCancel,
   onSubmit,
+  workspace,
 }) => {
   const styles = useStyles()
 
@@ -248,7 +264,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", Language.ttlHelperText)}
+            {...formHelpers("ttl", ttlShutdownAt(now, workspace, form.values.timezone, form.values.ttl))}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
@@ -260,6 +276,23 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
       </form>
     </FullPageForm>
   )
+}
+
+const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTTL: number): string => {
+  if (workspace.latest_build.transition !== "start") {
+    return Language.ttlHelperText
+  }
+  if (newTTL === 0) {
+    return Language.ttlCausesNoShutdownHelperText
+  }
+  const newDeadline = dayjs(workspace.latest_build.updated_at).add(newTTL, "hour")
+  if (newDeadline.isBefore(now)) {
+    return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownImmediately
+  }
+  if (newDeadline.isBefore(now.add(30, "minute"))) {
+    return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownSoon
+  }
+  return Language.ttlCausesShutdownHelperText + Language.ttlCausesShutdownAt + newDeadline.tz(tz).format("hh:mm A z")
 }
 
 const useStyles = makeStyles({
