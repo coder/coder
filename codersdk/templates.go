@@ -32,9 +32,9 @@ type UpdateActiveTemplateVersion struct {
 }
 
 type UpdateTemplateMeta struct {
-	Description                string `json:"description" validate:"omitempty"`
-	MaxTTLMillis               int64  `json:"max_ttl_ms" validate:"omitempty"`
-	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms" validate:"omitempty"`
+	Description                string `json:"description,omitempty"`
+	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
+	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
 }
 
 // Template returns a single template.
