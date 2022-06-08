@@ -7,6 +7,9 @@
   - [Why Coder](./about.md#why-coder)
   - [What Coder is not](./about.md#what-coder-is-not)
   - [Comparison: Coder vs. [product]](./about.md#comparison)
+- [Quickstart](./quickstart.md)
+  - [Creating your first template and workspace](./quickstart.md#creating-your-first-template-and-workspace)
+  - [Modifying templates](./quickstart.md#modifying-templates)
 - [Templates](./templates.md)
   - [Manage templates](./templates.md#manage-templates)
   - [Persistent and ephemeral

@@ -1,4 +1,4 @@
-# Walkthrough
+# Quickstart
 
 This guide will walk you through creating your first template and workspace. If you haven't already installed `coder`, do that first [here](./install.md).
 

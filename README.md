@@ -53,7 +53,7 @@ Once installed, you can run a temporary deployment in dev mode (all data is in-m
 coder server --dev
 ```
 
-Use `coder --help` to get a complete list of flags and environment variables. For a full walkthrough, follow [this guide](./docs/walkthrough.md).
+Use `coder --help` to get a complete list of flags and environment variables follow our [quickstart guide](./docs/quickstart.md).
 
 ## Documentation
 
