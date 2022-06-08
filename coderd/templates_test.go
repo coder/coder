@@ -172,6 +172,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+
+		// Extra paranoid: did it _really_ happen?
+		updated, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, req.Description, updated.Description)
+		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
+		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
 
 	t.Run("NotModified", func(t *testing.T) {
@@ -195,9 +203,40 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
-		assert.Equal(t, req.Description, updated.Description)
-		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Description = "original description"
+			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+		})
+		req := codersdk.UpdateTemplateMeta{
+			MaxTTLMillis:               -int64(time.Hour),
+			MinAutostartIntervalMillis: -int64(time.Hour),
+		}
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Contains(t, apiErr.Message, "Invalid request")
+		require.Len(t, apiErr.Validations, 2)
+		assert.Equal(t, apiErr.Validations[0].Field, "max_ttl_ms")
+		assert.Equal(t, apiErr.Validations[1].Field, "min_autostart_interval_ms")
+
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, template.UpdatedAt, updated.UpdatedAt, time.Minute)
+		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
 }
 
