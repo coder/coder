@@ -171,7 +171,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		includeDeleted, err = strconv.ParseBool(s)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", includeDeletedStr),
+				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", s),
 				Validations: []httpapi.Error{
 					{Field: "include_deleted", Detail: "Must be a valid boolean"},
 				},
