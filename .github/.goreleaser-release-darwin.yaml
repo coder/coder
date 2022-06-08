@@ -47,7 +47,7 @@ env:
 signs:
   - ids: [coder-darwin]
     artifacts: archive
-    cmd: ./scripts/sign_macos.sh
+    cmd: ./scripts/sign_darwin.sh
     args: ["${artifact}"]
     output: true
 
