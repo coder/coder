@@ -33,9 +33,10 @@ export const Language = {
   },
   autoStartLabel: (schedule: string | undefined): string => {
     const prefix = "Start"
+    const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
 
     if (schedule) {
-      return `${prefix} (${dayjs().tz(extractTimezone(schedule)).format("z")})`
+      return `${prefix} (${dayjs().tz(timezone).format("z")})`
     } else {
       return prefix
     }
