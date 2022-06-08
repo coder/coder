@@ -214,7 +214,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
-	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name)
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceByOwnerAndNameParams{})
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
