@@ -5638,10 +5638,10 @@ data-urls@^2.0.0:
     whatwg-mimetype "^2.3.0"
     whatwg-url "^8.0.0"
 
-dayjs@1.11.2:
-  version "1.11.2"
-  resolved "https://registry.yarnpkg.com/dayjs/-/dayjs-1.11.2.tgz#fa0f5223ef0d6724b3d8327134890cfe3d72fbe5"
-  integrity sha512-F4LXf1OeU9hrSYRPTTj/6FbO4HTjPKXvEIC1P2kcnFurViINCVk3ZV0xAS3XVx9MkMsXbbqlK6hjseaYbgKEHw==
+dayjs@1.11.3:
+  version "1.11.3"
+  resolved "https://registry.yarnpkg.com/dayjs/-/dayjs-1.11.3.tgz#4754eb694a624057b9ad2224b67b15d552589258"
+  integrity sha512-xxwlswWOlGhzgQ4TKzASQkUhqERI3egRNqgV4ScR8wlANA/A9tZ7miXa44vTTKEq5l7vWoL5G57bG3zA+Kow0A==
 
 debug@2.6.9, debug@^2.2.0, debug@^2.3.3, debug@^2.6.0, debug@^2.6.9:
   version "2.6.9"
@@ -12517,10 +12517,10 @@ sprintf-js@~1.0.2:
   resolved "https://registry.yarnpkg.com/sprintf-js/-/sprintf-js-1.0.3.tgz#04e6926f662895354f3dd015203633b857297e2c"
   integrity sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
 
-sql-formatter@6.1.1:
-  version "6.1.1"
-  resolved "https://registry.yarnpkg.com/sql-formatter/-/sql-formatter-6.1.1.tgz#ec9d4c6fc90c2839885cf36ca7b0755a84527802"
-  integrity sha512-NiUP90vNb6NjQryWz0bPsvv4BTqe/wY75mRbh2E6M1kKZIoCKtueeKIDMQBB+RI8pjxVUQy7e35JUXQj6YYonQ==
+sql-formatter@6.1.2:
+  version "6.1.2"
+  resolved "https://registry.yarnpkg.com/sql-formatter/-/sql-formatter-6.1.2.tgz#78b05021c641020312a5f144ec313b38e7663258"
+  integrity sha512-09AiPmA6zDq82IBXOj5kN33VeAqaV92enkoonlhJge0fmfTESiYs3pwsntGKxa1C89xj/9MoHlNeqMmCr23BJw==
   dependencies:
     argparse "^2.0.1"
 
