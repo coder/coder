@@ -86,7 +86,9 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("File %q not found.", hash),
+		})
 		return
 	}
 	if err != nil {

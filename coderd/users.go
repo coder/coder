@@ -604,13 +604,16 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
-		// Return unauthorized rather than a 404 to not leak if the organization
-		// exists.
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Organization %q not found.", organizationName),
+		})
 		return
 	}
 	if err != nil {
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching organization.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 

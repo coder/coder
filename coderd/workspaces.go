@@ -192,8 +192,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		// Do not leak information if the workspace exists or not
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Workspace %q not found.", workspaceName),
+		})
 		return
 	}
 	if err != nil {

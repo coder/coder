@@ -223,7 +223,9 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	// Write error payload to rw if we cannot find the resource for the scope
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Forbidden(rw)
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: fmt.Sprintf("Scope %q resource %q not found.", scope, scopeID),
+			})
 		} else {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: err.Error(),

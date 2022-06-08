@@ -351,7 +351,9 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), jobUUID)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
+		})
 		return database.ProvisionerJob{}, false
 	}
 	if err != nil {
