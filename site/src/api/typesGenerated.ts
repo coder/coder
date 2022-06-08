@@ -454,6 +454,7 @@ export interface WorkspaceBuild {
   readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
+  readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly deadline: string
 }
