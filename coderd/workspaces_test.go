@@ -293,7 +293,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
 		// Then:
-		// when we call without includes_deleted, we don't expect to get the workspace back
+		// When we call without includes_deleted, we don't expect to get the workspace back
 		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
 		require.ErrorContains(t, err, "403")
 
