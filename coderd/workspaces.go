@@ -165,13 +165,10 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 
-	var (
-		includeDeletedStr = r.URL.Query().Get("include_deleted")
-		includeDeleted    = false
-	)
-	if includeDeletedStr != "" {
+	includeDeleted := false
+	if s := r.URL.Query().Get("include_deleted"); s != "" {
 		var err error
-		includeDeleted, err = strconv.ParseBool(includeDeletedStr)
+		includeDeleted, err = strconv.ParseBool(s)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", includeDeletedStr),
