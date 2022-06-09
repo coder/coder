@@ -25,7 +25,7 @@ const inProgressToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   delete: "deleting",
 }
 
-export const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
+const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   start: "started",
   stop: "stopped",
   delete: "deleted",

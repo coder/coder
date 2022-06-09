@@ -58,9 +58,6 @@ export const workspaceMachine = createMachine(
         getWorkspace: {
           data: TypesGen.Workspace
         }
-        getDeletedWorkspace: {
-          data: TypesGen.Workspace
-        }
         getTemplate: {
           data: TypesGen.Template
         }
