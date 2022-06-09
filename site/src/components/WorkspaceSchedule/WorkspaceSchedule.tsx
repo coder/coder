@@ -60,7 +60,7 @@ export const Language = {
         return "Workspace is shutting down"
       } else {
         const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
-        return deadline.tz(timezone).format("HH:mm A")
+        return deadline.tz(timezone).format("hh:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
