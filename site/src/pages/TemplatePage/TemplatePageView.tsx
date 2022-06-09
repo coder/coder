@@ -39,7 +39,7 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTe
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to={`/workspaces/new?template=${template.name}`}>
+          <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
         }

@@ -56,15 +56,6 @@ export const AppRouter: FC = () => (
             </AuthAndFrame>
           }
         />
-
-        <Route
-          path="new"
-          element={
-            <RequireAuth>
-              <CreateWorkspacePage />
-            </RequireAuth>
-          }
-        />
       </Route>
 
       <Route path="templates">
@@ -77,14 +68,24 @@ export const AppRouter: FC = () => (
           }
         />
 
-        <Route
-          path=":template"
-          element={
-            <AuthAndFrame>
-              <TemplatePage />
-            </AuthAndFrame>
-          }
-        />
+        <Route path=":template">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <TemplatePage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="workspace"
+            element={
+              <RequireAuth>
+                <CreateWorkspacePage />
+              </RequireAuth>
+            }
+          />
+        </Route>
       </Route>
 
       <Route path="users">
