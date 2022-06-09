@@ -4,7 +4,6 @@ import * as API from "../../api/api"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import { Language as FormLanguage } from "../../util/formUtils"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 import { Language } from "./CreateWorkspacePageView"
 
