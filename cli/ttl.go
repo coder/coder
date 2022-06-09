@@ -107,7 +107,7 @@ func ttlset() *cobra.Command {
 					Default:   "yes",
 					IsConfirm: true,
 				})
-				if errors.Is(err, cliui.Canceled) {
+				if errors.Is(err, cliui.Canceled) || err != nil {
 					return nil
 				}
 			}

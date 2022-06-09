@@ -605,7 +605,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		); err != nil {
 			return xerrors.Errorf("update workspace deadline: %w", err)
 		}
-
 		return nil
 	})
 
