@@ -34,6 +34,7 @@ type WorkspaceBuild struct {
 	Name               string              `json:"name"`
 	Transition         WorkspaceTransition `json:"transition"`
 	InitiatorID        uuid.UUID           `json:"initiator_id"`
+	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
 	Deadline           time.Time           `json:"deadline"`
 }
