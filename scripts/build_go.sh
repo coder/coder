@@ -8,6 +8,9 @@
 # GOARCH and CODER_SLIM_BUILD=1. If no version is specified, defaults to the
 # version from ./version.sh.
 #
+# GOARM can be controlled by suffixing any arm architecture (i.e. arm or arm64)
+# with "vX" (e.g. "v7", "v8").
+#
 # Unless overridden via --output, the built binary will be dropped in
 # "$repo_root/dist/coder_$version_$os_$arch" (with a ".exe" suffix for windows
 # builds) and the absolute path to the binary will be printed to stdout on
@@ -95,8 +98,18 @@ if [[ "$output_path" == "" ]]; then
 fi
 build_args+=(-o "$output_path")
 
-# TODO: GOARM
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build \
+# Determine GOARM.
+arm_version=""
+if [[ "$arch" == "arm" ]]; then
+	arm_version="7"
+elif [[ "$arch" == "armv"* ]] || [[ "$arch" == "arm64v"* ]]; then
+	arm_version="${arch//*v/}"
+
+	# Remove the v* suffix.
+	arch="${arch//v*/}"
+fi
+
+CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"${build_args[@]}" \
 	./cmd/coder 1>&2
 

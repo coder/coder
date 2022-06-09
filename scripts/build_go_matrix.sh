@@ -51,9 +51,7 @@ while true; do
 		shift 2
 		;;
 	--output)
-		# realpath fails if the dir doesn't exist.
-		mkdir -p "$(dirname "$2")"
-		output_path="$(realpath "$2")"
+		output_path="$2"
 		shift 2
 		;;
 	--slim)
@@ -93,13 +91,15 @@ if [[ "$output_path" == "" ]]; then
 	mkdir -p dist
 	output_path="$(realpath "dist/coder_{version}_{os}_{arch}")"
 elif [[ "$output_path" == */ ]]; then
-	output_path="${output_path}coder_{version_{os}_{arch}"
-else
-	# Verify that it contains {os} and {arch} at least.
-	if [[ "$output_path" != *"{os}"* ]] || [[ "$output_path" != *"{arch}"* ]]; then
-		error "Templated output path '$output_path' must contain {os} and {arch}"
-	fi
+	output_path="${output_path}coder_{version}_{os}_{arch}"
+elif [[ "$output_path" != *"{os}"* ]] || [[ "$output_path" != *"{arch}"* ]]; then
+	# If the output path isn't a directory (ends with /) then it must have
+	# template variables.
+	error "Templated output path '$output_path' must contain {os} and {arch}"
 fi
+
+mkdir -p "$(dirname "$output_path")"
+output_path="$(realpath "$output_path")"
 
 # Remove the "v" prefix.
 version="${version#v}"

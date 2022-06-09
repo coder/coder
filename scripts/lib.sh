@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # This script is meant to be sourced by other scripts. To source this script:
+#     # shellcheck source=scripts/lib.sh
 #     source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 set -euo pipefail

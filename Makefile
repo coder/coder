@@ -1,15 +1,53 @@
 .DEFAULT_GOAL := build
 
+# use a single bash shell for each job, and immediately exit on failure
+SHELL := bash
+.SHELLFLAGS = -ceu
+.ONESHELL:
+
+# This doesn't work on directories.
+# See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
+.DELETE_ON_ERROR:
+
 INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
+VERSION=$(shell ./scripts/version.sh)
 
 bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
-	@echo "== This builds binaries for command-line usage."
+	@echo "== This builds slim binaries for command-line usage."
 	@echo "== Use \"make build\" to embed the site."
-	goreleaser build --snapshot --rm-dist --single-target
 
-build: dist/artifacts.json
+	rm -rf ./dist/coder-slim_*
+	./scripts/build_go_slim.sh \
+		--version "$(VERSION)" \
+		--output ./dist/ \
+		linux:amd64,armv7,arm64 \
+		windows:amd64,arm64 \
+		darwin:amd64,arm64
+.PHONY: bin
+
+build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+	rm -rf ./dist
+	mkdir -p ./dist
+
+	# build slim artifacts and copy them to the site output directory
+	./scripts/build_go_slim.sh \
+		--version "$(VERSION)" \
+		--output ./dist/ \
+		linux:amd64,armv7,arm64 \
+		windows:amd64,arm64 \
+		darwin:amd64,arm64
+
+	# build not-so-slim artifacts with the default name format
+	./scripts/build_go_matrix.sh \
+		--version "$(VERSION)" \
+		--output ./dist/ \
+		--archive \
+		--package-linux \
+		linux:amd64,armv7,arm64 \
+		windows:amd64,arm64 \
+		darwin:amd64,arm64
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -23,9 +61,6 @@ coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/
 dev:
 	./scripts/develop.sh
 .PHONY: dev
-
-dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
-	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -49,20 +84,34 @@ ifdef CI
 else
 	shfmt -w $(shell shfmt -f .)
 endif
+.PHONY: fmt/shfmt
 
 fmt: fmt/prettier fmt/terraform fmt/shfmt
 .PHONY: fmt
 
 gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
+.PHONY: gen
 
-install: build
-	mkdir -p $(INSTALL_DIR)
-	@echo "--- Copying from bin to $(INSTALL_DIR)"
-	cp -r ./dist/coder-$(GOOS)_$(GOOS)_$(GOARCH)*/* $(INSTALL_DIR)
-	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
+install: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+	@output_file="$(INSTALL_DIR)/coder"
+
+	@if [[ "$(GOOS)" == "windows" ]]; then
+		@output_file="$${output_file}.exe"
+	@fi
+
+	@echo "-- Building CLI for $(GOOS) $(GOARCH) at $$output_file"
+
+	./scripts/build_go.sh \
+		--version "$(VERSION)" \
+		--output "$$output_file" \
+		--os "$(GOOS)" \
+		--arch "$(GOARCH)"
+
+	@echo
 .PHONY: install
 
 lint: lint/shellcheck lint/go
+.PHONY: lint
 
 lint/go:
 	golangci-lint run
@@ -72,6 +121,7 @@ lint/go:
 lint/shellcheck: $(shell shfmt -f .)
 	@echo "--- shellcheck"
 	shellcheck --external-sources $(shell shfmt -f .)
+.PHONY: lint/shellcheck
 
 peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \
@@ -108,19 +158,17 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site && yarn run format:types
 
-.PHONY: test
 test: test-clean
 	gotestsum -- -v -short ./...
+.PHONY: test
 
-.PHONY: test-postgres
 test-postgres: test-clean
 	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=5m \
           -coverpkg=./...,github.com/coder/coder/codersdk \
           -count=1 -parallel=1 -race -failfast
+.PHONY: test-postgres
 
-
-.PHONY: test-postgres-docker
 test-postgres-docker:
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
@@ -134,7 +182,8 @@ test-postgres-docker:
 		postgres:11 \
 		-c shared_buffers=1GB \
 		-c max_connections=1000
+.PHONY: test-postgres-docker
 
-.PHONY: test-clean
 test-clean:
 	go clean -testcache
+.PHONY: test-clean
