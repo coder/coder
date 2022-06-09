@@ -17,6 +17,7 @@ import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
 import { Workspace } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
+import { isWorkspaceOn } from "../../util/workspace"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -278,22 +279,20 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   )
 }
 
-const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTTL: number): string => {
-  if (workspace.latest_build.transition !== "start") {
-    return Language.ttlHelperText
-  }
-  if (newTTL === 0) {
-    return Language.ttlCausesNoShutdownHelperText
-  }
+export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTTL: number): string => {
   const newDeadline = dayjs(workspace.latest_build.updated_at).add(newTTL, "hour")
-  if (newDeadline.isBefore(now)) {
+  if (!isWorkspaceOn(workspace)) {
+    return Language.ttlHelperText
+  } else if (newTTL === 0) {
+    return Language.ttlCausesNoShutdownHelperText
+  } else if (newDeadline.isBefore(now)) {
     return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
-  }
-  if (newDeadline.isBefore(now.add(30, "minute"))) {
+  } else if (newDeadline.isBefore(now.add(30, "minute"))) {
     return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
+  } else {
+    const newDeadlineString = newDeadline.tz(tz).format("hh:mm A z")
+    return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadlineString}.`
   }
-  const newDeadlineString = newDeadline.tz(tz).format("hh:mm A z")
-  return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadlineString}.`
 }
 
 const useStyles = makeStyles({

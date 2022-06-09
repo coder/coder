@@ -163,13 +163,7 @@ describe("ttlShutdownAt", () => {
   it.each<[dayjs.Dayjs, Workspace, string, number, string]>([
     [
       dayjs("2022-05-17T18:09:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          transition: "stop",
-        },
-      },
+      Mocks.MockStoppedWorkspace,
       "America/Chicago",
       1,
       "Your workspace will automatically shut down after this amount of time has elapsed.",
