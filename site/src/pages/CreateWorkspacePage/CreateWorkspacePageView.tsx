@@ -73,7 +73,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          <TextField disabled fullWidth label={Language.templateLabel} value={props.selectedTemplate?.name || props.templateName} variant="outlined" />
+          <TextField
+            disabled
+            fullWidth
+            label={Language.templateLabel}
+            value={props.selectedTemplate?.name || props.templateName}
+            variant="outlined"
+          />
 
           {props.loadingTemplateSchema && <Loader />}
           {props.selectedTemplate && props.templateSchema && (
