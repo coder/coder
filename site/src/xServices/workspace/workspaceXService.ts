@@ -96,9 +96,6 @@ export const workspaceMachine = createMachine(
       idle: {
         tags: "loading",
       },
-      deleted: {
-        tags: "deleted",
-      },
       gettingWorkspace: {
         entry: ["clearGetWorkspaceError", "clearContext"],
         invoke: {
@@ -191,21 +188,6 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "deleteWorkspace",
                   src: "deleteWorkspace",
-                  onDone: {
-                    target: "gettingDeletedWorkspace",
-                    actions: ["assignBuild", "refreshTimeline"],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
-                  },
-                },
-              },
-              gettingDeletedWorkspace: {
-                entry: ["clearGetWorkspaceError", "clearContext"],
-                invoke: {
-                  id: "getDeletedWorkspace",
-                  src: "getDeletedWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
@@ -453,13 +435,6 @@ export const workspaceMachine = createMachine(
     services: {
       getWorkspace: async (_, event) => {
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, { include_deleted: true })
-      },
-      getDeletedWorkspace: async (context) => {
-        if (context.workspace) {
-          return await API.getWorkspace(context.workspace.id, { deleted: true })
-        } else {
-          throw Error("Cannot get workspace without id")
-        }
       },
       getTemplate: async (context) => {
         if (context.workspace) {
