@@ -13,7 +13,7 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { extractTimezone, stripTimezone } from "../../util/schedule"
+import { stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
@@ -26,23 +26,16 @@ dayjs.extend(timezone)
 export const Language = {
   autoStartDisplay: (schedule: string | undefined): string => {
     if (schedule) {
-      return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
+      return (
+        cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false }) + ` (${dayjs.tz.guess()})`
+      )
     } else {
       return "Manual"
     }
   },
-  autoStartLabel: (schedule: string | undefined): string => {
-    const prefix = "Start"
-    const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
-
-    if (schedule) {
-      return `${prefix} (${dayjs().tz(timezone).format("z")})`
-    } else {
-      return prefix
-    }
-  },
+  autoStartLabel: "Start",
+  autoStopLabel: "Shutdown",
   autoStopDisplay: (workspace: Workspace): string => {
-    const schedule = workspace.autostart_schedule
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
@@ -59,8 +52,8 @@ export const Language = {
       if (now.isAfter(deadline)) {
         return "Workspace is shutting down"
       } else {
-        const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
-        return deadline.tz(timezone).format("hh:mm A")
+        const browserTZ = dayjs.tz.guess()
+        return deadline.tz(browserTZ).format("hh:mm A") + ` (${browserTZ})`
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
@@ -92,11 +85,13 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
           {Language.schedule}
         </Typography>
         <div>
-          <span className={styles.scheduleLabel}>{Language.autoStartLabel(workspace.autostart_schedule)}</span>
-          <span className={styles.scheduleValue}>{Language.autoStartDisplay(workspace.autostart_schedule)}</span>
+          <span className={styles.scheduleLabel}>{Language.autoStartLabel}</span>
+          <span className={styles.scheduleValue} data-chromatic="ignore">
+            {Language.autoStartDisplay(workspace.autostart_schedule)}
+          </span>
         </div>
         <div>
-          <span className={styles.scheduleLabel}>Shutdown</span>
+          <span className={styles.scheduleLabel}>{Language.autoStopLabel}</span>
           <span className={styles.scheduleValue} data-chromatic="ignore">
             {Language.autoStopDisplay(workspace)}
           </span>
