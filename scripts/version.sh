@@ -5,7 +5,7 @@
 # prefix that is included in the Git tag.
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
@@ -20,10 +20,10 @@ version="$last_tag"
 # Dev versions are denoted by the "+dev." suffix with a trailing commit short
 # SHA.
 if [[ "$last_tag" != "$current" ]]; then
-    if [[ "${CODER_NO_DEV_VERSION:-}" != "" ]]; then
-        error "version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
-    fi
-    version+="+dev.$(git rev-parse --short HEAD)"
+	if [[ "${CODER_NO_DEV_VERSION:-}" != "" ]]; then
+		error "version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
+	fi
+	version+="+dev.$(git rev-parse --short HEAD)"
 fi
 
 # Remove the "v" prefix.

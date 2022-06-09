@@ -10,33 +10,33 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")
 
 # pushd is a silent alternative to the real pushd shell command.
 pushd() {
-    command pushd "$@" >/dev/null
+	command pushd "$@" >/dev/null
 }
 
 # popd is a silent alternative to the real popd shell command.
 # shellcheck disable=SC2120
 popd() {
-    command popd "$@" >/dev/null
+	command popd "$@" >/dev/null
 }
 
 # cdself changes directory to the directory of the current script. This should
 # not be used in scripts that may be sourced by other scripts.
 cdself() {
-    cd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
+	cd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
 }
 
 # cdroot changes directory to the root of the repository.
 cdroot() {
-    cd "$PROJECT_ROOT" || error "Could not change directory to '$PROJECT_ROOT'"
+	cd "$PROJECT_ROOT" || error "Could not change directory to '$PROJECT_ROOT'"
 }
 
 # execrelative can be used to execute scripts as if you were in the parent
 # directory of the current script. This should not be used in scripts that may
 # be sourced by other scripts.
 execrelative() {
-    pushd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
-    "$@"
-    popd
+	pushd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
+	"$@"
+	popd
 }
 
 # realpath returns an absolute path to the given relative path. It will fail if
@@ -48,15 +48,15 @@ execrelative() {
 #
 # Taken from https://stackoverflow.com/a/3915420 (CC-BY-SA 4.0)
 realpath() {
-    dir="$(dirname "$1")"
-    base="$(basename "$1")"
-    if [[ ! -d "$dir" ]]; then
-        error "Could not change directory to '$dir': directory does not exist"
-    fi
-    echo "$(
-        cd "$dir" || error "Could not change directory to '$dir'"
-        pwd -P
-    )"/"$base"
+	dir="$(dirname "$1")"
+	base="$(basename "$1")"
+	if [[ ! -d "$dir" ]]; then
+		error "Could not change directory to '$dir': directory does not exist"
+	fi
+	echo "$(
+		cd "$dir" || error "Could not change directory to '$dir'"
+		pwd -P
+	)"/"$base"
 }
 
 # maybedryrun prints the given program and flags, and then, if the first
@@ -68,23 +68,23 @@ realpath() {
 # Usage: maybedryrun 1 gh release create ...
 # Usage: maybedryrun 0 docker push ghcr.io/coder/coder:latest
 maybedryrun() {
-    if [[ "$1" == 1 ]]; then
-        shift
-        log "DRYRUN: $*"
-    else
-        shift
-        log $ "$@"
-        "$@"
-    fi
+	if [[ "$1" == 1 ]]; then
+		shift
+		log "DRYRUN: $*"
+	else
+		shift
+		log $ "$@"
+		"$@"
+	fi
 }
 
 # log prints a message to stderr.
 log() {
-    echo "$*" 1>&2
+	echo "$*" 1>&2
 }
 
 # error prints an error message and returns an error exit code.
 error() {
-    log "ERROR: $*"
-    exit 1
+	log "ERROR: $*"
+	exit 1
 }

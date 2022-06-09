@@ -13,7 +13,7 @@
 # environment variable to be set.
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then

@@ -22,7 +22,7 @@
 # specified).
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
@@ -31,39 +31,39 @@ dry_run=0
 args="$(getopt -o "" -l version:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
-    case "$1" in
-    --version)
-        version="$2"
-        shift 2
-        ;;
-    --dry-run)
-        dry_run=1
-        shift
-        ;;
-    --)
-        shift
-        break
-        ;;
-    *)
-        error "Unrecognized option: $1"
-        ;;
-    esac
+	case "$1" in
+	--version)
+		version="$2"
+		shift 2
+		;;
+	--dry-run)
+		dry_run=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
 done
 
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
-    version="$(execrelative ./version.sh)"
+	version="$(execrelative ./version.sh)"
 fi
 
 # Verify that we're currently checked out on the supplied tag.
 new_tag="v$version"
 if [[ "$(git describe --always)" != "$new_tag" ]]; then
-    if [[ "$dry_run" == 0 ]]; then
-        error "The provided version '$new_tag' does not match the current git describe output '$(git describe --always)'"
-    fi
+	if [[ "$dry_run" == 0 ]]; then
+		error "The provided version '$new_tag' does not match the current git describe output '$(git describe --always)'"
+	fi
 
-    log "The provided version does not match the current git tag, but --dry-run was supplied so continuing..."
+	log "The provided version does not match the current git tag, but --dry-run was supplied so continuing..."
 fi
 
 # This returns the tag before the current tag.
@@ -83,7 +83,7 @@ $(git log --no-merges --pretty=format:"- %h %s" "$old_tag..$new_tag")
 # Create temporary release folder so we can generate checksums.
 temp_dir="$(mktemp -d)"
 for f in "$@"; do
-    ln -s "$(realpath "$f")" "$temp_dir/"
+	ln -s "$(realpath "$f")" "$temp_dir/"
 done
 
 # Generate checksums file. sha256sum seems to play nicely with symlinks so this
@@ -109,10 +109,10 @@ log
 #
 # GitHub CLI seems to follow symlinks when uploading files.
 echo "$release_notes" |
-    maybedryrun "$dry_run" gh release create \
-        --title "$new_tag" \
-        --notes-file - \
-        "$new_tag" \
-        "$temp_dir"/*
+	maybedryrun "$dry_run" gh release create \
+		--title "$new_tag" \
+		--notes-file - \
+		"$new_tag" \
+		"$temp_dir"/*
 
 rm -rf "$temp_dir"

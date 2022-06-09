@@ -19,7 +19,7 @@
 # The absolute output path is printed on success.
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 format=""
@@ -29,59 +29,59 @@ sign_darwin=0
 args="$(getopt -o "" -l format:,output:,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
-    case "$1" in
-    --format)
-        format="${2#.}"
-        if [[ "$format" != "zip" ]] && [[ "$format" != "tar.gz" ]]; then
-            error "Invalid --format parameter '$format', must be 'zip' or 'tar.gz'"
-        fi
-        shift 2
-        ;;
-    --output)
-        # realpath fails if the dir doesn't exist.
-        mkdir -p "$(dirname "$2")"
-        output_path="$(realpath "$2")"
-        shift 2
-        ;;
-    --sign-darwin)
-        if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-            error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
-        fi
-        sign_darwin=1
-        shift
-        ;;
-    --)
-        shift
-        break
-        ;;
-    *)
-        error "Unrecognized option: $1"
-        ;;
-    esac
+	case "$1" in
+	--format)
+		format="${2#.}"
+		if [[ "$format" != "zip" ]] && [[ "$format" != "tar.gz" ]]; then
+			error "Invalid --format parameter '$format', must be 'zip' or 'tar.gz'"
+		fi
+		shift 2
+		;;
+	--output)
+		# realpath fails if the dir doesn't exist.
+		mkdir -p "$(dirname "$2")"
+		output_path="$(realpath "$2")"
+		shift 2
+		;;
+	--sign-darwin)
+		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
+			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
+		fi
+		sign_darwin=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
 done
 
 if [[ "$format" == "" ]]; then
-    error "--format is a required parameter"
+	error "--format is a required parameter"
 fi
 
 if [[ "$#" != 1 ]]; then
-    error "Exactly one argument must be provided to this script, $# were supplied"
+	error "Exactly one argument must be provided to this script, $# were supplied"
 fi
 if [[ ! -f "$1" ]]; then
-    error "File '$1' does not exist or is not a regular file"
+	error "File '$1' does not exist or is not a regular file"
 fi
 input_file="$(realpath "$1")"
 
 # Determine default output path.
 if [[ "$output_path" == "" ]]; then
-    output_path="${input_file%.exe}"
-    output_path+=".$format"
+	output_path="${input_file%.exe}"
+	output_path+=".$format"
 fi
 
 # Determine the filename of the binary inside the archive.
 output_file="coder"
 if [[ "$input_file" == *".exe" ]]; then
-    output_file+=".exe"
+	output_file+=".exe"
 fi
 
 # Make temporary dir where all source files intended to be in the archive will
@@ -95,22 +95,22 @@ ln -s "$(realpath LICENSE)" "$temp_dir/"
 # Ensure parent output dir and non-existent output file.
 mkdir -p "$(dirname "$output_path")"
 if [[ -e "$output_path" ]]; then
-    rm "$output_path"
+	rm "$output_path"
 fi
 
 cd "$temp_dir"
 if [[ "$format" == "zip" ]]; then
-    zip "$output_path" ./* 1>&2
+	zip "$output_path" ./* 1>&2
 else
-    tar --dereference -czvf "$output_path" ./* 1>&2
+	tar --dereference -czvf "$output_path" ./* 1>&2
 fi
 
 cdroot
 rm -rf "$temp_dir"
 
 if [[ "$sign_darwin" == 1 ]]; then
-    log "Notarizing archive..."
-    execrelative ./sign_darwin.sh "$output_path"
+	log "Notarizing archive..."
+	execrelative ./sign_darwin.sh "$output_path"
 fi
 
 echo -n "$output_path"

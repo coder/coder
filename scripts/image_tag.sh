@@ -14,7 +14,7 @@
 # sign.
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 arch=""
@@ -23,35 +23,35 @@ version=""
 args="$(getopt -o "" -l arch:,version: -- "$@")"
 eval set -- "$args"
 while true; do
-    case "$1" in
-    --arch)
-        arch="$2"
-        shift 2
-        ;;
-    --version)
-        version="$2"
-        shift 2
-        ;;
-    --)
-        shift
-        break
-        ;;
-    *)
-        error "Unrecognized option: $1"
-        ;;
-    esac
+	case "$1" in
+	--arch)
+		arch="$2"
+		shift 2
+		;;
+	--version)
+		version="$2"
+		shift 2
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
 done
 
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
-    version="$(execrelative ./version.sh)"
+	version="$(execrelative ./version.sh)"
 fi
 
 image="${CODER_IMAGE_BASE:-ghcr.io/coder/coder}"
 tag="v$version"
 if [[ "$arch" != "" ]]; then
-    tag+="-$arch"
+	tag+="-$arch"
 fi
 
 tag="${tag//+/-}"

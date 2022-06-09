@@ -32,7 +32,7 @@
 # packaged using ./package.sh. Requires the nfpm binary.
 
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
@@ -45,84 +45,84 @@ package_linux=0
 args="$(getopt -o "" -l version:,output:,slim,sign-darwin,archive,package-linux -- "$@")"
 eval set -- "$args"
 while true; do
-    case "$1" in
-    --version)
-        version="$2"
-        shift 2
-        ;;
-    --output)
-        # realpath fails if the dir doesn't exist.
-        mkdir -p "$(dirname "$2")"
-        output_path="$(realpath "$2")"
-        shift 2
-        ;;
-    --slim)
-        slim=1
-        shift
-        ;;
-    --sign-darwin)
-        if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-            error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
-        fi
-        sign_darwin=1
-        shift
-        ;;
-    --archive)
-        archive=1
-        shift
-        ;;
-    --package-linux)
-        package_linux=1
-        shift
-        ;;
-    --)
-        shift
-        break
-        ;;
-    *)
-        error "Unrecognized option: $1"
-        ;;
-    esac
+	case "$1" in
+	--version)
+		version="$2"
+		shift 2
+		;;
+	--output)
+		# realpath fails if the dir doesn't exist.
+		mkdir -p "$(dirname "$2")"
+		output_path="$(realpath "$2")"
+		shift 2
+		;;
+	--slim)
+		slim=1
+		shift
+		;;
+	--sign-darwin)
+		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
+			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
+		fi
+		sign_darwin=1
+		shift
+		;;
+	--archive)
+		archive=1
+		shift
+		;;
+	--package-linux)
+		package_linux=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
 done
 
 # Verify the output path template.
 if [[ "$output_path" == "" ]]; then
-    # Input paths are relative, so we don't cdroot at the top, but for this case
-    # we want it to be relative to the root.
-    cdroot
-    mkdir -p dist
-    output_path="$(realpath "dist/coder_{version}_{os}_{arch}")"
+	# Input paths are relative, so we don't cdroot at the top, but for this case
+	# we want it to be relative to the root.
+	cdroot
+	mkdir -p dist
+	output_path="$(realpath "dist/coder_{version}_{os}_{arch}")"
 elif [[ "$output_path" == */ ]]; then
-    output_path="${output_path}coder_{version_{os}_{arch}"
+	output_path="${output_path}coder_{version_{os}_{arch}"
 else
-    # Verify that it contains {os} and {arch} at least.
-    if [[ "$output_path" != *"{os}"* ]] || [[ "$output_path" != *"{arch}"* ]]; then
-        error "Templated output path '$output_path' must contain {os} and {arch}"
-    fi
+	# Verify that it contains {os} and {arch} at least.
+	if [[ "$output_path" != *"{os}"* ]] || [[ "$output_path" != *"{arch}"* ]]; then
+		error "Templated output path '$output_path' must contain {os} and {arch}"
+	fi
 fi
 
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
-    version="$(execrelative ./version.sh)"
+	version="$(execrelative ./version.sh)"
 fi
 
 # Parse the os:arch specs into an array.
 specs=()
 for spec in "$@"; do
-    spec_os="$(echo "$spec" | cut -d ":" -f 1)"
-    if [[ "$spec_os" == "" ]] || [[ "$spec_os" == *" "* ]]; then
-        error "Could not parse matrix build spec '$spec': invalid OS '$spec_os'"
-    fi
+	spec_os="$(echo "$spec" | cut -d ":" -f 1)"
+	if [[ "$spec_os" == "" ]] || [[ "$spec_os" == *" "* ]]; then
+		error "Could not parse matrix build spec '$spec': invalid OS '$spec_os'"
+	fi
 
-    # No quoting is important here.
-    for spec_arch in $(echo "$spec" | cut -d ":" -f 2 | tr "," "\n"); do
-        if [[ "$spec_arch" == "" ]] || [[ "$spec_os" == *" "* ]]; then
-            error "Could not parse matrix build spec '$spec': invalid architecture '$spec_arch'"
-        fi
+	# No quoting is important here.
+	for spec_arch in $(echo "$spec" | cut -d ":" -f 2 | tr "," "\n"); do
+		if [[ "$spec_arch" == "" ]] || [[ "$spec_os" == *" "* ]]; then
+			error "Could not parse matrix build spec '$spec': invalid architecture '$spec_arch'"
+		fi
 
-        specs+=("$spec_os:$spec_arch")
-    done
+		specs+=("$spec_os:$spec_arch")
+	done
 done
 
 # Remove duplicate specs while maintaining the same order.
@@ -130,68 +130,68 @@ mapfile -t specs < <(echo "${specs[@]}" | tr " " "\n" | awk '!a[$0]++')
 
 build_args=()
 if [[ "$slim" == 1 ]]; then
-    build_args+=(--slim)
+	build_args+=(--slim)
 fi
 if [[ "$sign_darwin" == 1 ]]; then
-    build_args+=(--sign-darwin)
+	build_args+=(--sign-darwin)
 fi
 
 # Build each spec.
 for spec in "${specs[@]}"; do
-    spec_os="$(echo "$spec" | cut -d ":" -f 1)"
-    spec_arch="$(echo "$spec" | cut -d ":" -f 2)"
+	spec_os="$(echo "$spec" | cut -d ":" -f 1)"
+	spec_arch="$(echo "$spec" | cut -d ":" -f 2)"
 
-    # Craft output path from the template.
-    spec_output="$output_path"
-    spec_output="${spec_output//\{os\}/"$spec_os"}"
-    spec_output="${spec_output//\{arch\}/"$spec_arch"}"
-    spec_output="${spec_output//\{version\}/"$version"}"
+	# Craft output path from the template.
+	spec_output="$output_path"
+	spec_output="${spec_output//\{os\}/"$spec_os"}"
+	spec_output="${spec_output//\{arch\}/"$spec_arch"}"
+	spec_output="${spec_output//\{version\}/"$version"}"
 
-    spec_output_binary="$spec_output"
-    if [[ "$spec_os" == "windows" ]]; then
-        spec_output_binary+=".exe"
-    fi
+	spec_output_binary="$spec_output"
+	if [[ "$spec_os" == "windows" ]]; then
+		spec_output_binary+=".exe"
+	fi
 
-    # Ensure parent dir.
-    mkdir -p "$(dirname "$spec_output")"
+	# Ensure parent dir.
+	mkdir -p "$(dirname "$spec_output")"
 
-    log "--- Building coder for $spec_os $spec_arch ($spec_output_binary)"
-    execrelative ./build_go.sh \
-        --version "$version" \
-        --os "$spec_os" \
-        --arch "$spec_arch" \
-        --output "$spec_output_binary" \
-        "${build_args[@]}"
-    log
-    log
+	log "--- Building coder for $spec_os $spec_arch ($spec_output_binary)"
+	execrelative ./build_go.sh \
+		--version "$version" \
+		--os "$spec_os" \
+		--arch "$spec_arch" \
+		--output "$spec_output_binary" \
+		"${build_args[@]}"
+	log
+	log
 
-    if [[ "$archive" == 1 ]]; then
-        spec_archive_format="tar.gz"
-        if [[ "$spec_os" == "windows" ]] || [[ "$spec_os" == "darwin" ]]; then
-            spec_archive_format="zip"
-        fi
-        spec_output_archive="$spec_output.$spec_archive_format"
+	if [[ "$archive" == 1 ]]; then
+		spec_archive_format="tar.gz"
+		if [[ "$spec_os" == "windows" ]] || [[ "$spec_os" == "darwin" ]]; then
+			spec_archive_format="zip"
+		fi
+		spec_output_archive="$spec_output.$spec_archive_format"
 
-        archive_args=()
-        if [[ "$sign_darwin" == 1 ]] && [[ "$spec_os" == "darwin" ]]; then
-            archive_args+=(--sign-darwin)
-        fi
+		archive_args=()
+		if [[ "$sign_darwin" == 1 ]] && [[ "$spec_os" == "darwin" ]]; then
+			archive_args+=(--sign-darwin)
+		fi
 
-        log "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
-        execrelative ./archive.sh \
-            --format "$spec_archive_format" \
-            --output "$spec_output_archive" \
-            "${archive_args[@]}" \
-            "$spec_output_binary"
-        log
-        log
-    fi
+		log "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
+		execrelative ./archive.sh \
+			--format "$spec_archive_format" \
+			--output "$spec_output_archive" \
+			"${archive_args[@]}" \
+			"$spec_output_binary"
+		log
+		log
+	fi
 
-    if [[ "$package_linux" == 1 ]] && [[ "$spec_os" == "linux" ]]; then
-        execrelative ./package.sh \
-            --arch "$spec_arch" \
-            --version "$version" \
-            "$spec_output_binary"
-        log
-    fi
+	if [[ "$package_linux" == 1 ]] && [[ "$spec_os" == "linux" ]]; then
+		execrelative ./package.sh \
+			--arch "$spec_arch" \
+			--version "$version" \
+			"$spec_output_binary"
+		log
+	fi
 done
