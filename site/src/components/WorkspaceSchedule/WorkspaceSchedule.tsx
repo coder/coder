@@ -26,9 +26,7 @@ dayjs.extend(timezone)
 export const Language = {
   autoStartDisplay: (schedule: string | undefined): string => {
     if (schedule) {
-      return (
-        cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false }) + ` (${dayjs.tz.guess()})`
-      )
+      return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
     } else {
       return "Manual"
     }
@@ -53,7 +51,7 @@ export const Language = {
         return "Workspace is shutting down"
       } else {
         const browserTZ = dayjs.tz.guess()
-        return deadline.tz(browserTZ).format("hh:mm A") + ` (${browserTZ})`
+        return deadline.tz(browserTZ).format("hh:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
@@ -67,7 +65,7 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
-  schedule: "Schedule",
+  schedule: `Schedule (${dayjs.tz.guess()})`,
 }
 
 export interface WorkspaceScheduleProps {
