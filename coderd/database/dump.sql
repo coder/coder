@@ -248,7 +248,8 @@ CREATE TABLE templates (
     active_version_id uuid NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
-    min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL
+    min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
+    owner_id uuid
 );
 
 CREATE TABLE users (
@@ -478,6 +479,9 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
