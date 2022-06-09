@@ -1,7 +1,7 @@
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { Helmet } from "react-helmet"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
 import { pageTitle } from "../../util/page"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
@@ -9,9 +9,8 @@ import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
-  const [searchParams] = useSearchParams()
-  const templateParam = searchParams.get("template")
-  const templateName = templateParam ? templateParam : ""
+  const { template } = useParams()
+  const templateName = template ? template : ""
   const navigate = useNavigate()
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: { organizationId, templateName },
