@@ -912,3 +912,12 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }
+
+func findUser(id uuid.UUID, users []database.User) *database.User {
+	for _, u := range users {
+		if u.ID == id {
+			return &u
+		}
+	}
+	return nil
+}
