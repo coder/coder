@@ -431,7 +431,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, { include_deleted: true })
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -470,7 +470,9 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name)
+          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name, {
+            include_deleted: true,
+          })
         } else {
           throw Error("Cannot refresh workspace without id")
         }

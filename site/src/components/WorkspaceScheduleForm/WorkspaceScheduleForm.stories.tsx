@@ -7,7 +7,7 @@ import utc from "dayjs/plugin/utc"
 import * as Mocks from "../../testHelpers/entities"
 import {
   WorkspaceScheduleForm,
-  WorkspaceScheduleFormInitialValues,
+  defaultWorkspaceSchedule,
   WorkspaceScheduleFormProps,
 } from "./WorkspaceScheduleForm"
 
@@ -26,7 +26,7 @@ export const WorkspaceNotRunning = Template.bind({})
 WorkspaceNotRunning.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...WorkspaceScheduleFormInitialValues,
+    ...defaultWorkspaceSchedule(5, "asdfasdf"),
     timezone: "UTC",
   },
   workspace: {
@@ -45,7 +45,7 @@ export const WorkspaceWillNotShutDown = Template.bind({})
 WorkspaceWillNotShutDown.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...WorkspaceScheduleFormInitialValues,
+    ...defaultWorkspaceSchedule(5, "asdfasdf"),
     timezone: "UTC",
     ttl: 0,
   },
@@ -64,7 +64,7 @@ export const WorkspaceWillShutdown = Template.bind({})
 WorkspaceWillShutdown.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...WorkspaceScheduleFormInitialValues,
+    ...defaultWorkspaceSchedule(5, "asdfasdf"),
     timezone: "UTC",
   },
   workspace: {
@@ -82,7 +82,7 @@ export const WorkspaceWillShutdownSoon = Template.bind({})
 WorkspaceWillShutdownSoon.args = {
   now: dayjs("2022-05-17T18:10:00Z"),
   initialValues: {
-    ...WorkspaceScheduleFormInitialValues,
+    ...defaultWorkspaceSchedule(5, "asdfasdf"),
     timezone: "UTC",
     ttl: 1,
   },
@@ -101,7 +101,7 @@ export const WorkspaceWillShutdownImmediately = Template.bind({})
 WorkspaceWillShutdownImmediately.args = {
   now: dayjs("2022-05-17T18:40:00Z"),
   initialValues: {
-    ...WorkspaceScheduleFormInitialValues,
+    ...defaultWorkspaceSchedule(5, "asdfasdf"),
     timezone: "UTC",
     ttl: 1,
   },
