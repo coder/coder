@@ -37,7 +37,7 @@ export const Language = {
   autoStopLabel: "Shutdown",
   autoStopDisplay: (workspace: Workspace): string => {
     const deadline = dayjs(workspace.latest_build.deadline).utc()
-    // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+    // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
     const hasDeadline = deadline.year() > 1
     const ttl = workspace.ttl_ms
