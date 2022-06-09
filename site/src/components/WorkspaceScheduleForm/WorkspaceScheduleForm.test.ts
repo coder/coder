@@ -161,20 +161,8 @@ describe("validationSchema", () => {
 
 describe("ttlShutdownAt", () => {
   it.each<[dayjs.Dayjs, Workspace, string, number, string]>([
-    [
-      dayjs("2022-05-17T18:09:00Z"),
-      Mocks.MockStoppedWorkspace,
-      "America/Chicago",
-      1,
-      Language.ttlHelperText,
-    ],
-    [
-      dayjs("2022-05-17T18:09:00Z"),
-      Mocks.MockWorkspace,
-      "America/Chicago",
-      0,
-     Language.ttlCausesNoShutdownHelperText, 
-    ],
+    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockStoppedWorkspace, "America/Chicago", 1, Language.ttlHelperText],
+    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockWorkspace, "America/Chicago", 0, Language.ttlCausesNoShutdownHelperText],
     [
       dayjs("2022-05-17T18:09:00Z"),
       Mocks.MockWorkspace,
