@@ -97,7 +97,9 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
         </div>
         <div>
           <span className={styles.scheduleLabel}>Shutdown</span>
-          <span className={styles.scheduleValue} data-chromatic="ignore">{Language.autoStopDisplay(workspace)}</span>
+          <span className={styles.scheduleValue} data-chromatic="ignore">
+            {Language.autoStopDisplay(workspace)}
+          </span>
         </div>
         <div>
           <Link
