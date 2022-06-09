@@ -473,7 +473,7 @@ export interface WorkspaceFilter {
 
 // From codersdk/workspaces.go:41:6
 export interface WorkspaceOptions {
-  readonly deleted?: boolean
+  readonly include_deleted?: boolean
 }
 
 // From codersdk/workspaceresources.go:21:6
