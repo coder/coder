@@ -13,7 +13,6 @@ import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import ReplyIcon from "@material-ui/icons/Reply"
 import SearchIcon from "@material-ui/icons/Search"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
@@ -33,7 +32,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle, PageHeaderText } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
@@ -134,12 +133,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
       <PageHeader
         actions={
           <PageHeaderText>
-            Create a new workspace from a <Link
-              component={RouterLink}
-              to="/templates"
-            >
+            Create a new workspace from a{" "}
+            <Link component={RouterLink} to="/templates">
               Template
-            </Link>.
+            </Link>
+            .
           </PageHeaderText>
         }
       >

@@ -9,7 +9,7 @@ import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
-import { useNavigate, Link as RouterLink } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -85,11 +85,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
           </Stack>
         </PageHeaderTitle>
         {props.templates && props.templates.length > 0 && (
-          <PageHeaderText>
-              Choose a template to create a new workspace.
-          </PageHeaderText>
+          <PageHeaderText>Choose a template to create a new workspace.</PageHeaderText>
         )}
-
       </PageHeader>
 
       <Table>
