@@ -22,10 +22,10 @@
           "sensitive_values": {}
         },
         {
-          "address": "null_resource.a",
+          "address": "null_resource.first",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
+          "name": "first",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -34,10 +34,10 @@
           "sensitive_values": {}
         },
         {
-          "address": "null_resource.b",
+          "address": "null_resource.second",
           "mode": "managed",
           "type": "null_resource",
-          "name": "b",
+          "name": "second",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -78,10 +78,10 @@
       }
     },
     {
-      "address": "null_resource.a",
+      "address": "null_resource.first",
       "mode": "managed",
       "type": "null_resource",
-      "name": "a",
+      "name": "first",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -99,10 +99,10 @@
       }
     },
     {
-      "address": "null_resource.b",
+      "address": "null_resource.second",
       "mode": "managed",
       "type": "null_resource",
-      "name": "b",
+      "name": "second",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -151,21 +151,21 @@
           "schema_version": 0
         },
         {
-          "address": "null_resource.a",
+          "address": "null_resource.first",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
+          "name": "first",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
-            "null_resource.b"
+            "coder_agent.dev"
           ]
         },
         {
-          "address": "null_resource.b",
+          "address": "null_resource.second",
           "mode": "managed",
           "type": "null_resource",
-          "name": "b",
+          "name": "second",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [

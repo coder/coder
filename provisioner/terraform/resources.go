@@ -11,6 +11,28 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+// A mapping of attributes on the "coder_agent" resource.
+type agentAttributes struct {
+	Auth            string            `mapstructure:"auth"`
+	OperatingSystem string            `mapstructure:"os"`
+	Architecture    string            `mapstructure:"arch"`
+	Directory       string            `mapstructure:"dir"`
+	ID              string            `mapstructure:"id"`
+	Token           string            `mapstructure:"token"`
+	Env             map[string]string `mapstructure:"env"`
+	StartupScript   string            `mapstructure:"startup_script"`
+}
+
+// A mapping of attributes on the "coder_app" resource.
+type agentAppAttributes struct {
+	AgentID      string `mapstructure:"agent_id"`
+	Name         string `mapstructure:"name"`
+	Icon         string `mapstructure:"icon"`
+	URL          string `mapstructure:"url"`
+	Command      string `mapstructure:"command"`
+	RelativePath bool   `mapstructure:"relative_path"`
+}
+
 // ConvertResources consumes Terraform state and a GraphViz representation produced by
 // `terraform graph` to produce resources consumable by Coder.
 func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, error) {
@@ -22,52 +44,36 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	if err != nil {
 		return nil, xerrors.Errorf("analyze graph: %w", err)
 	}
-	resourceDependencies := map[string][]string{}
-	for _, node := range graph.Nodes.Nodes {
-		label, exists := node.Attrs["label"]
-		if !exists {
-			continue
-		}
-		label = strings.Trim(label, `"`)
-		resourceDependencies[label] = findDependenciesWithLabels(graph, node.Name)
-	}
 
 	resources := make([]*proto.Resource, 0)
-	agents := map[string]*proto.Agent{}
+	resourceAgents := map[string][]*proto.Agent{}
 
-	tfResources := make([]*tfjson.StateResource, 0)
-	var appendResources func(mod *tfjson.StateModule)
-	appendResources = func(mod *tfjson.StateModule) {
+	// Indexes Terraform resources by it's label. The label
+	// is what "terraform graph" uses to reference nodes.
+	tfResourceByLabel := map[string]*tfjson.StateResource{}
+	var findTerraformResources func(mod *tfjson.StateModule)
+	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
-			appendResources(module)
+			findTerraformResources(module)
 		}
-		tfResources = append(tfResources, mod.Resources...)
+		for _, resource := range mod.Resources {
+			tfResourceByLabel[convertAddressToLabel(resource.Address)] = resource
+		}
 	}
-	appendResources(module)
+	findTerraformResources(module)
 
-	type agentAttributes struct {
-		Auth            string            `mapstructure:"auth"`
-		OperatingSystem string            `mapstructure:"os"`
-		Architecture    string            `mapstructure:"arch"`
-		Directory       string            `mapstructure:"dir"`
-		ID              string            `mapstructure:"id"`
-		Token           string            `mapstructure:"token"`
-		Env             map[string]string `mapstructure:"env"`
-		StartupScript   string            `mapstructure:"startup_script"`
-	}
-
-	// Store all agents inside the maps!
-	for _, resource := range tfResources {
-		if resource.Type != "coder_agent" {
+	// Find all agents!
+	for _, tfResource := range tfResourceByLabel {
+		if tfResource.Type != "coder_agent" {
 			continue
 		}
 		var attrs agentAttributes
-		err = mapstructure.Decode(resource.AttributeValues, &attrs)
+		err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
-			Name:            resource.Name,
+			Name:            tfResource.Name,
 			Id:              attrs.ID,
 			Env:             attrs.Env,
 			StartupScript:   attrs.StartupScript,
@@ -81,14 +87,56 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 				Token: attrs.Token,
 			}
 		default:
+			// If token authentication isn't specified,
+			// assume instance auth. It's our only other
+			// authentication type!
 			agent.Auth = &proto.Agent_InstanceId{}
 		}
 
-		agents[convertAddressToLabel(resource.Address)] = agent
+		// The label is used to find the graph node!
+		agentLabel := convertAddressToLabel(tfResource.Address)
+
+		var agentNode *gographviz.Node
+		for _, node := range graph.Nodes.Lookup {
+			// The node attributes surround the label with quotes.
+			if strings.Trim(node.Attrs["label"], `"`) != agentLabel {
+				continue
+			}
+			agentNode = node
+			break
+		}
+		if agentNode == nil {
+			return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+		}
+
+		var agentResource *graphResource
+		for _, resource := range findResourcesUpGraph(graph, tfResourceByLabel, agentNode.Name, 0) {
+			if agentResource == nil {
+				// Default to the first resource because we have nothing to compare!
+				agentResource = resource
+				continue
+			}
+			if resource.Depth < agentResource.Depth {
+				// There's a closer resource!
+				agentResource = resource
+				continue
+			}
+			if resource.Depth == agentResource.Depth && resource.Label < agentResource.Label {
+				agentResource = resource
+				continue
+			}
+		}
+
+		agents, exists := resourceAgents[agentResource.Label]
+		if !exists {
+			agents = make([]*proto.Agent, 0)
+		}
+		agents = append(agents, agent)
+		resourceAgents[agentResource.Label] = agents
 	}
 
 	// Manually associate agents with instance IDs.
-	for _, resource := range tfResources {
+	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_agent_instance" {
 			continue
 		}
@@ -109,31 +157,25 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			continue
 		}
 
-		for _, agent := range agents {
-			if agent.Id != agentID {
-				continue
+		for _, agents := range resourceAgents {
+			for _, agent := range agents {
+				if agent.Id != agentID {
+					continue
+				}
+				agent.Auth = &proto.Agent_InstanceId{
+					InstanceId: instanceID,
+				}
+				break
 			}
-			agent.Auth = &proto.Agent_InstanceId{
-				InstanceId: instanceID,
-			}
-			break
 		}
 	}
 
-	type appAttributes struct {
-		AgentID      string `mapstructure:"agent_id"`
-		Name         string `mapstructure:"name"`
-		Icon         string `mapstructure:"icon"`
-		URL          string `mapstructure:"url"`
-		Command      string `mapstructure:"command"`
-		RelativePath bool   `mapstructure:"relative_path"`
-	}
 	// Associate Apps with agents.
-	for _, resource := range tfResources {
+	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_app" {
 			continue
 		}
-		var attrs appAttributes
+		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
@@ -142,58 +184,34 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			// Default to the resource name if none is set!
 			attrs.Name = resource.Name
 		}
-		for _, agent := range agents {
-			if agent.Id != attrs.AgentID {
-				continue
+		for _, agents := range resourceAgents {
+			for _, agent := range agents {
+				// Find agents with the matching ID and associate them!
+				if agent.Id != attrs.AgentID {
+					continue
+				}
+				agent.Apps = append(agent.Apps, &proto.App{
+					Name:         attrs.Name,
+					Command:      attrs.Command,
+					Url:          attrs.URL,
+					Icon:         attrs.Icon,
+					RelativePath: attrs.RelativePath,
+				})
 			}
-			agent.Apps = append(agent.Apps, &proto.App{
-				Name:         attrs.Name,
-				Command:      attrs.Command,
-				Url:          attrs.URL,
-				Icon:         attrs.Icon,
-				RelativePath: attrs.RelativePath,
-			})
 		}
 	}
 
-	for _, resource := range tfResources {
+	for _, resource := range tfResourceByLabel {
 		if resource.Mode == tfjson.DataResourceMode {
 			continue
 		}
 		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" {
 			continue
 		}
-		agents := findAgents(resourceDependencies, agents, convertAddressToLabel(resource.Address))
-		for _, agent := range agents {
-			// Didn't use instance identity.
-			if agent.GetToken() != "" {
-				continue
-			}
 
-			// These resource types are for automatically associating an instance ID
-			// with an agent for authentication.
-			key, isValid := map[string]string{
-				"google_compute_instance":         "instance_id",
-				"aws_instance":                    "id",
-				"azurerm_linux_virtual_machine":   "id",
-				"azurerm_windows_virtual_machine": "id",
-			}[resource.Type]
-			if !isValid {
-				// The resource type doesn't support
-				// automatically setting the instance ID.
-				continue
-			}
-			instanceIDRaw, valid := resource.AttributeValues[key]
-			if !valid {
-				continue
-			}
-			instanceID, valid := instanceIDRaw.(string)
-			if !valid {
-				continue
-			}
-			agent.Auth = &proto.Agent_InstanceId{
-				InstanceId: instanceID,
-			}
+		agents, exists := resourceAgents[convertAddressToLabel(resource.Address)]
+		if exists {
+			applyAutomaticInstanceID(resource, agents)
 		}
 
 		resources = append(resources, &proto.Resource{
@@ -212,46 +230,83 @@ func convertAddressToLabel(address string) string {
 	return strings.Split(address, "[")[0]
 }
 
-// findAgents recursively searches through resource dependencies
-// to find associated agents. Nested is required for indirect
-// dependency matching.
-func findAgents(resourceDependencies map[string][]string, agents map[string]*proto.Agent, resourceLabel string) []*proto.Agent {
-	resourceNode, exists := resourceDependencies[resourceLabel]
-	if !exists {
-		return []*proto.Agent{}
-	}
-	// Associate resources that depend on an agent.
-	resourceAgents := make([]*proto.Agent, 0)
-	for _, dep := range resourceNode {
-		var has bool
-		agent, has := agents[dep]
-		if !has {
-			resourceAgents = append(resourceAgents, findAgents(resourceDependencies, agents, dep)...)
-			continue
-		}
-		// An agent must be deleted after being assigned so it isn't referenced twice.
-		delete(agents, dep)
-		resourceAgents = append(resourceAgents, agent)
-	}
-	return resourceAgents
+type graphResource struct {
+	Label string
+	Depth uint
 }
 
-// findDependenciesWithLabels recursively finds nodes with labels (resource and data nodes)
-// to build a dependency tree.
-func findDependenciesWithLabels(graph *gographviz.Graph, nodeName string) []string {
-	dependencies := make([]string, 0)
-	for destination := range graph.Edges.SrcToDsts[nodeName] {
-		dependencyNode, exists := graph.Nodes.Lookup[destination]
-		if !exists {
-			continue
-		}
-		label, exists := dependencyNode.Attrs["label"]
-		if !exists {
-			dependencies = append(dependencies, findDependenciesWithLabels(graph, dependencyNode.Name)...)
-			continue
-		}
-		label = strings.Trim(label, `"`)
-		dependencies = append(dependencies, label)
+// applyAutomaticInstanceID checks if the resource is one of a set of *magical* IDs
+// that automatically index their identifier for automatic authentication.
+func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Agent) {
+	// These resource types are for automatically associating an instance ID
+	// with an agent for authentication.
+	key, isValid := map[string]string{
+		"google_compute_instance":         "instance_id",
+		"aws_instance":                    "id",
+		"azurerm_linux_virtual_machine":   "id",
+		"azurerm_windows_virtual_machine": "id",
+	}[resource.Type]
+	if !isValid {
+		return
 	}
-	return dependencies
+
+	// The resource type doesn't support
+	// automatically setting the instance ID.
+	instanceIDRaw, isValid := resource.AttributeValues[key]
+	if !isValid {
+		return
+	}
+	instanceID, isValid := instanceIDRaw.(string)
+	if !isValid {
+		return
+	}
+	for _, agent := range agents {
+		// Didn't use instance identity.
+		if agent.GetToken() != "" {
+			continue
+		}
+		if agent.GetInstanceId() != "" {
+			// If an instance ID is manually specified, do not override!
+			continue
+		}
+
+		agent.Auth = &proto.Agent_InstanceId{
+			InstanceId: instanceID,
+		}
+	}
+}
+
+// findResourcesUpGraph traverses upwards in a graph until a resource is found,
+// then it stores the depth it was found at, and continues working up the tree.
+func findResourcesUpGraph(graph *gographviz.Graph, tfResourceByLabel map[string]*tfjson.StateResource, nodeName string, currentDepth uint) []*graphResource {
+	graphResources := make([]*graphResource, 0)
+	for destination := range graph.Edges.DstToSrcs[nodeName] {
+		destinationNode := graph.Nodes.Lookup[destination]
+		// Work our way up the tree!
+		graphResources = append(graphResources, findResourcesUpGraph(graph, tfResourceByLabel, destinationNode.Name, currentDepth+1)...)
+
+		destinationLabel, exists := destinationNode.Attrs["label"]
+		if !exists {
+			continue
+		}
+		destinationLabel = strings.Trim(destinationLabel, `"`)
+		resource, exists := tfResourceByLabel[destinationLabel]
+		if !exists {
+			continue
+		}
+		// Data sources cannot be associated with agents for now!
+		if resource.Mode != tfjson.ManagedResourceMode {
+			continue
+		}
+		// Don't associate Coder resources with other Coder resources!
+		if strings.HasPrefix(resource.Type, "coder_") {
+			continue
+		}
+		graphResources = append(graphResources, &graphResource{
+			Label: destinationLabel,
+			Depth: currentDepth,
+		})
+	}
+
+	return graphResources
 }
