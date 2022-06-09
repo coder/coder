@@ -43,7 +43,9 @@ const renderWorkspacePage = async () => {
 
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
-  const button = await screen.findByText(label)
+  // REMARK: exact here because the "Start" button and "START" label for
+  //         workspace schedule could otherwise conflict.
+  const button = await screen.findByText(label, { exact: true })
   await waitFor(() => fireEvent.click(button))
   expect(actionMock).toBeCalled()
 }
