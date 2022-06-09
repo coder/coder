@@ -125,11 +125,8 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignSelectedTemplate: assign({
         selectedTemplate: (ctx, event) => {
-          for (const template of event.data) {
-            if (template.name === ctx.templateName) {
-              return template
-            }
-          }
+          const templates = event.data.filter((template) => template.name === ctx.templateName)
+          return templates.length ? templates[0] : undefined
         },
       }),
       assignTemplateSchema: assign({
