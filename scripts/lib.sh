@@ -59,8 +59,32 @@ realpath() {
     )"/"$base"
 }
 
+# maybedryrun prints the given program and flags, and then, if the first
+# argument is 0, executes it. The reason the first argument should be 0 is that
+# it is expected that you have a dry_run variable in your script that is set to
+# 0 by default (i.e. do not dry run) and set to 1 if the --dry-run flag is
+# specified.
+#
+# Usage: maybedryrun 1 gh release create ...
+# Usage: maybedryrun 0 docker push ghcr.io/coder/coder:latest
+maybedryrun() {
+    if [[ "$1" == 1 ]]; then
+        shift
+        log "DRYRUN: $*"
+    else
+        shift
+        log $ "$@"
+        "$@"
+    fi
+}
+
+# log prints a message to stderr.
+log() {
+    echo "$*" 1>&2
+}
+
 # error prints an error message and returns an error exit code.
 error() {
-    echo "ERROR: $*" 1>&2
+    log "ERROR: $*"
     exit 1
 }

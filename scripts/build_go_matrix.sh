@@ -155,15 +155,15 @@ for spec in "${specs[@]}"; do
     # Ensure parent dir.
     mkdir -p "$(dirname "$spec_output")"
 
-    echo "--- Building coder for $spec_os $spec_arch ($spec_output_binary)"
+    log "--- Building coder for $spec_os $spec_arch ($spec_output_binary)"
     execrelative ./build_go.sh \
         --version "$version" \
         --os "$spec_os" \
         --arch "$spec_arch" \
         --output "$spec_output_binary" \
         "${build_args[@]}"
-    echo
-    echo
+    log
+    log
 
     if [[ "$archive" == 1 ]]; then
         spec_archive_format="tar.gz"
@@ -177,14 +177,14 @@ for spec in "${specs[@]}"; do
             archive_args+=(--sign-darwin)
         fi
 
-        echo "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
+        log "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
         execrelative ./archive.sh \
             --format "$spec_archive_format" \
             --output "$spec_output_archive" \
             "${archive_args[@]}" \
             "$spec_output_binary"
-        echo
-        echo
+        log
+        log
     fi
 
     if [[ "$package_linux" == 1 ]] && [[ "$spec_os" == "linux" ]]; then
@@ -192,6 +192,6 @@ for spec in "${specs[@]}"; do
             --arch "$spec_arch" \
             --version "$version" \
             "$spec_output_binary"
-        echo
+        log
     fi
 done

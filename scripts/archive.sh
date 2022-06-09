@@ -109,7 +109,7 @@ cdroot
 rm -rf "$temp_dir"
 
 if [[ "$sign_darwin" == 1 ]]; then
-    echo "Notarizing archive..."
+    log "Notarizing archive..."
     execrelative ./sign_darwin.sh "$output_path"
 fi
 

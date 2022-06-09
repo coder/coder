@@ -9,8 +9,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-# $current will equal $last_tag if we're currently checked out on the tag's
-# commit.
+# $current will equal $last_tag if we currently have the tag checked out.
 last_tag="$(git describe --tags --abbrev=0)"
 current="$(git describe --always)"
 

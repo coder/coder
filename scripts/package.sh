@@ -70,7 +70,7 @@ cd "$temp_dir"
 formats=(apk deb rpm)
 for format in "${formats[@]}"; do
     output_path="$input_file.$format"
-    echo "--- Building $format package ($output_path)"
+    log "--- Building $format package ($output_path)"
     nfpm package \
         -f nfpm.yaml \
         -p "$format" \
