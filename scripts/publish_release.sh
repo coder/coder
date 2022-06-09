@@ -110,7 +110,6 @@ log
 # GitHub CLI seems to follow symlinks when uploading files.
 echo "$release_notes" |
     maybedryrun "$dry_run" gh release create \
-        -R deansheather/x \
         --title "$new_tag" \
         --notes-file - \
         "$new_tag" \
