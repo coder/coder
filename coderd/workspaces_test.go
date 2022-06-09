@@ -624,7 +624,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			name:             "update ttl",
 			ttlMillis:        ptr.Ref(12 * time.Hour.Milliseconds()),
 			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(12 * time.Hour)),
+			expectedDeadline: ptr.Ref(time.Now().Add(12*time.Hour + time.Minute)),
 		},
 		{
 			name:          "below minimum ttl",
@@ -635,13 +635,13 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			name:             "minimum ttl",
 			ttlMillis:        ptr.Ref(time.Minute.Milliseconds()),
 			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(time.Minute)),
+			expectedDeadline: ptr.Ref(time.Now().Add(2 * time.Minute)),
 		},
 		{
 			name:             "maximum ttl",
 			ttlMillis:        ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
 			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(24 * 7 * time.Hour)),
+			expectedDeadline: ptr.Ref(time.Now().Add(24*7*time.Hour + time.Minute)),
 		},
 		{
 			name:          "above maximum ttl",
@@ -676,6 +676,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 					cwr.AutostartSchedule = nil
 					cwr.TTLMillis = nil
 				})
+				_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			)
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
