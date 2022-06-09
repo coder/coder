@@ -151,21 +151,23 @@ export const validationSchema = Yup.object({
     .max(24 * 7 /* 7 days */),
 })
 
+export const defaultWorkspaceSchedule = (ttl = 5, timezone = dayjs.tz.guess()): WorkspaceScheduleFormValues => ({
+  sunday: false,
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+
+  startTime: "09:30",
+  timezone,
+  ttl,
+})
+
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
-  initialValues = {
-    sunday: false,
-    monday: true,
-    tuesday: true,
-    wednesday: true,
-    thursday: true,
-    friday: true,
-    saturday: false,
-
-    startTime: "09:30",
-    timezone: "",
-    ttl: 5,
-  },
+  initialValues = defaultWorkspaceSchedule(),
   isLoading,
   onCancel,
   onSubmit,
