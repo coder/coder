@@ -39,7 +39,7 @@ type CreateWorkspaceBuildRequest struct {
 }
 
 type WorkspaceOptions struct {
-	IncludeDeleted bool `json:"deleted,omitempty"`
+	IncludeDeleted bool `json:"include_deleted,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
