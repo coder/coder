@@ -35,10 +35,8 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The `deleted` query parameter (which defaults to `false`) MUST match the
-	// `Deleted` field on the workspace otherwise you will get a 410 Gone.
 	var (
-		deletedStr  = r.URL.Query().Get("deleted")
+		deletedStr  = r.URL.Query().Get("include_deleted")
 		showDeleted = false
 	)
 	if deletedStr != "" {
@@ -46,7 +44,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		showDeleted, err = strconv.ParseBool(deletedStr)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Invalid boolean value %q for \"deleted\" query param.", deletedStr),
+				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", deletedStr),
 				Validations: []httpapi.Error{
 					{Field: "deleted", Detail: "Must be a valid boolean"},
 				},

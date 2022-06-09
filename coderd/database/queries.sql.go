@@ -3480,6 +3480,7 @@ WHERE
 	owner_id = $1
 	AND deleted = $2
 	AND LOWER("name") = LOWER($3)
+ORDER BY created_at DESC
 `
 
 type GetWorkspaceByOwnerIDAndNameParams struct {
