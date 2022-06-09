@@ -1,4 +1,7 @@
-import { Language, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import dayjs from "dayjs"
+import { Workspace } from "../../api/typesGenerated"
+import * as Mocks from "../../testHelpers/entities"
+import { Language, ttlShutdownAt, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
@@ -153,5 +156,35 @@ describe("validationSchema", () => {
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError("ttl must be less than or equal to 168")
+  })
+})
+
+describe("ttlShutdownAt", () => {
+  it.each<[dayjs.Dayjs, Workspace, string, number, string]>([
+    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockStoppedWorkspace, "America/Chicago", 1, Language.ttlHelperText],
+    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockWorkspace, "America/Chicago", 0, Language.ttlCausesNoShutdownHelperText],
+    [
+      dayjs("2022-05-17T18:09:00Z"),
+      Mocks.MockWorkspace,
+      "America/Chicago",
+      1,
+      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} 01:39 PM CDT.`,
+    ],
+    [
+      dayjs("2022-05-17T18:10:00Z"),
+      Mocks.MockWorkspace,
+      "America/Chicago",
+      1,
+      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`,
+    ],
+    [
+      dayjs("2022-05-17T18:40:00Z"),
+      Mocks.MockWorkspace,
+      "America/Chicago",
+      1,
+      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`,
+    ],
+  ])("ttlShutdownAt(%p, %p, %p, %p) returns %p", (now, workspace, timezone, ttlHours, expected) => {
+    expect(ttlShutdownAt(now, workspace, timezone, ttlHours)).toEqual(expected)
   })
 })

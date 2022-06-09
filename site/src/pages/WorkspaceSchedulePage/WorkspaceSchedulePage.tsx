@@ -161,6 +161,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
+        workspace={workspace}
         fieldErrors={formErrors}
         initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
