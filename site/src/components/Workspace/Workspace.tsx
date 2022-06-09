@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { getWorkspaceStatus, succeededToStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
@@ -46,7 +46,8 @@ export const Workspace: FC<WorkspaceProps> = ({
   builds,
 }) => {
   const styles = useStyles()
-  const isDeleted = getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
+  const navigate = useNavigate()
+
   return (
     <Margins>
       <PageHeader
@@ -74,7 +75,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             workspace={workspace}
           />
 
-          {isDeleted && <WorkspaceDeletedBanner />}
+          <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/workspaces/new`)} />
 
           <WorkspaceStats workspace={workspace} />
 
