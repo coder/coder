@@ -178,9 +178,7 @@ export const validationSchema = Yup.object({
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
-  initialValues = {
-    ...WorkspaceScheduleFormInitialValues,
-  },
+  initialValues = WorkspaceScheduleFormInitialValues,
   isLoading,
   now = dayjs(),
   onCancel,
@@ -265,7 +263,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(now!, workspace, form.values.timezone, form.values.ttl))}
+            {...formHelpers("ttl", ttlShutdownAt(now, workspace, form.values.timezone, form.values.ttl))}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
