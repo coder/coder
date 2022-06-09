@@ -82,7 +82,7 @@ cloud_final_modules:
 - [scripts-user, always]
 hostname: ${lower(data.coder_workspace.me.name)}
 users:
-- name: ${lower(data.coder_workspace.me.owner)}
+- name: ${local.linux_user}
   sudo: ALL=(ALL) NOPASSWD:ALL
   shell: /bin/bash
 
@@ -93,7 +93,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -u ${lower(data.coder_workspace.me.owner)} sh -c '${coder_agent.dev.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.dev.init_script}'
 --//--
 EOT
 
@@ -121,6 +121,10 @@ Content-Disposition: attachment; filename="userdata.txt"
 sudo shutdown -h now
 --//--
 EOT
+
+  # Ensure Coder username is a valid Linux username
+  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+
 }
 
 resource "aws_instance" "dev" {
