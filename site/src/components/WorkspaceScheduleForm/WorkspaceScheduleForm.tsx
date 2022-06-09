@@ -59,7 +59,7 @@ export interface WorkspaceScheduleFormProps {
   fieldErrors?: FieldErrors
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
-  now: dayjs.Dayjs
+  now?: dayjs.Dayjs
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
   workspace: Workspace
@@ -182,7 +182,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     ...WorkspaceScheduleFormInitialValues,
   },
   isLoading,
-  now: now,
+  now = dayjs(),
   onCancel,
   onSubmit,
   workspace,
@@ -265,7 +265,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(now, workspace, form.values.timezone, form.values.ttl))}
+            {...formHelpers("ttl", ttlShutdownAt(now!, workspace, form.values.timezone, form.values.ttl))}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
