@@ -28,12 +28,14 @@ import (
 const (
 	EndpointWireguard = "wg-tunnel-udp.coder.app"
 	EndpointHTTPS     = "wg-tunnel.coder.app"
+
+	ServerPublicKey = "+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="
+	ServerUUID      = "fcad0000-0000-4000-8000-000000000001"
 )
 
 type Tunnel struct {
-	URL       string
-	Listener  net.Listener
-	ErrorChan <-chan error
+	URL      string
+	Listener net.Listener
 }
 
 type Config struct {
@@ -48,10 +50,10 @@ type configExt struct {
 }
 
 // NewWithConfig calls New with the given config. For documentation, see New.
-func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel, error) {
+func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel, <-chan error, error) {
 	err := startUpdateRoutine(ctx, logger, cfg)
 	if err != nil {
-		return nil, xerrors.Errorf("start update routine: %w", err)
+		return nil, nil, xerrors.Errorf("start update routine: %w", err)
 	}
 
 	tun, tnet, err := netstack.CreateNetTUN(
@@ -60,12 +62,12 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 		1420,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("create net TUN: %w", err)
+		return nil, nil, xerrors.Errorf("create net TUN: %w", err)
 	}
 
 	wgip, err := net.ResolveIPAddr("ip", EndpointWireguard)
 	if err != nil {
-		return nil, xerrors.Errorf("resolve endpoint: %w", err)
+		return nil, nil, xerrors.Errorf("resolve endpoint: %w", err)
 	}
 
 	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
@@ -75,22 +77,22 @@ endpoint=%s:55555
 persistent_keepalive_interval=21
 allowed_ip=%s/128`,
 		hex.EncodeToString(cfg.PrivateKey[:]),
-		encodeBase64ToHex("+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="),
+		encodeBase64ToHex(ServerPublicKey),
 		wgip.IP.String(),
-		netip.AddrFrom16(uuid.MustParse("fcad0000-0000-4000-8000-000000000001")).String(),
+		netip.AddrFrom16(uuid.MustParse(ServerUUID)).String(),
 	))
 	if err != nil {
-		return nil, xerrors.Errorf("configure wireguard ipc: %w", err)
+		return nil, nil, xerrors.Errorf("configure wireguard ipc: %w", err)
 	}
 
 	err = dev.Up()
 	if err != nil {
-		return nil, xerrors.Errorf("wireguard device up: %w", err)
+		return nil, nil, xerrors.Errorf("wireguard device up: %w", err)
 	}
 
 	wgListen, err := tnet.ListenTCP(&net.TCPAddr{Port: 8090})
 	if err != nil {
-		return nil, xerrors.Errorf("wireguard device listen: %w", err)
+		return nil, nil, xerrors.Errorf("wireguard device listen: %w", err)
 	}
 
 	ch := make(chan error)
@@ -107,10 +109,9 @@ allowed_ip=%s/128`,
 	}()
 
 	return &Tunnel{
-		URL:       fmt.Sprintf("https://%s.%s", cfg.ID, EndpointHTTPS),
-		Listener:  wgListen,
-		ErrorChan: ch,
-	}, nil
+		URL:      fmt.Sprintf("https://%s.%s", cfg.ID, EndpointHTTPS),
+		Listener: wgListen,
+	}, ch, nil
 }
 
 // New creates a tunnel with a public URL and returns a listener for incoming
@@ -118,10 +119,10 @@ allowed_ip=%s/128`,
 // Tunnel configuration is cached in the user's config directory. Successive
 // calls to New will always use the same URL. If multiple public URLs in
 // parallel are required, use NewWithConfig.
-func New(ctx context.Context, logger slog.Logger) (*Tunnel, error) {
+func New(ctx context.Context, logger slog.Logger) (*Tunnel, <-chan error, error) {
 	cfg, err := readOrGenerateConfig()
 	if err != nil {
-		return nil, xerrors.Errorf("read or generate config: %w", err)
+		return nil, nil, xerrors.Errorf("read or generate config: %w", err)
 	}
 
 	return NewWithConfig(ctx, logger, cfg)
@@ -188,7 +189,7 @@ func readOrGenerateConfig() (Config, error) {
 	fi, err := os.ReadFile(cfgFi)
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg, err := GenConfig()
+			cfg, err := GenerateConfig()
 			if err != nil {
 				return Config{}, xerrors.Errorf("generate config: %w", err)
 			}
@@ -213,7 +214,7 @@ func readOrGenerateConfig() (Config, error) {
 	return cfg, nil
 }
 
-func GenConfig() (Config, error) {
+func GenerateConfig() (Config, error) {
 	priv, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
 		return Config{}, xerrors.Errorf("generate private key: %w", err)

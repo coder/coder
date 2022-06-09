@@ -25,8 +25,8 @@ func TestTunnel(t *testing.T) {
 		return
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
+	ctx, cancelTun := context.WithCancel(context.Background())
+	defer cancelTun()
 
 	server := http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,10 +37,10 @@ func TestTunnel(t *testing.T) {
 		},
 	}
 
-	cfg, err := devtunnel.GenConfig()
+	cfg, err := devtunnel.GenerateConfig()
 	require.NoError(t, err)
 
-	tun, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil), cfg)
+	tun, errCh, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil), cfg)
 	require.NoError(t, err)
 	t.Log(tun.URL)
 
@@ -56,4 +56,11 @@ func TestTunnel(t *testing.T) {
 		defer res.Body.Close()
 		return res.StatusCode == http.StatusOK
 	}, time.Minute, time.Second)
+
+	cancelTun()
+	select {
+	case <-errCh:
+	case <-time.After(10 * time.Second):
+		t.Error("tunnel did not close after 10 seconds")
+	}
 }
