@@ -10,8 +10,8 @@ import { Language } from "./CreateWorkspacePageView"
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
-    route: "/workspaces/new?template=" + MockTemplate.name,
-    path: "/workspaces/new",
+    route: "/templates/" + MockTemplate.name + "/workspace",
+    path: "/templates/:template/workspace",
   })
 }
 
@@ -27,13 +27,6 @@ describe("CreateWorkspacePage", () => {
     renderCreateWorkspacePage()
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
-  })
-
-  it("shows validation error message", async () => {
-    renderCreateWorkspacePage()
-    await fillForm({ name: "$$$" })
-    const errorMessage = await screen.findByText(FormLanguage.nameInvalidChars(Language.nameLabel))
-    expect(errorMessage).toBeDefined()
   })
 
   it("succeeds", async () => {
