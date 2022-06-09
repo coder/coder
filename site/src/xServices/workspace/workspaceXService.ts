@@ -189,7 +189,7 @@ export const workspaceMachine = createMachine(
               requestingDelete: {
                 entry: "clearBuildError",
                 invoke: {
-                  id: "deleteWorkspace", // delete the workspace
+                  id: "deleteWorkspace",
                   src: "deleteWorkspace",
                   onDone: {
                     target: "gettingDeletedWorkspace",
@@ -204,14 +204,14 @@ export const workspaceMachine = createMachine(
               gettingDeletedWorkspace: {
                 entry: ["clearGetWorkspaceError", "clearContext"],
                 invoke: {
-                  id: "getDeletedWorkspace", // request deleted workspace
+                  id: "getDeletedWorkspace",
                   src: "getDeletedWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
-                    target: "idle", // error
+                    target: "idle",
                     actions: ["assignBuildError", "displayBuildError"],
                   },
                 },
@@ -452,7 +452,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, { include_deleted: true })
       },
       getDeletedWorkspace: async (context) => {
         if (context.workspace) {
@@ -498,7 +498,9 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name)
+          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name, {
+            include_deleted: true,
+          })
         } else {
           throw Error("Cannot refresh workspace without id")
         }
