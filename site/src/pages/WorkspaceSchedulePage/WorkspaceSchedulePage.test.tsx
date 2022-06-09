@@ -170,7 +170,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "09:30",
           timezone: "",
-          ttl: 5,
+          ttl: 8,
         },
       ],
 

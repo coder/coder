@@ -10,6 +10,7 @@ import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import {
   defaultWorkspaceSchedule,
+  defaultWorkspaceScheduleTTL,
   WorkspaceScheduleForm,
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
@@ -98,7 +99,7 @@ export const workspaceToInitialValues = (
   defaultTimeZone = "",
 ): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : 5
+  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : defaultWorkspaceScheduleTTL
 
   if (!schedule) {
     return defaultWorkspaceSchedule(ttlHours, defaultTimeZone)
