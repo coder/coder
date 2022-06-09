@@ -21,7 +21,12 @@ export const WorkspacePage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const me = useSelector(xServices.authXService, selectUser)
 
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine.withContext({ userId: me?.id }))
+  const [workspaceState, workspaceSend] = useMachine(
+    workspaceMachine.withContext({
+      ...workspaceMachine.initialState.context,
+      userId: me?.id,
+    }),
+  )
   const { workspace, resources, getWorkspaceError, getResourcesError, builds, permissions } = workspaceState.context
 
   const canUpdateWorkspace = !!permissions?.updateWorkspace

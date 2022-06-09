@@ -28,14 +28,14 @@ export interface WorkspaceContext {
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   // these are separate from getX errors because they don't make the page unusable
-  refreshWorkspaceError?: Error | unknown
-  refreshTemplateError?: Error | unknown
-  getResourcesError?: Error | unknown
+  refreshWorkspaceError: Error | unknown
+  refreshTemplateError: Error | unknown
+  getResourcesError: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
-  cancellationMessage?: string
+  cancellationMessage: string
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
@@ -411,7 +411,7 @@ export const workspaceMachine = createMachine(
           cancellationMessage: undefined,
         }),
       displayCancellationError: (context) => {
-        displayError(context.cancellationMessage || "Cancellation failed")
+        displayError(context.cancellationMessage)
       },
       assignRefreshWorkspaceError: (_, event) =>
         assign({
