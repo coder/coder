@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -82,12 +84,29 @@ func autostartEnable() *cobra.Command {
 	var autostartDayOfWeek string
 	var autostartTimezone string
 	cmd := &cobra.Command{
-		Use:  "enable <workspace_name> <schedule>",
-		Args: cobra.ExactArgs(1),
+		Use:     "enable <workspace_name> <schedule>",
+		Example: "coder autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Local",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
+			}
+
+			// If the user selects "local" timezone, we need to convert this into
+			// UTC for the api.
+			if strings.EqualFold(autostartTimezone, "local") {
+				// Grab current year/month/day to account for daylight savings
+				// windows.
+				now := time.Now()
+				// Create the local date for the hour + minute.
+				local := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), 0, 0, time.Local)
+				// Convert to UTC time
+				inUTC := local.In(time.UTC)
+				// Convert the user's input to UTC values.
+				autostartMinute = strconv.Itoa(inUTC.Minute())
+				autostartHour = strconv.Itoa(inUTC.Hour())
+				autostartTimezone = "UTC"
 			}
 
 			spec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", autostartTimezone, autostartMinute, autostartHour, autostartDayOfWeek)
@@ -119,7 +138,7 @@ func autostartEnable() *cobra.Command {
 	cmd.Flags().StringVar(&autostartDayOfWeek, "days", "1-5", "autostart day(s) of week")
 	tzEnv := os.Getenv("TZ")
 	if tzEnv == "" {
-		tzEnv = "UTC"
+		tzEnv = "Local"
 	}
 	cmd.Flags().StringVar(&autostartTimezone, "tz", tzEnv, "autostart timezone")
 	return cmd
