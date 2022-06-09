@@ -6,13 +6,20 @@ tags: [cloud, aws]
 
 # aws-linux
 
-## Getting started
+To get started, run `coder templates init`. When prompted, select this template.
+Follow the on-screen instructions to proceed.
 
-Pick this template in `coder templates init` and follow instructions.
+## Authentication
+
+This template assumes that coderd is run in an environment that is authenticated
+with AWS. For example, run `aws configure import` to import credentials on the
+system and user running coderd.  For other ways to authenticate [consult the
+Terraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).
 
 ## Required permissions / policy
 
-This example policy allows Coder to create EC2 instances and modify instances provisioned by Coder.
+The following sample policy allows Coder to create EC2 instances and modify
+instances provisioned by Coder:
 
 ```json
 {
@@ -61,4 +68,3 @@ This example policy allows Coder to create EC2 instances and modify instances pr
     ]
 }
 ```
-

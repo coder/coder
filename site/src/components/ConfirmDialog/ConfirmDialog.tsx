@@ -19,6 +19,10 @@ const CONFIRM_DIALOG_DEFAULTS: Record<ConfirmDialogType, ConfirmDialogTypeConfig
     confirmText: "OK",
     hideCancel: true,
   },
+  success: {
+    confirmText: "OK",
+    hideCancel: true,
+  },
 }
 
 export interface ConfirmDialogProps extends Omit<DialogActionButtonsProps, "color" | "confirmDialog" | "onCancel"> {
@@ -41,40 +45,32 @@ export interface ConfirmDialogProps extends Omit<DialogActionButtonsProps, "colo
   readonly title: string
 }
 
-interface StyleProps {
-  type: ConfirmDialogType
-}
-
 const useStyles = makeStyles((theme) => ({
-  dialogWrapper: (props: StyleProps) => ({
+  dialogWrapper: {
     "& .MuiPaper-root": {
-      background: props.type === "info" ? theme.palette.primary.main : theme.palette.background.paper,
+      background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
     },
     "& .MuiDialogActions-spacing": {
       padding: `0 ${theme.spacing(3.75)}px ${theme.spacing(3.75)}px`,
     },
-  }),
-  dialogContent: (props: StyleProps) => ({
-    color: props.type === "info" ? theme.palette.primary.contrastText : theme.palette.text.secondary,
+  },
+  dialogContent: {
+    color: theme.palette.text.secondary,
     padding: theme.spacing(6),
     textAlign: "center",
-  }),
+  },
   titleText: {
     marginBottom: theme.spacing(3),
   },
-  description: (props: StyleProps) => ({
-    color:
-      props.type === "info" ? fade(theme.palette.primary.contrastText, 0.75) : fade(theme.palette.text.secondary, 0.75),
+  description: {
+    color: fade(theme.palette.text.secondary, 0.75),
     lineHeight: "160%",
 
     "& strong": {
-      color:
-        props.type === "info"
-          ? fade(theme.palette.primary.contrastText, 0.95)
-          : fade(theme.palette.text.secondary, 0.95),
+      color: fade(theme.palette.text.secondary, 0.95),
     },
-  }),
+  },
 }))
 
 /**
@@ -109,7 +105,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </Typography>
 
         {description && (
-          <Typography className={styles.description} variant="body2">
+          <Typography
+            component={typeof description === "string" ? "p" : "div"}
+            className={styles.description}
+            variant="body2"
+          >
             {description}
           </Typography>
         )}

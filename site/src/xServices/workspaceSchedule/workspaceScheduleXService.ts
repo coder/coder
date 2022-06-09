@@ -26,7 +26,7 @@ export interface WorkspaceScheduleContext {
 }
 
 export type WorkspaceScheduleEvent =
-  | { type: "GET_WORKSPACE"; workspaceId: string }
+  | { type: "GET_WORKSPACE"; username: string; workspaceName: string }
   | {
       type: "SUBMIT_SCHEDULE"
       autoStart: TypesGen.UpdateWorkspaceAutostartRequest
@@ -132,7 +132,7 @@ export const workspaceSchedule = createMachine(
 
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspace(event.workspaceId)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
       },
       submitSchedule: async (context, event) => {
         if (!context.workspace?.id) {

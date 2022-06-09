@@ -37,7 +37,7 @@ export interface WorkspaceContext {
 }
 
 export type WorkspaceEvent =
-  | { type: "GET_WORKSPACE"; workspaceId: string }
+  | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
   | { type: "START" }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
@@ -431,7 +431,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspace(event.workspaceId)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, { include_deleted: true })
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -470,7 +470,9 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.getWorkspace(context.workspace.id)
+          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name, {
+            include_deleted: true,
+          })
         } else {
           throw Error("Cannot refresh workspace without id")
         }

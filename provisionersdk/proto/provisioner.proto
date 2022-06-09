@@ -80,10 +80,20 @@ message Agent {
     string operating_system = 5;
     string architecture = 6;
     string directory = 7;
+    repeated App apps = 8;
     oneof auth {
-        string token = 8;
-        string instance_id = 9;
+        string token = 9;
+        string instance_id = 10;
     }
+}
+
+// App represents a dev-accessible application on the workspace.
+message App {
+    string name = 1;
+    string command = 2;
+    string url = 3;
+    string icon = 4;
+    bool relative_path = 5;
 }
 
 // Resource represents created infrastructure.

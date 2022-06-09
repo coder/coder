@@ -33,15 +33,18 @@ func TestWorkspaceBuilds(t *testing.T) {
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		first := coderdtest.CreateFirstUser(t, client)
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
 		builds, err := client.WorkspaceBuilds(context.Background(),
 			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
 		require.Len(t, builds, 1)
 		require.Equal(t, int32(1), builds[0].BuildNumber)
+		require.Equal(t, user.Username, builds[0].InitiatorUsername)
 		require.NoError(t, err)
 	})
 

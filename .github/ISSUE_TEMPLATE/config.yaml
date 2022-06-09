@@ -1,5 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Question?
-    url: https://github.com/coder/coder/discussions/new?category=q-a
-    about: Ask for help on our GitHub Discussions board

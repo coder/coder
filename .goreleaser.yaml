@@ -94,8 +94,9 @@ nfpms:
       - src: coder.service
         dst: /usr/lib/systemd/system/coder.service
 
+# Image templates are empty on snapshots to avoid lengthy builds for development.
 dockers:
-  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-amd64"]
+  - image_templates: ["{{ if not .IsSnapshot }}ghcr.io/coder/coder:{{ .Tag }}-amd64{{ end }}"]
     id: coder-linux
     dockerfile: Dockerfile
     use: buildx
@@ -108,7 +109,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
       - --label=org.opencontainers.image.licenses=AGPL-3.0
-  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-arm64"]
+  - image_templates: ["{{ if not .IsSnapshot }}ghcr.io/coder/coder:{{ .Tag }}-arm64{{ end }}"]
     goarch: arm64
     dockerfile: Dockerfile
     use: buildx
@@ -121,7 +122,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Tag }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
       - --label=org.opencontainers.image.licenses=AGPL-3.0
-  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-armv7"]
+  - image_templates: ["{{ if not .IsSnapshot }}ghcr.io/coder/coder:{{ .Tag }}-armv7{{ end }}"]
     goarch: arm
     goarm: "7"
     dockerfile: Dockerfile

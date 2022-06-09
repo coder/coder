@@ -46,13 +46,14 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			organization, err := db.GetOrganizationByID(r.Context(), orgID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("organization %q does not exist", orgID),
+					Message: fmt.Sprintf("Organization %q does not exist.", orgID),
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get organization: %s", err.Error()),
+					Message: "Internal error fetching organization.",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -76,13 +77,14 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			})
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
-					Message: "not a member of the organization",
+					Message: "Not a member of the organization.",
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get organization member: %s", err.Error()),
+					Message: "Internal error fetching organization member.",
+					Detail:  err.Error(),
 				})
 				return
 			}

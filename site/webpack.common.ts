@@ -38,7 +38,7 @@ const dashboardHTMLPluginConfig = new HtmlWebpackPlugin({
   template: path.join(templatePath, "index.html"),
 })
 
-export const commonWebpackConfig: Configuration = {
+export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }): Configuration => ({
   // entry defines each "page" or "chunk". In v1, we have two "pages":
   // dashboard and terminal. This is desired because the terminal has the xterm
   // vendor, and it is undesireable to load all of xterm on a dashboard
@@ -78,6 +78,7 @@ export const commonWebpackConfig: Configuration = {
             loader: "ts-loader",
             options: {
               configFile: "tsconfig.prod.json",
+              transpileOnly: options?.skipTypecheck,
             },
           },
         ],
@@ -106,4 +107,4 @@ export const commonWebpackConfig: Configuration = {
 
   // plugins customize the build process
   plugins: [environmentPlugin, dashboardHTMLPluginConfig],
-}
+})

@@ -61,6 +61,15 @@ type CreateTemplateRequest struct {
 	// templates, but it doesn't make sense for users.
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+
+	// MaxTTLMillis allows optionally specifying the maximum allowable TTL
+	// for all workspaces created from this template.
+	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
+
+	// MinAutostartIntervalMillis allows optionally specifying the minimum
+	// allowable duration between autostarts for all workspaces created from
+	// this template.
+	MinAutostartIntervalMillis *int64 `json:"min_autostart_interval_ms,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -194,54 +203,6 @@ func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
-}
-
-// WorkspacesByOrganization returns all workspaces in the specified organization.
-func (c *Client) WorkspacesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-// WorkspacesByOwner returns all workspaces contained in the organization owned by the user.
-func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID uuid.UUID, user string) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, user), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-// WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization uuid.UUID, owner string, name string) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, owner, name), nil)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
 		return Workspace{}, readBodyAsError(res)
 	}
 

@@ -1,7 +1,10 @@
 package cli_test
 
 import (
+	"bytes"
 	"testing"
+
+	"github.com/coder/coder/buildinfo"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,5 +21,19 @@ func TestRoot(t *testing.T) {
 		cmd, err := cmd.ExecuteC()
 		errStr := cli.FormatCobraError(err, cmd)
 		require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
+	})
+
+	t.Run("Version", func(t *testing.T) {
+		t.Parallel()
+
+		buf := new(bytes.Buffer)
+		cmd, _ := clitest.New(t, "version")
+		cmd.SetOut(buf)
+		err := cmd.Execute()
+		require.NoError(t, err)
+
+		output := buf.String()
+		require.Contains(t, output, buildinfo.Version(), "has version")
+		require.Contains(t, output, buildinfo.ExternalURL(), "has url")
 	})
 }

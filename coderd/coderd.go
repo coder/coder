@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
@@ -44,6 +45,7 @@ type Options struct {
 	// app. Specific routes may have their own limiters.
 	APIRateLimit         int
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
@@ -51,7 +53,6 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
-	Authorizer           rbac.Authorizer
 	TracerProvider       *sdktrace.TracerProvider
 }
 
@@ -75,9 +76,11 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
-		Options: options,
-		Handler: r,
+		Options:     options,
+		Handler:     r,
+		siteHandler: site.Handler(site.FS()),
 	}
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -93,6 +96,20 @@ func New(options *Options) *API {
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
+	apps := func(r chi.Router) {
+		r.Use(
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			apiKeyMiddleware,
+			httpmw.ExtractUserParam(api.Database),
+		)
+		r.Get("/*", api.workspaceAppsProxyPath)
+	}
+	// %40 is the encoded character of the @ symbol. VS Code Web does
+	// not handle character encoding properly, so it's safe to assume
+	// other applications might not as well.
+	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
+
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
@@ -106,6 +123,7 @@ func New(options *Options) *API {
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
+				//nolint:gocritic
 				Message: "👋",
 			})
 		})
@@ -152,15 +170,7 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Route("/workspaces", func(r chi.Router) {
-					r.Post("/", api.postWorkspacesByOrganization)
-					r.Get("/", api.workspacesByOrganization)
-					r.Route("/{user}", func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
-						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
-						r.Get("/", api.workspacesByOwner)
-					})
-				})
+				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -189,6 +199,7 @@ func New(options *Options) *API {
 
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
+			r.Patch("/", api.patchTemplateMeta)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)
@@ -259,6 +270,7 @@ func New(options *Options) *API {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
+					r.Get("/workspace/{workspacename}", api.workspaceByOwnerAndName)
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
@@ -334,24 +346,27 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
-	r.NotFound(site.DefaultHandler().ServeHTTP)
-
+	r.NotFound(api.siteHandler.ServeHTTP)
 	return api
 }
 
 type API struct {
 	*Options
 
-	Handler            chi.Router
-	websocketWaitMutex sync.Mutex
-	websocketWaitGroup sync.WaitGroup
+	Handler             chi.Router
+	siteHandler         http.Handler
+	websocketWaitMutex  sync.Mutex
+	websocketWaitGroup  sync.WaitGroup
+	workspaceAgentCache *wsconncache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
-func (api *API) Close() {
+func (api *API) Close() error {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Wait()
 	api.websocketWaitMutex.Unlock()
+
+	return api.workspaceAgentCache.Close()
 }
 
 func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {

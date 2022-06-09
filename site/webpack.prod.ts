@@ -6,7 +6,13 @@ import CopyWebpackPlugin from "copy-webpack-plugin"
 import CSSMinimizerPlugin from "css-minimizer-webpack-plugin"
 import MiniCSSExtractPlugin from "mini-css-extract-plugin"
 import { Configuration } from "webpack"
-import { commonWebpackConfig } from "./webpack.common"
+import { createCommonWebpackConfig } from "./webpack.common"
+
+const commonWebpackConfig = createCommonWebpackConfig({
+  // This decreases compilation time when publishing releases.
+  // The "test/js" step will already catch any TypeScript compilation errors.
+  skipTypecheck: true,
+})
 
 const commonPlugins = commonWebpackConfig.plugins || []
 

@@ -113,7 +113,7 @@ type Object struct {
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
 
-	// Type is "workspace", "project", "devurl", etc
+	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 	// TODO: SharedUsers?
 }

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpmw"
@@ -60,7 +61,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "'resource_type' must be defined",
+				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
 			})
 			return
 		}

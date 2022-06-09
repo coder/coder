@@ -6,19 +6,22 @@ tags: [local, docker]
 
 # docker
 
-## Getting started
-
-Run `coder templates init` and select this template. Follow the instructions that appear. 
+To get started, run `coder templates init`. When prompted, select this template.
+Follow the on-screen instructions to proceed.
 
 ## Adding/removing images
 
-After building and pushing an image to an image registry (e.g., DockerHub), you can edit the template to make the image available to users. 
-
-Edit the template:
+After building and pushing an image to an image registry (e.g., DockerHub), edit
+the template to make the image available to users:
 
 ```sh
+# Open the template
 vim main.tf
 ```
+
+Modify your file to match the following:
+
+```hcl
 variable "docker_image" {
   description = "What Docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"
@@ -77,4 +80,3 @@ add the following features to your Coder template:
 - More
 
 We also welcome contributions!
-

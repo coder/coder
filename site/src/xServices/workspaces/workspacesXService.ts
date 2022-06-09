@@ -1,13 +1,15 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
+import { workspaceQueryToFilter } from "../../util/workspace"
 
 interface WorkspaceContext {
   workspaces?: TypesGen.Workspace[]
+  filter?: string
   getWorkspacesError?: Error | unknown
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string }
+type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "SET_FILTER"; query: string }
 
 export const workspacesMachine = createMachine(
   {
@@ -22,26 +24,35 @@ export const workspacesMachine = createMachine(
       },
     },
     id: "workspaceState",
-    initial: "gettingWorkspaces",
+    initial: "ready",
     states: {
+      ready: {
+        on: {
+          SET_FILTER: "extractingFilter",
+        },
+      },
+      extractingFilter: {
+        entry: "assignFilter",
+        always: {
+          target: "gettingWorkspaces",
+        },
+      },
       gettingWorkspaces: {
         entry: "clearGetWorkspacesError",
         invoke: {
           src: "getWorkspaces",
           id: "getWorkspaces",
           onDone: {
-            target: "done",
+            target: "ready",
             actions: ["assignWorkspaces", "clearGetWorkspacesError"],
           },
           onError: {
-            target: "error",
-            actions: "assignGetWorkspacesError",
+            target: "ready",
+            actions: ["assignGetWorkspacesError", "clearWorkspaces"],
           },
         },
         tags: "loading",
       },
-      done: {},
-      error: {},
     },
   },
   {
@@ -49,13 +60,17 @@ export const workspacesMachine = createMachine(
       assignWorkspaces: assign({
         workspaces: (_, event) => event.data,
       }),
+      assignFilter: assign({
+        filter: (_, event) => event.query,
+      }),
       assignGetWorkspacesError: assign({
         getWorkspacesError: (_, event) => event.data,
       }),
       clearGetWorkspacesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
+      clearWorkspaces: (context) => assign({ ...context, workspaces: undefined }),
     },
     services: {
-      getWorkspaces: () => API.getWorkspaces(),
+      getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
     },
   },
 )

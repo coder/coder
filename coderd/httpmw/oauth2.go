@@ -63,7 +63,8 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 				state, err := cryptorand.String(32)
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: fmt.Sprintf("generate state string: %s", err),
+						Message: "Internal error generating state string.",
+						Detail:  err.Error(),
 					})
 					return
 				}
@@ -91,7 +92,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 
 			if state == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "state must be provided",
+					Message: "State must be provided.",
 				})
 				return
 			}
@@ -99,13 +100,13 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 			stateCookie, err := r.Cookie(oauth2StateCookieName)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("%q cookie must be provided", oauth2StateCookieName),
+					Message: fmt.Sprintf("Cookie %q must be provided.", oauth2StateCookieName),
 				})
 				return
 			}
 			if stateCookie.Value != state {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: "state mismatched",
+					Message: "State mismatched.",
 				})
 				return
 			}
@@ -119,7 +120,8 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 			oauthToken, err := config.Exchange(r.Context(), code)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("exchange oauth code: %s", err),
+					Message: "Internal error exchanging Oauth code.",
+					Detail:  err.Error(),
 				})
 				return
 			}

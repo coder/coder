@@ -41,12 +41,8 @@ func autostartShow() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}
@@ -59,7 +55,7 @@ func autostartShow() *cobra.Command {
 			validSchedule, err := schedule.Weekly(*workspace.AutostartSchedule)
 			if err != nil {
 				// This should never happen.
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())
 				return nil
 			}
 
@@ -93,10 +89,6 @@ func autostartEnable() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
 
 			spec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", autostartTimezone, autostartMinute, autostartHour, autostartDayOfWeek)
 			validSchedule, err := schedule.Weekly(spec)
@@ -104,7 +96,7 @@ func autostartEnable() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}
@@ -142,12 +134,8 @@ func autostartDisable() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
 
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return err
 			}

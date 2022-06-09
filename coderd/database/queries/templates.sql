@@ -47,10 +47,12 @@ INSERT INTO
 		"name",
 		provisioner,
 		active_version_id,
-		description
+		description,
+		max_ttl,
+		min_autostart_interval
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -67,3 +69,16 @@ SET
 	deleted = $2
 WHERE
 	id = $1;
+
+-- name: UpdateTemplateMetaByID :exec
+UPDATE
+	templates
+SET
+	updated_at = $2,
+	description = $3,
+	max_ttl = $4,
+	min_autostart_interval = $5
+WHERE
+	id = $1
+RETURNING
+	*;
