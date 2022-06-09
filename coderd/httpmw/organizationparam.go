@@ -76,7 +76,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				UserID:         user.ID,
 			})
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: "Not a member of the organization.",
 				})
 				return
