@@ -199,6 +199,7 @@ func New(options *Options) *API {
 
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
+			r.Patch("/", api.patchTemplateMeta)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)
