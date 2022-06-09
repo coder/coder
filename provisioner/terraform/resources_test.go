@@ -11,6 +11,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -72,6 +73,21 @@ func TestConvertResources(t *testing.T) {
 				OperatingSystem: "windows",
 				Architecture:    "arm64",
 				Auth:            &proto.Agent_Token{},
+			}},
+		}},
+		"multiple-apps": {{
+			Name: "dev",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "dev1",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Apps: []*proto.App{{
+					Name: "app1",
+				}, {
+					Name: "app2",
+				}},
+				Auth: &proto.Agent_Token{},
 			}},
 		}},
 	} {
@@ -137,6 +153,72 @@ func TestConvertResources(t *testing.T) {
 
 				require.Equal(t, string(resourcesWant), string(resourcesGot))
 			})
+		})
+	}
+}
+
+func TestInstanceIDAssociation(t *testing.T) {
+	t.Parallel()
+	type tc struct {
+		Auth          string
+		ResourceType  string
+		InstanceIDKey string
+	}
+	for _, tc := range []tc{{
+		Auth:          "google-instance-identity",
+		ResourceType:  "google_compute_instance",
+		InstanceIDKey: "instance_id",
+	}, {
+		Auth:          "aws-instance-identity",
+		ResourceType:  "aws_instance",
+		InstanceIDKey: "id",
+	}, {
+		Auth:          "azure-instance-identity",
+		ResourceType:  "azurerm_linux_virtual_machine",
+		InstanceIDKey: "id",
+	}, {
+		Auth:          "azure-instance-identity",
+		ResourceType:  "azurerm_windows_virtual_machine",
+		InstanceIDKey: "id",
+	}} {
+		tc := tc
+		t.Run(tc.ResourceType, func(t *testing.T) {
+			t.Parallel()
+			instanceID, err := cryptorand.String(12)
+			require.NoError(t, err)
+			resources, err := terraform.ConvertResources(&tfjson.StateModule{
+				Resources: []*tfjson.StateResource{{
+					Address: "coder_agent.dev",
+					Type:    "coder_agent",
+					Name:    "dev",
+					AttributeValues: map[string]interface{}{
+						"arch": "amd64",
+						"auth": tc.Auth,
+					},
+				}, {
+					Address:   tc.ResourceType + ".dev",
+					Type:      tc.ResourceType,
+					Name:      "dev",
+					DependsOn: []string{"coder_agent.dev"},
+					AttributeValues: map[string]interface{}{
+						tc.InstanceIDKey: instanceID,
+					},
+				}},
+				// This is manually created to join the edges.
+			}, `digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.dev" [label = "coder_agent.dev", shape = "box"]
+		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
+		"[root] `+tc.ResourceType+`.dev" -> "[root] coder_agent.dev"
+	}
+}
+`)
+			require.NoError(t, err)
+			require.Len(t, resources, 1)
+			require.Len(t, resources[0].Agents, 1)
+			require.Equal(t, resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
 }
