@@ -49,7 +49,7 @@ func create() *cobra.Command {
 				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName)
+						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceByOwnerAndNameParams{})
 						if err == nil {
 							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 						}
@@ -61,7 +61,7 @@ func create() *cobra.Command {
 				}
 			}
 
-			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName)
+			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceByOwnerAndNameParams{})
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -242,19 +242,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspaceName,
-			})
-			if err != nil {
-				return err
-			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
 			return nil
 		},
 	}
