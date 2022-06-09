@@ -302,6 +302,37 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		workspaceNew, err := client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We recreate the workspace with the same name
+		workspace, err = client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID:        workspace.TemplateID,
+			Name:              workspace.Name,
+			AutostartSchedule: workspace.AutostartSchedule,
+			TTLMillis:         workspace.TTLMillis,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Then:
+		// We can fetch the most recent workspace
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We delete the workspace again
+		build, err = client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Then:
+		// When we fetch the deleted workspace, we get the most recently deleted one
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
 }
 
