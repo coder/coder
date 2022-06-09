@@ -91,12 +91,24 @@ resource "coder_app" "code-server" {
   relative_path = true
 }
 
+# Generate a dummy ssh key that is not accessible so Hetzner cloud does not spam the admin with emails.
+resource "tls_private_key" "rsa_4096" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "hcloud_ssh_key" "root" {
+  name       = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  public_key = tls_private_key.rsa_4096.public_key_openssh
+}
+
 resource "hcloud_server" "root" {
   count       = data.coder_workspace.me.start_count
   name        = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
   server_type = var.instance_type
   location    = var.instance_location
   image       = var.instance_os
+  ssh_keys    = [hcloud_ssh_key.root.id]
   user_data   = templatefile("cloud-config.yaml.tftpl", {
     username          = data.coder_workspace.me.owner
     volume_path       = "/dev/disk/by-id/scsi-0HC_Volume_${hcloud_volume.root.id}"
