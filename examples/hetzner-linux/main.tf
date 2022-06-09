@@ -51,7 +51,7 @@ variable "instance_os" {
   description = "Which operating system should your workspace use?"
   default     = "ubuntu-20.04"
   validation {
-    condition     = contains(["ubuntu-22.04","ubuntu-20.04", "ubuntu-18.04", "debian-11", "debian-10", "fedora-35"], var.instance_os)
+    condition     = contains(["ubuntu-22.04","ubuntu-20.04", "ubuntu-18.04", "debian-11", "debian-10"], var.instance_os)
     error_message = "Invalid OS!"
   }
 }
