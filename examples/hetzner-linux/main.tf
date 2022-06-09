@@ -65,6 +65,15 @@ variable "volume_size" {
   }
 }
 
+variable "code_server" {
+  description = "Should Code Server be installed?"
+  default     = "true"
+  validation {
+    condition     = contains(["true","false"], var.code_server)
+    error_message = "Your answer can only be yes or no!"
+  }
+}
+
 data "coder_workspace" "me" {
 }
 
@@ -73,17 +82,27 @@ resource "coder_agent" "dev" {
   os   = "linux"
 }
 
+resource "coder_app" "code-server" {
+  count         = var.code_server ? 1 : 0
+  agent_id      = coder_agent.dev.id
+  name          = "code-server"
+  icon          = "https://cdn.icon-icons.com/icons2/2107/PNG/512/file_type_vscode_icon_130084.png"
+  url           = "http://localhost:8080"
+  relative_path = true
+}
+
 resource "hcloud_server" "root" {
-  count = data.coder_workspace.me.start_count
+  count       = data.coder_workspace.me.start_count
   name        = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
   server_type = var.instance_type
   location    = var.instance_location
   image       = var.instance_os
-  user_data = templatefile("cloud-config.yaml.tftpl", {
+  user_data   = templatefile("cloud-config.yaml.tftpl", {
     username          = data.coder_workspace.me.owner
     volume_path       = "/dev/disk/by-id/scsi-0HC_Volume_${hcloud_volume.root.id}"
     init_script       = base64encode(coder_agent.dev.init_script)
     coder_agent_token = coder_agent.dev.token
+    code_server_setup = var.code_server
   })
 }
 
