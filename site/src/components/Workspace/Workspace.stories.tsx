@@ -22,6 +22,13 @@ Started.args = {
   handleStop: action("stop"),
   resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
   builds: [Mocks.MockWorkspaceBuild],
+  canUpdateWorkspace: true,
+}
+
+export const WithoutUpdateAccess = Template.bind({})
+WithoutUpdateAccess.args = {
+  ...Started.args,
+  canUpdateWorkspace: false,
 }
 
 export const Starting = Template.bind({})
