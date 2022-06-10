@@ -3651,7 +3651,7 @@ WHERE
   	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN $5 :: text != '' THEN
-			template_id = (SELECT id FROM templates WHERE name = $5)
+			template_id = ANY(SELECT id FROM templates WHERE name = $5)
 		ELSE true
 	END
 	-- Filter by template_ids

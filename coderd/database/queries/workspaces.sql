@@ -39,7 +39,7 @@ WHERE
   	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = (SELECT id FROM templates WHERE name = @template_name)
+			template_id = ANY(SELECT id FROM templates WHERE name = @template_name)
 		ELSE true
 	END
 	-- Filter by template_ids
