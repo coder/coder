@@ -13,13 +13,16 @@ func WorkspaceSearchQuery(query string) (map[string]string, error) {
 	if query == "" {
 		return searchParams, nil
 	}
-	elements := splitElements(query, ' ')
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitElements(query, ' ', true)
 	for _, element := range elements {
-		parts := splitElements(query, ':')
+		parts := splitElements(element, ':', false)
 		switch len(parts) {
 		case 1:
 			// No key:value pair. It is a workspace name, and maybe includes an owner
-			parts = splitElements(query, '/')
+			parts = splitElements(element, '/', false)
 			switch len(parts) {
 			case 1:
 				searchParams["name"] = parts[0]
@@ -48,7 +51,7 @@ func WorkspaceSearchQuery(query string) (map[string]string, error) {
 // can properly fail on the space. If we do not, a value of `template:"my name"`
 // will search `template:"my name:name"`, which produces an empty list instead of
 // an error.
-func splitElements(query string, delimiter rune) []string {
+func splitElements(query string, delimiter rune, maintainQuotes bool) []string {
 	var parts []string
 
 	quoted := false
@@ -56,6 +59,9 @@ func splitElements(query string, delimiter rune) []string {
 	for _, c := range query {
 		switch c {
 		case '"':
+			if maintainQuotes {
+				_, _ = current.WriteRune(c)
+			}
 			quoted = !quoted
 		case delimiter:
 			if quoted {

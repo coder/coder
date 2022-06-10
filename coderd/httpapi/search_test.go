@@ -92,6 +92,21 @@ func TestSearchWorkspace(t *testing.T) {
 				"key:is:wild/a/b/c": "foo:bar/baz/zoo:zonk",
 			},
 		},
+		{
+			Name:  "QuotesName",
+			Query: `"foo/bar"`,
+			Expected: map[string]string{
+				"name": "foo/bar",
+			},
+		},
+		{
+			Name:  "QuotedOwner/Name",
+			Query: `"foo"/"bar"`,
+			Expected: map[string]string{
+				"owner": "foo",
+				"name":  "bar",
+			},
+		},
 
 		// Failures
 		{
