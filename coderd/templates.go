@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -45,7 +46,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+	if !api.Authorize(r, rbac.ActionRead, template) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
