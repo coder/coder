@@ -104,7 +104,7 @@ func TestAutostart(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "autostart", "set", "doesnotexist")
+		cmd, root := clitest.New(t, "autostart", "set", "doesnotexist", "09:30AM")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()

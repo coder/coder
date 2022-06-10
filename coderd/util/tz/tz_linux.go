@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 const etcLocaltime = "/etc/localtime"
-const zoneInfoPath = "/usr/share/zoneinfo"
+const zoneInfoPath = "/usr/share/zoneinfo/"
 
 // TimezoneIANA attempts to determine the local timezone in IANA format.
 // If the TZ environment variable is set, this is used.
@@ -26,20 +28,21 @@ func TimezoneIANA() (*time.Location, error) {
 			return time.UTC, nil
 		}
 		loc, err := time.LoadLocation(tzEnv)
-		if err == nil {
-			return loc, nil
+		if err != nil {
+			return nil, xerrors.Errorf("load location from TZ env: %w", err)
 		}
+		return loc, nil
 	}
 
 	lp, err := filepath.EvalSymlinks(etcLocaltime)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
 	}
 
-	stripped := strings.Replace(lp, etcLocaltime, "", -1)
+	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
 	loc, err := time.LoadLocation(stripped)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
 	}
 	return loc, nil
 }
