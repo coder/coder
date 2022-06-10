@@ -30,8 +30,8 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
     // SEE: #1834
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     const hasDeadline = deadline.year() > 1
-    const thirtyMinutesFromNow = dayjs().add(30, "minutes").utc()
-    return hasDeadline && deadline.isSameOrBefore(thirtyMinutesFromNow)
+    const showThreshold = dayjs().add(30, "minutes").utc()
+    return hasDeadline && deadline.isSameOrBefore(showThreshold)
   }
 }
 

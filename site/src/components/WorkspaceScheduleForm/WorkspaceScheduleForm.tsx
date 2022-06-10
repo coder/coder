@@ -50,8 +50,6 @@ export const Language = {
   ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAt: "at",
-  ttlCausesShutdownImmediately: "immediately!",
-  ttlCausesShutdownSoon: "within 30 minutes.",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
 }
 
@@ -283,17 +281,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 }
 
 export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTTL: number): string => {
-  const newDeadline = dayjs(workspace.latest_build.updated_at).add(newTTL, "hour")
+  const newDeadline = dayjs(workspace.latest_build.deadline).add(newTTL, "hour")
   if (!isWorkspaceOn(workspace)) {
     return Language.ttlHelperText
   } else if (newTTL === 0) {
     return Language.ttlCausesNoShutdownHelperText
-  } else if (newDeadline.isBefore(now)) {
-    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
-  } else if (newDeadline.isBefore(now.add(30, "minute"))) {
-    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
   } else {
-    const newDeadlineString = newDeadline.tz(tz).format("hh:mm A z")
+    const newDeadlineString = newDeadline.tz(tz).format("dddd, MMMM D, hh:mm A z")
     return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadlineString}.`
   }
 }

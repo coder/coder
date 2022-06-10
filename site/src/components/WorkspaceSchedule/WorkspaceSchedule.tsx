@@ -50,7 +50,7 @@ export const Language = {
       if (now.isAfter(deadline)) {
         return "Workspace is shutting down"
       } else {
-        return deadline.tz(dayjs.tz.guess()).format("hh:mm A")
+        return "At " + deadline.tz(dayjs.tz.guess()).format("dddd, MMMM D, hh:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the

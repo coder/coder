@@ -168,21 +168,7 @@ describe("ttlShutdownAt", () => {
       Mocks.MockWorkspace,
       "America/Chicago",
       1,
-      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} 01:39 PM CDT.`,
-    ],
-    [
-      dayjs("2022-05-17T18:10:00Z"),
-      Mocks.MockWorkspace,
-      "America/Chicago",
-      1,
-      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`,
-    ],
-    [
-      dayjs("2022-05-17T18:40:00Z"),
-      Mocks.MockWorkspace,
-      "America/Chicago",
-      1,
-      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`,
+      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} Tuesday, May 17, 07:39 PM CDT.`,
     ],
   ])("ttlShutdownAt(%p, %p, %p, %p) returns %p", (now, workspace, timezone, ttlHours, expected) => {
     expect(ttlShutdownAt(now, workspace, timezone, ttlHours)).toEqual(expected)
