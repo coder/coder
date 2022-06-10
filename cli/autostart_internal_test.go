@@ -40,6 +40,12 @@ func TestParseCLISchedule(t *testing.T) {
 			tzEnv:            "America/Chicago",
 		},
 		{
+			name:             "Time24Military",
+			input:            []string{"0900"},
+			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * *",
+			tzEnv:            "America/Chicago",
+		},
+		{
 			name:             "DayOfWeekAndTime",
 			input:            []string{"09:00AM", "Sun-Sat"},
 			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * Sun-Sat",
@@ -53,23 +59,28 @@ func TestParseCLISchedule(t *testing.T) {
 		},
 		{
 			name:          "InvalidTime",
-			input:         []string{"9am"},
+			input:         []string{"nine"},
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 		{
 			name:          "DayOfWeekAndInvalidTime",
-			input:         []string{"9am", "Sun-Sat"},
+			input:         []string{"nine", "Sun-Sat"},
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 		{
 			name:          "InvalidTimeAndLocation",
-			input:         []string{"9:", "America/Chicago"},
+			input:         []string{"nine", "America/Chicago"},
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 		{
 			name:          "DayOfWeekAndInvalidTimeAndLocation",
-			input:         []string{"9am", "Sun-Sat", "America/Chicago"},
+			input:         []string{"nine", "Sun-Sat", "America/Chicago"},
 			expectedError: errInvalidTimeFormat.Error(),
+		},
+		{
+			name:          "TimezoneProvidedInsteadOfLocation",
+			input:         []string{"09:00AM", "Sun-Sat", "CST"},
+			expectedError: errUnsupportedTimezone.Error(),
 		},
 		{
 			name:          "WhoKnows",

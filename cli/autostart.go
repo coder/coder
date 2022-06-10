@@ -15,12 +15,12 @@ import (
 )
 
 const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
-When enabling autostart, enter a schedule in the format: start-time [day-of-week] [timezone].
+When enabling autostart, enter a schedule in the format: start-time [day-of-week] [location].
   * Start-time (required) is accepted either in 12-hour (hh:mm{am|pm}) format, or 24-hour format hh:mm.
   * Day-of-week (optional) allows specifying in the cron format, e.g. 1,3,5 or Mon-Fri.
     Aliases such as @daily are not supported.
     Default: * (every day)
-  * Timezone (optional) must be a valid location in the IANA timezone database.
+  * Location (optional) must be a valid location in the IANA timezone database.
     If omitted, we will fall back to either the TZ environment variable or /etc/localtime.
     You can check your corresponding location by visiting https://ipinfo.io - it shows in the demo widget on the right.
 `
@@ -85,7 +85,7 @@ func autostartShow() *cobra.Command {
 
 func autostartSet() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:  "set <workspace_name> <start-time> [day-of-week] [timezone]",
+		Use:  "set <workspace_name> <start-time> [day-of-week] [location]",
 		Args: cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -156,6 +156,7 @@ func autostartUnset() *cobra.Command {
 
 var errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
 var errInvalidTimeFormat = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
+var errUnsupportedTimezone = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 
 // parseCLISchedule parses a schedule in the format HH:MM{AM|PM} [DOW] [LOCATION]
 func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
@@ -178,6 +179,10 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 		dayOfWeek = parts[1]
 		loc, err = time.LoadLocation(parts[2])
 		if err != nil {
+			_, err = time.Parse("MST", parts[2])
+			if err == nil {
+				return nil, errUnsupportedTimezone
+			}
 			return nil, xerrors.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
 		}
 	case 2:
@@ -217,15 +222,20 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 }
 
 func parseTime(s string) (time.Time, error) {
-	// Assume only time provided, HH:MM[AM|PM]
-	t, err := time.Parse(time.Kitchen, s)
-	if err == nil {
-		return t, nil
+	// Try a number of possible layouts.
+	for _, layout := range []string{
+		time.Kitchen, // 03:04PM
+		"15:04",
+		"1504",
+		"3pm",
+		"3PM",
+		"3:04pm",
+		"3:04PM",
+	} {
+		t, err := time.Parse(layout, s)
+		if err == nil {
+			return t, nil
+		}
 	}
-	// Try 24-hour format without AM/PM suffix.
-	t, err = time.Parse("15:04", s)
-	if err != nil {
-		return time.Time{}, errInvalidTimeFormat
-	}
-	return t, nil
+	return time.Time{}, errInvalidTimeFormat
 }
