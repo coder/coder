@@ -958,25 +958,6 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 	return database.ParameterValue{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplatesByIDs(_ context.Context, ids []uuid.UUID) ([]database.Template, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	templates := make([]database.Template, 0)
-	for _, template := range q.templates {
-		for _, id := range ids {
-			if template.ID.String() != id.String() {
-				continue
-			}
-			templates = append(templates, template)
-		}
-	}
-	if len(templates) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return templates, nil
-}
-
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

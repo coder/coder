@@ -151,7 +151,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	if filter.OwnerUsername == "me" {
 		if !(filter.OwnerID == uuid.Nil || filter.OwnerID == apiKey.UserID) {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Cannot set both \"me\" in \"owner_name\" and use \"owner_id\"."),
+				Message: "Cannot set both \"me\" in \"owner_name\" and use \"owner_id\".",
 			})
 			return
 		}
