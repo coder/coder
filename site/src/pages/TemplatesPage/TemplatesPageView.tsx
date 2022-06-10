@@ -22,7 +22,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 
@@ -84,6 +84,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
+        {props.templates && props.templates.length > 0 && (
+          <PageHeaderText>Choose a template to create a new workspace.</PageHeaderText>
+        )}
       </PageHeader>
 
       <Table>

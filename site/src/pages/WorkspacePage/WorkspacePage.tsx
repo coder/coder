@@ -1,7 +1,7 @@
 import { useMachine } from "@xstate/react"
 import React, { useEffect } from "react"
 import { Helmet } from "react-helmet"
-import { useNavigate, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -13,7 +13,6 @@ import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedul
 
 export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
-  const navigate = useNavigate()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
 
@@ -63,7 +62,6 @@ export const WorkspacePage: React.FC = () => {
           handleCancel={() => workspaceSend("CANCEL_DELETE")}
           handleConfirm={() => {
             workspaceSend("DELETE")
-            navigate("/workspaces")
           }}
         />
       </>

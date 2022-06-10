@@ -566,17 +566,57 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
-		ID:  workspace.ID,
-		Ttl: dbTTL,
+	err = api.Database.InTx(func(s database.Store) error {
+		if err := s.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+			ID:  workspace.ID,
+			Ttl: dbTTL,
+		}); err != nil {
+			return xerrors.Errorf("update workspace TTL: %w", err)
+		}
+
+		// Also extend the workspace deadline if the workspace is running
+		latestBuild, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		if latestBuild.Transition != database.WorkspaceTransitionStart {
+			return nil // nothing to do
+		}
+
+		if latestBuild.UpdatedAt.IsZero() {
+			// Build in progress; provisionerd should update with the new TTL.
+			return nil
+		}
+
+		var newDeadline time.Time
+		if dbTTL.Valid {
+			newDeadline = latestBuild.UpdatedAt.Add(time.Duration(dbTTL.Int64))
+		}
+
+		if err := s.UpdateWorkspaceBuildByID(
+			r.Context(),
+			database.UpdateWorkspaceBuildByIDParams{
+				ID:               latestBuild.ID,
+				UpdatedAt:        latestBuild.UpdatedAt,
+				ProvisionerState: latestBuild.ProvisionerState,
+				Deadline:         newDeadline,
+			},
+		); err != nil {
+			return xerrors.Errorf("update workspace deadline: %w", err)
+		}
+		return nil
 	})
+
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error updating workspace TTL.",
+			Message: "Error updating workspace time until shutdown!",
 			Detail:  err.Error(),
 		})
 		return
 	}
+
+	httpapi.Write(rw, http.StatusOK, nil)
 }
 
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {

@@ -550,19 +550,16 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			name:          "invalid location",
 			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
 			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      ptr.Ref("asdf asdf asdf "),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 		{
 			name:          "only 3 values",
 			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 	}
 
@@ -640,15 +637,23 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name           string
-		ttlMillis      *int64
-		expectedError  string
-		modifyTemplate func(*codersdk.CreateTemplateRequest)
+		name             string
+		ttlMillis        *int64
+		expectedError    string
+		expectedDeadline *time.Time
+		modifyTemplate   func(*codersdk.CreateTemplateRequest)
 	}{
 		{
-			name:          "disable ttl",
-			ttlMillis:     nil,
-			expectedError: "",
+			name:             "disable ttl",
+			ttlMillis:        nil,
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Time{}),
+		},
+		{
+			name:             "update ttl",
+			ttlMillis:        ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(12*time.Hour + time.Minute)),
 		},
 		{
 			name:          "below minimum ttl",
@@ -656,14 +661,16 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "ttl must be at least one minute",
 		},
 		{
-			name:          "minimum ttl",
-			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
-			expectedError: "",
+			name:             "minimum ttl",
+			ttlMillis:        ptr.Ref(time.Minute.Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(2 * time.Minute)),
 		},
 		{
-			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
-			expectedError: "",
+			name:             "maximum ttl",
+			ttlMillis:        ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(24*7*time.Hour + time.Minute)),
 		},
 		{
 			name:          "above maximum ttl",
@@ -698,6 +705,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 					cwr.AutostartSchedule = nil
 					cwr.TTLMillis = nil
 				})
+				_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			)
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
@@ -715,6 +723,9 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
+			if testCase.expectedDeadline != nil {
+				require.WithinDuration(t, *testCase.expectedDeadline, updated.LatestBuild.Deadline, time.Minute, "expected autostop deadline to be equal expected")
+			}
 		})
 	}
 

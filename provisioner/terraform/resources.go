@@ -120,6 +120,42 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 	}
 
+	type appAttributes struct {
+		AgentID      string `mapstructure:"agent_id"`
+		Name         string `mapstructure:"name"`
+		Icon         string `mapstructure:"icon"`
+		URL          string `mapstructure:"url"`
+		Command      string `mapstructure:"command"`
+		RelativePath bool   `mapstructure:"relative_path"`
+	}
+	// Associate Apps with agents.
+	for _, resource := range tfResources {
+		if resource.Type != "coder_app" {
+			continue
+		}
+		var attrs appAttributes
+		err = mapstructure.Decode(resource.AttributeValues, &attrs)
+		if err != nil {
+			return nil, xerrors.Errorf("decode app attributes: %w", err)
+		}
+		if attrs.Name == "" {
+			// Default to the resource name if none is set!
+			attrs.Name = resource.Name
+		}
+		for _, agent := range agents {
+			if agent.Id != attrs.AgentID {
+				continue
+			}
+			agent.Apps = append(agent.Apps, &proto.App{
+				Name:         attrs.Name,
+				Command:      attrs.Command,
+				Url:          attrs.URL,
+				Icon:         attrs.Icon,
+				RelativePath: attrs.RelativePath,
+			})
+		}
+	}
+
 	for _, resource := range tfResources {
 		if resource.Mode == tfjson.DataResourceMode {
 			continue
@@ -127,10 +163,43 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" {
 			continue
 		}
+		agents := findAgents(resourceDependencies, agents, convertAddressToLabel(resource.Address))
+		for _, agent := range agents {
+			// Didn't use instance identity.
+			if agent.GetToken() != "" {
+				continue
+			}
+
+			// These resource types are for automatically associating an instance ID
+			// with an agent for authentication.
+			key, isValid := map[string]string{
+				"google_compute_instance":         "instance_id",
+				"aws_instance":                    "id",
+				"azurerm_linux_virtual_machine":   "id",
+				"azurerm_windows_virtual_machine": "id",
+			}[resource.Type]
+			if !isValid {
+				// The resource type doesn't support
+				// automatically setting the instance ID.
+				continue
+			}
+			instanceIDRaw, valid := resource.AttributeValues[key]
+			if !valid {
+				continue
+			}
+			instanceID, valid := instanceIDRaw.(string)
+			if !valid {
+				continue
+			}
+			agent.Auth = &proto.Agent_InstanceId{
+				InstanceId: instanceID,
+			}
+		}
+
 		resources = append(resources, &proto.Resource{
 			Name:   resource.Name,
 			Type:   resource.Type,
-			Agents: findAgents(resourceDependencies, agents, convertAddressToLabel(resource.Address)),
+			Agents: agents,
 		})
 	}
 
