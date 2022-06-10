@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,6 +28,90 @@ func TestWorkspaceBuild(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	_, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 	require.NoError(t, err)
+}
+
+func TestWorkspaceBuildByBuildNumber(t *testing.T) {
+	t.Parallel()
+	t.Run("Successful", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		_, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+			context.Background(),
+			user.Username,
+			workspace.Name,
+			strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("BuildNumberNotInt", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		_, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+			context.Background(),
+			user.Username,
+			workspace.Name,
+			"buildNumber",
+		)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
+		require.ErrorContains(t, apiError, "Failed to parse build number as integer.")
+	})
+
+	t.Run("WorkspaceNotFound", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		_, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+			context.Background(),
+			user.Username,
+			"workspaceName",
+			strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
+		require.ErrorContains(t, apiError, "Workspace \"workspaceName\" does not exist.")
+	})
+
+	t.Run("WorkspaceBuildNotFound", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		_, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+			context.Background(),
+			user.Username,
+			workspace.Name,
+			"200",
+		)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
+		require.ErrorContains(t, apiError, fmt.Sprintf("Workspace %q Build 200 does not exist.", workspace.Name))
+	})
 }
 
 func TestWorkspaceBuilds(t *testing.T) {
