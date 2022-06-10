@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/ptr"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -336,8 +337,200 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	})
 }
 
+// TestWorkspaceFilter creates a set of workspaces, users, and organizations
+// to run various filters against for testing.
 func TestWorkspaceFilter(t *testing.T) {
 	t.Parallel()
+	type coderUser struct {
+		*codersdk.Client
+		User codersdk.User
+		Org  codersdk.Organization
+	}
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	first := coderdtest.CreateFirstUser(t, client)
+
+	users := make([]coderUser, 0)
+	for i := 0; i < 10; i++ {
+		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin())
+		user, err := userClient.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+
+		org, err := userClient.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
+			Name: user.Username + "-org",
+		})
+		require.NoError(t, err, "create org")
+
+		users = append(users, coderUser{
+			Client: userClient,
+			User:   user,
+			Org:    org,
+		})
+	}
+
+	type madeWorkspace struct {
+		Owner     codersdk.User
+		Workspace codersdk.Workspace
+		Template  codersdk.Template
+	}
+
+	availTemplates := make([]codersdk.Template, 0)
+	allWorkspaces := make([]madeWorkspace, 0)
+
+	// Create some random workspaces
+	for i, user := range users {
+		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
+
+		// Create a template & workspace in the user's org
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			// Have even templates share the same name for filter complexity.
+			if i%2 == 0 {
+				request.Name = "even-template"
+			}
+		})
+		availTemplates = append(availTemplates, template)
+		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID)
+		allWorkspaces = append(allWorkspaces, madeWorkspace{
+			Workspace: workspace,
+			Template:  template,
+			Owner:     user.User,
+		})
+
+		// Make a workspace with a random template
+		idx, _ := cryptorand.Intn(len(availTemplates))
+		randTemplate := availTemplates[idx]
+		randWorkspace := coderdtest.CreateWorkspace(t, user.Client, randTemplate.OrganizationID, randTemplate.ID)
+		allWorkspaces = append(allWorkspaces, madeWorkspace{
+			Workspace: randWorkspace,
+			Template:  randTemplate,
+			Owner:     user.User,
+		})
+	}
+
+	// Make sure all workspaces are done. Do it after all are made
+	for i, w := range allWorkspaces {
+		latest := coderdtest.AwaitWorkspaceBuildJob(t, client, w.Workspace.LatestBuild.ID)
+		allWorkspaces[i].Workspace.LatestBuild = latest
+	}
+
+	// --- Setup done ---
+	testCases := []struct {
+		Name   string
+		Filter codersdk.WorkspaceFilter
+		// If FilterF is true, we include it in the expected results
+		FilterF func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool
+	}{
+		{
+			Name:   "All",
+			Filter: codersdk.WorkspaceFilter{},
+			FilterF: func(_ codersdk.WorkspaceFilter, _ madeWorkspace) bool {
+				return true
+			},
+		},
+		{
+			Name: "Owner",
+			Filter: codersdk.WorkspaceFilter{
+				Owner: users[must(cryptorand.Intn(len(users)))].User.Username,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Owner.Username == f.Owner
+			},
+		},
+		{
+			Name: "OrgID",
+			Filter: codersdk.WorkspaceFilter{
+				OrganizationID: users[must(cryptorand.Intn(len(users)))].Org.ID,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Template.OrganizationID == f.OrganizationID
+			},
+		},
+		{
+			Name: "TemplateName",
+			Filter: codersdk.WorkspaceFilter{
+				Template: "even-template",
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Template.Name == f.Template
+			},
+		},
+		{
+			Name: "Template&Name",
+			Filter: codersdk.WorkspaceFilter{
+				Template: "even-template",
+				// Use a common letter... one has to have this letter in it
+				Name: "a",
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Template.Name == f.Template && strings.Contains(workspace.Workspace.Name, f.Name)
+			},
+		},
+		{
+			Name: "Q-Owner/Name",
+			Filter: codersdk.WorkspaceFilter{
+				FilterQuery: allWorkspaces[5].Owner.Username + "/" + allWorkspaces[5].Workspace.Name,
+			},
+			FilterF: func(_ codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Workspace.ID == allWorkspaces[5].Workspace.ID
+			},
+		},
+		{
+			Name: "Org&Owner",
+			Filter: codersdk.WorkspaceFilter{
+				OrganizationID: users[2].Org.ID,
+				Owner:          users[2].User.Username,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Owner.Username == f.Owner && workspace.Template.OrganizationID == f.OrganizationID
+			},
+		},
+		{
+			Name: "Org&Owner",
+			Filter: codersdk.WorkspaceFilter{
+				OrganizationID: users[2].Org.ID,
+				Owner:          users[2].User.Username,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Owner.Username == f.Owner && workspace.Template.OrganizationID == f.OrganizationID
+			},
+		},
+		{
+			Name: "Many filters",
+			Filter: codersdk.WorkspaceFilter{
+				OrganizationID: allWorkspaces[3].Template.OrganizationID,
+				Owner:          allWorkspaces[3].Owner.Username,
+				Template:       allWorkspaces[3].Template.Name,
+				Name:           allWorkspaces[3].Workspace.Name,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Workspace.ID == allWorkspaces[3].Workspace.ID
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			workspaces, err := client.Workspaces(context.Background(), c.Filter)
+			require.NoError(t, err, "fetch workspaces")
+
+			exp := make([]codersdk.Workspace, 0)
+			for _, made := range allWorkspaces {
+				if c.FilterF(c.Filter, made) {
+					exp = append(exp, made.Workspace)
+				}
+			}
+			require.ElementsMatch(t, exp, workspaces, "expected workspaces returned")
+		})
+	}
+}
+
+// TestWorkspaceFilterManual runs some specific setups with basic checks.
+func TestWorkspaceFilterManual(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -909,4 +1102,12 @@ func mustLocation(t *testing.T, location string) *time.Location {
 	}
 
 	return loc
+}
+
+func must[T any](s T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+
+	return s
 }
