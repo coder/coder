@@ -33,6 +33,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -169,8 +170,9 @@ func server() *cobra.Command {
 			}
 
 			var (
-				tunnelErrChan          <-chan error
 				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
+				devTunnel              = (*devtunnel.Tunnel)(nil)
+				devTunnelErrChan       = make(<-chan error, 1)
 			)
 			defer closeTunnel()
 
@@ -195,10 +197,11 @@ func server() *cobra.Command {
 					}
 				}
 				if err == nil {
-					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
+					devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
+					accessURL = devTunnel.URL
 				}
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
@@ -349,7 +352,27 @@ func server() *cobra.Command {
 						return shutdownConnsCtx
 					},
 				}
-				errCh <- server.Serve(listener)
+
+				wg := errgroup.Group{}
+				wg.Go(func() error {
+					// Make sure to close the tunnel listener if we exit so the
+					// errgroup doesn't wait forever!
+					if dev && tunnel {
+						defer devTunnel.Listener.Close()
+					}
+
+					return server.Serve(listener)
+				})
+
+				if dev && tunnel {
+					wg.Go(func() error {
+						defer listener.Close()
+
+						return server.Serve(devTunnel.Listener)
+					})
+				}
+
+				errCh <- wg.Wait()
 			}()
 
 			config := createConfig(cmd)
@@ -415,7 +438,7 @@ func server() *cobra.Command {
 			case <-cmd.Context().Done():
 				coderAPI.Close()
 				return cmd.Context().Err()
-			case err := <-tunnelErrChan:
+			case err := <-devTunnelErrChan:
 				if err != nil {
 					return err
 				}
@@ -478,7 +501,7 @@ func server() *cobra.Command {
 			if dev && tunnel {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
 				closeTunnel()
-				<-tunnelErrChan
+				<-devTunnelErrChan
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
