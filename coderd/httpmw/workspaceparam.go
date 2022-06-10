@@ -32,7 +32,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			}
 			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %s", workspaceID))
+				httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspaceID))
 				return
 			}
 			if err != nil {

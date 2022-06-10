@@ -45,7 +45,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		_, err = other.OrganizationByName(context.Background(), codersdk.Me, org.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("Valid", func(t *testing.T) {

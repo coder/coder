@@ -29,7 +29,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s", template.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
 		return
 	}
 
@@ -56,7 +56,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionDelete, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s", template.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
 		return
 	}
 
@@ -273,7 +273,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s in organization %s", templateName, organization.Name))
+			httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q in organization %q", templateName, organization.Name))
 			return
 		}
 
@@ -285,7 +285,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	}
 
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s in organization %s", templateName, organization.Name))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q in organization %q", templateName, organization.Name))
 		return
 	}
 
@@ -312,7 +312,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s", template.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
 		return
 	}
 

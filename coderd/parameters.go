@@ -124,7 +124,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 	// A deleted param is still updating the underlying resource for the scope.
 	if !api.Authorize(r, rbac.ActionUpdate, obj) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %s with scope %s", scopeID, scope))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %q with scope %q", scopeID, scope))
 		return
 	}
 
@@ -135,7 +135,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		Name:    name,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %s with scope %s", scopeID, scope))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %q with scope %q", scopeID, scope))
 		return
 	}
 	if err != nil {

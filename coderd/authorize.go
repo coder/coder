@@ -22,6 +22,7 @@ func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Act
 // Eg:
 //	if !api.Authorize(...) {
 //		httpapi.Forbidden(rw)
+//		return
 //	}
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.AuthorizationUserRoles(r)

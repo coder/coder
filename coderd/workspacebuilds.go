@@ -25,7 +25,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuild.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuild.ID))
 		return
 	}
 
@@ -54,7 +54,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %s", workspace.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
 		return
 	}
 
@@ -158,7 +158,7 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuildName))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuildName))
 		return
 	}
 
@@ -167,7 +167,7 @@ func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		Name:        workspaceBuildName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuildName))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuildName))
 		return
 	}
 	if err != nil {
@@ -220,7 +220,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !api.Authorize(r, action, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %s", workspace.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
 		return
 	}
 
@@ -449,7 +449,7 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuild.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuild.ID))
 		return
 	}
 
@@ -476,7 +476,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuild.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuild.ID))
 		return
 	}
 
@@ -502,7 +502,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %s", workspaceBuild.ID))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuild.ID))
 		return
 	}
 

@@ -87,7 +87,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("File %s", hash))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("File %q", hash))
 		return
 	}
 	if err != nil {
@@ -101,7 +101,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceFile.WithOwner(file.CreatedBy.String()).WithID(file.Hash)) {
 		// Return 404 to not leak the file exists
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("File %s", hash))
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("File %q", hash))
 		return
 	}
 
