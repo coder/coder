@@ -177,7 +177,13 @@ func cfgPath() (string, error) {
 		return "", xerrors.Errorf("get user config dir: %w", err)
 	}
 
-	return filepath.Join(cfgDir, "coderv2", "devtunnel"), nil
+	cfgDir = filepath.Join(cfgDir, "coderv2")
+	err = os.MkdirAll(cfgDir, 0750)
+	if err != nil {
+		return "", xerrors.Errorf("mkdirall config dir %q: %w", cfgDir, err)
+	}
+
+	return filepath.Join(cfgDir, "devtunnel"), nil
 }
 
 func readOrGenerateConfig() (Config, error) {
