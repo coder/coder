@@ -160,31 +160,99 @@ describe("validationSchema", () => {
 })
 
 describe("ttlShutdownAt", () => {
-  it.each<[dayjs.Dayjs, Workspace, string, number, string]>([
-    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockStoppedWorkspace, "America/Chicago", 1, Language.ttlHelperText],
-    [dayjs("2022-05-17T18:09:00Z"), Mocks.MockWorkspace, "America/Chicago", 0, Language.ttlCausesNoShutdownHelperText],
+  it.each<[string, dayjs.Dayjs, Workspace, string, number, string]>([
     [
+      "Workspace is stopped --> helper text",
+      dayjs("2022-05-17T18:09:00Z"),
+      Mocks.MockStoppedWorkspace,
+      "America/Chicago",
+      1,
+      Language.ttlHelperText,
+    ],
+    [
+      "TTL is not modified --> helper text",
+      dayjs("2022-05-17T16:09:00Z"),
+      {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: "2022-05-17T18:09:00Z",
+        },
+        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
+      },
+      "America/Chicago",
+      2,
+      Language.ttlHelperText,
+    ],
+    [
+      "TTL becomes 0 --> manual helper text",
       dayjs("2022-05-17T18:09:00Z"),
       Mocks.MockWorkspace,
       "America/Chicago",
-      1,
-      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} 01:39 PM CDT.`,
+      0,
+      Language.ttlCausesNoShutdownHelperText,
     ],
     [
-      dayjs("2022-05-17T18:10:00Z"),
-      Mocks.MockWorkspace,
+      "Deadline of 18:09 becomes 17:09 at 17:09 --> immediate shutdown",
+      dayjs("2022-05-17T17:09:00Z"),
+      {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: "2022-05-17T18:09:00Z",
+        },
+        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
+      },
+      "America/Chicago",
+      1,
+      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`,
+    ],
+    [
+      "Deadline of 18:09 becomes 17:09 at 16:39 --> display shutdown soon",
+      dayjs("2022-05-17T16:39:00Z"),
+      {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: "2022-05-17T18:09:00Z",
+        },
+        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
+      },
       "America/Chicago",
       1,
       `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`,
     ],
     [
-      dayjs("2022-05-17T18:40:00Z"),
-      Mocks.MockWorkspace,
+      "Deadline of 18:09 becomes 17:09 at 16:09 --> display 12:09 CDT",
+      dayjs("2022-05-17T16:09:00Z"),
+      {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: "2022-05-17T18:09:00Z",
+        },
+        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
+      },
       "America/Chicago",
       1,
-      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`,
+      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} May 17, 2022 12:09 PM.`,
     ],
-  ])("ttlShutdownAt(%p, %p, %p, %p) returns %p", (now, workspace, timezone, ttlHours, expected) => {
+    [
+      "Manual workspace gets new deadline of 18:09 at 17:09 --> display 1:09 CDT",
+      dayjs("2022-05-17T17:09:00Z"),
+      {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: "0001-01-01T00:00:00Z",
+        },
+        ttl_ms: 0,
+      },
+      "America/Chicago",
+      1,
+      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} May 17, 2022 1:09 PM.`,
+    ],
+  ])("%p", (_, now, workspace, timezone, ttlHours, expected) => {
     expect(ttlShutdownAt(now, workspace, timezone, ttlHours)).toEqual(expected)
   })
 })
