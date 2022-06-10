@@ -71,7 +71,7 @@ func TestAutostart(t *testing.T) {
 
 		err := cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Contains(t, stdoutBuf.String(), "will automatically start at", "unexpected output")
+		require.Contains(t, stdoutBuf.String(), "will automatically start Mon-Fri at 9:30AM (Europe/Dublin)", "unexpected output")
 
 		// Ensure autostart schedule updated
 		updated, err := client.Workspace(ctx, workspace.ID)
@@ -139,11 +139,13 @@ func TestAutostartSetDefaultSchedule(t *testing.T) {
 		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+		stdoutBuf = &bytes.Buffer{}
 	)
 
 	expectedSchedule := fmt.Sprintf("CRON_TZ=%s 30 9 * * *", "UTC")
 	cmd, root := clitest.New(t, "autostart", "set", workspace.Name, "9:30AM")
 	clitest.SetupConfig(t, client, root)
+	cmd.SetOutput(stdoutBuf)
 
 	err := cmd.Execute()
 	require.NoError(t, err, "unexpected error")
@@ -152,4 +154,5 @@ func TestAutostartSetDefaultSchedule(t *testing.T) {
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch updated workspace")
 	require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
+	require.Contains(t, stdoutBuf.String(), "will automatically start daily at 9:30AM (UTC)")
 }

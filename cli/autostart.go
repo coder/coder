@@ -69,13 +69,12 @@ func autostartShow() *cobra.Command {
 			}
 
 			next := validSchedule.Next(time.Now())
-			loc, _ := time.LoadLocation(validSchedule.Timezone())
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 				"schedule: %s\ntimezone: %s\nnext:     %s\n",
 				validSchedule.Cron(),
-				validSchedule.Timezone(),
-				next.In(loc),
+				validSchedule.Location(),
+				next.In(validSchedule.Location()),
 			)
 
 			return nil
@@ -111,8 +110,14 @@ func autostartSet() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace will automatically start at %s.\n\n", workspace.Name, sched.Next(time.Now()))
-
+			schedNext := sched.Next(time.Now())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				"%s will automatically start %s at %s (%s)\n",
+				workspace.Name,
+				sched.DaysOfWeek(),
+				schedNext.In(sched.Location()).Format(time.Kitchen),
+				sched.Location().String(),
+			)
 			return nil
 		},
 	}
@@ -142,7 +147,7 @@ func autostartUnset() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace will no longer automatically start.\n\n", workspace.Name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s will no longer automatically start.\n", workspace.Name)
 
 			return nil
 		},
