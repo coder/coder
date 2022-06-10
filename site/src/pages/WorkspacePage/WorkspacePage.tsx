@@ -68,7 +68,6 @@ export const WorkspacePage: React.FC = () => {
           getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
-          username={username || "me"}
         />
         <DeleteWorkspaceDialog
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
