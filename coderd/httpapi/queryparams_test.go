@@ -57,9 +57,9 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 			},
 			{
-				QueryParam:            "empty",
-				Value:                 "",
-				ExpectedErrorContains: "must be a valid uuid",
+				QueryParam: "empty",
+				Value:      "",
+				Expected:   uuid.Nil,
 			},
 		}
 
@@ -103,10 +103,9 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:   100,
 			},
 			{
-				QueryParam:            "empty",
-				Value:                 "",
-				Expected:              0,
-				ExpectedErrorContains: "must be a valid integer",
+				QueryParam: "empty",
+				Value:      "",
+				Expected:   0,
 			},
 			{
 				QueryParam: "no_value",
@@ -147,6 +146,7 @@ func TestParseQueryParams(t *testing.T) {
 			{
 				QueryParam: "empty",
 				Value:      "",
+				Default:    []uuid.UUID{},
 				Expected:   []uuid.UUID{},
 			},
 			{

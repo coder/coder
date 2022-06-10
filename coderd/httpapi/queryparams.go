@@ -101,7 +101,7 @@ func (p *QueryParamParser) ParseString(r *http.Request, def string, queryParam s
 }
 
 func parse[T any](r *http.Request, parse func(v string) (T, error), def T, queryParam string) (T, error) {
-	if !r.URL.Query().Has(queryParam) {
+	if !r.URL.Query().Has(queryParam) || r.URL.Query().Get(queryParam) == "" {
 		return def, nil
 	}
 	str := r.URL.Query().Get(queryParam)
