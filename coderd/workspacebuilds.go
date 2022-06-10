@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -158,6 +159,82 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
+}
+
+func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
+	owner := httpmw.UserParam(r)
+	workspaceName := chi.URLParam(r, "workspacename")
+	buildNumber, err := strconv.ParseInt(chi.URLParam(r, "buildnumber"), 10, 32)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Failed to parse build number as integer.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
+		OwnerID: owner.ID,
+		Name:    workspaceName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Workspace %q does not exist.", workspaceName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching workspace by name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+		WorkspaceID: workspace.ID,
+		BuildNumber: int32(buildNumber),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Workspace %q Build %d does not exist.", workspaceName, buildNumber),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK,
+		convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(workspaceBuild.InitiatorID, users),
+			workspace, workspaceBuild, job))
 }
 
 func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
