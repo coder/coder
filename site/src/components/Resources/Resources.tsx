@@ -63,9 +63,10 @@ interface ResourcesProps {
   resources?: WorkspaceResource[]
   getResourcesError?: Error
   workspace: Workspace
+  canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
+export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace, canUpdateWorkspace }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
@@ -89,7 +90,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                   <AgentHelpTooltip />
                 </Stack>
               </TableCell>
-              <TableCell>{Language.accessLabel}</TableCell>
+              {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
               <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
@@ -130,28 +131,30 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
-                    <TableCell>
-                      <Stack>
-                        {agent.status === "connected" && (
-                          <TerminalLink
-                            className={styles.accessLink}
-                            workspaceName={workspace.name}
-                            agentName={agent.name}
-                            userName={workspace.owner_name}
-                          />
-                        )}
-                        {agent.status === "connected" &&
-                          agent.apps.map((app) => (
-                            <AppLink
-                              key={app.name}
-                              appIcon={app.icon}
-                              appName={app.name}
-                              userName={workspace.owner_name}
+                    {canUpdateWorkspace && (
+                      <TableCell>
+                        <Stack>
+                          {agent.status === "connected" && (
+                            <TerminalLink
+                              className={styles.accessLink}
                               workspaceName={workspace.name}
+                              agentName={agent.name}
+                              userName={workspace.owner_name}
                             />
-                          ))}
-                      </Stack>
-                    </TableCell>
+                          )}
+                          {agent.status === "connected" &&
+                            agent.apps.map((app) => (
+                              <AppLink
+                                key={app.name}
+                                appIcon={app.icon}
+                                appName={app.name}
+                                userName={workspace.owner_name}
+                                workspaceName={workspace.name}
+                              />
+                            ))}
+                        </Stack>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
                         {getDisplayAgentStatus(theme, agent).status}

@@ -292,6 +292,7 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
+					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)

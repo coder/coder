@@ -28,6 +28,7 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
+  canUpdateWorkspace: boolean
 }
 
 /**
@@ -44,6 +45,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   resources,
   getResourcesError,
   builds,
+  canUpdateWorkspace,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -80,7 +82,12 @@ export const Workspace: FC<WorkspaceProps> = ({
           <WorkspaceStats workspace={workspace} />
 
           {!!resources && !!resources.length && (
-            <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+            <Resources
+              resources={resources}
+              getResourcesError={getResourcesError}
+              workspace={workspace}
+              canUpdateWorkspace={canUpdateWorkspace}
+            />
           )}
 
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
