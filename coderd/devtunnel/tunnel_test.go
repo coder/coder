@@ -49,11 +49,8 @@ func TestTunnel(t *testing.T) {
 	go server.Serve(tun.Listener)
 	defer tun.Listener.Close()
 
-	transport, _ := http.DefaultTransport.(*http.Transport)
-
 	httpClient := &http.Client{
-		Transport: transport,
-		Timeout:   10 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 
 	require.Eventually(t, func() bool {
