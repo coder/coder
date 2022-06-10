@@ -203,6 +203,28 @@ func server() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
 
+			// Warn the user if the access URL appears to be a loopback address.
+			isLocal, err := isLocalURL(cmd.Context(), accessURL)
+			if isLocal || err != nil {
+				var reason string
+				if isLocal {
+					reason = "appears to be a loopback address"
+				} else {
+					reason = "could not be resolved"
+				}
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
+					cliui.Styles.Warn.Render("Warning:")+" The current access URL:")+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  "+cliui.Styles.Field.Render(accessURL)+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
+					reason+". Provisioned workspaces are unlikely to be able to "+
+						"connect to Coder. Please consider changing your "+
+						"access URL using the --access-url option, or directly "+
+						"specifying access URLs on templates.",
+				)+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "For more information, see "+
+					"https://github.com/coder/coder/issues/1528\n\n")
+			}
+
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
 			if err != nil {
 				return err
@@ -802,4 +824,25 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
+}
+
+// isLocalURL returns true if the hostname of the provided URL appears to
+// resolve to a loopback address.
+func isLocalURL(ctx context.Context, urlString string) (bool, error) {
+	parsedURL, err := url.Parse(urlString)
+	if err != nil {
+		return false, err
+	}
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
+	if err != nil {
+		return false, err
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
