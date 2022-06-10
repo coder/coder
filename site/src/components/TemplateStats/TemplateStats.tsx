@@ -70,7 +70,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "20%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },
