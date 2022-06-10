@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -116,7 +117,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set all the query params from the "q" field.
-	q := r.URL.Query()
+	q := url.Values{}
 	for k, v := range values {
 		// Do not allow overriding if the user also set query param fields
 		// outside the query string.
@@ -133,14 +134,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetWorkspacesWithFilterParams{
 		Deleted:       false,
-		OwnerUsername: parser.ParseString(r, "", "owner"),
-		TemplateName:  parser.ParseString(r, "", "template"),
-		Name:          parser.ParseString(r, "", "name"),
+		OwnerUsername: parser.String(r, "", "owner"),
+		TemplateName:  parser.String(r, "", "template"),
+		Name:          parser.String(r, "", "name"),
 	}
-	if len(parser.ValidationErrors()) > 0 {
+	if len(parser.Errors) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message:     "Query parameters have invalid values.",
-			Validations: parser.ValidationErrors(),
+			Validations: parser.Errors,
 		})
 		return
 	}

@@ -65,7 +65,7 @@ func TestParseQueryParams(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, func(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
-			return parser.ParseUUIDorMe(r, def, me, queryParam)
+			return parser.UUIDorMe(r, def, me, queryParam)
 		})
 	})
 
@@ -91,7 +91,7 @@ func TestParseQueryParams(t *testing.T) {
 		}
 
 		parser := httpapi.NewQueryParamParser()
-		testQueryParams(t, expParams, parser, parser.ParseString)
+		testQueryParams(t, expParams, parser, parser.String)
 	})
 
 	t.Run("Integer", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestParseQueryParams(t *testing.T) {
 		}
 
 		parser := httpapi.NewQueryParamParser()
-		testQueryParams(t, expParams, parser, parser.ParseInteger)
+		testQueryParams(t, expParams, parser, parser.Integer)
 	})
 
 	t.Run("UUIDArray", func(t *testing.T) {
@@ -171,7 +171,7 @@ func TestParseQueryParams(t *testing.T) {
 		}
 
 		parser := httpapi.NewQueryParamParser()
-		testQueryParams(t, expParams, parser, parser.ParseUUIDArray)
+		testQueryParams(t, expParams, parser, parser.UUIDArray)
 	})
 }
 
@@ -193,7 +193,7 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 			v := parse(r, c.Default, c.QueryParam)
 			require.Equal(t, c.Expected, v, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
 			if c.ExpectedErrorContains != "" {
-				errors := parser.ValidationErrors()
+				errors := parser.Errors
 				require.True(t, len(errors) > 0, "error exist")
 				last := errors[len(errors)-1]
 				require.True(t, last.Field == c.QueryParam, fmt.Sprintf("query param %q did not fail", c.QueryParam))

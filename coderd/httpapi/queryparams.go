@@ -15,25 +15,21 @@ import (
 // errors in 1 sweep. This means all invalid fields are returned at once,
 // rather than only returning the first error
 type QueryParamParser struct {
-	errors []Error
+	// Errors is the set of errors to return via the API. If the length
+	// of this set is 0, there are no errors!.
+	Errors []Error
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
-		errors: []Error{},
+		Errors: []Error{},
 	}
 }
 
-// ValidationErrors is the set of errors to return via the API. If the length
-// of this set is 0, there was no errors.
-func (p QueryParamParser) ValidationErrors() []Error {
-	return p.errors
-}
-
-func (p *QueryParamParser) ParseInteger(r *http.Request, def int, queryParam string) int {
+func (p *QueryParamParser) Integer(r *http.Request, def int, queryParam string) int {
 	v, err := parse(r, strconv.Atoi, def, queryParam)
 	if err != nil {
-		p.errors = append(p.errors, Error{
+		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid integer (%s)", queryParam, err.Error()),
 		})
@@ -41,17 +37,17 @@ func (p *QueryParamParser) ParseInteger(r *http.Request, def int, queryParam str
 	return v
 }
 
-func (p *QueryParamParser) ParseUUIDorMe(r *http.Request, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
+func (p *QueryParamParser) UUIDorMe(r *http.Request, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
 	if r.URL.Query().Get(queryParam) == "me" {
 		return me
 	}
-	return p.ParseUUID(r, def, queryParam)
+	return p.UUID(r, def, queryParam)
 }
 
-func (p *QueryParamParser) ParseUUID(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
+func (p *QueryParamParser) UUID(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
 	v, err := parse(r, uuid.Parse, def, queryParam)
 	if err != nil {
-		p.errors = append(p.errors, Error{
+		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid uuid", queryParam),
 		})
@@ -59,7 +55,7 @@ func (p *QueryParamParser) ParseUUID(r *http.Request, def uuid.UUID, queryParam 
 	return v
 }
 
-func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, queryParam string) []uuid.UUID {
+func (p *QueryParamParser) UUIDArray(r *http.Request, def []uuid.UUID, queryParam string) []uuid.UUID {
 	v, err := parse(r, func(v string) ([]uuid.UUID, error) {
 		var badValues []string
 		strs := strings.Split(v, ",")
@@ -79,7 +75,7 @@ func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, quer
 		return ids, nil
 	}, def, queryParam)
 	if err != nil {
-		p.errors = append(p.errors, Error{
+		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q has invalid uuids: %q", queryParam, err.Error()),
 		})
@@ -87,12 +83,12 @@ func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, quer
 	return v
 }
 
-func (p *QueryParamParser) ParseString(r *http.Request, def string, queryParam string) string {
+func (p *QueryParamParser) String(r *http.Request, def string, queryParam string) string {
 	v, err := parse(r, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
 	if err != nil {
-		p.errors = append(p.errors, Error{
+		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid string", queryParam),
 		})
