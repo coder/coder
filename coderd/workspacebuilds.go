@@ -166,8 +166,8 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	workspaceName := chi.URLParam(r, "workspacename")
 	buildNumber, err := strconv.ParseInt(chi.URLParam(r, "buildnumber"), 10, 32)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error parsing build number as integer.",
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Failed to parse build number as integer.",
 			Detail:  err.Error(),
 		})
 		return
@@ -177,7 +177,12 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		OwnerID: owner.ID,
 		Name:    workspaceName,
 	})
-
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Workspace %q does not exist.", workspaceName),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching workspace by name.",
@@ -185,6 +190,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
@@ -194,6 +200,12 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		WorkspaceID: workspace.ID,
 		BuildNumber: int32(buildNumber),
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("Workspace %q Build %q does not exist.", workspaceName, buildNumber),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching workspace build.",
