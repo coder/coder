@@ -51,6 +51,7 @@ func WorkspaceSearchQuery(query string) (map[string]string, error) {
 // can properly fail on the space. If we do not, a value of `template:"my name"`
 // will search `template:"my name:name"`, which produces an empty list instead of
 // an error.
+// nolint:revive
 func splitElements(query string, delimiter rune, maintainQuotes bool) []string {
 	var parts []string
 
