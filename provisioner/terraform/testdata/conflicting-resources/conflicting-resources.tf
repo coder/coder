@@ -12,14 +12,14 @@ resource "coder_agent" "dev" {
   arch = "amd64"
 }
 
-resource "null_resource" "b" {
+resource "null_resource" "first" {
   depends_on = [
     coder_agent.dev
   ]
 }
 
-resource "null_resource" "a" {
+resource "null_resource" "second" {
   depends_on = [
-    null_resource.b
+    coder_agent.dev
   ]
 }
