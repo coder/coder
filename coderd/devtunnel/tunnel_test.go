@@ -2,11 +2,13 @@ package devtunnel_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -47,17 +49,26 @@ func TestTunnel(t *testing.T) {
 	go server.Serve(tun.Listener)
 	defer tun.Listener.Close()
 
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(ctx, "GET", tun.URL, nil)
 		require.NoError(t, err)
 
-		res, err := http.DefaultClient.Do(req)
+		res, err := httpClient.Do(req)
 		require.NoError(t, err)
 		defer res.Body.Close()
+		_, _ = io.Copy(io.Discard, res.Body)
+
 		return res.StatusCode == http.StatusOK
 	}, time.Minute, time.Second)
 
+	httpClient.CloseIdleConnections()
+	assert.NoError(t, server.Close())
 	cancelTun()
+
 	select {
 	case <-errCh:
 	case <-time.After(10 * time.Second):
