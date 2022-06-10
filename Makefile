@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := build
 
-# use a single bash shell for each job, and immediately exit on failure
+# Use a single bash shell for each job, and immediately exit on failure
 SHELL := bash
 .SHELLFLAGS = -ceu
 .ONESHELL:
@@ -18,6 +18,7 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 	@echo "== This builds slim binaries for command-line usage."
 	@echo "== Use \"make build\" to embed the site."
 
+	mkdir -p ./dist
 	rm -rf ./dist/coder-slim_*
 	./scripts/build_go_slim.sh \
 		--version "$(VERSION)" \

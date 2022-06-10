@@ -1,39 +1,95 @@
+# GitHub release workflow.
+#
+# This workflow is a bit complicated because we have to build darwin binaries on
+# a mac runner, but the mac runners are extremely slow. So instead of running
+# the entire release on a mac (which will take an hour to run), we run only the
+# mac build on a mac, and the rest on a linux runner. The final release is then
+# published using a final linux runner.
 name: release
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Allow a +dev version to be generated, implies dry_run.
+        type: boolean
+        required: true
+      dry_run:
+        description: Perform a dry-run release.
+        type: boolean
+        required: true
+
+# In a non-snapshot we want the ./scripts/version.sh script to never generate a
+# +dev version.
+env:
+  CODER_NO_DEV_VERSION: ${{ github.event.inputs.snapshot || 'true' }}
 
 jobs:
-  goreleaser:
-    runs-on: macos-latest
-    env:
-      # Necessary for Docker manifest
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
+  linux-windows:
+    runs-on: ubuntu-latest
     steps:
-      # Docker is not included on macos-latest
-      - uses: docker-practice/actions-setup-docker@1.0.10
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Docker Login
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
-      - name: Install Gon
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
+      - name: Build Site
+        run: make site/out/index.html
+
+      - name: Build Slim Binaries
+        run: make bin
+
+      - name: Build Linux and Windows Binaries
+        run: |
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --package-linux \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.apk
+            dist/*.deb
+            dist/*.rpm
+
+  # The mac binaries get built on mac runners because they need to be signed,
+  # and the signing tool only runs on mac. This darwin job only builds the Mac
+  # binaries and uploads them as job artifacts used by the publish step.
+  darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.18"
+
+      - name: Install gon
         run: |
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
@@ -43,24 +99,6 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           p12-password: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
-
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
         id: cache-node
@@ -79,12 +117,72 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --rm-dist --timeout 60m
+      - name: Build Slim Binaries
+        run: make bin
+
+      - name: Build darwin Binaries (with signatures)
+        run: |
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --sign-darwin \
+            darwin:amd64,arm64
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+
+      - name: Upload Binary Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: darwin
+          path: ./dist/coder_*.zip
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - linux-windows
+      - darwin
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Docker Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: mkdir artifacts
+        run: mkdir artifacts
+
+      - name: Download darwin Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: darwin
+          path: artifacts
+
+      - name: Download Linux and Windows Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux
+          path: artifacts
+
+      - name: ls artifacts
+        run: ls artifacts
+
+      - name: Publish Release
+        run: |
+          ./scripts/publish_release.sh \
+            ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            ./artifacts/*.zip \
+            ./artifacts/*.tar.gz \
+            ./artifacts/*.apk \
+            ./artifacts/*.deb \
+            ./artifacts/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
