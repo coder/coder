@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	Proto             = "https"
 	EndpointWireguard = "wg-tunnel-udp.coder.app"
 	EndpointHTTPS     = "wg-tunnel.coder.app"
 
@@ -110,7 +111,7 @@ allowed_ip=%s/128`,
 	}()
 
 	return &Tunnel{
-		URL:      fmt.Sprintf("https://%s.%s", cfg.ID, EndpointHTTPS),
+		URL:      fmt.Sprintf("%s://%s.%s", Proto, cfg.ID, EndpointHTTPS),
 		Listener: wgListen,
 	}, ch, nil
 }
@@ -165,7 +166,7 @@ func sendConfigToServer(ctx context.Context, cfg Config) (created bool, err erro
 		return false, xerrors.Errorf("marshal config: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+EndpointHTTPS+"/tun", bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, "POST", Proto+"://"+EndpointHTTPS+"/tun", bytes.NewReader(raw))
 	if err != nil {
 		return false, xerrors.Errorf("new request: %w", err)
 	}

@@ -2843,7 +2843,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key
 FROM
 	workspace_agents
 WHERE
@@ -2873,13 +2873,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
+		&i.Ipv6,
+		&i.WireguardPublicKey,
+		&i.DiscoPublicKey,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key
 FROM
 	workspace_agents
 WHERE
@@ -2907,13 +2910,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
+		&i.Ipv6,
+		&i.WireguardPublicKey,
+		&i.DiscoPublicKey,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key
 FROM
 	workspace_agents
 WHERE
@@ -2943,13 +2949,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
+		&i.Ipv6,
+		&i.WireguardPublicKey,
+		&i.DiscoPublicKey,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key
 FROM
 	workspace_agents
 WHERE
@@ -2983,6 +2992,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
+			&i.Ipv6,
+			&i.WireguardPublicKey,
+			&i.DiscoPublicKey,
 		); err != nil {
 			return nil, err
 		}
@@ -2998,7 +3010,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -3028,6 +3040,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
+			&i.Ipv6,
+			&i.WireguardPublicKey,
+			&i.DiscoPublicKey,
 		); err != nil {
 			return nil, err
 		}
@@ -3058,10 +3073,13 @@ INSERT INTO
 		startup_script,
 		directory,
 		instance_metadata,
-		resource_metadata
+		resource_metadata,
+		ipv6,
+		wireguard_public_key,
+		disco_public_key
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, ipv6, wireguard_public_key, disco_public_key
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -3079,6 +3097,9 @@ type InsertWorkspaceAgentParams struct {
 	Directory            string                `db:"directory" json:"directory"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Ipv6                 pqtype.Inet           `db:"ipv6" json:"ipv6"`
+	WireguardPublicKey   string                `db:"wireguard_public_key" json:"wireguard_public_key"`
+	DiscoPublicKey       string                `db:"disco_public_key" json:"disco_public_key"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -3097,6 +3118,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.Directory,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
+		arg.Ipv6,
+		arg.WireguardPublicKey,
+		arg.DiscoPublicKey,
 	)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -3117,6 +3141,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
+		&i.Ipv6,
+		&i.WireguardPublicKey,
+		&i.DiscoPublicKey,
 	)
 	return i, err
 }
@@ -3125,6 +3152,7 @@ const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnect
 UPDATE
 	workspace_agents
 SET
+	updated_at = now(),
 	first_connected_at = $2,
 	last_connected_at = $3,
 	disconnected_at = $4
@@ -3146,6 +3174,28 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.LastConnectedAt,
 		arg.DisconnectedAt,
 	)
+	return err
+}
+
+const updateWorkspaceAgentKeysByID = `-- name: UpdateWorkspaceAgentKeysByID :exec
+UPDATE
+	workspace_agents
+SET
+	updated_at = now(),
+	wireguard_public_key = $2,
+	disco_public_key = $3
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentKeysByIDParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	WireguardPublicKey string    `db:"wireguard_public_key" json:"wireguard_public_key"`
+	DiscoPublicKey     string    `db:"disco_public_key" json:"disco_public_key"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentKeysByID, arg.ID, arg.WireguardPublicKey, arg.DiscoPublicKey)
 	return err
 }
 

@@ -1162,7 +1162,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.provisionerJobAgents) - 1; i >= 0; i-- {
 		agent := q.provisionerJobAgents[i]
-		if agent.AuthToken.String() == authToken.String() {
+		if agent.AuthToken == authToken {
 			return agent, nil
 		}
 	}
@@ -1176,7 +1176,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByID(_ context.Context, id uuid.UUID) (da
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.provisionerJobAgents) - 1; i >= 0; i-- {
 		agent := q.provisionerJobAgents[i]
-		if agent.ID.String() == id.String() {
+		if agent.ID == id {
 			return agent, nil
 		}
 	}
@@ -1204,7 +1204,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.provisionerJobAgents {
 		for _, resourceID := range resourceIDs {
-			if agent.ResourceID.String() != resourceID.String() {
+			if agent.ResourceID != resourceID {
 				continue
 			}
 			workspaceAgents = append(workspaceAgents, agent)
@@ -1263,7 +1263,7 @@ func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (da
 	defer q.mutex.RUnlock()
 
 	for _, provisionerJob := range q.provisionerJobs {
-		if provisionerJob.ID.String() != id.String() {
+		if provisionerJob.ID != id {
 			continue
 		}
 		return provisionerJob, nil
@@ -1598,7 +1598,6 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	//nolint:gosimple
 	agent := database.WorkspaceAgent{
 		ID:                   arg.ID,
 		CreatedAt:            arg.CreatedAt,
@@ -1614,7 +1613,11 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		StartupScript:        arg.StartupScript,
 		InstanceMetadata:     arg.InstanceMetadata,
 		ResourceMetadata:     arg.ResourceMetadata,
+		Ipv6:                 arg.Ipv6,
+		WireguardPublicKey:   arg.WireguardPublicKey,
+		DiscoPublicKey:       arg.DiscoPublicKey,
 	}
+
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
 	return agent, nil
 }
@@ -1868,7 +1871,7 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 			continue
 		}
 		templateVersion.Readme = arg.Readme
-		templateVersion.UpdatedAt = time.Now()
+		templateVersion.UpdatedAt = database.Now()
 		q.templateVersions[index] = templateVersion
 		return nil
 	}
@@ -1902,6 +1905,24 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.FirstConnectedAt = arg.FirstConnectedAt
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
+		q.provisionerJobAgents[index] = agent
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentKeysByID(_ context.Context, arg database.UpdateWorkspaceAgentKeysByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.provisionerJobAgents {
+		if agent.ID != arg.ID {
+			continue
+		}
+
+		agent.WireguardPublicKey = arg.WireguardPublicKey
+		agent.DiscoPublicKey = arg.DiscoPublicKey
+		agent.UpdatedAt = database.Now()
 		q.provisionerJobAgents[index] = agent
 		return nil
 	}
