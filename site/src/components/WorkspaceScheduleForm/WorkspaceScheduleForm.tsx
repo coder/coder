@@ -291,8 +291,6 @@ export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string
   const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
   const delta = formTTL - ttl
 
-  console.info("delta :: ", delta)
-
   if (delta === 0 || !isWorkspaceOn(workspace)) {
     return Language.ttlHelperText
   } else if (formTTL === 0) {
