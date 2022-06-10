@@ -131,24 +131,27 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
-                    {canUpdateWorkspace && agent.status === "connected" && (
+                    {canUpdateWorkspace && (
                       <TableCell>
                         <Stack>
-                          <TerminalLink
-                            className={styles.accessLink}
-                            workspaceName={workspace.name}
-                            agentName={agent.name}
-                            userName={workspace.owner_name}
-                          />
-                          {agent.apps.map((app) => (
-                            <AppLink
-                              key={app.name}
-                              appIcon={app.icon}
-                              appName={app.name}
-                              userName={workspace.owner_name}
+                          {agent.status === "connected" && (
+                            <TerminalLink
+                              className={styles.accessLink}
                               workspaceName={workspace.name}
+                              agentName={agent.name}
+                              userName={workspace.owner_name}
                             />
-                          ))}
+                          )}
+                          {agent.status === "connected" &&
+                            agent.apps.map((app) => (
+                              <AppLink
+                                key={app.name}
+                                appIcon={app.icon}
+                                appName={app.name}
+                                userName={workspace.owner_name}
+                                workspaceName={workspace.name}
+                              />
+                            ))}
                         </Stack>
                       </TableCell>
                     )}
