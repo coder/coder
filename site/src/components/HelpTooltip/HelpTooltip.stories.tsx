@@ -17,8 +17,9 @@ const Template: Story<HelpTooltipProps> = (args) => (
   <HelpTooltip {...args}>
     <HelpTooltipTitle>What is a template?</HelpTooltipTitle>
     <HelpTooltipText>
-      With templates, you can create a common configuration for your team's workspaces using Terraform so that everyone
-      can use the same environment to deliver great software.
+      With templates, you can create a common configuration for your team`&apos;`s workspaces
+      using Terraform so that everyone can use the same environment to deliver great
+      software.
     </HelpTooltipText>
     <HelpTooltipLinksGroup>
       <HelpTooltipLink href="https://github.com/coder/coder/">Creating a template</HelpTooltipLink>
