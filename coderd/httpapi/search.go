@@ -6,7 +6,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// WorkspaceSearchQuery takes a query string and breaks it into it's queryparams
+// WorkspaceSearchQuery takes a query string and breaks it into its queryparams
 // as a set of key=value.
 func WorkspaceSearchQuery(query string) (map[string]string, error) {
 	searchParams := make(map[string]string)
