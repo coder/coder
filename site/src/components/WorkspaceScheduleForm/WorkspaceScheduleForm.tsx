@@ -296,10 +296,10 @@ export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string
   } else if (formTTL === 0) {
     return Language.ttlCausesNoShutdownHelperText
   } else {
-    const newDeadline = dayjs(hasDeadline ? deadline : now).add(delta, "hour")
+    const newDeadline = dayjs(hasDeadline ? deadline : now).add(delta, "hours")
     if (newDeadline.isSameOrBefore(now)) {
       return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
-    } else if (newDeadline.isSameOrBefore(now.add(30, "minute"))) {
+    } else if (newDeadline.isSameOrBefore(now.add(30, "minutes"))) {
       return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
     } else {
       return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadline
