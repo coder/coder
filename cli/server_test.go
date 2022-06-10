@@ -186,10 +186,10 @@ func TestServer(t *testing.T) {
 			return err == nil
 		}, 15*time.Second, 25*time.Millisecond)
 
-		assert.NotContains(t, buf.String(), "coder/coder/issues/1528")
-
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
+
+		assert.NotContains(t, buf.String(), "coder/coder/issues/1528")
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
