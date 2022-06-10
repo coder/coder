@@ -48,9 +48,9 @@ export const Language = {
   filterName: "Filters",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
-  workspaceTooltipTitle: "What is workspace?",
+  workspaceTooltipTitle: "What is a workspace?",
   workspaceTooltipText:
-    "It is your workstation. It is a workspace that will provide you the necessary compute and access to your development environment.",
+    "A workspace is your development environment in the cloud. It includes the compute infrastructure and tools you need to work on your project",
   workspaceTooltipLink1: "Create workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",
@@ -135,7 +135,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
           <PageHeaderText>
             Create a new workspace from a{" "}
             <Link component={RouterLink} to="/templates">
-              Template
+              template
             </Link>
             .
           </PageHeaderText>

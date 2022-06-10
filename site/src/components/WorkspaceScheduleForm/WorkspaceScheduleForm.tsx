@@ -210,7 +210,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   ]
 
   return (
-    <FullPageForm onCancel={onCancel} title="Workspace Schedule">
+    <FullPageForm onCancel={onCancel} title="Workspace schedule">
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           <TextField

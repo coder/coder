@@ -16,7 +16,7 @@ import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSec
 
 const Language = {
   createButton: "Create workspace",
-  noDescription: "No description",
+  noDescription: "",
   readmeTitle: "README",
   resourcesTitle: "Resources",
 }
