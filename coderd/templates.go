@@ -45,12 +45,26 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	count := uint32(0)
 	if len(workspaceCounts) > 0 {
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
+	createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), api.Database, []database.Template{template})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -99,6 +113,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
 	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -178,6 +193,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Description:          createTemplate.Description,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
+			CreatedBy: uuid.NullUUID{
+				UUID:  apiKey.UserID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -211,7 +230,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		template = convertTemplate(dbTemplate, 0)
+		createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), db, []database.Template{dbTemplate})
+		if err != nil {
+			return xerrors.Errorf("get creator name: %w", err)
+		}
+
+		template = convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])
 		return nil
 	})
 	if err != nil {
@@ -261,7 +285,16 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
+	createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), api.Database, templates)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching creator names.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts, createdByNameMap))
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -306,7 +339,16 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
+	createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), api.Database, []database.Template{template})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
@@ -403,10 +445,35 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count))
+	createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), api.Database, []database.Template{updated})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
 }
 
-func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow) []codersdk.Template {
+func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
+	creators := make(map[string]string, len(templates))
+	for _, template := range templates {
+		if template.CreatedBy.Valid {
+			creator, err := db.GetUserByID(ctx, template.CreatedBy.UUID)
+			if err != nil {
+				return map[string]string{}, err
+			}
+			creators[template.ID.String()] = creator.Username
+		} else {
+			creators[template.ID.String()] = ""
+		}
+	}
+	return creators, nil
+}
+
+func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 	for _, template := range templates {
 		found := false
@@ -414,18 +481,18 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 			if workspaceCount.TemplateID.String() != template.ID.String() {
 				continue
 			}
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(workspaceCount.Count)))
+			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(workspaceCount.Count), createdByNameMap[template.ID.String()]))
 			found = true
 			break
 		}
 		if !found {
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0)))
+			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
 		}
 	}
 	return apiTemplates
 }
 
-func convertTemplate(template database.Template, workspaceOwnerCount uint32) codersdk.Template {
+func convertTemplate(template database.Template, workspaceOwnerCount uint32, createdByName string) codersdk.Template {
 	return codersdk.Template{
 		ID:                         template.ID,
 		CreatedAt:                  template.CreatedAt,
@@ -438,5 +505,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32) cod
 		Description:                template.Description,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
+		CreatedByID:                template.CreatedBy,
+		CreatedByName:              createdByName,
 	}
 }
