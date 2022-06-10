@@ -631,6 +631,22 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.WorkspaceID.String() != arg.WorkspaceID.String() {
+			continue
+		}
+		if workspaceBuild.BuildNumber != arg.BuildNumber {
+			continue
+		}
+		return workspaceBuild, nil
+	}
+	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1311,6 +1327,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Description:          arg.Description,
 		MaxTtl:               arg.MaxTtl,
 		MinAutostartInterval: arg.MinAutostartInterval,
+		CreatedBy:            arg.CreatedBy,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

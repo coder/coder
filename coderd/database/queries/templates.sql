@@ -60,10 +60,11 @@ INSERT INTO
 		active_version_id,
 		description,
 		max_ttl,
-		min_autostart_interval
+		min_autostart_interval,
+		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
