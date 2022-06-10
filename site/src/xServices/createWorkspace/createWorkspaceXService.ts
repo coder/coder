@@ -4,26 +4,18 @@ import { CreateWorkspaceRequest, ParameterSchema, Template, Workspace } from "..
 
 type CreateWorkspaceContext = {
   organizationId: string
+  templateName: string
   templates?: Template[]
   selectedTemplate?: Template
   templateSchema?: ParameterSchema[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
-  // This is useful when the user wants to create a workspace from the template
-  // page having it pre selected. It is string or null because of the
-  // useSearchQuery
-  preSelectedTemplateName: string | null
 }
 
-type CreateWorkspaceEvent =
-  | {
-      type: "SELECT_TEMPLATE"
-      template: Template
-    }
-  | {
-      type: "CREATE_WORKSPACE"
-      request: CreateWorkspaceRequest
-    }
+type CreateWorkspaceEvent = {
+  type: "CREATE_WORKSPACE"
+  request: CreateWorkspaceRequest
+}
 
 export const createWorkspaceMachine = createMachine(
   {
@@ -45,12 +37,6 @@ export const createWorkspaceMachine = createMachine(
       },
     },
     tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
-    on: {
-      SELECT_TEMPLATE: {
-        actions: ["assignSelectedTemplate"],
-        target: "gettingTemplateSchema",
-      },
-    },
     states: {
       gettingTemplates: {
         invoke: {
@@ -58,48 +44,15 @@ export const createWorkspaceMachine = createMachine(
           onDone: [
             {
               actions: ["assignTemplates"],
-              target: "waitingForTemplateGetCreated",
               cond: "areTemplatesEmpty",
             },
             {
-              actions: ["assignTemplates", "assignPreSelectedTemplate"],
+              actions: ["assignTemplates", "assignSelectedTemplate"],
               target: "gettingTemplateSchema",
-              cond: "hasValidPreSelectedTemplate",
-            },
-            {
-              actions: ["assignTemplates"],
-              target: "selectingTemplate",
             },
           ],
           onError: {
             target: "error",
-          },
-        },
-      },
-      waitingForTemplateGetCreated: {
-        initial: "refreshingTemplates",
-        states: {
-          refreshingTemplates: {
-            invoke: {
-              src: "getTemplates",
-              onDone: [
-                { target: "waiting", cond: "areTemplatesEmpty" },
-                { target: "#createWorkspaceState.selectingTemplate", actions: ["assignTemplates"] },
-              ],
-            },
-          },
-          waiting: {
-            after: {
-              2_000: "refreshingTemplates",
-            },
-          },
-        },
-      },
-      selectingTemplate: {
-        on: {
-          SELECT_TEMPLATE: {
-            actions: ["assignSelectedTemplate"],
-            target: "gettingTemplateSchema",
           },
         },
       },
@@ -164,13 +117,6 @@ export const createWorkspaceMachine = createMachine(
       },
     },
     guards: {
-      hasValidPreSelectedTemplate: (ctx, event) => {
-        if (!ctx.preSelectedTemplateName) {
-          return false
-        }
-        const template = event.data.find((template) => template.name === ctx.preSelectedTemplateName)
-        return !!template
-      },
       areTemplatesEmpty: (_, event) => event.data.length === 0,
     },
     actions: {
@@ -178,7 +124,10 @@ export const createWorkspaceMachine = createMachine(
         templates: (_, event) => event.data,
       }),
       assignSelectedTemplate: assign({
-        selectedTemplate: (_, event) => event.template,
+        selectedTemplate: (ctx, event) => {
+          const templates = event.data.filter((template) => template.name === ctx.templateName)
+          return templates.length ? templates[0] : undefined
+        },
       }),
       assignTemplateSchema: assign({
         // Only show parameters that are allowed to be overridden.
@@ -187,17 +136,6 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
-      }),
-      assignPreSelectedTemplate: assign({
-        selectedTemplate: (ctx, event) => {
-          const selectedTemplate = event.data.find((template) => template.name === ctx.preSelectedTemplateName)
-          // The proper validation happens on hasValidPreSelectedTemplate
-          if (!selectedTemplate) {
-            throw new Error("Invalid template selected")
-          }
-
-          return selectedTemplate
-        },
       }),
     },
   },

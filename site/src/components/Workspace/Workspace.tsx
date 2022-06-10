@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
@@ -7,6 +8,7 @@ import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/P
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
+import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -26,6 +28,7 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
+  canUpdateWorkspace: boolean
 }
 
 /**
@@ -42,8 +45,10 @@ export const Workspace: FC<WorkspaceProps> = ({
   resources,
   getResourcesError,
   builds,
+  canUpdateWorkspace,
 }) => {
   const styles = useStyles()
+  const navigate = useNavigate()
 
   return (
     <Margins>
@@ -72,9 +77,18 @@ export const Workspace: FC<WorkspaceProps> = ({
             workspace={workspace}
           />
 
+          <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/workspaces/new`)} />
+
           <WorkspaceStats workspace={workspace} />
 
-          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+          {!!resources && !!resources.length && (
+            <Resources
+              resources={resources}
+              getResourcesError={getResourcesError}
+              workspace={workspace}
+              canUpdateWorkspace={canUpdateWorkspace}
+            />
+          )}
 
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />

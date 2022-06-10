@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -33,21 +32,15 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			template, err := db.GetTemplateByID(r.Context(), templateID)
-			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Template %q does not exist.", templateID),
-				})
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && template.Deleted) {
+				httpapi.ResourceNotFound(rw)
+				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: "Internal error fetching template.",
 					Detail:  err.Error(),
 				})
-				return
-			}
-
-			if template.Deleted {
-				httpapi.ResourceNotFound(rw)
 				return
 			}
 

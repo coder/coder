@@ -5,10 +5,10 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.dev1",
+          "address": "coder_agent.dev",
           "mode": "managed",
           "type": "coder_agent",
-          "name": "dev1",
+          "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
@@ -22,10 +22,10 @@
           "sensitive_values": {}
         },
         {
-          "address": "null_resource.first",
+          "address": "null_resource.a",
           "mode": "managed",
           "type": "null_resource",
-          "name": "first",
+          "name": "a",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -34,10 +34,10 @@
           "sensitive_values": {}
         },
         {
-          "address": "null_resource.second",
+          "address": "null_resource.b",
           "mode": "managed",
           "type": "null_resource",
-          "name": "second",
+          "name": "b",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -50,10 +50,10 @@
   },
   "resource_changes": [
     {
-      "address": "coder_agent.dev1",
+      "address": "coder_agent.dev",
       "mode": "managed",
       "type": "coder_agent",
-      "name": "dev1",
+      "name": "dev",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
@@ -78,10 +78,10 @@
       }
     },
     {
-      "address": "null_resource.first",
+      "address": "null_resource.a",
       "mode": "managed",
       "type": "null_resource",
-      "name": "first",
+      "name": "a",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -99,10 +99,10 @@
       }
     },
     {
-      "address": "null_resource.second",
+      "address": "null_resource.b",
       "mode": "managed",
       "type": "null_resource",
-      "name": "second",
+      "name": "b",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -135,10 +135,10 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.dev1",
+          "address": "coder_agent.dev",
           "mode": "managed",
           "type": "coder_agent",
-          "name": "dev1",
+          "name": "dev",
           "provider_config_key": "coder",
           "expressions": {
             "arch": {
@@ -151,25 +151,25 @@
           "schema_version": 0
         },
         {
-          "address": "null_resource.first",
+          "address": "null_resource.a",
           "mode": "managed",
           "type": "null_resource",
-          "name": "first",
+          "name": "a",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
-            "coder_agent.dev1"
+            "null_resource.b"
           ]
         },
         {
-          "address": "null_resource.second",
+          "address": "null_resource.b",
           "mode": "managed",
           "type": "null_resource",
-          "name": "second",
+          "name": "b",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
-            "null_resource.first"
+            "coder_agent.dev"
           ]
         }
       ]

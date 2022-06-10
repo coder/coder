@@ -4,6 +4,9 @@ import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 
 type LogsContext = {
   // Build
+  username: string
+  workspaceName: string
+  buildNumber: string
   buildId: string
   build?: WorkspaceBuild
   getBuildError?: Error | unknown
@@ -36,28 +39,23 @@ export const workspaceBuildMachine = createMachine(
       },
     },
     tsTypes: {} as import("./workspaceBuildXService.typegen").Typegen0,
-    type: "parallel",
+    initial: "gettingBuild",
     states: {
-      build: {
-        initial: "gettingBuild",
-        states: {
-          gettingBuild: {
-            entry: "clearGetBuildError",
-            invoke: {
-              src: "getWorkspaceBuild",
-              onDone: {
-                target: "idle",
-                actions: "assignBuild",
-              },
-              onError: {
-                target: "idle",
-                actions: "assignGetBuildError",
-              },
-            },
+      gettingBuild: {
+        entry: "clearGetBuildError",
+        invoke: {
+          src: "getWorkspaceBuild",
+          onDone: {
+            target: "logs",
+            actions: ["assignBuild", "assignBuildId"],
           },
-          idle: {},
+          onError: {
+            target: "idle",
+            actions: "assignGetBuildError",
+          },
         },
       },
+      idle: {},
       logs: {
         initial: "gettingExistentLogs",
         states: {
@@ -95,6 +93,10 @@ export const workspaceBuildMachine = createMachine(
   },
   {
     actions: {
+      // Build ID
+      assignBuildId: assign({
+        buildId: (_, event) => event.data.id,
+      }),
       // Build
       assignBuild: assign({
         build: (_, event) => event.data,
@@ -117,7 +119,7 @@ export const workspaceBuildMachine = createMachine(
       }),
     },
     services: {
-      getWorkspaceBuild: (ctx) => API.getWorkspaceBuild(ctx.buildId),
+      getWorkspaceBuild: (ctx) => API.getWorkspaceBuildByNumber(ctx.username, ctx.workspaceName, ctx.buildNumber),
       getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
         const reader = await API.streamWorkspaceBuildLogs(ctx.buildId)

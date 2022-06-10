@@ -7,19 +7,19 @@ terraform {
   }
 }
 
-resource "coder_agent" "dev1" {
+resource "coder_agent" "dev" {
   os   = "linux"
   arch = "amd64"
 }
 
-resource "null_resource" "first" {
+resource "null_resource" "b" {
   depends_on = [
-    coder_agent.dev1
+    coder_agent.dev
   ]
 }
 
-resource "null_resource" "second" {
+resource "null_resource" "a" {
   depends_on = [
-    null_resource.first
+    null_resource.b
   ]
 }
