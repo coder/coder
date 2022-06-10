@@ -45,15 +45,7 @@ func (p *QueryParamParser) ParseUUIDorMe(r *http.Request, def uuid.UUID, me uuid
 	if r.URL.Query().Get(queryParam) == "me" {
 		return me
 	}
-
-	v, err := parse(r, uuid.Parse, def, queryParam)
-	if err != nil {
-		p.errors = append(p.errors, Error{
-			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid uuid", queryParam),
-		})
-	}
-	return v
+	return p.ParseUUID(r, def, queryParam)
 }
 
 func (p *QueryParamParser) ParseUUID(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
@@ -73,7 +65,7 @@ func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, quer
 		strs := strings.Split(v, ",")
 		ids := make([]uuid.UUID, 0, len(strs))
 		for _, s := range strs {
-			id, err := uuid.Parse(s)
+			id, err := uuid.Parse(strings.TrimSpace(s))
 			if err != nil {
 				badValues = append(badValues, v)
 				continue
@@ -82,7 +74,7 @@ func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, quer
 		}
 
 		if len(badValues) > 0 {
-			return nil, xerrors.Errorf("%s", strings.Join(badValues, ","))
+			return []uuid.UUID{}, xerrors.Errorf("%s", strings.Join(badValues, ","))
 		}
 		return ids, nil
 	}, def, queryParam)
