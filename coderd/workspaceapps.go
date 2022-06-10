@@ -32,7 +32,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		Name:    workspaceParts[0],
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace"))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
@@ -43,7 +43,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace"))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

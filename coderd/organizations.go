@@ -22,7 +22,7 @@ func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceOrganization.
 		InOrg(organization.ID).
 		WithID(organization.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Organization %q", organization.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -33,8 +33,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	// Create organization uses the organization resource without an OrgID.
 	// This means you need the site wide permission to make a new organization.
-	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceOrganization) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrganization) {
 		httpapi.Forbidden(rw)
 		return
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,7 +33,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 			}
 			workspaceBuild, err := db.GetWorkspaceBuildByID(r.Context(), workspaceBuildID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuildID))
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {

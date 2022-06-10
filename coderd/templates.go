@@ -29,7 +29,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -56,7 +56,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionDelete, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -100,7 +100,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	var createTemplate codersdk.CreateTemplateRequest
 	organization := httpmw.OrganizationParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -273,7 +273,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q in organization %q", templateName, organization.Name))
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 
@@ -285,7 +285,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	}
 
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q in organization %q", templateName, organization.Name))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -312,7 +312,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

@@ -76,9 +76,11 @@ type Error struct {
 	Detail string `json:"detail" validate:"required"`
 }
 
-func ResourceNotFound(rw http.ResponseWriter, resource string) {
+// ResourceNotFound is intentionally vague. All 404 responses should be identical
+// to prevent leaking existence of resources.
+func ResourceNotFound(rw http.ResponseWriter) {
 	Write(rw, http.StatusNotFound, Response{
-		Message: fmt.Sprintf("%s does not exist.", resource),
+		Message: fmt.Sprintf("Resource not found"),
 	})
 }
 

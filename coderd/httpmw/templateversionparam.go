@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,7 +33,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			}
 			templateVersion, err := db.GetTemplateVersionByID(r.Context(), templateVersionID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersionID))
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {

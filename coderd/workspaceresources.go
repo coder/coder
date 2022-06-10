@@ -19,7 +19,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	workspaceResource := httpmw.WorkspaceResourceParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

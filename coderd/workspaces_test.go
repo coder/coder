@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -632,7 +631,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, "Resource not found", coderSDKErr.Message, "unexpected response code")
 	})
 }
 
@@ -733,7 +732,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, "Resource not found", coderSDKErr.Message, "unexpected response code")
 	})
 }
 

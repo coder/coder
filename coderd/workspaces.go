@@ -32,7 +32,7 @@ import (
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -193,7 +193,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspaceName))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
@@ -204,7 +204,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.Name))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -242,7 +242,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -482,7 +482,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -525,7 +525,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -574,7 +574,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -632,7 +632,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace %q", workspace.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

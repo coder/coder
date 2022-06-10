@@ -23,7 +23,7 @@ import (
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -180,14 +180,14 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	// We use the workspace RBAC check since we don't want to allow dry runs if
 	// the user can't create workspaces.
 	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -301,7 +301,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 	}
 	if !api.Authorize(r, rbac.ActionUpdate,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -344,7 +344,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		jobID           = chi.URLParam(r, "jobID")
 	)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return database.ProvisionerJob{}, false
 	}
 
@@ -403,7 +403,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -491,7 +491,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -531,7 +531,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %q", template.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -618,12 +618,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	// Making a new template version is the same permission as creating a new template.
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	if !api.Authorize(r, rbac.ActionRead, file) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -705,7 +705,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -727,7 +727,7 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Template version %q", templateVersion.ID))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

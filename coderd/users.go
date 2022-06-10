@@ -262,7 +262,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -281,7 +281,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -349,7 +349,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		apiKey := httpmw.APIKey(r)
 
 		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser.WithID(user.ID.String())) {
-			httpapi.Forbidden(rw)
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 
@@ -395,7 +395,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -469,9 +469,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.
-		WithOwner(user.ID.String())) {
-		httpapi.Forbidden(rw)
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -614,7 +613,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Organization %q", organizationName))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
@@ -629,7 +628,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		rbac.ResourceOrganization.
 			InOrg(organization.ID).
 			WithID(organization.ID.String())) {
-		httpapi.ResourceNotFound(rw, fmt.Sprintf("Organization %q", organizationName))
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -695,7 +694,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

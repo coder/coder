@@ -44,7 +44,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
