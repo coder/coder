@@ -448,7 +448,7 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name: "a",
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Template.Name == f.Template && strings.Contains(workspace.Workspace.Name, f.Name)
+				return strings.Contains(workspace.Workspace.Name, f.Name)
 			},
 		},
 		{
