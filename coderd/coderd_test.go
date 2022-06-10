@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -160,6 +161,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
 		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
+			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/me/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
 		},
@@ -388,6 +393,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
 			route = strings.ReplaceAll(route, "{workspaceagent}", workspaceResources[0].Agents[0].ID.String())
+			route = strings.ReplaceAll(route, "{buildnumber}", strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10))
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())

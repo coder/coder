@@ -26,9 +26,11 @@ export const Language = {
 export interface BuildsTableProps {
   builds?: TypesGen.WorkspaceBuild[]
   className?: string
+  username: string
+  workspaceName: string
 }
 
-export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
+export const BuildsTable: FC<BuildsTableProps> = ({ builds, className, username, workspaceName }) => {
   const isLoading = !builds
   const theme: Theme = useTheme()
   const navigate = useNavigate()
@@ -52,7 +54,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
             const status = getDisplayWorkspaceBuildStatus(theme, build)
 
             const navigateToBuildPage = () => {
-              navigate(`/builds/${build.id}`)
+              navigate(`/@${username}/${workspaceName}/builds/${build.build_number}`)
             }
 
             return (
