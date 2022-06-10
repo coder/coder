@@ -829,12 +829,12 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 // isLocalURL returns true if the hostname of the provided URL appears to
 // resolve to a loopback address.
 func isLocalURL(ctx context.Context, urlString string) (bool, error) {
-	url, err := url.Parse(urlString)
+	parsedURL, err := url.Parse(urlString)
 	if err != nil {
 		return false, err
 	}
 	resolver := &net.Resolver{}
-	ips, err := resolver.LookupIPAddr(ctx, url.Hostname())
+	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
 	if err != nil {
 		return false, err
 	}
