@@ -33,6 +33,7 @@ func TestWorkspaceBuild(t *testing.T) {
 func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 	t.Parallel()
 	t.Run("Successful", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		first := coderdtest.CreateFirstUser(t, client)
 		user, err := client.User(context.Background(), codersdk.Me)
@@ -51,6 +52,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 	})
 
 	t.Run("BuildNumberNotInt", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		first := coderdtest.CreateFirstUser(t, client)
 		user, err := client.User(context.Background(), codersdk.Me)
@@ -72,6 +74,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 	})
 
 	t.Run("WorkspaceNotFound", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		first := coderdtest.CreateFirstUser(t, client)
 		user, err := client.User(context.Background(), codersdk.Me)
@@ -93,6 +96,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 	})
 
 	t.Run("WorkspaceBuildNotFound", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		first := coderdtest.CreateFirstUser(t, client)
 		user, err := client.User(context.Background(), codersdk.Me)
