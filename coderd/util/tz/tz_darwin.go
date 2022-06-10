@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 const etcLocaltime = "/etc/localtime"
@@ -36,10 +38,17 @@ func TimezoneIANA() (*time.Location, error) {
 		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
 	}
 
-	stripped := strings.Replace(lp, etcLocaltime, "", -1)
+	// On Darwin, /var/db/timezone/zoneinfo is also a symlink
+	realZoneInfoPath, err := filepath.EvalSymlinks(zoneInfoPath)
+	if err != nil {
+		return nil, xerrors.Errorf("read location of %s: %w", zoneInfoPath, err)
+	}
+
+	stripped := strings.Replace(lp, realZoneInfoPath, "", -1)
+	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err := time.LoadLocation(stripped)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
 	}
-	return loc
+	return loc, nil
 }

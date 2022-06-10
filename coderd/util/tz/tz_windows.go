@@ -34,7 +34,7 @@ func TimezoneIANA() (*time.Location, error) {
 	}
 
 	// https://superuser.com/a/1584968
-	cmd := exec.Command("powershell.exe", "-nologo", "-noprofile")
+	cmd := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, xerrors.Errorf("run powershell: %w", err)

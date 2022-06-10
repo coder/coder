@@ -12,7 +12,7 @@ import (
 )
 
 const etcLocaltime = "/etc/localtime"
-const zoneInfoPath = "/usr/share/zoneinfo/"
+const zoneInfoPath = "/usr/share/zoneinfo"
 
 // TimezoneIANA attempts to determine the local timezone in IANA format.
 // If the TZ environment variable is set, this is used.
@@ -40,6 +40,7 @@ func TimezoneIANA() (*time.Location, error) {
 	}
 
 	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
+	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err := time.LoadLocation(stripped)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
