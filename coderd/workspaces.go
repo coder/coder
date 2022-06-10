@@ -813,7 +813,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
-	templates, err := db.GetTemplatesByIDs(ctx, templateIDs)
+	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		Ids: templateIDs,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

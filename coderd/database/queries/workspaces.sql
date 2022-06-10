@@ -73,15 +73,6 @@ AND
 	(ttl IS NOT NULL AND ttl > 0)
 );
 
--- name: GetWorkspacesByTemplateID :many
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	template_id = $1
-	AND deleted = $2;
-
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*

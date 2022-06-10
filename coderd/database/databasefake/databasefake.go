@@ -334,8 +334,8 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 			}
 		}
 		if arg.TemplateName != "" {
-			templates, err := q.GetTemplatesByName(context.Background(), database.GetTemplatesByNameParams{
-				Name: arg.TemplateName,
+			templates, err := q.GetTemplatesWithFilter(context.Background(), database.GetTemplatesWithFilterParams{
+				ExactName: arg.TemplateName,
 			})
 			// Add to later param
 			if err == nil {
@@ -799,16 +799,38 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplatesByName(_ context.Context, arg database.GetTemplatesByNameParams) ([]database.Template, error) {
+func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
 	var templates []database.Template
 	for _, template := range q.templates {
-		if !strings.EqualFold(template.Name, arg.Name) {
-			continue
-		}
 		if template.Deleted != arg.Deleted {
 			continue
+		}
+		if arg.OrganizationID != uuid.Nil && template.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if arg.Name != "" && !strings.Contains(template.Name, arg.Name) {
+			continue
+		}
+
+		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
+			continue
+		}
+
+		if len(arg.Ids) > 0 {
+			match := false
+			for _, id := range arg.Ids {
+				if template.ID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
 		}
 		templates = append(templates, template)
 	}
@@ -954,26 +976,6 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 		return parameterValue, nil
 	}
 	return database.ParameterValue{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetTemplatesByOrganization(_ context.Context, arg database.GetTemplatesByOrganizationParams) ([]database.Template, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	templates := make([]database.Template, 0)
-	for _, template := range q.templates {
-		if template.Deleted != arg.Deleted {
-			continue
-		}
-		if template.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		templates = append(templates, template)
-	}
-	if len(templates) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return templates, nil
 }
 
 func (q *fakeQuerier) GetTemplatesByIDs(_ context.Context, ids []uuid.UUID) ([]database.Template, error) {
