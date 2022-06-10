@@ -118,6 +118,9 @@ func TestServer(t *testing.T) {
 		} else {
 			t.Error("expected password line output; got no match")
 		}
+
+		// Verify that we warned the user about the default access URL possibly not being what they want.
+		assert.Contains(t, buf.String(), "coder/coder/issues/1528")
 	})
 
 	// Duplicated test from "Development" above to test setting email/password via env.
@@ -161,6 +164,32 @@ func TestServer(t *testing.T) {
 		// Verify that credentials were output to the terminal.
 		assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
 		assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
+	})
+
+	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--access-url", "http://1.2.3.4:3000/")
+		var buf strings.Builder
+		errC := make(chan error)
+		root.SetOutput(&buf)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		// Just wait for startup
+		require.Eventually(t, func() bool {
+			var err error
+			_, err = cfg.URL().Read()
+			return err == nil
+		}, 15*time.Second, 25*time.Millisecond)
+
+		assert.NotContains(t, buf.String(), "coder/coder/issues/1528")
+
+		cancelFunc()
+		require.ErrorIs(t, <-errC, context.Canceled)
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
