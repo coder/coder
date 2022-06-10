@@ -103,43 +103,59 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
-	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 
-	orgFilter := r.URL.Query().Get("organization_id")
-	if orgFilter != "" {
-		orgID, err := uuid.Parse(orgFilter)
-		if err == nil {
-			filter.OrganizationID = orgID
-		}
+	queryStr := r.URL.Query().Get("q")
+	values, err := httpapi.WorkspaceSearchQuery(queryStr)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Invalid workspace search query",
+			Validations: []httpapi.Error{
+				{Field: "q", Detail: err.Error()},
+			},
+		})
+		return
 	}
 
-	ownerFilter := r.URL.Query().Get("owner")
-	if ownerFilter == "me" {
+	// Set all the query params from the "q" field.
+	for k, v := range values {
+		// Do not allow overriding if the user also set query param fields
+		// outside the query string.
+		if r.URL.Query().Has(k) {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("Workspace filter %q cannot be set twice. In query params %q and %q", k, k, "q"),
+			})
+			return
+		}
+		r.URL.Query().Set(k, v)
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetWorkspacesWithFilterParams{
+		Deleted:        false,
+		OrganizationID: parser.ParseUUID(r, uuid.Nil, "organization_id"),
+		OwnerID:        parser.ParseUUIDorMe(r, uuid.Nil, apiKey.UserID, "owner_id"),
+		OwnerUsername:  parser.ParseString(r, "", "owner"),
+		TemplateName:   parser.ParseString(r, "", "template"),
+		TemplateIds:    parser.ParseUUIDArray(r, []uuid.UUID{}, "template_ids"),
+		Name:           parser.ParseString(r, "", "name"),
+	}
+	if len(parser.ValidationErrors()) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     fmt.Sprintf("Query parameters have invalid values"),
+			Validations: parser.ValidationErrors(),
+		})
+		return
+	}
+
+	if filter.OwnerUsername == "me" {
+		if !(filter.OwnerID == uuid.Nil || filter.OwnerID == apiKey.UserID) {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("Cannot set both \"me\" in \"owner_name\" and use \"owner_id\""),
+			})
+			return
+		}
 		filter.OwnerID = apiKey.UserID
-	} else if ownerFilter != "" {
-		user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-			Username: ownerFilter,
-		})
-		if err == nil {
-			filter.OwnerID = user.ID
-		}
-	}
-
-	nameFilter := r.URL.Query().Get("name")
-	if nameFilter != "" {
-		filter.Name = nameFilter
-	}
-
-	templateFilter := r.URL.Query().Get("template")
-	if templateFilter != "" {
-		ts, err := api.Database.GetTemplatesByName(r.Context(), database.GetTemplatesByNameParams{
-			Name: templateFilter,
-		})
-		if err == nil {
-			for _, t := range ts {
-				filter.TemplateIds = append(filter.TemplateIds, t.ID)
-			}
-		}
+		filter.OwnerUsername = ""
 	}
 
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)

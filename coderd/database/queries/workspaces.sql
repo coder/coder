@@ -15,7 +15,7 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	deleted = @deleted
+	workspaces.deleted = @deleted
 	-- Filter by organization_id
 	AND CASE
 		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
@@ -24,21 +24,35 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		  WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
-				owner_id = @owner_id
-		  ELSE true
+		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = @owner_id
+		ELSE true
+	END
+  	-- Filter by owner_name
+	AND CASE
+		WHEN @owner_username :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE username = @owner_username)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+  	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN @template_name :: text != '' THEN
+			template_id = (SELECT id FROM templates WHERE name = @template_name)
+		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		  WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
-				template_id = ANY(@template_ids)
-		  ELSE true
+		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
+			template_id = ANY(@template_ids)
+		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN @name :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER(@name) || '%'
-		  ELSE true
+		WHEN @name :: text != '' THEN
+			LOWER(name) LIKE '%' || LOWER(@name) || '%'
+		ELSE true
 	END
 ;
 

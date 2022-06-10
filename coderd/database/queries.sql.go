@@ -3744,7 +3744,7 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	deleted = $1
+	workspaces.deleted = $1
 	-- Filter by organization_id
 	AND CASE
 		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
@@ -3753,20 +3753,34 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		  WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
-				owner_id = $3
-		  ELSE true
+		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = $3
+		ELSE true
+	END
+  	-- Filter by owner_name
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE username = $4)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+  	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			template_id = (SELECT id FROM templates WHERE name = $5)
+		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		  WHEN array_length($4 :: uuid[], 1) > 0 THEN
-				template_id = ANY($4)
-		  ELSE true
+		WHEN array_length($6 :: uuid[], 1) > 0 THEN
+			template_id = ANY($6)
+		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN $5 :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER($5) || '%'
+		  WHEN $7 :: text != '' THEN
+				LOWER(name) LIKE '%' || LOWER($7) || '%'
 		  ELSE true
 	END
 `
@@ -3775,6 +3789,8 @@ type GetWorkspacesWithFilterParams struct {
 	Deleted        bool        `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername  string      `db:"owner_username" json:"owner_username"`
+	TemplateName   string      `db:"template_name" json:"template_name"`
 	TemplateIds    []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name           string      `db:"name" json:"name"`
 }
@@ -3784,6 +3800,8 @@ func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspa
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 	)
