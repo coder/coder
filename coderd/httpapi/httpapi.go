@@ -80,7 +80,7 @@ type Error struct {
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
 	Write(rw, http.StatusNotFound, Response{
-		Message: fmt.Sprintf("Resource not found"),
+		Message: "Resource not found",
 	})
 }
 
