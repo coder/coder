@@ -378,17 +378,12 @@ func TestWorkspaceFilter(t *testing.T) {
 	allWorkspaces := make([]madeWorkspace, 0)
 
 	// Create some random workspaces
-	for i, user := range users {
+	for _, user := range users {
 		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
 
 		// Create a template & workspace in the user's org
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-			// Have even templates share the same name for filter complexity.
-			if i%2 == 0 {
-				request.Name = "even-template"
-			}
-		})
+		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
 		availTemplates = append(availTemplates, template)
 		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID)
 		allWorkspaces = append(allWorkspaces, madeWorkspace{
@@ -449,21 +444,20 @@ func TestWorkspaceFilter(t *testing.T) {
 		{
 			Name: "TemplateName",
 			Filter: codersdk.WorkspaceFilter{
-				Template: "even-template",
+				Template: allWorkspaces[5].Template.Name,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
 				return workspace.Template.Name == f.Template
 			},
 		},
 		{
-			Name: "Template&Name",
+			Name: "Name",
 			Filter: codersdk.WorkspaceFilter{
-				Template: "even-template",
 				// Use a common letter... one has to have this letter in it
 				Name: "a",
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Template.Name == f.Template && strings.Contains(workspace.Workspace.Name, f.Name)
+				return strings.Contains(workspace.Workspace.Name, f.Name)
 			},
 		},
 		{
