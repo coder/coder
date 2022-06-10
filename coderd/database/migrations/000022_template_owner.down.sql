@@ -1,1 +1,1 @@
-ALTER TABLE ONLY templates DROP COLUMN IF EXISTS owner_id;
+ALTER TABLE ONLY templates DROP COLUMN IF EXISTS created_by;

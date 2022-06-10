@@ -24,11 +24,11 @@ UsedByMany.args = {
   activeVersion: Mocks.MockTemplateVersion,
 }
 
-export const UnknownOwner = Template.bind({})
-UnknownOwner.args = {
+export const UnknownCreator = Template.bind({})
+UnknownCreator.args = {
   template: {
     ...Mocks.MockTemplate,
-    owner_name: "",
+    created_by_name: "",
   },
   activeVersion: Mocks.MockTemplateVersion,
 }

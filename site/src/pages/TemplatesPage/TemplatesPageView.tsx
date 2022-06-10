@@ -140,7 +140,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
                 <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
-                <TableCell>{template.owner_name || Language.defaultTemplateOwner}</TableCell>
+                <TableCell>{template.created_by_name || Language.defaultTemplateOwner}</TableCell>
                 <TableCell>
                   <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />

@@ -177,7 +177,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Description:          createTemplate.Description,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
-			OwnerID: uuid.NullUUID{
+			CreatedBy: uuid.NullUUID{
 				UUID:  apiKey.UserID,
 				Valid: true,
 			},
@@ -429,11 +429,11 @@ func convertTemplates(ctx context.Context, db database.Store, templates []databa
 }
 
 func convertTemplate(ctx context.Context, db database.Store, template database.Template, workspaceOwnerCount uint32) codersdk.Template {
-	var ownerName string
-	if template.OwnerID.Valid {
-		owner, err := db.GetUserByID(ctx, template.OwnerID.UUID)
+	var createdByName string
+	if template.CreatedBy.Valid {
+		creator, err := db.GetUserByID(ctx, template.CreatedBy.UUID)
 		if err == nil {
-			ownerName = owner.Username
+			createdByName = creator.Username
 		}
 	}
 	return codersdk.Template{
@@ -448,7 +448,7 @@ func convertTemplate(ctx context.Context, db database.Store, template database.T
 		Description:                template.Description,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
-		OwnerID:                    template.OwnerID,
-		OwnerName:                  ownerName,
+		CreatedByID:                template.CreatedBy,
+		CreatedByName:              createdByName,
 	}
 }

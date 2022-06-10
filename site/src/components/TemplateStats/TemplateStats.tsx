@@ -50,7 +50,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.createdByLabel}</span>
-        <span className={styles.statsValue}>{template.owner_name || Language.defaultTemplateCreator}</span>
+        <span className={styles.statsValue}>{template.created_by_name || Language.defaultTemplateCreator}</span>
       </div>
     </div>
   )

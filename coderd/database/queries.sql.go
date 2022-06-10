@@ -1603,7 +1603,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1627,14 +1627,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
-		&i.OwnerID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1666,14 +1666,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
-		&i.OwnerID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplatesByIDs = `-- name: GetTemplatesByIDs :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1701,7 +1701,7 @@ func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.Description,
 			&i.MaxTtl,
 			&i.MinAutostartInterval,
-			&i.OwnerID,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -1718,7 +1718,7 @@ func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 
 const getTemplatesByOrganization = `-- name: GetTemplatesByOrganization :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1752,7 +1752,7 @@ func (q *sqlQuerier) GetTemplatesByOrganization(ctx context.Context, arg GetTemp
 			&i.Description,
 			&i.MaxTtl,
 			&i.MinAutostartInterval,
-			&i.OwnerID,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -1780,10 +1780,10 @@ INSERT INTO
 		description,
 		max_ttl,
 		min_autostart_interval,
-		owner_id
+		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 `
 
 type InsertTemplateParams struct {
@@ -1797,7 +1797,7 @@ type InsertTemplateParams struct {
 	Description          string          `db:"description" json:"description"`
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
-	OwnerID              uuid.NullUUID   `db:"owner_id" json:"owner_id"`
+	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -1812,7 +1812,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Description,
 		arg.MaxTtl,
 		arg.MinAutostartInterval,
-		arg.OwnerID,
+		arg.CreatedBy,
 	)
 	var i Template
 	err := row.Scan(
@@ -1827,7 +1827,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
-		&i.OwnerID,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -1881,7 +1881,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, owner_id
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 `
 
 type UpdateTemplateMetaByIDParams struct {

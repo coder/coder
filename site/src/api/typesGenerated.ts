@@ -247,8 +247,8 @@ export interface Template {
   readonly description: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
-  readonly owner_id?: string
-  readonly owner_name: string
+  readonly created_by_id?: string
+  readonly created_by_name: string
 }
 
 // From codersdk/templateversions.go:14:6

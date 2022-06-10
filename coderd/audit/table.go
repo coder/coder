@@ -72,7 +72,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"description":            ActionTrack,
 		"max_ttl":                ActionTrack,
 		"min_autostart_interval": ActionTrack,
-		"owner_id":               ActionTrack,
+		"created_by":             ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
