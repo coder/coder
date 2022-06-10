@@ -70,7 +70,8 @@ FROM
 WHERE
 	owner_id = @owner_id
 	AND deleted = @deleted
-	AND LOWER("name") = LOWER(@name);
+	AND LOWER("name") = LOWER(@name)
+ORDER BY created_at DESC;
 
 -- name: GetWorkspaceOwnerCountsByTemplateIDs :many
 SELECT

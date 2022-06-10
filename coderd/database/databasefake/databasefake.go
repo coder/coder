@@ -375,7 +375,9 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	var found *database.Workspace
 	for _, workspace := range q.workspaces {
+		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -385,7 +387,14 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 		if workspace.Deleted != arg.Deleted {
 			continue
 		}
-		return workspace, nil
+
+		// Return the most recent workspace with the given name
+		if found == nil || workspace.CreatedAt.After(found.CreatedAt) {
+			found = &workspace
+		}
+	}
+	if found != nil {
+		return *found, nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
 }
