@@ -13,7 +13,8 @@ const Language = {
   lastUpdateLabel: "Last updated",
   userPlural: "users",
   userSingular: "user",
-  createdByLabel: "Created by"
+  createdByLabel: "Created by",
+  defaultTemplateCreator: "<unknown>",
 }
 
 export interface TemplateStatsProps {
@@ -49,7 +50,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.createdByLabel}</span>
-        <span className={styles.statsValue}>admin</span>
+        <span className={styles.statsValue}>{template.owner_name || Language.defaultTemplateCreator}</span>
       </div>
     </div>
   )

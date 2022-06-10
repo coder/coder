@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -49,7 +50,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
+	httpapi.Write(rw, http.StatusOK, convertTemplate(r.Context(), api.Database, template, count))
 }
 
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -97,6 +98,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
 	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		return
 	}
@@ -175,6 +177,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Description:          createTemplate.Description,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
+			OwnerID: uuid.NullUUID{
+				UUID:  apiKey.UserID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -208,7 +214,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		template = convertTemplate(dbTemplate, 0)
+		template = convertTemplate(r.Context(), db, dbTemplate, 0)
 		return nil
 	})
 	if err != nil {
@@ -258,7 +264,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
+	httpapi.Write(rw, http.StatusOK, convertTemplates(r.Context(), api.Database, templates, workspaceCounts))
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -304,7 +310,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
+	httpapi.Write(rw, http.StatusOK, convertTemplate(r.Context(), api.Database, template, count))
 }
 
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
@@ -400,10 +406,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count))
+	httpapi.Write(rw, http.StatusOK, convertTemplate(r.Context(), api.Database, updated, count))
 }
 
-func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow) []codersdk.Template {
+func convertTemplates(ctx context.Context, db database.Store, templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 	for _, template := range templates {
 		found := false
@@ -411,18 +417,25 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 			if workspaceCount.TemplateID.String() != template.ID.String() {
 				continue
 			}
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(workspaceCount.Count)))
+			apiTemplates = append(apiTemplates, convertTemplate(ctx, db, template, uint32(workspaceCount.Count)))
 			found = true
 			break
 		}
 		if !found {
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0)))
+			apiTemplates = append(apiTemplates, convertTemplate(ctx, db, template, uint32(0)))
 		}
 	}
 	return apiTemplates
 }
 
-func convertTemplate(template database.Template, workspaceOwnerCount uint32) codersdk.Template {
+func convertTemplate(ctx context.Context, db database.Store, template database.Template, workspaceOwnerCount uint32) codersdk.Template {
+	var ownerName string
+	if template.OwnerID.Valid {
+		owner, err := db.GetUserByID(ctx, template.OwnerID.UUID)
+		if err == nil {
+			ownerName = owner.Username
+		}
+	}
 	return codersdk.Template{
 		ID:                         template.ID,
 		CreatedAt:                  template.CreatedAt,
@@ -435,5 +448,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32) cod
 		Description:                template.Description,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
+		OwnerID:                    template.OwnerID,
+		OwnerName:                  ownerName,
 	}
 }

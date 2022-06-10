@@ -25,6 +25,8 @@ type Template struct {
 	Description                string          `json:"description"`
 	MaxTTLMillis               int64           `json:"max_ttl_ms"`
 	MinAutostartIntervalMillis int64           `json:"min_autostart_interval_ms"`
+	OwnerID                    uuid.NullUUID   `json:"owner_id"`
+	OwnerName                  string          `json:"owner_name"`
 }
 
 type UpdateActiveTemplateVersion struct {
