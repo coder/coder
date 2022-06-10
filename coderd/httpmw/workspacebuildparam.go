@@ -34,9 +34,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 			}
 			workspaceBuild, err := db.GetWorkspaceBuildByID(r.Context(), workspaceBuildID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Workspace build %q does not exist.", workspaceBuildID),
-				})
+				httpapi.ResourceNotFound(rw, fmt.Sprintf("Workspace build %q", workspaceBuildID))
 				return
 			}
 			if err != nil {

@@ -26,7 +26,8 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !api.Authorize(rw, r, rbac.ActionUpdate, obj) {
+	if !api.Authorize(r, rbac.ActionUpdate, obj) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -85,7 +86,8 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead, obj) {
+	if !api.Authorize(r, rbac.ActionRead, obj) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -120,8 +122,9 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// A delete param is still updating the underlying resource for the scope.
-	if !api.Authorize(rw, r, rbac.ActionUpdate, obj) {
+	// A deleted param is still updating the underlying resource for the scope.
+	if !api.Authorize(r, rbac.ActionUpdate, obj) {
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %s with scope %s", scopeID, scope))
 		return
 	}
 
@@ -132,10 +135,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		Name:    name,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("No parameter found at the provided scope with name %q.", name),
-			Detail:  err.Error(),
-		})
+		httpapi.ResourceNotFound(rw, fmt.Sprintf("Parameter %s with scope %s", scopeID, scope))
 		return
 	}
 	if err != nil {

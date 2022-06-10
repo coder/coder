@@ -76,6 +76,12 @@ type Error struct {
 	Detail string `json:"detail" validate:"required"`
 }
 
+func ResourceNotFound(rw http.ResponseWriter, resource string) {
+	Write(rw, http.StatusNotFound, Response{
+		Message: fmt.Sprintf("%s does not exist.", resource),
+	})
+}
+
 func Forbidden(rw http.ResponseWriter) {
 	Write(rw, http.StatusForbidden, Response{
 		Message: "Forbidden.",

@@ -47,9 +47,7 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			if template.Deleted {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Template %q does not exist.", templateID),
-				})
+				httpapi.ResourceNotFound(rw, fmt.Sprintf("Template %s", templateID))
 				return
 			}
 

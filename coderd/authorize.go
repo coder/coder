@@ -7,7 +7,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -17,12 +16,17 @@ func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Act
 	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
 }
 
-func (api *API) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+// Authorize will return false if the user is not authorized to do the action.
+// This function will log appropriately, but the caller must return an
+// error to the api client.
+// Eg:
+//	if !api.Authorize(...) {
+//		httpapi.Forbidden(rw)
+//	}
+func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.AuthorizationUserRoles(r)
 	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
 	if err != nil {
-		httpapi.Forbidden(rw)
-
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
 		logger := api.Logger

@@ -45,9 +45,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 
 			organization, err := db.GetOrganizationByID(r.Context(), orgID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Organization %q does not exist.", orgID),
-				})
+				httpapi.ResourceNotFound(rw, fmt.Sprintf("Organization %q", orgID))
 				return
 			}
 			if err != nil {
