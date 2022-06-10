@@ -17,8 +17,10 @@ import { stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
-dayjs.extend(advancedFormat)
+// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
+//         sorted alphabetically.
 dayjs.extend(utc)
+dayjs.extend(advancedFormat)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
@@ -50,7 +52,7 @@ export const Language = {
       if (now.isAfter(deadline)) {
         return "Workspace is shutting down"
       } else {
-        return deadline.tz(dayjs.tz.guess()).format("hh:mm A")
+        return deadline.tz(dayjs.tz.guess()).format("MMM D, YYYY h:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
