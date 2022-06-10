@@ -384,7 +384,6 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user   = httpmw.UserParam(r)
-		apiKey = httpmw.APIKey(r)
 		params codersdk.UpdateUserPasswordRequest
 	)
 
@@ -410,10 +409,13 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// we want to require old_password field if the user is changing their
-	// own password. This is to prevent a compromised session from being able
-	// to change password and lock out the user.
-	if user.ID == apiKey.UserID {
+	// admins can change passwords without sending old_password
+	if params.OldPassword == "" {
+		if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+			return
+		}
+	} else {
+		// if they send something let's validate it
 		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -911,4 +913,13 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	}
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
+}
+
+func findUser(id uuid.UUID, users []database.User) *database.User {
+	for _, u := range users {
+		if u.ID == id {
+			return &u
+		}
+	}
+	return nil
 }

@@ -3530,6 +3530,7 @@ WHERE
 	owner_id = $1
 	AND deleted = $2
 	AND LOWER("name") = LOWER($3)
+ORDER BY created_at DESC
 `
 
 type GetWorkspaceByOwnerIDAndNameParams struct {
@@ -3779,9 +3780,9 @@ WHERE
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN $7 :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER($7) || '%'
-		  ELSE true
+		WHEN $7 :: text != '' THEN
+			LOWER(name) LIKE '%' || LOWER($7) || '%'
+		ELSE true
 	END
 `
 

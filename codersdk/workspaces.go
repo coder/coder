@@ -39,7 +39,7 @@ type CreateWorkspaceBuildRequest struct {
 }
 
 type WorkspaceOptions struct {
-	Deleted bool `json:"deleted,omitempty"`
+	IncludeDeleted bool `json:"include_deleted,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -47,8 +47,8 @@ type WorkspaceOptions struct {
 func (o WorkspaceOptions) asRequestOption() requestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
-		if o.Deleted {
-			q.Set("deleted", "true")
+		if o.IncludeDeleted {
+			q.Set("include_deleted", "true")
 		}
 		r.URL.RawQuery = q.Encode()
 	}
@@ -62,7 +62,7 @@ func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 // DeletedWorkspace returns a single workspace that was deleted.
 func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
 	o := WorkspaceOptions{
-		Deleted: true,
+		IncludeDeleted: true,
 	}
 	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
@@ -269,12 +269,8 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
-type WorkspaceByOwnerAndNameParams struct {
-	IncludeDeleted bool `json:"include_deleted,omitempty"`
-}
-
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceByOwnerAndNameParams) (Workspace, error) {
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))

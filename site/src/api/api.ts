@@ -108,8 +108,11 @@ export const getTemplateVersionResources = async (versionId: string): Promise<Ty
   return response.data
 }
 
-export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+export const getWorkspace = async (
+  workspaceId: string,
+  params?: TypesGen.WorkspaceOptions,
+): Promise<TypesGen.Workspace> => {
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`, { params })
   return response.data
 }
 
@@ -141,8 +144,11 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 export const getWorkspaceByOwnerAndName = async (
   username = "me",
   workspaceName: string,
+  params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`, {
+    params,
+  })
   return response.data
 }
 

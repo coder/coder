@@ -1,15 +1,9 @@
-import Link from "@material-ui/core/Link"
-import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField, { TextFieldProps } from "@material-ui/core/TextField"
-import OpenInNewIcon from "@material-ui/icons/OpenInNew"
+import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
 import { FC, useState } from "react"
-import { Link as RouterLink } from "react-router-dom"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
-import { CodeExample } from "../../components/CodeExample/CodeExample"
-import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { FormFooter } from "../../components/FormFooter/FormFooter"
 import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
@@ -20,29 +14,18 @@ import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formU
 export const Language = {
   templateLabel: "Template",
   nameLabel: "Name",
-  emptyMessage: "Let's create your first template",
-  emptyDescription: (
-    <>
-      To create a workspace you need to have a template. You can{" "}
-      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
-        create one from scratch
-      </Link>{" "}
-      or use a built-in template by typing the following Coder CLI command:
-    </>
-  ),
-  templateLink: "Read more about this template",
 }
 
 export interface CreateWorkspacePageViewProps {
   loadingTemplates: boolean
   loadingTemplateSchema: boolean
   creatingWorkspace: boolean
+  templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
-  onSelectTemplate: (template: TypesGen.Template) => void
 }
 
 export const validationSchema = Yup.object({
@@ -51,7 +34,8 @@ export const validationSchema = Yup.object({
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props) => {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
-  const styles = useStyles()
+  useStyles()
+
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
     initialValues: {
       name: "",
@@ -84,75 +68,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
     },
   })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(form)
-  const selectedTemplate =
-    props.templates &&
-    form.values.template_id &&
-    props.templates.find((template) => template.id === form.values.template_id)
-
-  const handleTemplateChange: TextFieldProps["onChange"] = (event) => {
-    if (!props.templates) {
-      throw new Error("Templates are not loaded")
-    }
-
-    const templateId = event.target.value
-    const selectedTemplate = props.templates.find((template) => template.id === templateId)
-
-    if (!selectedTemplate) {
-      throw new Error(`Template ${templateId} not found`)
-    }
-
-    form.setFieldValue("template_id", selectedTemplate.id)
-    props.onSelectTemplate(selectedTemplate)
-  }
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
-        {props.loadingTemplates && <Loader />}
-
         <Stack>
-          {props.templates && props.templates.length === 0 && (
-            <EmptyState
-              className={styles.emptyState}
-              message={Language.emptyMessage}
-              description={Language.emptyDescription}
-              descriptionClassName={styles.emptyStateDescription}
-              cta={
-                <CodeExample className={styles.code} buttonClassName={styles.codeButton} code="coder template init" />
-              }
-            />
-          )}
-          {props.templates && props.templates.length > 0 && (
-            <TextField
-              {...getFieldHelpers("template_id")}
-              disabled={form.isSubmitting}
-              onChange={handleTemplateChange}
-              autoFocus
-              fullWidth
-              label={Language.templateLabel}
-              variant="outlined"
-              select
-              helperText={
-                selectedTemplate && (
-                  <Link
-                    className={styles.readMoreLink}
-                    component={RouterLink}
-                    to={`/templates/${selectedTemplate.name}`}
-                    target="_blank"
-                  >
-                    {Language.templateLink} <OpenInNewIcon />
-                  </Link>
-                )
-              }
-            >
-              {props.templates.map((template) => (
-                <MenuItem key={template.id} value={template.id}>
-                  {template.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          )}
+          <TextField
+            disabled
+            fullWidth
+            label={Language.templateLabel}
+            value={props.selectedTemplate?.name || props.templateName}
+            variant="outlined"
+          />
 
+          {props.loadingTemplateSchema && <Loader />}
           {props.selectedTemplate && props.templateSchema && (
             <>
               <TextField

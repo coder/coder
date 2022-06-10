@@ -480,14 +480,14 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
 	})
-	t.Run("AdminCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		err := client.UpdateUserPassword(context.Background(), "me", codersdk.UpdateUserPasswordRequest{
 			Password: "newpassword",
 		})
-		require.Error(t, err, "admin should not be able to update own password without providing old password")
+		require.NoError(t, err, "admin should be able to update own password without providing old password")
 	})
 }
 

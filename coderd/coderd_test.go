@@ -153,10 +153,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -208,6 +205,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
 			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
+			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaces/": {
@@ -378,6 +387,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{workspaceagent}", workspaceResources[0].Agents[0].ID.String())
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())

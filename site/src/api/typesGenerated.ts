@@ -454,6 +454,7 @@ export interface WorkspaceBuild {
   readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
+  readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly deadline: string
 }
@@ -463,22 +464,18 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:267:6
-export interface WorkspaceByOwnerAndNameParams {
-  readonly include_deleted?: boolean
-}
-
 // From codersdk/workspaces.go:219:6
 export interface WorkspaceFilter {
   readonly organization_id?: string
   readonly owner?: string
   readonly template?: string
   readonly name?: string
+  readonly q?: string
 }
 
 // From codersdk/workspaces.go:41:6
 export interface WorkspaceOptions {
-  readonly deleted?: boolean
+  readonly include_deleted?: boolean
 }
 
 // From codersdk/workspaceresources.go:21:6

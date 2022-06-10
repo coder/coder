@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
@@ -31,6 +32,10 @@ import (
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+		return
+	}
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -58,6 +63,10 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+		return
+	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -369,6 +378,10 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+		return
+	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

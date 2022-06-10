@@ -131,6 +131,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   id: "1",
   initiator_id: "",
+  initiator_name: "",
   job: MockProvisionerJob,
   name: "a-workspace-build",
   template_version_id: "",
