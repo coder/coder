@@ -3577,49 +3577,6 @@ func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, e
 	return items, nil
 }
 
-const getWorkspacesByOrganizationIDs = `-- name: GetWorkspacesByOrganizationIDs :many
-SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
-`
-
-type GetWorkspacesByOrganizationIDsParams struct {
-	Ids     []uuid.UUID `db:"ids" json:"ids"`
-	Deleted bool        `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationIDs, pq.Array(arg.Ids), arg.Deleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspacesWithFilter = `-- name: GetWorkspacesWithFilter :many
 SELECT
     id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
@@ -3628,60 +3585,52 @@ FROM
 WHERE
     -- Optionally include deleted workspaces
 	workspaces.deleted = $1
-	-- Filter by organization_id
-	AND CASE
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
-			organization_id = $2
-		ELSE true
-	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
-			owner_id = $3
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = $2
 		ELSE true
 	END
   	-- Filter by owner_name
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE username = $4)
+		WHEN $3 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE username = $3)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
   	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE name = $5)
+		WHEN $4 :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE name = $4)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			template_id = ANY($6)
+		WHEN array_length($5 :: uuid[], 1) > 0 THEN
+			template_id = ANY($5)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			LOWER(name) LIKE '%' || LOWER($7) || '%'
+		WHEN $6 :: text != '' THEN
+			LOWER(name) LIKE '%' || LOWER($6) || '%'
 		ELSE true
 	END
 `
 
 type GetWorkspacesWithFilterParams struct {
-	Deleted        bool        `db:"deleted" json:"deleted"`
-	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername  string      `db:"owner_username" json:"owner_username"`
-	TemplateName   string      `db:"template_name" json:"template_name"`
-	TemplateIds    []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name           string      `db:"name" json:"name"`
+	Deleted       bool        `db:"deleted" json:"deleted"`
+	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername string      `db:"owner_username" json:"owner_username"`
+	TemplateName  string      `db:"template_name" json:"template_name"`
+	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name          string      `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter,
 		arg.Deleted,
-		arg.OrganizationID,
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,

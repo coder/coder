@@ -132,12 +132,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetWorkspacesWithFilterParams{
-		Deleted:        false,
-		OrganizationID: parser.ParseUUID(r, uuid.Nil, "organization_id"),
-		OwnerUsername:  parser.ParseString(r, "", "owner"),
-		TemplateName:   parser.ParseString(r, "", "template"),
-		TemplateIds:    parser.ParseUUIDArray(r, []uuid.UUID{}, "template_ids"),
-		Name:           parser.ParseString(r, "", "name"),
+		Deleted:       false,
+		OwnerUsername: parser.ParseString(r, "", "owner"),
+		TemplateName:  parser.ParseString(r, "", "template"),
+		Name:          parser.ParseString(r, "", "name"),
 	}
 	if len(parser.ValidationErrors()) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{

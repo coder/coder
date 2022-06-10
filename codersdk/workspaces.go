@@ -217,7 +217,6 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type WorkspaceFilter struct {
-	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
 	// Owner can be "me" or a username
 	Owner string `json:"owner,omitempty"`
 	// Template is a template name
@@ -233,9 +232,6 @@ type WorkspaceFilter struct {
 func (f WorkspaceFilter) asRequestOption() requestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
-		if f.OrganizationID != uuid.Nil {
-			q.Set("organization_id", f.OrganizationID.String())
-		}
 		if f.Owner != "" {
 			q.Set("owner", f.Owner)
 		}

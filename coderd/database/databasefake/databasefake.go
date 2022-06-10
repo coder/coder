@@ -321,9 +321,6 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
-		if arg.OrganizationID != uuid.Nil && workspace.OrganizationID != arg.OrganizationID {
-			continue
-		}
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -632,25 +629,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 		return workspaceBuild, nil
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		for _, id := range req.Ids {
-			if workspace.OrganizationID != id {
-				continue
-			}
-			if workspace.Deleted != req.Deleted {
-				continue
-			}
-			workspaces = append(workspaces, workspace)
-		}
-	}
-	return workspaces, nil
 }
 
 func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {

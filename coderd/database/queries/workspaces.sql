@@ -16,12 +16,6 @@ FROM
 WHERE
     -- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
-	-- Filter by organization_id
-	AND CASE
-		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
-			organization_id = @organization_id
-		ELSE true
-	END
 	-- Filter by owner_id
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
@@ -55,9 +49,6 @@ WHERE
 		ELSE true
 	END
 ;
-
--- name: GetWorkspacesByOrganizationIDs :many
-SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
 -- name: GetWorkspacesAutostart :many
 SELECT

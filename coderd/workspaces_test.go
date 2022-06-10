@@ -433,15 +433,6 @@ func TestWorkspaceFilter(t *testing.T) {
 			},
 		},
 		{
-			Name: "OrgID",
-			Filter: codersdk.WorkspaceFilter{
-				OrganizationID: users[must(cryptorand.Intn(len(users)))].Org.ID,
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Template.OrganizationID == f.OrganizationID
-			},
-		},
-		{
 			Name: "TemplateName",
 			Filter: codersdk.WorkspaceFilter{
 				Template: allWorkspaces[5].Template.Name,
@@ -457,7 +448,7 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name: "a",
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.Contains(workspace.Workspace.Name, f.Name)
+				return workspace.Template.Name == f.Template && strings.Contains(workspace.Workspace.Name, f.Name)
 			},
 		},
 		{
@@ -470,32 +461,11 @@ func TestWorkspaceFilter(t *testing.T) {
 			},
 		},
 		{
-			Name: "Org&Owner",
-			Filter: codersdk.WorkspaceFilter{
-				OrganizationID: users[2].Org.ID,
-				Owner:          users[2].User.Username,
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Owner.Username == f.Owner && workspace.Template.OrganizationID == f.OrganizationID
-			},
-		},
-		{
-			Name: "Org&Owner",
-			Filter: codersdk.WorkspaceFilter{
-				OrganizationID: users[2].Org.ID,
-				Owner:          users[2].User.Username,
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Owner.Username == f.Owner && workspace.Template.OrganizationID == f.OrganizationID
-			},
-		},
-		{
 			Name: "Many filters",
 			Filter: codersdk.WorkspaceFilter{
-				OrganizationID: allWorkspaces[3].Template.OrganizationID,
-				Owner:          allWorkspaces[3].Owner.Username,
-				Template:       allWorkspaces[3].Template.Name,
-				Name:           allWorkspaces[3].Workspace.Name,
+				Owner:    allWorkspaces[3].Owner.Username,
+				Template: allWorkspaces[3].Template.Name,
+				Name:     allWorkspaces[3].Workspace.Name,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
 				return workspace.Workspace.ID == allWorkspaces[3].Workspace.ID
