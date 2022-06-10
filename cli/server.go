@@ -60,6 +60,12 @@ import (
 
 // nolint:gocyclo
 func server() *cobra.Command {
+	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
+	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
+		// For compatibility with systemd.
+		defaultCacheDir = dir
+	}
+
 	var (
 		accessURL             string
 		address               string
@@ -68,7 +74,6 @@ func server() *cobra.Command {
 		promAddress           string
 		pprofEnabled          bool
 		pprofAddress          string
-		defaultCacheDir       = filepath.Join(os.TempDir(), "coder-cache")
 		cacheDir              string
 		dev                   bool
 		devUserEmail          string
@@ -100,11 +105,6 @@ func server() *cobra.Command {
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cacheDir == defaultCacheDir && os.Getenv("CACHE_DIRECTORY") != "" {
-				// For compatibility with systemd.
-				cacheDir = os.Getenv("CACHE_DIRECTORY")
-			}
-
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			buildModeDev := semver.Prerelease(buildinfo.Version()) == "-devel"
 			if verbose || buildModeDev {
