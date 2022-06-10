@@ -24,8 +24,9 @@ func templateInit() *cobra.Command {
 			exampleNames := []string{}
 			exampleByName := map[string]examples.Example{}
 			for _, example := range exampleList {
-				exampleNames = append(exampleNames, example.Name)
-				exampleByName[example.Name] = example
+				name := fmt.Sprintf("%s\n      %s", example.Name, example.Description)
+				exampleNames = append(exampleNames, name)
+				exampleByName[name] = example
 			}
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render(
