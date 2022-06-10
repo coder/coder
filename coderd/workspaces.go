@@ -104,7 +104,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	queryStr := r.URL.Query().Get("q")
-	values, err := httpapi.WorkspaceSearchQuery(queryStr)
+	values, err := WorkspaceSearchQuery(queryStr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "Invalid workspace search query.",

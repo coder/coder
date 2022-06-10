@@ -1,11 +1,10 @@
-package httpapi_test
+package coderd_test
 
 import (
 	"testing"
 
+	"github.com/coder/coder/coderd"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/coderd/httpapi"
 )
 
 func TestSearchWorkspace(t *testing.T) {
@@ -125,7 +124,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, err := httpapi.WorkspaceSearchQuery(c.Query)
+			values, err := coderd.WorkspaceSearchQuery(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.Error(t, err, "expected error")
 				require.ErrorContains(t, err, c.ExpectedErrorContains)
