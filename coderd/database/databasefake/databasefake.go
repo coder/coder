@@ -792,10 +792,6 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 			continue
 		}
 
-		if arg.Name != "" && !strings.Contains(template.Name, arg.Name) {
-			continue
-		}
-
 		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
 			continue
 		}

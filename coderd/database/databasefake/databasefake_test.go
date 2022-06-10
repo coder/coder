@@ -15,6 +15,8 @@ import (
 // we forget to delete functions that we remove. This unit test just ensures
 // we remove the extra methods.
 func TestExactMethods(t *testing.T) {
+	t.Parallel()
+
 	// extraFakeMethods contains the extra allowed methods that are not a part
 	// of the database.Store interface.
 	extraFakeMethods := map[string]string{
