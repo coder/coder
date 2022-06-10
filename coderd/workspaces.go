@@ -108,7 +108,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	values, err := httpapi.WorkspaceSearchQuery(queryStr)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace search query",
+			Message: "Invalid workspace search query.",
 			Validations: []httpapi.Error{
 				{Field: "q", Detail: err.Error()},
 			},
@@ -123,7 +123,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		// outside the query string.
 		if q.Has(k) {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Workspace filter %q cannot be set twice. In query params %q and %q", k, k, "q"),
+				Message: fmt.Sprintf("Workspace filter %q cannot be set twice. In query params %q and %q.", k, k, "q"),
 			})
 			return
 		}
@@ -152,7 +152,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	if filter.OwnerUsername == "me" {
 		if !(filter.OwnerID == uuid.Nil || filter.OwnerID == apiKey.UserID) {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Cannot set both \"me\" in \"owner_name\" and use \"owner_id\""),
+				Message: fmt.Sprintf("Cannot set both \"me\" in \"owner_name\" and use \"owner_id\"."),
 			})
 			return
 		}

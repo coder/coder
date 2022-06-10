@@ -3,8 +3,9 @@ package httpapi_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 func TestSearchWorkspace(t *testing.T) {
@@ -117,7 +118,6 @@ func TestSearchWorkspace(t *testing.T) {
 				require.NoError(t, err, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
 			}
-
 		})
 	}
 }

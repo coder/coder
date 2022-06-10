@@ -59,13 +59,13 @@ func splitElements(query string, delimiter rune) []string {
 			quoted = !quoted
 		case delimiter:
 			if quoted {
-				current.WriteRune(c)
+				_, _ = current.WriteRune(c)
 			} else {
 				parts = append(parts, current.String())
 				current = strings.Builder{}
 			}
 		default:
-			current.WriteRune(c)
+			_, _ = current.WriteRune(c)
 		}
 	}
 	parts = append(parts, current.String())
