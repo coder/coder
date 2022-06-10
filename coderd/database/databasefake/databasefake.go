@@ -368,26 +368,6 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 	return workspaces, nil
 }
 
-func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		if workspace.TemplateID.String() != arg.TemplateID.String() {
-			continue
-		}
-		if workspace.Deleted != arg.Deleted {
-			continue
-		}
-		workspaces = append(workspaces, workspace)
-	}
-	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return workspaces, nil
-}
-
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
