@@ -181,7 +181,9 @@ func server() *cobra.Command {
 					"Coder requires a URL accessible by workspaces you provision. "+
 						"A free tunnel can be created for simple setup. This will "+
 						"expose your Coder deployment to a publicly accessible URL. "+
-						cliui.Styles.Field.Render("--access-url")+" can be specified instead.\n",
+						"If you'd like to use your own domain, you can provide it "+
+						"with the "+ 
+						cliui.Styles.Field.Render("--access-url")+" flag.\n",
 				))
 
 				// This skips the prompt if the flag is explicitly specified.
@@ -252,8 +254,8 @@ func server() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "provisioner-daemons: %d\n", provisionerDaemonCount)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Access your Coder UI in a browser at: %s\n", accessURL)
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 			if !dev {
