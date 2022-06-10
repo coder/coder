@@ -70,7 +70,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 		return nil, nil, xerrors.Errorf("resolve endpoint: %w", err)
 	}
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
 endpoint=%s:55555
