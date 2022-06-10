@@ -1683,22 +1683,16 @@ WHERE
 			organization_id = $2
 		ELSE true
 	END
-	-- Filter by name, matching on substring
-	AND CASE
-		WHEN $3 :: text != '' THEN
-			LOWER(name) LIKE '%' || LOWER($3) || '%'
-		ELSE true
-	END
 	-- Filter by exact name
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			LOWER("name") = LOWER($4)
+		WHEN $3 :: text != '' THEN
+			LOWER("name") = LOWER($3)
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($5 :: uuid[], 1) > 0 THEN
-			id = ANY($5)
+		WHEN array_length($4 :: uuid[], 1) > 0 THEN
+			id = ANY($4)
 		ELSE true
 	END
 `
@@ -1706,7 +1700,6 @@ WHERE
 type GetTemplatesWithFilterParams struct {
 	Deleted        bool        `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	Name           string      `db:"name" json:"name"`
 	ExactName      string      `db:"exact_name" json:"exact_name"`
 	Ids            []uuid.UUID `db:"ids" json:"ids"`
 }
@@ -1715,7 +1708,6 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 	rows, err := q.db.QueryContext(ctx, getTemplatesWithFilter,
 		arg.Deleted,
 		arg.OrganizationID,
-		arg.Name,
 		arg.ExactName,
 		pq.Array(arg.Ids),
 	)

@@ -22,12 +22,6 @@ WHERE
 			organization_id = @organization_id
 		ELSE true
 	END
-	-- Filter by name, matching on substring
-	AND CASE
-		WHEN @name :: text != '' THEN
-			LOWER(name) LIKE '%' || LOWER(@name) || '%'
-		ELSE true
-	END
 	-- Filter by exact name
 	AND CASE
 		WHEN @exact_name :: text != '' THEN
