@@ -16,14 +16,20 @@ func TestParseCLISchedule(t *testing.T) {
 		tzEnv            string
 	}{
 		{
-			name:             "DefaultSchedule",
-			input:            []string{"Sun-Sat", "09:00AM", "America/Chicago"},
+			name:             "TimeAndDayOfWeekAndLocation",
+			input:            []string{"09:00AM", "Sun-Sat", "America/Chicago"},
 			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * Sun-Sat",
 			tzEnv:            "UTC",
 		},
 		{
-			name:             "DefaultSchedule24Hour",
-			input:            []string{"Sun-Sat", "09:00", "America/Chicago"},
+			name:             "TimeOfDay24HourAndDayOfWeekAndLocation",
+			input:            []string{"09:00", "Sun-Sat", "America/Chicago"},
+			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * Sun-Sat",
+			tzEnv:            "UTC",
+		},
+		{
+			name:             "TimeOfDay24HourAndDayOfWeekAndLocationButItsAllQuoted",
+			input:            []string{"09:00 Sun-Sat America/Chicago"},
 			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * Sun-Sat",
 			tzEnv:            "UTC",
 		},
@@ -35,7 +41,7 @@ func TestParseCLISchedule(t *testing.T) {
 		},
 		{
 			name:             "DayOfWeekAndTime",
-			input:            []string{"Sun-Sat", "09:00AM"},
+			input:            []string{"09:00AM", "Sun-Sat"},
 			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * Sun-Sat",
 			tzEnv:            "America/Chicago",
 		},
@@ -52,7 +58,7 @@ func TestParseCLISchedule(t *testing.T) {
 		},
 		{
 			name:          "DayOfWeekAndInvalidTime",
-			input:         []string{"Sun-Sat", "9am"},
+			input:         []string{"9am", "Sun-Sat"},
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 		{
@@ -62,13 +68,13 @@ func TestParseCLISchedule(t *testing.T) {
 		},
 		{
 			name:          "DayOfWeekAndInvalidTimeAndLocation",
-			input:         []string{"Sun-Sat", "9am", "America/Chicago"},
+			input:         []string{"9am", "Sun-Sat", "America/Chicago"},
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 		{
 			name:          "WhoKnows",
 			input:         []string{"Time", "is", "a", "human", "construct"},
-			expectedError: errInvalidScheduleFormat.Error(),
+			expectedError: errInvalidTimeFormat.Error(),
 		},
 	} {
 		testCase := testCase
