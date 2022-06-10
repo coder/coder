@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -13,53 +12,20 @@ import (
 // parsePagination extracts pagination query params from the http request.
 // If an error is encountered, the error is written to w and ok is set to false.
 func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Pagination, ok bool) {
-	var (
-		afterID = uuid.Nil
-		limit   = -1 // Default to no limit and return all results.
-		offset  = 0
-	)
-
-	var err error
-	if s := r.URL.Query().Get("after_id"); s != "" {
-		afterID, err = uuid.Parse(r.URL.Query().Get("after_id"))
-		if err != nil {
-			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: "Query param 'after_id' must be a valid UUID.",
-				Validations: []httpapi.Error{
-					{Field: "after_id", Detail: err.Error()},
-				},
-			})
-			return p, false
-		}
+	parser := httpapi.NewQueryParamParser()
+	params := codersdk.Pagination{
+		AfterID: parser.ParseUUID(r, uuid.Nil, "after_id"),
+		// Limit default to "-1" which returns all results
+		Limit:  parser.ParseInteger(r, -1, "limit"),
+		Offset: parser.ParseInteger(r, 0, "offset"),
 	}
-	if s := r.URL.Query().Get("limit"); s != "" {
-		limit, err = strconv.Atoi(s)
-		if err != nil {
-			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: "Query param 'limit' must be a valid integer.",
-				Validations: []httpapi.Error{
-					{Field: "limit", Detail: err.Error()},
-				},
-			})
-			return p, false
-		}
-	}
-	if s := r.URL.Query().Get("offset"); s != "" {
-		offset, err = strconv.Atoi(s)
-		if err != nil {
-			httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
-				Message: "Query param 'offset' must be a valid integer.",
-				Validations: []httpapi.Error{
-					{Field: "offset", Detail: err.Error()},
-				},
-			})
-			return p, false
-		}
+	if len(parser.ValidationErrors()) > 0 {
+		httpapi.Write(w, http.StatusBadRequest, httpapi.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.ValidationErrors(),
+		})
+		return params, false
 	}
 
-	return codersdk.Pagination{
-		AfterID: afterID,
-		Limit:   limit,
-		Offset:  offset,
-	}, true
+	return params, true
 }

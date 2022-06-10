@@ -141,7 +141,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 	if len(parser.ValidationErrors()) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:     fmt.Sprintf("Query parameters have invalid values"),
+			Message:     "Query parameters have invalid values.",
 			Validations: parser.ValidationErrors(),
 		})
 		return

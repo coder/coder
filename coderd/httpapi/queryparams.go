@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -27,6 +28,17 @@ func NewQueryParamParser() *QueryParamParser {
 // of this set is 0, there was no errors.
 func (p QueryParamParser) ValidationErrors() []Error {
 	return p.errors
+}
+
+func (p *QueryParamParser) ParseInteger(r *http.Request, def int, queryParam string) int {
+	v, err := parse(r, strconv.Atoi, def, queryParam)
+	if err != nil {
+		p.errors = append(p.errors, Error{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid integer (%s)", queryParam, err.Error()),
+		})
+	}
+	return v
 }
 
 func (p *QueryParamParser) ParseUUIDorMe(r *http.Request, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
