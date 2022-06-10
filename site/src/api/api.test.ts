@@ -118,10 +118,10 @@ describe("api.ts", () => {
     it.each<[TypesGen.WorkspaceFilter | undefined, string]>([
       [undefined, "/api/v2/workspaces"],
 
-      [{ organization_id: "1", owner: "" }, "/api/v2/workspaces?organization_id=1"],
-      [{ organization_id: "", owner: "1" }, "/api/v2/workspaces?owner=1"],
+      [{ owner: "" }, "/api/v2/workspaces"],
+      [{ owner: "1" }, "/api/v2/workspaces?owner=1"],
 
-      [{ organization_id: "1", owner: "me" }, "/api/v2/workspaces?organization_id=1&owner=me"],
+      [{ owner: "me" }, "/api/v2/workspaces?owner=me"],
     ])(`getWorkspacesURL(%p) returns %p`, (filter, expected) => {
       expect(getWorkspacesURL(filter)).toBe(expected)
     })

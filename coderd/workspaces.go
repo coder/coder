@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -117,7 +116,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set all the query params from the "q" field.
-	q := url.Values{}
+	q := r.URL.Query()
 	for k, v := range values {
 		// Do not allow overriding if the user also set query param fields
 		// outside the query string.
