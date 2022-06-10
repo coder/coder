@@ -89,7 +89,7 @@ func (p *QueryParamParser) ParseUUIDArray(r *http.Request, def []uuid.UUID, quer
 	if err != nil {
 		p.errors = append(p.errors, Error{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q has invalid uuids: %q", err.Error()),
+			Detail: fmt.Sprintf("Query param %q has invalid uuids: %q", queryParam, err.Error()),
 		})
 	}
 	return v

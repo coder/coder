@@ -6,17 +6,20 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// WorkspaceSearchQuery takes a query string and breaks it into it's query
-// params as a set of key=value.
+// WorkspaceSearchQuery takes a query string and breaks it into it's queryparams
+// as a set of key=value.
 func WorkspaceSearchQuery(query string) (map[string]string, error) {
 	searchParams := make(map[string]string)
-	elements := queryElements(query)
+	if query == "" {
+		return searchParams, nil
+	}
+	elements := splitElements(query, ' ')
 	for _, element := range elements {
-		parts := strings.Split(element, ":")
+		parts := splitElements(query, ':')
 		switch len(parts) {
 		case 1:
 			// No key:value pair. It is a workspace name, and maybe includes an owner
-			parts = strings.Split(element, "/")
+			parts = splitElements(query, '/')
 			switch len(parts) {
 			case 1:
 				searchParams["name"] = parts[0]
@@ -36,10 +39,16 @@ func WorkspaceSearchQuery(query string) (map[string]string, error) {
 	return searchParams, nil
 }
 
-// queryElements takes a query string and splits it into the individual elements
-// of the query. Each element is separated by a space. All quoted strings are
+// splitElements takes a query string and splits it into the individual elements
+// of the query. Each element is separated by a delimiter. All quoted strings are
 // kept as a single element.
-func queryElements(query string) []string {
+//
+// Although all our names cannot have spaces, that is a validation error.
+// We should still parse the quoted string as a single value so that validation
+// can properly fail on the space. If we do not, a value of `template:"my name"`
+// will search `template:"my name:name"`, which produces an empty list instead of
+// an error.
+func splitElements(query string, delimiter rune) []string {
 	var parts []string
 
 	quoted := false
@@ -48,7 +57,7 @@ func queryElements(query string) []string {
 		switch c {
 		case '"':
 			quoted = !quoted
-		case ' ':
+		case delimiter:
 			if quoted {
 				current.WriteRune(c)
 			} else {

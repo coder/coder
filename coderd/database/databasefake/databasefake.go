@@ -327,6 +327,23 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
 		}
+		if arg.OwnerUsername != "" {
+			owner, err := q.GetUserByID(context.Background(), workspace.OwnerID)
+			if err == nil && arg.OwnerUsername != owner.Username {
+				continue
+			}
+		}
+		if arg.TemplateName != "" {
+			templates, err := q.GetTemplatesByName(context.Background(), database.GetTemplatesByNameParams{
+				Name: arg.TemplateName,
+			})
+			// Add to later param
+			if err == nil {
+				for _, t := range templates {
+					arg.TemplateIds = append(arg.TemplateIds, t.ID)
+				}
+			}
+		}
 		if !arg.Deleted && workspace.Deleted {
 			continue
 		}

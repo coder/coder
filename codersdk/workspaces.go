@@ -224,6 +224,8 @@ type WorkspaceFilter struct {
 	Template string `json:"template,omitempty"`
 	// Name will return partial matches
 	Name string `json:"name,omitempty"`
+	// FilterQuery supports a raw filter query string
+	FilterQuery string `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -242,6 +244,9 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		}
 		if f.Template != "" {
 			q.Set("template", f.Template)
+		}
+		if f.FilterQuery != "" {
+			q.Set("q", f.FilterQuery)
 		}
 		r.URL.RawQuery = q.Encode()
 	}

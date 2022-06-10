@@ -117,17 +117,19 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set all the query params from the "q" field.
+	q := r.URL.Query()
 	for k, v := range values {
 		// Do not allow overriding if the user also set query param fields
 		// outside the query string.
-		if r.URL.Query().Has(k) {
+		if q.Has(k) {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("Workspace filter %q cannot be set twice. In query params %q and %q", k, k, "q"),
 			})
 			return
 		}
-		r.URL.Query().Set(k, v)
+		q.Set(k, v)
 	}
+	r.URL.RawQuery = q.Encode()
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetWorkspacesWithFilterParams{
