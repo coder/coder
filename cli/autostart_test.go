@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,7 +61,7 @@ func TestAutostart(t *testing.T) {
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			tz        = "Europe/Dublin"
 			cmdArgs   = []string{"autostart", "set", workspace.Name, "Mon-Fri", "9:30AM", tz}
-			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
+			sched     = "CRON_TZ=Europe/Dublin 30 9 * * Mon-Fri"
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -127,35 +126,30 @@ func TestAutostart(t *testing.T) {
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
+}
 
-	t.Run("set_DefaultSchedule", func(t *testing.T) {
-		t.Parallel()
+//nolint:paralleltest // t.Setenv
+func TestAutostartSetDefaultSchedule(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	var (
+		ctx       = context.Background()
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user      = coderdtest.CreateFirstUser(t, client)
+		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+	)
 
-		var (
-			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		)
+	expectedSchedule := fmt.Sprintf("CRON_TZ=%s 30 9 * * *", "UTC")
+	cmd, root := clitest.New(t, "autostart", "set", workspace.Name, "9:30AM")
+	clitest.SetupConfig(t, client, root)
 
-		// check current TZ env var
-		currTz := os.Getenv("TZ")
-		if currTz == "" {
-			currTz = "UTC"
-		}
-		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 9 * * *", currTz)
-		cmd, root := clitest.New(t, "autostart", "set", workspace.Name, "09:30am")
-		clitest.SetupConfig(t, client, root)
+	err := cmd.Execute()
+	require.NoError(t, err, "unexpected error")
 
-		err := cmd.Execute()
-		require.NoError(t, err, "unexpected error")
-
-		// Ensure nothing happened
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
-	})
+	// Ensure nothing happened
+	updated, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "fetch updated workspace")
+	require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
 }
