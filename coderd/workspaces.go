@@ -134,7 +134,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	filter := database.GetWorkspacesWithFilterParams{
 		Deleted:        false,
 		OrganizationID: parser.ParseUUID(r, uuid.Nil, "organization_id"),
-		OwnerID:        parser.ParseUUIDorMe(r, uuid.Nil, apiKey.UserID, "owner_id"),
 		OwnerUsername:  parser.ParseString(r, "", "owner"),
 		TemplateName:   parser.ParseString(r, "", "template"),
 		TemplateIds:    parser.ParseUUIDArray(r, []uuid.UUID{}, "template_ids"),
@@ -149,12 +148,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if filter.OwnerUsername == "me" {
-		if !(filter.OwnerID == uuid.Nil || filter.OwnerID == apiKey.UserID) {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "Cannot set both \"me\" in \"owner_name\" and use \"owner_id\".",
-			})
-			return
-		}
 		filter.OwnerID = apiKey.UserID
 		filter.OwnerUsername = ""
 	}
