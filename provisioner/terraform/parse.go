@@ -11,7 +11,7 @@ import (
 )
 
 // Parse extracts Terraform variables from source-code.
-func (*terraform) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
 	defer func() {
 		_ = stream.CloseSend()
 	}()

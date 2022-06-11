@@ -1,33 +1,21 @@
 package terraform
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"runtime"
 	"strings"
 
-	"github.com/hashicorp/terraform-exec/tfexec"
-	tfjson "github.com/hashicorp/terraform-json"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-var (
-	// noStateRegex is matched against the output from `terraform state show`
-	noStateRegex = regexp.MustCompile(`no state`)
-)
-
-// Provision executes `terraform apply`.
-func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+// Provision executes `terraform apply` or `terraform plan` for dry runs.
+func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	logger := provisionersdk.NewProvisionLogger(stream)
 	shutdown, shutdownFunc := context.WithCancel(stream.Context())
 	defer shutdownFunc()
 
@@ -58,16 +46,15 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	}()
 	start := request.GetStart()
 
-	terraform, err := tfexec.NewTerraform(start.Directory, t.binaryPath)
 	if err != nil {
 		return xerrors.Errorf("create new terraform executor: %w", err)
 	}
-	version, _, err := terraform.Version(shutdown, false)
-	if err != nil {
-		return xerrors.Errorf("get terraform version: %w", err)
+	e := t.executor(start.Directory)
+	if err := e.checkMinVersion(stream.Context()); err != nil {
+		return err
 	}
-	if !version.GreaterThanOrEqual(minimumTerraformVersion) {
-		return xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), minimumTerraformVersion.String())
+	if err := logTerraformEnvVars(logger); err != nil {
+		return err
 	}
 
 	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
@@ -78,200 +65,51 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		}
 	}
 
-	reader, writer := io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
-	go func() {
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  proto.LogLevel_DEBUG,
-						Output: scanner.Text(),
-					},
-				},
-			})
-		}
-	}()
-	terraformEnv := map[string]string{}
-	// Required for "terraform init" to find "git" to
-	// clone Terraform modules.
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		terraformEnv[parts[0]] = parts[1]
-	}
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if t.cachePath != "" && runtime.GOOS == "linux" {
-		terraformEnv["TF_PLUGIN_CACHE_DIR"] = t.cachePath
-	}
-	err = terraform.SetEnv(terraformEnv)
-	if err != nil {
-		return xerrors.Errorf("set terraform env: %w", err)
-	}
-	terraform.SetStdout(writer)
-	t.logger.Debug(shutdown, "running initialization")
-	err = terraform.Init(shutdown)
-	if err != nil {
-		return xerrors.Errorf("initialize terraform: %w", err)
-	}
-	t.logger.Debug(shutdown, "ran initialization")
-	_ = reader.Close()
-	terraform.SetStdout(io.Discard)
-
-	env := os.Environ()
-	env = append(env,
-		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
-		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
-		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
-		"CODER_WORKSPACE_ID="+start.Metadata.WorkspaceId,
-		"CODER_WORKSPACE_OWNER_ID="+start.Metadata.WorkspaceOwnerId,
-	)
-	for key, value := range provisionersdk.AgentScriptEnv() {
-		env = append(env, key+"="+value)
-	}
-	vars := []string{}
-	for _, param := range start.ParameterValues {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		default:
-			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
-	}
-
-	closeChan := make(chan struct{})
-	reader, writer = io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
-	go func() {
-		defer close(closeChan)
-		decoder := json.NewDecoder(reader)
-		for {
-			var log terraformProvisionLog
-			err := decoder.Decode(&log)
-			if err != nil {
-				return
-			}
-			logLevel, err := convertTerraformLogLevel(log.Level)
-			if err != nil {
-				// Not a big deal, but we should handle this at some point!
-				continue
-			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  logLevel,
-						Output: log.Message,
-					},
-				},
-			})
-
-			if log.Diagnostic == nil {
-				continue
-			}
-
-			// If the diagnostic is provided, let's provide a bit more info!
-			logLevel, err = convertTerraformLogLevel(log.Diagnostic.Severity)
-			if err != nil {
-				continue
-			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  logLevel,
-						Output: log.Diagnostic.Detail,
-					},
-				},
-			})
-		}
-	}()
-
 	// If we're destroying, exit early if there's no state. This is necessary to
 	// avoid any cases where a workspace is "locked out" of terraform due to
 	// e.g. bad template param values and cannot be deleted. This is just for
 	// contingency, in the future we will try harder to prevent workspaces being
 	// broken this hard.
-	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY {
-		_, err := pullTerraformState(shutdown, terraform, statefilePath)
-		if xerrors.Is(err, os.ErrNotExist) {
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  proto.LogLevel_INFO,
-						Output: "The terraform state does not exist, there is nothing to do",
-					},
+	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY && len(start.State) == 0 {
+		_ = stream.Send(&proto.Provision_Response{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_INFO,
+					Output: "The terraform state does not exist, there is nothing to do",
 				},
-			})
+			},
+		})
 
-			return stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
-				},
-			})
-		}
-		if err != nil {
-			err = xerrors.Errorf("get terraform state: %w", err)
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Error: err.Error(),
-					},
-				},
-			})
-
-			return err
-		}
+		return stream.Send(&proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		})
 	}
 
-	planfilePath := filepath.Join(start.Directory, "terraform.tfplan")
-	var args []string
+	t.logger.Debug(shutdown, "running initialization")
+	err = e.init(stream.Context(), logger)
+	if err != nil {
+		return xerrors.Errorf("initialize terraform: %w", err)
+	}
+	t.logger.Debug(shutdown, "ran initialization")
+
+	env, err := provisionEnv(start)
+	if err != nil {
+		return err
+	}
+	vars, err := provisionVars(start)
+	if err != nil {
+		return err
+	}
+	var resp *proto.Provision_Response
 	if start.DryRun {
-		args = []string{
-			"plan",
-			"-no-color",
-			"-input=false",
-			"-json",
-			"-refresh=true",
-			"-out=" + planfilePath,
-		}
+		resp, err = e.plan(shutdown, env, vars, logger,
+			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	} else {
-		args = []string{
-			"apply",
-			"-no-color",
-			"-auto-approve",
-			"-input=false",
-			"-json",
-			"-refresh=true",
-		}
+		resp, err = e.apply(shutdown, env, vars, logger,
+			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	}
-	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY {
-		args = append(args, "-destroy")
-	}
-	for _, variable := range vars {
-		args = append(args, "-var", variable)
-	}
-	// #nosec
-	cmd := exec.CommandContext(stream.Context(), t.binaryPath, args...)
-	go func() {
-		select {
-		case <-stream.Context().Done():
-			return
-		case <-shutdown.Done():
-			_ = cmd.Process.Signal(os.Interrupt)
-		}
-	}()
-	cmd.Stdout = writer
-	cmd.Env = env
-	cmd.Dir = terraform.WorkingDir()
-	err = cmd.Run()
 	if err != nil {
 		if start.DryRun {
 			if shutdown.Err() != nil {
@@ -298,141 +136,60 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			},
 		})
 	}
-	_ = reader.Close()
-	<-closeChan
 
-	var resp *proto.Provision_Response
-	if start.DryRun {
-		resp, err = parseTerraformPlan(stream.Context(), terraform, planfilePath)
-	} else {
-		resp, err = parseTerraformApply(stream.Context(), terraform, statefilePath)
-	}
-	if err != nil {
-		return err
-	}
 	return stream.Send(resp)
 }
 
-func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfilePath string) (*proto.Provision_Response, error) {
-	plan, err := terraform.ShowPlanFile(ctx, planfilePath)
-	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
-	}
-
-	rawGraph, err := terraform.Graph(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("graph: %w", err)
-	}
-	resources, err := ConvertResources(plan.PlannedValues.RootModule, rawGraph)
-	if err != nil {
-		return nil, err
-	}
-
-	return &proto.Provision_Response{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
-				Resources: resources,
-			},
-		},
-	}, nil
-}
-
-func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*proto.Provision_Response, error) {
-	_, err := os.Stat(statefilePath)
-	statefileExisted := err == nil
-
-	state, err := pullTerraformState(ctx, terraform, statefilePath)
-	if err != nil {
-		return nil, xerrors.Errorf("get terraform state: %w", err)
-	}
-	rawGraph, err := terraform.Graph(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get terraform graph: %w", err)
-	}
-	var resources []*proto.Resource
-	if state.Values != nil {
-		resources, err = ConvertResources(state.Values.RootModule, rawGraph)
-		if err != nil {
-			return nil, err
+func provisionVars(start *proto.Provision_Start) ([]string, error) {
+	vars := []string{}
+	for _, param := range start.ParameterValues {
+		switch param.DestinationScheme {
+		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
+			continue
+		case proto.ParameterDestination_PROVISIONER_VARIABLE:
+			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
+		default:
+			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
+	return vars, nil
+}
 
-	var stateContent []byte
-	// We only want to restore state if it's not hosted remotely.
-	if statefileExisted {
-		stateContent, err = os.ReadFile(statefilePath)
-		if err != nil {
-			return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
+func provisionEnv(start *proto.Provision_Start) ([]string, error) {
+	env := os.Environ()
+	env = append(env,
+		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
+		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
+		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
+		"CODER_WORKSPACE_ID="+start.Metadata.WorkspaceId,
+		"CODER_WORKSPACE_OWNER_ID="+start.Metadata.WorkspaceOwnerId,
+	)
+	for key, value := range provisionersdk.AgentScriptEnv() {
+		env = append(env, key+"="+value)
+	}
+	for _, param := range start.ParameterValues {
+		switch param.DestinationScheme {
+		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
+			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
+		case proto.ParameterDestination_PROVISIONER_VARIABLE:
+			continue
+		default:
+			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
-
-	return &proto.Provision_Response{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
-				State:     stateContent,
-				Resources: resources,
-			},
-		},
-	}, nil
+	return env, nil
 }
 
-// pullTerraformState pulls and merges any remote terraform state into the given
-// path and reads the merged state. If there is no state, `os.ErrNotExist` will
-// be returned.
-func pullTerraformState(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*tfjson.State, error) {
-	statefile, err := os.OpenFile(statefilePath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, xerrors.Errorf("open statefile %q: %w", statefilePath, err)
-	}
-	defer statefile.Close()
-
-	// #nosec
-	cmd := exec.CommandContext(ctx, terraform.ExecPath(), "state", "pull")
-	cmd.Dir = terraform.WorkingDir()
-	cmd.Stdout = statefile
-	err = cmd.Run()
-	if err != nil {
-		return nil, xerrors.Errorf("pull terraform state: %w", err)
-	}
-
-	state, err := terraform.ShowStateFile(ctx, statefilePath)
-	if err != nil {
-		if noStateRegex.MatchString(err.Error()) {
-			return nil, os.ErrNotExist
+func logTerraformEnvVars(logger provisionersdk.Logger) error {
+	env := os.Environ()
+	for _, e := range env {
+		if strings.HasPrefix(e, "TF_") {
+			err := logger.Log(&proto.Log{Level: proto.LogLevel_WARN, Output: "terraform environment variable: " + e})
+			if err != nil {
+				return err
+			}
 		}
-
-		return nil, xerrors.Errorf("show terraform state: %w", err)
 	}
-
-	return state, nil
-}
-
-type terraformProvisionLog struct {
-	Level   string `json:"@level"`
-	Message string `json:"@message"`
-
-	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
-}
-
-type terraformProvisionLogDiagnostic struct {
-	Severity string `json:"severity"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
-}
-
-func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
-	switch strings.ToLower(logLevel) {
-	case "trace":
-		return proto.LogLevel_TRACE, nil
-	case "debug":
-		return proto.LogLevel_DEBUG, nil
-	case "info":
-		return proto.LogLevel_INFO, nil
-	case "warn":
-		return proto.LogLevel_WARN, nil
-	case "error":
-		return proto.LogLevel_ERROR, nil
-	default:
-		return proto.LogLevel(0), xerrors.Errorf("invalid log level %q", logLevel)
-	}
+	return nil
 }

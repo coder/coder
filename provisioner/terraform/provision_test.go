@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package terraform_test
 
@@ -22,24 +22,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestProvision(t *testing.T) {
-	t.Parallel()
-
-	provider := `
-terraform {
-	required_providers {
-		coder = {
-			source = "coder/coder"
-			version = "0.4.2"
-		}
-	}
-}
-
-provider "coder" {
-}
-	`
-	t.Log(provider)
-
+func testProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -57,6 +40,13 @@ provider "coder" {
 		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	return ctx, api
+}
+
+func TestProvision(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := testProvisioner(t)
 
 	for _, testCase := range []struct {
 		Name     string
@@ -64,21 +54,30 @@ provider "coder" {
 		Request  *proto.Provision_Request
 		Response *proto.Provision_Response
 		Error    bool
+		DryRun   bool
 	}{{
 		Name: "single-variable",
 		Files: map[string]string{
 			"main.tf": `variable "A" {
-				description = "Testing!"
-			}`,
+					description = "Testing!"
+				}`,
 		},
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					ParameterValues: []*proto.ParameterValue{{
-						DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						Name:              "A",
-						Value:             "example",
-					}},
+					ParameterValues: []*proto.ParameterValue{
+						{
+							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							Name:              "A",
+							Value:             "example",
+						},
+						// rando environment variable to exercise those code paths.
+						{
+							DestinationScheme: proto.ParameterDestination_ENVIRONMENT_VARIABLE,
+							Name:              "GOALS",
+							Value:             "AP Royal Oak",
+						},
+					},
 				},
 			},
 		},
@@ -96,10 +95,44 @@ provider "coder" {
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
-					Error: "exit status 1",
+					Error: "terraform apply: : exit status 1",
 				},
 			},
 		},
+	}, {
+		Name: "missing-variable-dry-run",
+		Files: map[string]string{
+			"main.tf": `variable "A" {
+			}`,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Error: "terraform plan: : exit status 1",
+				},
+			},
+		},
+		DryRun: true,
+		Error:  true,
+	}, {
+		Name: "unsupported-parameter-scheme",
+		Files: map[string]string{
+			"main.tf": "",
+		},
+		Request: &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					ParameterValues: []*proto.ParameterValue{
+						{
+							DestinationScheme: 88,
+							Name:              "UNSUPPORTED",
+							Value:             "sadface",
+						},
+					},
+				},
+			},
+		},
+		Error: true,
 	}, {
 		Name: "single-resource",
 		Files: map[string]string{
@@ -115,6 +148,22 @@ provider "coder" {
 				},
 			},
 		},
+	}, {
+		Name: "single-resource-dry-run",
+		Files: map[string]string{
+			"main.tf": `resource "null_resource" "A" {}`,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+					}},
+				},
+			},
+		},
+		DryRun: true,
 	}, {
 		Name: "invalid-sourcecode",
 		Files: map[string]string{
@@ -136,6 +185,7 @@ provider "coder" {
 				Type: &proto.Provision_Request_Start{
 					Start: &proto.Provision_Start{
 						Directory: directory,
+						DryRun:    testCase.DryRun,
 					},
 				},
 			}
@@ -244,4 +294,47 @@ provider "coder" {
 			break
 		}
 	})
+}
+
+// nolint:paralleltest
+func TestProvision_ExtraEnv(t *testing.T) {
+	t.Setenv("TF_LOG", "INFO")
+
+	ctx, api := testProvisioner(t)
+
+	directory := t.TempDir()
+	path := filepath.Join(directory, "main.tf")
+	err := os.WriteFile(path, []byte(`resource "null_resource" "A" {}`), 0600)
+	require.NoError(t, err)
+
+	request := &proto.Provision_Request{
+		Type: &proto.Provision_Request_Start{
+			Start: &proto.Provision_Start{
+				Directory: directory,
+				Metadata: &proto.Provision_Metadata{
+					WorkspaceTransition: proto.WorkspaceTransition_START,
+				},
+			},
+		},
+	}
+	response, err := api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(request)
+	require.NoError(t, err)
+	found := false
+	for {
+		msg, err := response.Recv()
+		require.NoError(t, err)
+
+		if log := msg.GetLog(); log != nil {
+			if strings.Contains(log.Output, "TF_LOG") {
+				found = true
+			}
+		}
+		if c := msg.GetComplete(); c != nil {
+			require.Empty(t, c.Error)
+			break
+		}
+	}
+	require.True(t, found)
 }
