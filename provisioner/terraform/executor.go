@@ -71,9 +71,6 @@ func (e executor) execParseJSON(ctx context.Context, args, env []string, v inter
 	cmd.Stderr = stdErr
 	err := cmd.Run()
 	if err != nil {
-		// if noStateRegex.MatchString(err.Error()) {
-		//	return nil, os.ErrNotExist
-		//}
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
 	}
@@ -93,7 +90,10 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 		return err
 	}
 	if !v.GreaterThanOrEqual(minimumTerraformVersion) {
-		return xerrors.Errorf("terraform version %q is too old. required >= %q", v.String(), minimumTerraformVersion.String())
+		return xerrors.Errorf(
+			"terraform version %q is too old. required >= %q",
+			v.String(),
+			minimumTerraformVersion.String())
 	}
 	return nil
 }
