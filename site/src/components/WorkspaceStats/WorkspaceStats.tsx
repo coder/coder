@@ -7,10 +7,12 @@ import { Workspace } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { getDisplayStatus } from "../../util/workspace"
+import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
+  workspaceDetails: "Workspace Details",
   templateLabel: "Template",
-  statusLabel: "Status",
+  statusLabel: "Workspace Status",
   versionLabel: "Version",
   lastBuiltLabel: "Last Built",
   outdated: "Outdated",
@@ -27,7 +29,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const status = getDisplayStatus(theme, workspace.latest_build)
 
   return (
-    <div className={styles.stats}>
+    <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.templateLabel}</span>
         <Link
@@ -65,7 +67,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
           </span>
         </span>
       </div>
-    </div>
+    </WorkspaceSection>
   )
 }
 
@@ -79,7 +81,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: theme.palette.text.secondary,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    border: `1px solid ${theme.palette.divider}`,
+    margin: "0px",
   },
 
   statItem: {

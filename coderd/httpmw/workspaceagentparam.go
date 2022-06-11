@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -74,24 +76,9 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				})
 				return
 			}
-			workspace, err := db.GetWorkspaceByID(r.Context(), build.WorkspaceID)
-			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: "Internal error fetching workspace.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			apiKey := APIKey(r)
-			if apiKey.UserID != workspace.OwnerID {
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: "Getting non-personal agents isn't supported.",
-				})
-				return
-			}
 
 			ctx := context.WithValue(r.Context(), workspaceAgentParamContextKey{}, agent)
+			chi.RouteContext(ctx).URLParams.Add("workspace", build.WorkspaceID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

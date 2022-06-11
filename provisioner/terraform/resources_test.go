@@ -22,11 +22,29 @@ func TestConvertResources(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 	// nolint:paralleltest
 	for folderName, expected := range map[string][]*proto.Resource{
+		// When a resource depends on another, the shortest route
+		// to a resource should always be chosen for the agent.
 		"chaining-resources": {{
+			Name: "a",
+			Type: "null_resource",
+		}, {
+			Name: "b",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "dev",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
+			}},
+		}},
+		// This can happen when resources hierarchically conflict.
+		// When multiple resources exist at the same level, the first
+		// listed in state will be chosen.
+		"conflicting-resources": {{
 			Name: "first",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev1",
+				Name:            "dev",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -35,6 +53,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "second",
 			Type: "null_resource",
 		}},
+		// Ensures the instance ID authentication type surfaces.
 		"instance-id": {{
 			Name: "dev",
 			Type: "null_resource",
@@ -45,6 +64,8 @@ func TestConvertResources(t *testing.T) {
 				Auth:            &proto.Agent_InstanceId{},
 			}},
 		}},
+		// Ensures that calls to resources through modules work
+		// as expected.
 		"calling-module": {{
 			Name: "example",
 			Type: "null_resource",
@@ -55,6 +76,8 @@ func TestConvertResources(t *testing.T) {
 				Auth:            &proto.Agent_Token{},
 			}},
 		}},
+		// Ensures the attachment of multiple agents to a single
+		// resource is successful.
 		"multiple-agents": {{
 			Name: "dev",
 			Type: "null_resource",
@@ -75,6 +98,7 @@ func TestConvertResources(t *testing.T) {
 				Auth:            &proto.Agent_Token{},
 			}},
 		}},
+		// Ensures multiple applications can be set for a single agent.
 		"multiple-apps": {{
 			Name: "dev",
 			Type: "null_resource",
@@ -109,11 +133,7 @@ func TestConvertResources(t *testing.T) {
 
 				resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
 				require.NoError(t, err)
-				for _, resource := range resources {
-					sort.Slice(resource.Agents, func(i, j int) bool {
-						return resource.Agents[i].Name < resource.Agents[j].Name
-					})
-				}
+				sortResources(resources)
 				resourcesWant, err := json.Marshal(expected)
 				require.NoError(t, err)
 				resourcesGot, err := json.Marshal(resources)
@@ -132,10 +152,8 @@ func TestConvertResources(t *testing.T) {
 
 				resources, err := terraform.ConvertResources(tfState.Values.RootModule, string(tfStateGraph))
 				require.NoError(t, err)
+				sortResources(resources)
 				for _, resource := range resources {
-					sort.Slice(resource.Agents, func(i, j int) bool {
-						return resource.Agents[i].Name < resource.Agents[j].Name
-					})
 					for _, agent := range resource.Agents {
 						agent.Id = ""
 						if agent.GetToken() != "" {
@@ -191,6 +209,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
 					Name:    "dev",
+					Mode:    tfjson.ManagedResourceMode,
 					AttributeValues: map[string]interface{}{
 						"arch": "amd64",
 						"auth": tc.Auth,
@@ -199,6 +218,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 					Address:   tc.ResourceType + ".dev",
 					Type:      tc.ResourceType,
 					Name:      "dev",
+					Mode:      tfjson.ManagedResourceMode,
 					DependsOn: []string{"coder_agent.dev"},
 					AttributeValues: map[string]interface{}{
 						tc.InstanceIDKey: instanceID,
@@ -219,6 +239,24 @@ func TestInstanceIDAssociation(t *testing.T) {
 			require.Len(t, resources, 1)
 			require.Len(t, resources[0].Agents, 1)
 			require.Equal(t, resources[0].Agents[0].GetInstanceId(), instanceID)
+		})
+	}
+}
+
+// sortResource ensures resources appear in a consistent ordering
+// to prevent tests from flaking.
+func sortResources(resources []*proto.Resource) {
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			sort.Slice(agent.Apps, func(i, j int) bool {
+				return agent.Apps[i].Name < agent.Apps[j].Name
+			})
+		}
+		sort.Slice(resource.Agents, func(i, j int) bool {
+			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
 	}
 }

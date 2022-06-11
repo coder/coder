@@ -247,6 +247,8 @@ export interface Template {
   readonly description: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
+  readonly created_by_id?: string
+  readonly created_by_name: string
 }
 
 // From codersdk/templateversions.go:14:6
@@ -276,12 +278,12 @@ export interface TemplateVersionParameter {
   readonly default_source_value: boolean
 }
 
-// From codersdk/templates.go:98:6
+// From codersdk/templates.go:100:6
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
-// From codersdk/templates.go:30:6
+// From codersdk/templates.go:32:6
 export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
@@ -291,7 +293,7 @@ export interface UpdateRoles {
   readonly roles: string[]
 }
 
-// From codersdk/templates.go:34:6
+// From codersdk/templates.go:36:6
 export interface UpdateTemplateMeta {
   readonly description?: string
   readonly max_ttl_ms?: number
@@ -464,11 +466,6 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:261:6
-export interface WorkspaceByOwnerAndNameParams {
-  readonly include_deleted?: boolean
-}
-
 // From codersdk/workspaces.go:219:6
 export interface WorkspaceFilter {
   readonly organization_id?: string
@@ -478,7 +475,7 @@ export interface WorkspaceFilter {
 
 // From codersdk/workspaces.go:41:6
 export interface WorkspaceOptions {
-  readonly deleted?: boolean
+  readonly include_deleted?: boolean
 }
 
 // From codersdk/workspaceresources.go:21:6

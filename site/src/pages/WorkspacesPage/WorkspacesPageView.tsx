@@ -32,7 +32,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
@@ -41,7 +41,7 @@ import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createWorkspaceButton: "Create workspace",
+  createFromTemplateButton: "Create from template",
   emptyCreateWorkspaceMessage: "Create your first workspace",
   emptyCreateWorkspaceDescription: "Start editing your source code and building your software",
   emptyResultsMessage: "No results matched your search",
@@ -132,11 +132,13 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to="/workspaces/new">
-            <Button startIcon={<AddCircleOutline />} style={{ height: "44px" }}>
-              {Language.createWorkspaceButton}
-            </Button>
-          </Link>
+          <PageHeaderText>
+            Create a new workspace from a{" "}
+            <Link component={RouterLink} to="/templates">
+              Template
+            </Link>
+            .
+          </PageHeaderText>
         }
       >
         <PageHeaderTitle>
@@ -212,8 +214,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                       message={Language.emptyCreateWorkspaceMessage}
                       description={Language.emptyCreateWorkspaceDescription}
                       cta={
-                        <Link underline="none" component={RouterLink} to="/workspaces/new">
-                          <Button startIcon={<AddCircleOutline />}>{Language.createWorkspaceButton}</Button>
+                        <Link underline="none" component={RouterLink} to="/templates">
+                          <Button startIcon={<AddCircleOutline />}>{Language.createFromTemplateButton}</Button>
                         </Link>
                       }
                     />

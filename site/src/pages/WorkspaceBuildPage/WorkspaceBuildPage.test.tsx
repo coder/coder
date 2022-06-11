@@ -1,6 +1,11 @@
 import { screen } from "@testing-library/react"
 import * as API from "../../api/api"
-import { MockWorkspaceBuild, MockWorkspaceBuildLogs, renderWithAuth } from "../../testHelpers/renderHelpers"
+import {
+  MockWorkspace,
+  MockWorkspaceBuild,
+  MockWorkspaceBuildLogs,
+  renderWithAuth,
+} from "../../testHelpers/renderHelpers"
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage"
 
 describe("WorkspaceBuildPage", () => {
@@ -16,7 +21,10 @@ describe("WorkspaceBuildPage", () => {
       closed: Promise.resolve(undefined),
       cancel: jest.fn(),
     })
-    renderWithAuth(<WorkspaceBuildPage />, { route: `/builds/${MockWorkspaceBuild.id}`, path: "/builds/:buildId" })
+    renderWithAuth(<WorkspaceBuildPage />, {
+      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
+      path: "/@:username/:workspace/builds/:buildNumber",
+    })
 
     await screen.findByText(MockWorkspaceBuild.workspace_name)
     await screen.findByText(MockWorkspaceBuildLogs[0].stage)
