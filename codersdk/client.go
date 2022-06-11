@@ -36,14 +36,6 @@ type Client struct {
 
 type requestOption func(*http.Request)
 
-func queryParam(k, v string) requestOption {
-	return func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set(k, v)
-		r.URL.RawQuery = q.Encode()
-	}
-}
-
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
@@ -126,6 +118,14 @@ func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Con
 func readBodyAsError(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
 
+	var method, u string
+	if res.Request != nil {
+		method = res.Request.Method
+		if res.Request.URL != nil {
+			u = res.Request.URL.String()
+		}
+	}
+
 	var helper string
 	if res.StatusCode == http.StatusUnauthorized {
 		// 401 means the user is not logged in
@@ -163,6 +163,8 @@ func readBodyAsError(res *http.Response) error {
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
+		method:     method,
+		url:        u,
 		Helper:     helper,
 	}
 }
@@ -173,6 +175,8 @@ type Error struct {
 	httpapi.Response
 
 	statusCode int
+	method     string
+	url        string
 
 	Helper string
 }
@@ -183,11 +187,17 @@ func (e *Error) StatusCode() int {
 
 func (e *Error) Error() string {
 	var builder strings.Builder
-	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
+	if e.method != "" && e.url != "" {
+		_, _ = fmt.Fprintf(&builder, "%v %v: ", e.method, e.url)
+	}
+	_, _ = fmt.Fprintf(&builder, "unexpected status code %d: %s", e.statusCode, e.Message)
 	if e.Helper != "" {
 		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
 	}
-	for _, err := range e.Errors {
+	if e.Detail != "" {
+		_, _ = fmt.Fprintf(&builder, "\n\tError: %s", e.Detail)
+	}
+	for _, err := range e.Validations {
 		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
 	}
 	return builder.String()

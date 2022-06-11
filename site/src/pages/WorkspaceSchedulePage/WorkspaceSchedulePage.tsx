@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import * as cronParser from "cron-parser"
 import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
@@ -8,11 +9,13 @@ import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import {
+  defaultWorkspaceSchedule,
+  defaultWorkspaceScheduleTTL,
   WorkspaceScheduleForm,
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
-import { dowToWeeklyFlag, extractTimezone, stripTimezone } from "../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 
 // REMARK: timezone plugin depends on UTC
@@ -87,41 +90,33 @@ export const formValuesToAutoStartRequest = (
 export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
-    ttl: values.ttl ? values.ttl * 60 * 60 * 1000 * 1_000_000 : undefined,
+    ttl_ms: values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
   }
 }
 
-export const workspaceToInitialValues = (workspace: TypesGen.Workspace): WorkspaceScheduleFormValues => {
+export const workspaceToInitialValues = (
+  workspace: TypesGen.Workspace,
+  defaultTimeZone = "",
+): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttl = workspace.ttl ? workspace.ttl / (1_000_000 * 1000 * 60 * 60) : 0
+  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : defaultWorkspaceScheduleTTL
 
   if (!schedule) {
-    return {
-      sunday: false,
-      monday: false,
-      tuesday: false,
-      wednesday: false,
-      thursday: false,
-      friday: false,
-      saturday: false,
-      startTime: "",
-      timezone: "",
-      ttl,
-    }
+    return defaultWorkspaceSchedule(ttlHours, defaultTimeZone)
   }
 
-  const timezone = extractTimezone(schedule, dayjs.tz.guess())
-  const cronString = stripTimezone(schedule)
+  const timezone = extractTimezone(schedule, defaultTimeZone)
 
-  // parts has the following format: "mm HH * * dow"
-  const parts = cronString.split(" ")
+  const expression = cronParser.parseExpression(stripTimezone(schedule))
 
-  // -> we skip month and day-of-month
-  const mm = parts[0]
-  const HH = parts[1]
-  const dow = parts[4]
+  const HH = expression.fields.hour.join("").padStart(2, "0")
+  const mm = expression.fields.minute.join("").padStart(2, "0")
 
-  const weeklyFlags = dowToWeeklyFlag(dow)
+  const weeklyFlags = [false, false, false, false, false, false, false]
+
+  for (const day of expression.fields.dayOfWeek) {
+    weeklyFlags[day % 7] = true
+  }
 
   return {
     sunday: weeklyFlags[0],
@@ -131,40 +126,47 @@ export const workspaceToInitialValues = (workspace: TypesGen.Workspace): Workspa
     thursday: weeklyFlags[4],
     friday: weeklyFlags[5],
     saturday: weeklyFlags[6],
-    startTime: `${HH.padStart(2, "0")}:${mm.padStart(2, "0")}`,
+    startTime: `${HH}:${mm}`,
     timezone,
-    ttl,
+    ttl: ttlHours,
   }
 }
 
 export const WorkspaceSchedulePage: React.FC = () => {
+  const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const navigate = useNavigate()
-  const { workspace: workspaceQueryParam } = useParams()
-  const workspaceId = firstOrItem(workspaceQueryParam, null)
+  const username = firstOrItem(usernameQueryParam, null)
+  const workspaceName = firstOrItem(workspaceQueryParam, null)
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
   const { formErrors, getWorkspaceError, workspace } = scheduleState.context
 
-  // Get workspace on mount and whenever workspaceId changes.
+  // Get workspace on mount and whenever the args for getting a workspace change.
   // scheduleSend should not change.
   useEffect(() => {
-    workspaceId && scheduleSend({ type: "GET_WORKSPACE", workspaceId })
-  }, [workspaceId, scheduleSend])
+    username && workspaceName && scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
+  }, [username, workspaceName, scheduleSend])
 
-  if (!workspaceId) {
+  if (!username || !workspaceName) {
     navigate("/workspaces")
     return null
   } else if (scheduleState.matches("idle") || scheduleState.matches("gettingWorkspace") || !workspace) {
     return <FullScreenLoader />
   } else if (scheduleState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError} retry={() => scheduleSend({ type: "GET_WORKSPACE", workspaceId })} />
+    return (
+      <ErrorSummary
+        error={getWorkspaceError}
+        retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
+      />
+    )
   } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
+        workspace={workspace}
         fieldErrors={formErrors}
-        initialValues={workspaceToInitialValues(workspace)}
+        initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
-          navigate(`/workspaces/${workspaceId}`)
+          navigate(`/@${username}/${workspaceName}`)
         }}
         onSubmit={(values) => {
           scheduleSend({
@@ -176,7 +178,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
       />
     )
   } else if (scheduleState.matches("submitSuccess")) {
-    navigate(`/workspaces/${workspaceId}`)
+    navigate(`/@${username}/${workspaceName}`)
     return <FullScreenLoader />
   } else {
     // Theoretically impossible - log and bail

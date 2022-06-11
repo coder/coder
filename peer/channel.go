@@ -135,12 +135,12 @@ func (c *Channel) init() {
 		// is triggerred with a buffer size less than the chunks written.
 		//
 		// This makes sense when considering UDP connections, because
-		// bufferring of data that has no transmit guarantees is likely
+		// buffering of data that has no transmit guarantees is likely
 		// to cause unexpected behavior.
 		//
 		// When ordered, this adds a bufio.Reader. This ensures additional
 		// data on TCP-like connections can be read in parts, while still
-		// being bufferred.
+		// being buffered.
 		if c.opts.Unordered {
 			c.reader = c.rwc
 		} else {
@@ -192,11 +192,9 @@ func (c *Channel) Read(bytes []byte) (int, error) {
 	if c.isClosed() {
 		return 0, c.closeError
 	}
-	if !c.isOpened() {
-		err := c.waitOpened()
-		if err != nil {
-			return 0, err
-		}
+	err := c.waitOpened()
+	if err != nil {
+		return 0, err
 	}
 
 	bytesRead, err := c.reader.Read(bytes)
@@ -210,7 +208,6 @@ func (c *Channel) Read(bytes []byte) (int, error) {
 		if xerrors.Is(err, io.EOF) {
 			err = c.closeWithError(ErrClosed)
 		}
-		return bytesRead, err
 	}
 	return bytesRead, err
 }
@@ -234,16 +231,14 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	if c.isClosed() {
 		return 0, c.closeWithError(nil)
 	}
-	if !c.isOpened() {
-		err := c.waitOpened()
-		if err != nil {
-			return 0, err
-		}
+	err = c.waitOpened()
+	if err != nil {
+		return 0, err
 	}
-
 	if c.dc.BufferedAmount()+uint64(len(bytes)) >= maxBufferedAmount {
 		<-c.sendMore
 	}
+
 	return c.rwc.Write(bytes)
 }
 
@@ -304,15 +299,6 @@ func (c *Channel) closeWithError(err error) error {
 func (c *Channel) isClosed() bool {
 	select {
 	case <-c.closed:
-		return true
-	default:
-		return false
-	}
-}
-
-func (c *Channel) isOpened() bool {
-	select {
-	case <-c.opened:
 		return true
 	default:
 		return false

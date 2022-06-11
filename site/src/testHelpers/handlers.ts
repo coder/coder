@@ -42,9 +42,6 @@ export const handlers = [
   rest.post("/api/v2/users", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockUser))
   }),
-  rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockWorkspace))
-  }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
   }),
@@ -83,22 +80,13 @@ export const handlers = [
   rest.get("/api/v2/users/:userId/gitsshkey", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockGitSSHKey))
   }),
+  rest.get("/api/v2/users/:userId/workspace/:workspaceName", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockWorkspace))
+  }),
 
   // workspaces
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspace]))
-  }),
-  rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
-    if (req.params.workspaceName !== M.MockWorkspace.name) {
-      return res(
-        ctx.status(404),
-        ctx.json({
-          message: "workspace not found",
-        }),
-      )
-    } else {
-      return res(ctx.status(200), ctx.json(M.MockWorkspace))
-    }
   }),
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
@@ -109,6 +97,11 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/ttl", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
+  rest.put("/api/v2/workspaces/:workspaceId/extend", async (req, res, ctx) => {
+    return res(ctx.status(200))
+  }),
+
+  // workspace builds
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     const { transition } = req.body as CreateWorkspaceBuildRequest
     const transitionToBuild = {
@@ -122,9 +115,7 @@ export const handlers = [
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuilds))
   }),
-
-  // workspace builds
-  rest.get("/api/v2/workspacebuilds/:workspaceBuildId", (req, res, ctx) => {
+  rest.get("/api/v2/users/:username/workspace/:workspaceName/builds/:buildNumber", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuild))
   }),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/resources", (req, res, ctx) => {

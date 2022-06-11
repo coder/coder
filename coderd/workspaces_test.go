@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -45,10 +46,9 @@ func TestWorkspace(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		// Getting with deleted=true should fail.
+		// Getting with deleted=true should still work.
 		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "400") // bad request
+		require.NoError(t, err)
 
 		// Delete the workspace
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -88,7 +88,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin(), rbac.RoleMember())
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin())
 	otherWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 
@@ -164,65 +164,92 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	})
-}
 
-func TestWorkspacesByOrganization(t *testing.T) {
-	t.Parallel()
-	t.Run("ListEmpty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.WorkspacesByOrganization(context.Background(), user.OrganizationID)
-		require.NoError(t, err)
-	})
-	t.Run("List", func(t *testing.T) {
+	t.Run("TemplateCustomTTL", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-		workspaces, err := client.WorkspacesByOrganization(context.Background(), user.OrganizationID)
-		require.NoError(t, err)
-		require.Len(t, workspaces, 1)
-	})
-}
-
-func TestWorkspacesByOwner(t *testing.T) {
-	t.Parallel()
-	t.Run("ListEmpty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
-		require.NoError(t, err)
-	})
-
-	t.Run("ListMine", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		me, err := client.User(context.Background(), codersdk.Me)
-		require.NoError(t, err)
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-		// Create noise workspace that should be filtered out
-		other := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		_ = coderdtest.CreateWorkspace(t, other, user.OrganizationID, template.ID)
-
-		// Use a username
-		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
-			OrganizationID: user.OrganizationID,
-			Owner:          me.Username,
+		templateTTL := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref(templateTTL)
 		})
-		require.NoError(t, err)
-		require.Len(t, workspaces, 1)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil // ensure that no default TTL is set
+		})
+		// TTL should be set by the template
+		require.Equal(t, template.MaxTTLMillis, templateTTL)
+		require.Equal(t, template.MaxTTLMillis, template.MaxTTLMillis, workspace.TTLMillis)
+	})
+
+	t.Run("InvalidTTL", func(t *testing.T) {
+		t.Parallel()
+		t.Run("BelowMin", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			req := codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((59 * time.Second).Milliseconds()),
+			}
+			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be at least one minute")
+		})
+
+		t.Run("AboveMax", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			req := codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       "testing",
+				TTLMillis:  ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+			}
+			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be less than 7 days")
+		})
+	})
+
+	t.Run("InvalidAutostart", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "testing",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+		}
+		_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, apiErr.Validations[0].Field, "schedule")
+		require.Equal(t, apiErr.Validations[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
 }
 
@@ -231,11 +258,10 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), user.OrganizationID, codersdk.Me, "something")
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something", codersdk.WorkspaceOptions{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
@@ -245,8 +271,104 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), user.OrganizationID, codersdk.Me, workspace.Name)
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
+	})
+	t.Run("Deleted", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Given:
+		// We delete the workspace
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Then:
+		// When we call without includes_deleted, we don't expect to get the workspace back
+		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.ErrorContains(t, err, "403")
+
+		// Then:
+		// When we call with includes_deleted, we should get the workspace back
+		workspaceNew, err := client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We recreate the workspace with the same name
+		workspace, err = client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID:        workspace.TemplateID,
+			Name:              workspace.Name,
+			AutostartSchedule: workspace.AutostartSchedule,
+			TTLMillis:         workspace.TTLMillis,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Then:
+		// We can fetch the most recent workspace
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We delete the workspace again
+		build, err = client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Then:
+		// When we fetch the deleted workspace, we get the most recently deleted one
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+	})
+}
+
+func TestWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		// full match
+		ws, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: workspace.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1, workspace.Name)
+		require.Equal(t, workspace.ID, ws[0].ID)
+
+		// partial match
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: workspace.Name[1 : len(workspace.Name)-2],
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1)
+		require.Equal(t, workspace.ID, ws[0].ID)
+
+		// no match
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Name: "$$$$",
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 0)
 	})
 }
 
@@ -365,7 +487,9 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID.String())
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Owner: user.UserID.String(),
+		})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -408,7 +532,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		schedule         string
+		schedule         *string
 		expectedError    string
 		at               time.Time
 		expectedNext     time.Time
@@ -416,12 +540,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	}{
 		{
 			name:          "disable autostart",
-			schedule:      "",
+			schedule:      ptr.Ref(""),
 			expectedError: "",
 		},
 		{
 			name:             "friday to monday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
@@ -429,7 +553,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
@@ -438,7 +562,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
@@ -447,7 +571,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
+			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
@@ -455,18 +579,18 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      "CRON_TZ=Imaginary/Place 30 9 * * 1-5",
-			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
+			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
-			schedule:      "asdf asdf asdf ",
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			schedule:      ptr.Ref("asdf asdf asdf "),
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{
 			name:          "only 3 values",
-			schedule:      "CRON_TZ=Europe/Dublin 30 9 *",
-			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
+			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
 
@@ -483,7 +607,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
-					cwr.TTL = nil
+					cwr.TTLMillis = nil
 				})
 			)
 
@@ -495,7 +619,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			})
 
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "Invalid autostart schedule")
 				return
 			}
 
@@ -504,12 +628,14 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			updated, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
-			require.Equal(t, testCase.schedule, updated.AutostartSchedule, "expected autostart schedule to equal requested")
-
-			if testCase.schedule == "" {
+			if testCase.schedule == nil || *testCase.schedule == "" {
+				require.Nil(t, updated.AutostartSchedule)
 				return
 			}
-			sched, err := schedule.Weekly(updated.AutostartSchedule)
+
+			require.EqualValues(t, *testCase.schedule, *updated.AutostartSchedule, "expected autostart schedule to equal requested")
+
+			sched, err := schedule.Weekly(*updated.AutostartSchedule)
 			require.NoError(t, err, "parse returned schedule")
 
 			next := sched.Next(testCase.at)
@@ -526,7 +652,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: "9 30 1-5",
+				Schedule: ptr.Ref("9 30 1-5"),
 			}
 		)
 
@@ -534,7 +660,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
 	})
 }
 
@@ -542,19 +668,51 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		ttl           *time.Duration
-		expectedError string
+		name             string
+		ttlMillis        *int64
+		expectedError    string
+		expectedDeadline *time.Time
+		modifyTemplate   func(*codersdk.CreateTemplateRequest)
 	}{
 		{
-			name:          "disable ttl",
-			ttl:           nil,
-			expectedError: "",
+			name:             "disable ttl",
+			ttlMillis:        nil,
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Time{}),
 		},
 		{
-			name:          "enable ttl",
-			ttl:           ptr(time.Hour),
-			expectedError: "",
+			name:             "update ttl",
+			ttlMillis:        ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(12*time.Hour + time.Minute)),
+		},
+		{
+			name:          "below minimum ttl",
+			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
+			expectedError: "ttl must be at least one minute",
+		},
+		{
+			name:             "minimum ttl",
+			ttlMillis:        ptr.Ref(time.Minute.Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(2 * time.Minute)),
+		},
+		{
+			name:             "maximum ttl",
+			ttlMillis:        ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			expectedError:    "",
+			expectedDeadline: ptr.Ref(time.Now().Add(24*7*time.Hour + time.Minute)),
+		},
+		{
+			name:          "above maximum ttl",
+			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+			expectedError: "ttl must be less than 7 days",
+		},
+		{
+			name:           "above template maximum ttl",
+			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
+			expectedError:  "ttl_ms: ttl must be below template maximum 8h0m0s",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
 		},
 	}
 
@@ -562,28 +720,31 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+
+			mutators := make([]func(*codersdk.CreateTemplateRequest), 0)
+			if testCase.modifyTemplate != nil {
+				mutators = append(mutators, testCase.modifyTemplate)
+			}
 			var (
 				ctx       = context.Background()
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, mutators...)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 					cwr.AutostartSchedule = nil
-					cwr.TTL = nil
+					cwr.TTLMillis = nil
 				})
+				_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			)
 
-			// ensure test invariant: new workspaces have no autostop schedule.
-			require.Nil(t, workspace.TTL, "expected newly-minted workspace to have no TTL")
-
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTL: testCase.ttl,
+				TTLMillis: testCase.ttlMillis,
 			})
 
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostop schedule")
+				require.ErrorContains(t, err, testCase.expectedError, "unexpected error when setting workspace autostop schedule")
 				return
 			}
 
@@ -592,7 +753,10 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			updated, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
-			require.Equal(t, testCase.ttl, updated.TTL, "expected autostop ttl to equal requested")
+			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
+			if testCase.expectedDeadline != nil {
+				require.WithinDuration(t, *testCase.expectedDeadline, updated.LatestBuild.Deadline, time.Minute, "expected autostop deadline to be equal expected")
+			}
 		})
 	}
 
@@ -603,7 +767,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceTTLRequest{
-				TTL: ptr(time.Hour),
+				TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
 			}
 		)
 
@@ -611,7 +775,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
 	})
 }
 
@@ -627,8 +791,8 @@ func TestWorkspaceExtend(t *testing.T) {
 		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 		extend      = 90 * time.Minute
 		_           = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		oldDeadline = time.Now().Add(*workspace.TTL).UTC()
-		newDeadline = time.Now().Add(*workspace.TTL + extend).UTC()
+		oldDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond).UTC()
+		newDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis)*time.Millisecond + extend).UTC()
 	)
 
 	workspace, err := client.Workspace(ctx, workspace.ID)
@@ -657,7 +821,13 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: oldDeadline,
 	})
-	require.ErrorContains(t, err, "must be after existing deadline", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "deadline: minimum extension is one minute", "setting an earlier deadline should fail")
+
+	// Updating with a time far in the future should also fail
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: oldDeadline.AddDate(1, 0, 0),
+	})
+	require.ErrorContains(t, err, "deadline: maximum extension is 24 hours", "setting an earlier deadline should fail")
 
 	// Ensure deadline still set correctly
 	updated, err = client.Workspace(ctx, workspace.ID)
@@ -696,8 +866,4 @@ func mustLocation(t *testing.T, location string) *time.Location {
 	}
 
 	return loc
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

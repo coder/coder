@@ -1,10 +1,10 @@
 import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
-import React from "react"
-import { NavLink } from "react-router-dom"
+import { NavLink, useLocation } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 import { Logo } from "../Icons/Logo"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
@@ -21,6 +21,7 @@ export const Language = {
 
 export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
   const styles = useStyles()
+  const location = useLocation()
   return (
     <nav className={styles.root}>
       <List className={styles.fixed}>
@@ -30,7 +31,10 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
           </NavLink>
         </ListItem>
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/workspaces">
+          <NavLink
+            className={combineClasses([styles.link, location.pathname.startsWith("/@") && "active"])}
+            to="/workspaces"
+          >
             {Language.workspaces}
           </NavLink>
         </ListItem>
@@ -117,7 +121,7 @@ const useStyles = makeStyles((theme) => ({
         content: `" "`,
         bottom: 0,
         left: theme.spacing(3),
-        background: "#C16800",
+        background: theme.palette.secondary.dark,
         right: theme.spacing(3),
         height: 2,
         position: "absolute",

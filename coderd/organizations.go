@@ -45,20 +45,21 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: "organization already exists with that name",
+			Message: "Organization already exists with that name.",
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization: %s", err.Error()),
+			Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
+			Detail:  err.Error(),
 		})
 		return
 	}
 
 	var organization database.Organization
-	err = api.Database.InTx(func(db database.Store) error {
-		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+	err = api.Database.InTx(func(store database.Store) error {
+		organization, err = store.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      req.Name,
 			CreatedAt: database.Now(),
@@ -67,25 +68,24 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
-		_, err = api.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+		_, err = store.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Roles: []string{
-				// Also assign member role incase they get demoted from admin
-				rbac.RoleOrgMember(organization.ID),
 				rbac.RoleOrgAdmin(organization.ID),
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+			return xerrors.Errorf("create organization admin: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: err.Error(),
+			Message: "Internal error inserting organization member.",
+			Detail:  err.Error(),
 		})
 		return
 	}

@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/provisioner/echo"
 
 	"github.com/briandowns/spinner"
@@ -29,8 +30,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -100,7 +103,8 @@ func server() *cobra.Command {
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
-			if verbose {
+			buildModeDev := semver.Prerelease(buildinfo.Version()) == "-devel"
+			if verbose || buildModeDev {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -168,8 +172,9 @@ func server() *cobra.Command {
 			}
 
 			var (
-				tunnelErrChan          <-chan error
 				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
+				devTunnel              = (*devtunnel.Tunnel)(nil)
+				devTunnelErrChan       = make(<-chan error, 1)
 			)
 			defer closeTunnel()
 
@@ -194,12 +199,35 @@ func server() *cobra.Command {
 					}
 				}
 				if err == nil {
-					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
+					devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
+					accessURL = devTunnel.URL
 				}
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+			}
+
+			// Warn the user if the access URL appears to be a loopback address.
+			isLocal, err := isLocalURL(cmd.Context(), accessURL)
+			if isLocal || err != nil {
+				var reason string
+				if isLocal {
+					reason = "appears to be a loopback address"
+				} else {
+					reason = "could not be resolved"
+				}
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
+					cliui.Styles.Warn.Render("Warning:")+" The current access URL:")+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  "+cliui.Styles.Field.Render(accessURL)+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
+					reason+". Provisioned workspaces are unlikely to be able to "+
+						"connect to Coder. Please consider changing your "+
+						"access URL using the --access-url option, or directly "+
+						"specifying access URLs on templates.",
+				)+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "For more information, see "+
+					"https://github.com/coder/coder/issues/1528\n\n")
 			}
 
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
@@ -337,7 +365,27 @@ func server() *cobra.Command {
 						return shutdownConnsCtx
 					},
 				}
-				errCh <- server.Serve(listener)
+
+				wg := errgroup.Group{}
+				wg.Go(func() error {
+					// Make sure to close the tunnel listener if we exit so the
+					// errgroup doesn't wait forever!
+					if dev && tunnel {
+						defer devTunnel.Listener.Close()
+					}
+
+					return server.Serve(listener)
+				})
+
+				if dev && tunnel {
+					wg.Go(func() error {
+						defer listener.Close()
+
+						return server.Serve(devTunnel.Listener)
+					})
+				}
+
+				errCh <- wg.Wait()
 			}()
 
 			config := createConfig(cmd)
@@ -349,10 +397,11 @@ func server() *cobra.Command {
 						return xerrors.Errorf("generate random admin password for dev: %w", err)
 					}
 				}
-				err = createFirstUser(cmd, client, config, devUserEmail, devUserPassword)
+				restorePreviousSession, err := createFirstUser(logger, cmd, client, config, devUserEmail, devUserPassword)
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
+				defer restorePreviousSession()
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
@@ -402,7 +451,7 @@ func server() *cobra.Command {
 			case <-cmd.Context().Done():
 				coderAPI.Close()
 				return cmd.Context().Err()
-			case err := <-tunnelErrChan:
+			case err := <-devTunnelErrChan:
 				if err != nil {
 					return err
 				}
@@ -421,11 +470,9 @@ func server() *cobra.Command {
 					"Interrupt caught, gracefully exiting.  Use ctrl+\\ to force quit"))
 
 			if dev {
-				organizations, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
-				if err != nil {
-					return xerrors.Errorf("get organizations: %w", err)
-				}
-				workspaces, err := client.WorkspacesByOwner(cmd.Context(), organizations[0].ID, codersdk.Me)
+				workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+					Owner: codersdk.Me,
+				})
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}
@@ -467,7 +514,7 @@ func server() *cobra.Command {
 			if dev && tunnel {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
 				closeTunnel()
-				<-tunnelErrChan
+				<-devTunnelErrChan
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
@@ -484,8 +531,12 @@ func server() *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
 	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
-	// systemd uses the CACHE_DIRECTORY environment variable!
-	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
+	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
+	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
+		// For compatibility with systemd.
+		defaultCacheDir = dir
+	}
+	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir, "Specifies a directory to cache binaries for provision operations. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &devUserEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
 	cliflag.StringVarP(root.Flags(), &devUserPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
@@ -533,12 +584,14 @@ func server() *cobra.Command {
 	return root
 }
 
-func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) error {
+// createFirstUser creates the first user and sets a valid session.
+// Caller must call restorePreviousSession on server exit.
+func createFirstUser(logger slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
 	if email == "" {
-		return xerrors.New("email is empty")
+		return nil, xerrors.New("email is empty")
 	}
 	if password == "" {
-		return xerrors.New("password is empty")
+		return nil, xerrors.New("password is empty")
 	}
 	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 		Email:            email,
@@ -547,26 +600,63 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 		OrganizationName: "acme-corp",
 	})
 	if err != nil {
-		return xerrors.Errorf("create first user: %w", err)
+		return nil, xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    email,
 		Password: password,
 	})
 	if err != nil {
-		return xerrors.Errorf("login with first user: %w", err)
+		return nil, xerrors.Errorf("login with first user: %w", err)
 	}
 	client.SessionToken = token.SessionToken
 
+	// capture the current session and if exists recover session on server exit
+	restorePreviousSession := func() {}
+	oldURL, _ := cfg.URL().Read()
+	oldSession, _ := cfg.Session().Read()
+	if oldURL != "" && oldSession != "" {
+		restorePreviousSession = func() {
+			currentURL, err := cfg.URL().Read()
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
+				return
+			}
+			currentSession, err := cfg.Session().Read()
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
+				return
+			}
+
+			// if it's changed since we wrote to it don't restore session
+			if currentURL != client.URL.String() ||
+				currentSession != token.SessionToken {
+				return
+			}
+
+			err = cfg.URL().Write(oldURL)
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
+				return
+			}
+			err = cfg.Session().Write(oldSession)
+			if err != nil {
+				logger.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
+				return
+			}
+		}
+	}
+
 	err = cfg.URL().Write(client.URL.String())
 	if err != nil {
-		return xerrors.Errorf("write local url: %w", err)
+		return nil, xerrors.Errorf("write local url: %w", err)
 	}
 	err = cfg.Session().Write(token.SessionToken)
 	if err != nil {
-		return xerrors.Errorf("write session token: %w", err)
+		return nil, xerrors.Errorf("write session token: %w", err)
 	}
-	return nil
+
+	return restorePreviousSession, nil
 }
 
 // nolint:revive
@@ -772,4 +862,25 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
+}
+
+// isLocalURL returns true if the hostname of the provided URL appears to
+// resolve to a loopback address.
+func isLocalURL(ctx context.Context, urlString string) (bool, error) {
+	parsedURL, err := url.Parse(urlString)
+	if err != nil {
+		return false, err
+	}
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
+	if err != nil {
+		return false, err
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() {
+			return true, nil
+		}
+	}
+	return false, nil
 }

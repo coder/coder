@@ -21,6 +21,11 @@ message AcquiredJob {
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;
     }
+    message TemplateDryRun {
+        repeated provisioner.ParameterValue parameter_values = 1;
+        provisioner.Provision.Metadata metadata = 2;
+    }
+
     string job_id = 1;
     int64 created_at = 2;
     string provisioner = 3;
@@ -29,6 +34,7 @@ message AcquiredJob {
     oneof type {
         WorkspaceBuild workspace_build = 6;
         TemplateImport template_import = 7;
+        TemplateDryRun template_dry_run = 8;
     }
 }
 
@@ -36,13 +42,15 @@ message FailedJob {
     message WorkspaceBuild {
         bytes state = 1;
     }
-    message TemplateImport{
-    }
+    message TemplateImport {}
+    message TemplateDryRun {}
+
     string job_id = 1;
     string error = 2;
     oneof type {
         WorkspaceBuild workspace_build = 3;
         TemplateImport template_import = 4;
+        TemplateDryRun template_dry_run = 5;
     }
 }
 
@@ -56,10 +64,15 @@ message CompletedJob {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
     }
+    message TemplateDryRun {
+        repeated provisioner.Resource resources = 1;
+    }
+
     string job_id = 1;
     oneof type {
         WorkspaceBuild workspace_build = 2;
         TemplateImport template_import = 3;
+        TemplateDryRun template_dry_run = 4;
     }
 }
 
@@ -98,7 +111,7 @@ service ProvisionerDaemon {
     // hold a lock on the job until CompleteJob() is
     // called with the matching ID.
     rpc AcquireJob(Empty) returns (AcquiredJob);
-    
+
     // UpdateJob streams periodic updates for a job.
     // Implementations should buffer logs so this stream
     // is non-blocking.

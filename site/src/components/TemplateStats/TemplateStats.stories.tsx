@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import * as Mocks from "../../testHelpers/renderHelpers"
 import { TemplateStats, TemplateStatsProps } from "../TemplateStats/TemplateStats"
 
@@ -21,6 +20,15 @@ UsedByMany.args = {
   template: {
     ...Mocks.MockTemplate,
     workspace_owner_count: 15,
+  },
+  activeVersion: Mocks.MockTemplateVersion,
+}
+
+export const UnknownCreator = Template.bind({})
+UnknownCreator.args = {
+  template: {
+    ...Mocks.MockTemplate,
+    created_by_name: "",
   },
   activeVersion: Mocks.MockTemplateVersion,
 }

@@ -17,6 +17,8 @@ const Language = {
   buildError: "Workspace action failed.",
 }
 
+type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
+
 export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
@@ -34,16 +36,47 @@ export interface WorkspaceContext {
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
   cancellationMessage: string
+  // permissions
+  permissions?: Permissions
+  checkPermissionsError?: Error | unknown
+  userId?: string
 }
 
 export type WorkspaceEvent =
-  | { type: "GET_WORKSPACE"; workspaceId: string }
+  | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
   | { type: "START" }
   | { type: "STOP" }
+  | { type: "ASK_DELETE" }
+  | { type: "DELETE" }
+  | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
   | { type: "REFRESH_TIMELINE" }
+
+export const checks = {
+  readWorkspace: "readWorkspace",
+  updateWorkspace: "updateWorkspace",
+} as const
+
+const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
+  [checks.readWorkspace]: {
+    object: {
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      owner_id: workspace.owner_id,
+    },
+    action: "read",
+  },
+  [checks.updateWorkspace]: {
+    object: {
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      owner_id: workspace.owner_id,
+    },
+    action: "update",
+  },
+})
 
 export const workspaceMachine = createMachine(
   {
@@ -79,6 +112,9 @@ export const workspaceMachine = createMachine(
         loadMoreBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
+        checkPermissions: {
+          data: TypesGen.UserAuthorizationResponse
+        }
       },
     },
     id: "workspaceState",
@@ -96,7 +132,7 @@ export const workspaceMachine = createMachine(
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
-            target: "ready",
+            target: "gettingPermissions",
             actions: ["assignWorkspace"],
           },
           onError: {
@@ -105,6 +141,25 @@ export const workspaceMachine = createMachine(
           },
         },
         tags: "loading",
+      },
+      gettingPermissions: {
+        entry: "clearGetPermissionsError",
+        invoke: {
+          src: "checkPermissions",
+          id: "checkPermissions",
+          onDone: [
+            {
+              actions: ["assignPermissions"],
+              target: "ready",
+            },
+          ],
+          onError: [
+            {
+              actions: "assignGetPermissionsError",
+              target: "error",
+            },
+          ],
+        },
       },
       ready: {
         type: "parallel",
@@ -136,8 +191,15 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
+                  ASK_DELETE: "askingDelete",
                   UPDATE: "refreshingTemplate",
                   CANCEL: "requestingCancel",
+                },
+              },
+              askingDelete: {
+                on: {
+                  DELETE: "requestingDelete",
+                  CANCEL_DELETE: "idle",
                 },
               },
               requestingStart: {
@@ -160,6 +222,21 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError", "displayBuildError"],
+                  },
+                },
+              },
+              requestingDelete: {
+                entry: "clearBuildError",
+                invoke: {
+                  id: "deleteWorkspace",
+                  src: "deleteWorkspace",
                   onDone: {
                     target: "idle",
                     actions: ["assignBuild", "refreshTimeline"],
@@ -287,6 +364,7 @@ export const workspaceMachine = createMachine(
           workspace: undefined,
           template: undefined,
           build: undefined,
+          permissions: undefined,
         }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
@@ -297,6 +375,17 @@ export const workspaceMachine = createMachine(
       clearGetWorkspaceError: (context) => assign({ ...context, getWorkspaceError: undefined }),
       assignTemplate: assign({
         template: (_, event) => event.data,
+      }),
+      assignPermissions: assign({
+        // Setting event.data as Permissions to be more stricted. So we know
+        // what permissions we asked for.
+        permissions: (_, event) => event.data as Permissions,
+      }),
+      assignGetPermissionsError: assign({
+        checkPermissionsError: (_, event) => event.data,
+      }),
+      clearGetPermissionsError: assign({
+        checkPermissionsError: (_) => undefined,
       }),
       assignBuild: (_, event) =>
         assign({
@@ -370,7 +459,8 @@ export const workspaceMachine = createMachine(
           const oldBuilds = context.builds
 
           if (!oldBuilds) {
-            throw new Error("Builds not loaded")
+            // This state is theoretically impossible, but helps TS
+            throw new Error("workspaceXService: failed to load workspace builds")
           }
 
           return [...oldBuilds, ...event.data]
@@ -405,7 +495,7 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspace(event.workspaceId)
+        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, { include_deleted: true })
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -428,6 +518,13 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot stop workspace without workspace id")
         }
       },
+      deleteWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.deleteWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot delete workspace without workspace id")
+        }
+      },
       cancelWorkspace: async (context) => {
         if (context.workspace) {
           return await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
@@ -437,7 +534,9 @@ export const workspaceMachine = createMachine(
       },
       refreshWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.getWorkspace(context.workspace.id)
+          return await API.getWorkspaceByOwnerAndName(context.workspace.owner_name, context.workspace.name, {
+            include_deleted: true,
+          })
         } else {
           throw Error("Cannot refresh workspace without id")
         }
@@ -454,14 +553,23 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           return await API.getWorkspaceBuilds(context.workspace.id)
         } else {
-          throw Error("Cannot refresh workspace without id")
+          throw Error("Cannot get builds without id")
         }
       },
       loadMoreBuilds: async (context) => {
         if (context.workspace) {
           return await API.getWorkspaceBuilds(context.workspace.id)
         } else {
-          throw Error("Cannot refresh workspace without id")
+          throw Error("Cannot load more builds without id")
+        }
+      },
+      checkPermissions: async (context) => {
+        if (context.workspace && context.userId) {
+          return await API.checkUserPermissions(context.userId, {
+            checks: permissionsToCheck(context.workspace),
+          })
+        } else {
+          throw Error("Cannot check permissions without both workspace and user id")
         }
       },
     },

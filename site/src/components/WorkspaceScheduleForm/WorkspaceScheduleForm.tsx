@@ -4,29 +4,36 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
-import Link from "@material-ui/core/Link"
+import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
+import advancedFormat from "dayjs/plugin/advancedFormat"
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
+import { Workspace } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
+import { isWorkspaceOn } from "../../util/workspace"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { zones } from "./zones"
 
-// REMARK: timezone plugin depends on UTC
-//
-// SEE: https://day.js.org/docs/en/timezone/timezone
+// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
+//         sorted alphabetically.
 dayjs.extend(utc)
+dayjs.extend(advancedFormat)
+dayjs.extend(isSameOrBefore)
 dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
+  errorNoTime: "Start time is required",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
   daysOfWeekLabel: "Days of Week",
@@ -40,16 +47,23 @@ export const Language = {
   startTimeLabel: "Start time",
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
-  ttlLabel: "TTL (hours)",
-  ttlHelperText: "Your workspace will automatically shutdown after the TTL.",
+  ttlLabel: "Time until shutdown (hours)",
+  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
+  ttlCausesShutdownHelperText: "Your workspace will shut down",
+  ttlCausesShutdownAt: "at",
+  ttlCausesShutdownImmediately: "immediately!",
+  ttlCausesShutdownSoon: "within 30 minutes.",
+  ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
 }
 
 export interface WorkspaceScheduleFormProps {
   fieldErrors?: FieldErrors
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
+  now?: dayjs.Dayjs
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
+  workspace: Workspace
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -93,6 +107,25 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
+    .test("required-if-day-selected", Language.errorNoTime, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+
+      const isDaySelected = [
+        parent.sunday,
+        parent.monday,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day)
+
+      if (isDaySelected) {
+        return value !== ""
+      } else {
+        return true
+      }
+    })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true
@@ -124,27 +157,39 @@ export const validationSchema = Yup.object({
         }
       }
     }),
-  ttl: Yup.number().min(0).integer(),
+  ttl: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * 7 /* 7 days */),
 })
 
-export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
-  fieldErrors,
-  initialValues = {
-    sunday: false,
-    monday: true,
-    tuesday: true,
-    wednesday: true,
-    thursday: true,
-    friday: true,
-    saturday: false,
+export const defaultWorkspaceScheduleTTL = 8
 
-    startTime: "09:30",
-    timezone: "",
-    ttl: 5,
-  },
+export const defaultWorkspaceSchedule = (
+  ttl = defaultWorkspaceScheduleTTL,
+  timezone = dayjs.tz.guess(),
+): WorkspaceScheduleFormValues => ({
+  sunday: false,
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+
+  startTime: "09:30",
+  timezone,
+  ttl,
+})
+
+export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+  fieldErrors,
+  initialValues = defaultWorkspaceSchedule(),
   isLoading,
+  now = dayjs(),
   onCancel,
   onSubmit,
+  workspace,
 }) => {
   const styles = useStyles()
 
@@ -167,36 +212,33 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 
   return (
     <FullPageForm onCancel={onCancel} title="Workspace Schedule">
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack className={styles.stack}>
+      <form onSubmit={form.handleSubmit} className={styles.form}>
+        <Stack>
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.startTimeLabel}
             type="time"
-            variant="standard"
           />
 
           <TextField
-            {...formHelpers(
-              "timezone",
-              <>
-                Timezone must be a valid{" "}
-                <Link href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List" target="_blank">
-                  tz database name
-                </Link>
-              </>,
-            )}
-            disabled={form.isSubmitting || isLoading || !form.values.startTime}
+            {...formHelpers("timezone")}
+            disabled={isLoading}
             InputLabelProps={{
               shrink: true,
             }}
             label={Language.timezoneLabel}
-            variant="standard"
-          />
+            select
+          >
+            {zones.map((zone) => (
+              <MenuItem key={zone} value={zone}>
+                {zone}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
@@ -209,9 +251,12 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={!form.values.startTime || form.isSubmitting || isLoading}
+                      disabled={isLoading}
                       onChange={form.handleChange}
                       name={checkbox.name}
+                      color="primary"
+                      size="small"
+                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -224,33 +269,51 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", Language.ttlHelperText)}
-            disabled={form.isSubmitting || isLoading}
+            {...formHelpers("ttl", ttlShutdownAt(now, workspace, form.values.timezone, form.values.ttl))}
+            disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            variant="standard"
           />
 
-          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
+          <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
       </form>
     </FullPageForm>
   )
 }
 
+export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, formTTL: number): string => {
+  // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+  // SEE: #1834
+  const deadline = dayjs(workspace.latest_build.deadline).utc()
+  const hasDeadline = deadline.year() > 1
+  const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
+  const delta = formTTL - ttl
+
+  if (delta === 0 || !isWorkspaceOn(workspace)) {
+    return Language.ttlHelperText
+  } else if (formTTL === 0) {
+    return Language.ttlCausesNoShutdownHelperText
+  } else {
+    const newDeadline = dayjs(hasDeadline ? deadline : now).add(delta, "hours")
+    if (newDeadline.isSameOrBefore(now)) {
+      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
+    } else if (newDeadline.isSameOrBefore(now.add(30, "minutes"))) {
+      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
+    } else {
+      return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadline
+        .tz(tz)
+        .format("MMM D, YYYY h:mm A")}.`
+    }
+  }
+}
+
 const useStyles = makeStyles({
   form: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  stack: {
-    // REMARK: 360 is 'arbitrary' in that it gives the helper text enough room
-    //         to render on one line. If we change the text, we might want to
-    //         adjust these. Without constraining the width, the date picker
-    //         and number inputs aren't visually appealing or maximally usable.
-    maxWidth: 360,
-    minWidth: 360,
+    "& input": {
+      colorScheme: "dark",
+    },
   },
   daysOfWeekLabel: {
     fontSize: 12,

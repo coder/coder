@@ -1,21 +1,30 @@
-import Avatar from "@material-ui/core/Avatar"
-import Box from "@material-ui/core/Box"
 import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
+import { fade, makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import React from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { FC } from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { AvatarData } from "../../components/AvatarData/AvatarData"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
+import {
+  HelpTooltip,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
+import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
-import { firstLetter } from "../../util/firstLetter"
 
 dayjs.extend(relativeTime)
 
@@ -26,9 +35,36 @@ export const Language = {
   nameLabel: "Name",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
-  emptyViewCreateCTA: "Create a template",
-  emptyViewCreate: "to standardize development workspaces for your team.",
-  emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
+  emptyViewNoPerms: "Contact your Coder administrator to create a template. You can share the code below.",
+  emptyMessage: "Create your first template",
+  emptyDescription: (
+    <>
+      To create a workspace you need to have a template. You can{" "}
+      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+        create one from scratch
+      </Link>{" "}
+      or use a built-in template using the following Coder CLI command:
+    </>
+  ),
+  templateTooltipTitle: "What is template?",
+  templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
+  templateTooltipLink: "Manage templates",
+  createdByLabel: "Created by",
+  defaultTemplateCreator: "<unknown>",
+}
+
+const TemplateHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip>
+      <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#manage-templates">
+          {Language.templateTooltipLink}
+        </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
 }
 
 export interface TemplatesPageViewProps {
@@ -37,101 +73,113 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
+  const navigate = useNavigate()
+
   return (
-    <Stack spacing={4} className={styles.root}>
-      <Margins>
-        <Table>
-          <TableHead>
+    <Margins>
+      <PageHeader>
+        <PageHeaderTitle>
+          <Stack spacing={1} direction="row" alignItems="center">
+            Templates
+            <TemplateHelpTooltip />
+          </Stack>
+        </PageHeaderTitle>
+        {props.templates && props.templates.length > 0 && (
+          <PageHeaderText>Choose a template to create a new workspace.</PageHeaderText>
+        )}
+      </PageHeader>
+
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>{Language.nameLabel}</TableCell>
+            <TableCell>{Language.usedByLabel}</TableCell>
+            <TableCell>{Language.lastUpdatedLabel}</TableCell>
+            <TableCell>{Language.createdByLabel}</TableCell>
+            <TableCell width="1%"></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {props.loading && <TableLoader />}
+          {!props.loading && !props.templates?.length && (
             <TableRow>
-              <TableCell>{Language.nameLabel}</TableCell>
-              <TableCell>{Language.usedByLabel}</TableCell>
-              <TableCell>{Language.lastUpdatedLabel}</TableCell>
+              <TableCell colSpan={999}>
+                <EmptyState
+                  message={Language.emptyMessage}
+                  description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
+                  descriptionClassName={styles.emptyDescription}
+                  cta={<CodeExample code="coder template init" />}
+                />
+              </TableCell>
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {props.loading && <TableLoader />}
-            {!props.loading && !props.templates?.length && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <div className={styles.welcome}>
-                    {props.canCreateTemplate ? (
-                      <span>
-                        <Link component={RouterLink} to="/templates/new">
-                          {Language.emptyViewCreateCTA}
-                        </Link>
-                        &nbsp;{Language.emptyViewCreate}
-                      </span>
-                    ) : (
-                      <span>{Language.emptyViewNoPerms}</span>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {props.templates?.map((template) => (
-              <TableRow key={template.id}>
+          )}
+          {props.templates?.map((template) => {
+            const navigateToTemplatePage = () => {
+              navigate(`/templates/${template.name}`)
+            }
+            return (
+              <TableRow
+                key={template.id}
+                hover
+                data-testid={`template-${template.id}`}
+                tabIndex={0}
+                onClick={navigateToTemplatePage}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    navigateToTemplatePage()
+                  }
+                }}
+                className={styles.clickableTableRow}
+              >
                 <TableCell>
-                  <Box alignItems="center" display="flex">
-                    <Avatar variant="square" className={styles.templateAvatar}>
-                      {firstLetter(template.name)}
-                    </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.name}`} className={styles.templateLink}>
-                      <b>{template.name}</b>
-                      <span>{template.description}</span>
-                    </Link>
-                  </Box>
+                  <AvatarData title={template.name} subtitle={template.description} />
                 </TableCell>
 
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
                 <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell>{template.created_by_name || Language.defaultTemplateCreator}</TableCell>
+                <TableCell>
+                  <div className={styles.arrowCell}>
+                    <KeyboardArrowRight className={styles.arrowRight} />
+                  </div>
+                </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Margins>
-    </Stack>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </Margins>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    marginTop: theme.spacing(3),
+  emptyDescription: {
+    maxWidth: theme.spacing(62),
   },
-  welcome: {
-    paddingTop: theme.spacing(12),
-    paddingBottom: theme.spacing(12),
+  clickableTableRow: {
+    cursor: "pointer",
+
+    "&:hover td": {
+      backgroundColor: fade(theme.palette.primary.light, 0.1),
+    },
+
+    "&:focus": {
+      outline: `1px solid ${theme.palette.secondary.dark}`,
+    },
+
+    "& .MuiTableCell-root:last-child": {
+      paddingRight: theme.spacing(2),
+    },
+  },
+  arrowRight: {
+    color: fade(theme.palette.primary.contrastText, 0.7),
+    width: 20,
+    height: 20,
+  },
+  arrowCell: {
     display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    "& span": {
-      maxWidth: 600,
-      textAlign: "center",
-      fontSize: theme.spacing(2),
-      lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  templateAvatar: {
-    borderRadius: 2,
-    marginRight: theme.spacing(1),
-    width: 24,
-    height: 24,
-    fontSize: 16,
-  },
-  templateLink: {
-    display: "flex",
-    flexDirection: "column",
-    color: theme.palette.text.primary,
-    textDecoration: "none",
-    "&:hover": {
-      textDecoration: "underline",
-    },
-    "& span": {
-      fontSize: 12,
-      color: theme.palette.text.secondary,
-    },
   },
 }))

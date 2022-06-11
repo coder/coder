@@ -1,31 +1,31 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 
 export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
 }
 
-export const WorkspaceBuildStats: React.FC<WorkspaceBuildStatsProps> = ({ build }) => {
+export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => {
   const styles = useStyles()
   const theme = useTheme()
-  const status = getDisplayStatus(theme, build)
+  const status = getDisplayWorkspaceBuildStatus(theme, build)
 
   return (
     <div className={styles.stats}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Workspace ID</span>
+        <span className={styles.statsLabel}>Workspace Name</span>
         <Link
           component={RouterLink}
-          to={`/workspaces/${build.workspace_id}`}
+          to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {build.workspace_id}
+          {build.workspace_name}
         </Link>
       </div>
       <div className={styles.statsDivider} />
@@ -69,7 +69,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

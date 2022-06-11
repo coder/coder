@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
@@ -45,6 +46,7 @@ type Options struct {
 	// app. Specific routes may have their own limiters.
 	APIRateLimit         int
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
@@ -53,7 +55,6 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
-	Authorizer           rbac.Authorizer
 	TracerProvider       *sdktrace.TracerProvider
 }
 
@@ -77,15 +78,15 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
-		Options: options,
-		Handler: r,
+		Options:     options,
+		Handler:     r,
+		siteHandler: site.Handler(site.FS()),
 	}
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 	})
-	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
-	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
 	r.Use(
 		func(next http.Handler) http.Handler {
@@ -96,6 +97,20 @@ func New(options *Options) *API {
 		httpmw.Prometheus(options.Monitor),
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
+
+	apps := func(r chi.Router) {
+		r.Use(
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			apiKeyMiddleware,
+			httpmw.ExtractUserParam(api.Database),
+		)
+		r.Get("/*", api.workspaceAppsProxyPath)
+	}
+	// %40 is the encoded character of the @ symbol. VS Code Web does
+	// not handle character encoding properly, so it's safe to assume
+	// other applications might not as well.
+	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -110,6 +125,7 @@ func New(options *Options) *API {
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
+				//nolint:gocritic
 				Message: "👋",
 			})
 		})
@@ -127,7 +143,6 @@ func New(options *Options) *API {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
@@ -138,14 +153,12 @@ func New(options *Options) *API {
 		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 			)
 			r.Get("/", api.provisionerDaemons)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 			)
 			r.Post("/", api.postOrganizations)
 			r.Route("/{organization}", func(r chi.Router) {
@@ -159,15 +172,7 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Route("/workspaces", func(r chi.Router) {
-					r.Post("/", api.postWorkspacesByOrganization)
-					r.Get("/", api.workspacesByOrganization)
-					r.Route("/{user}", func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
-						r.Get("/{workspacename}", api.workspaceByOwnerAndName)
-						r.Get("/", api.workspacesByOwner)
-					})
-				})
+				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -181,7 +186,7 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware, authRolesMiddleware)
+			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -191,12 +196,12 @@ func New(options *Options) *API {
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 			)
 
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
+			r.Patch("/", api.patchTemplateMeta)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)
@@ -206,7 +211,6 @@ func New(options *Options) *API {
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 
@@ -216,12 +220,18 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
+			r.Route("/dry-run", func(r chi.Router) {
+				r.Post("/", api.postTemplateVersionDryRun)
+				r.Get("/{jobID}", api.templateVersionDryRun)
+				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
+				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
+			})
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
-			r.Post("/logout", api.postLogout)
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
@@ -232,10 +242,10 @@ func New(options *Options) *API {
 			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
-					authRolesMiddleware,
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
+				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.assignableSiteRoles)
@@ -246,7 +256,7 @@ func New(options *Options) *API {
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
-						r.Put("/active", api.putUserStatus(database.UserStatusActive))
+						r.Put("/activate", api.putUserStatus(database.UserStatusActive))
 					})
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
@@ -261,6 +271,10 @@ func New(options *Options) *API {
 					r.Route("/organizations", func(r chi.Router) {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
+					})
+					r.Route("/workspace/{workspacename}", func(r chi.Router) {
+						r.Get("/", api.workspaceByOwnerAndName)
+						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
@@ -283,6 +297,7 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
+					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
@@ -294,7 +309,6 @@ func New(options *Options) *API {
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				httpmw.ExtractWorkspaceResourceParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -303,7 +317,6 @@ func New(options *Options) *API {
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 			)
 			r.Get("/", api.workspaces)
 			r.Route("/{workspace}", func(r chi.Router) {
@@ -329,7 +342,6 @@ func New(options *Options) *API {
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -340,24 +352,27 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
-	r.NotFound(site.DefaultHandler().ServeHTTP)
-
+	r.NotFound(api.siteHandler.ServeHTTP)
 	return api
 }
 
 type API struct {
 	*Options
 
-	Handler            chi.Router
-	websocketWaitMutex sync.Mutex
-	websocketWaitGroup sync.WaitGroup
+	Handler             chi.Router
+	siteHandler         http.Handler
+	websocketWaitMutex  sync.Mutex
+	websocketWaitGroup  sync.WaitGroup
+	workspaceAgentCache *wsconncache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
-func (api *API) Close() {
+func (api *API) Close() error {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Wait()
 	api.websocketWaitMutex.Unlock()
+
+	return api.workspaceAgentCache.Close()
 }
 
 func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {

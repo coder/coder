@@ -60,16 +60,16 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserProfileRequest struct {
-	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
 }
 
 type UpdateUserPasswordRequest struct {
-	Password string `json:"password" validate:"required"`
+	OldPassword string `json:"old_password" validate:""`
+	Password    string `json:"password" validate:"required"`
 }
 
 type UpdateRoles struct {
-	Roles []string `json:"roles" validate:"required"`
+	Roles []string `json:"roles" validate:""`
 }
 
 type UserRoles struct {
@@ -217,7 +217,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	path := fmt.Sprintf("/api/v2/users/%s/status/", user)
 	switch status {
 	case UserStatusActive:
-		path += "active"
+		path += "activate"
 	case UserStatusSuspended:
 		path += "suspend"
 	default:

@@ -26,6 +26,7 @@ func templates() *cobra.Command {
 	}
 	cmd.AddCommand(
 		templateCreate(),
+		templateEdit(),
 		templateInit(),
 		templateList(),
 		templatePlan(),

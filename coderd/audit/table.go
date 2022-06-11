@@ -61,15 +61,18 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 	},
 	&database.Template{}: {
-		"id":                ActionTrack,
-		"created_at":        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":   ActionTrack,
-		"deleted":           ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":              ActionTrack,
-		"provisioner":       ActionTrack,
-		"active_version_id": ActionTrack,
-		"description":       ActionTrack,
+		"id":                     ActionTrack,
+		"created_at":             ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":             ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":        ActionTrack,
+		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                   ActionTrack,
+		"provisioner":            ActionTrack,
+		"active_version_id":      ActionTrack,
+		"description":            ActionTrack,
+		"max_ttl":                ActionTrack,
+		"min_autostart_interval": ActionTrack,
+		"created_by":             ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,

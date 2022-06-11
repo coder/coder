@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import React from "react"
+import { FC } from "react"
 import { MockUser, MockUserAgent, WrapperComponent } from "../../testHelpers/renderHelpers"
 import { UserCell, UserCellProps } from "./UserCell"
 
@@ -13,7 +13,7 @@ namespace Helpers {
     onPrimaryTextSelect: jest.fn(),
   }
 
-  export const Component: React.FC<UserCellProps> = (props) => (
+  export const Component: FC<UserCellProps> = (props) => (
     <WrapperComponent>
       <UserCell {...props} />
     </WrapperComponent>

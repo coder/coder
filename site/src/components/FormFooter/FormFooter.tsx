@@ -1,6 +1,6 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 
 export const Language = {
@@ -14,24 +14,21 @@ export interface FormFooterProps {
   submitLabel?: string
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   footer: {
     display: "flex",
     flex: "0",
     flexDirection: "row",
-    justifyContent: "center",
+    gap: theme.spacing(1.5),
     alignItems: "center",
+    marginTop: theme.spacing(3),
   },
   button: {
-    margin: "1em",
+    width: "100%",
   },
 }))
 
-export const FormFooter: React.FC<FormFooterProps> = ({
-  onCancel,
-  isLoading,
-  submitLabel = Language.defaultSubmitLabel,
-}) => {
+export const FormFooter: FC<FormFooterProps> = ({ onCancel, isLoading, submitLabel = Language.defaultSubmitLabel }) => {
   const styles = useStyles()
   return (
     <div className={styles.footer}>

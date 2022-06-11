@@ -1,14 +1,13 @@
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import React from "react"
 import * as API from "../../../api/api"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
 import { history, render } from "../../../testHelpers/renderHelpers"
 import { server } from "../../../testHelpers/server"
 import { Language as UserLanguage } from "../../../xServices/users/usersXService"
-import { CreateUserPage, Language } from "./CreateUserPage"
+import { CreateUserPage } from "./CreateUserPage"
 
 const fillForm = async ({
   username = "someuser",
@@ -47,7 +46,7 @@ describe("Create User Page", () => {
     })
     render(<CreateUserPage />)
     await fillForm({})
-    const errorMessage = await screen.findByText(Language.unknownError)
+    const errorMessage = await screen.findByText(UserLanguage.createUserError)
     expect(errorMessage).toBeDefined()
   })
 
@@ -59,7 +58,7 @@ describe("Create User Page", () => {
           ctx.status(400),
           ctx.json({
             message: "invalid field",
-            errors: [
+            validations: [
               {
                 detail: fieldErrorMessage,
                 field: "username",

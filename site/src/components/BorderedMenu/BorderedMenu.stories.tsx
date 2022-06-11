@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { BorderedMenuRow } from "../BorderedMenuRow/BorderedMenuRow"
 import { BuildingIcon } from "../Icons/BuildingIcon"
 import { UsersOutlinedIcon } from "../Icons/UsersOutlinedIcon"

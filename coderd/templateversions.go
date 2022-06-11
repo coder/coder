@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -28,7 +29,8 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -45,7 +47,8 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -70,7 +73,8 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update provisioner job: %s", err),
+			Message: "Internal error updating provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -88,7 +92,8 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -104,7 +109,8 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("list parameter schemas: %s", err),
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -113,7 +119,8 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		apiSchema, err := convertParameterSchema(schema)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("convert: %s", err),
+				Message: fmt.Sprintf("Internal error converting schema %s.", schema.Name),
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -132,7 +139,8 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -152,7 +160,8 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("compute values: %s", err),
+			Message: "Internal error computing values.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -161,6 +170,223 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, values)
+}
+
+func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return
+	}
+	// We use the workspace RBAC check since we don't want to allow dry runs if
+	// the user can't create workspaces.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
+
+	var req codersdk.CreateTemplateVersionDryRunRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error updating provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Template version import job hasn't completed!",
+		})
+		return
+	}
+
+	// Convert parameters from request to parameters for the job
+	parameterValues := make([]database.ParameterValue, len(req.ParameterValues))
+	for i, v := range req.ParameterValues {
+		parameterValues[i] = database.ParameterValue{
+			ID:                uuid.Nil,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           uuid.Nil,
+			Name:              v.Name,
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       v.SourceValue,
+			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		}
+	}
+
+	// Marshal template version dry-run job with the parameters from the
+	// request.
+	input, err := json.Marshal(templateVersionDryRunJob{
+		TemplateVersionID: templateVersion.ID,
+		WorkspaceName:     req.WorkspaceName,
+		ParameterValues:   parameterValues,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error unmarshalling provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Create a dry-run job
+	jobID := uuid.New()
+	provisionerJob, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		ID:             jobID,
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		OrganizationID: templateVersion.OrganizationID,
+		InitiatorID:    apiKey.UserID,
+		Provisioner:    job.Provisioner,
+		StorageMethod:  job.StorageMethod,
+		StorageSource:  job.StorageSource,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+		Input:          input,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error inserting provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
+}
+
+func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertProvisionerJob(job))
+}
+
+func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobResources(rw, r, job)
+}
+
+func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Request) {
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	api.provisionerJobLogs(rw, r, job)
+}
+
+func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http.Request) {
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+	if !api.Authorize(rw, r, rbac.ActionUpdate,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		return
+	}
+
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed.",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled.",
+		})
+		return
+	}
+
+	err := api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error updating provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled.",
+	})
+}
+
+func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		jobID           = chi.URLParam(r, "jobID")
+	)
+	if !api.Authorize(rw, r, rbac.ActionRead, templateVersion) {
+		return database.ProvisionerJob{}, false
+	}
+
+	jobUUID, err := uuid.Parse(jobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("Job ID %q must be a valid UUID.", jobID),
+			Detail:  err.Error(),
+		})
+		return database.ProvisionerJob{}, false
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), jobUUID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if job.Type != database.ProvisionerJobTypeTemplateVersionDryRun {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+	// Do a workspace resource check since it's basically a workspace dry-run .
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		return database.ProvisionerJob{}, false
+	}
+
+	// Verify that the template version is the one used in the request.
+	var input templateVersionDryRunJob
+	err = json.Unmarshal(job.Input, &input)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error unmarshaling job metadata.",
+			Detail:  err.Error(),
+		})
+		return database.ProvisionerJob{}, false
+	}
+	if input.TemplateVersionID != templateVersion.ID {
+		httpapi.Forbidden(rw)
+		return database.ProvisionerJob{}, false
+	}
+
+	return job, true
 }
 
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -174,51 +400,80 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	apiVersion := []codersdk.TemplateVersion{}
-	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: template.ID,
-		AfterID:    paginationParams.AfterID,
-		LimitOpt:   int32(paginationParams.Limit),
-		OffsetOpt:  int32(paginationParams.Offset),
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, apiVersion)
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
-		})
-		return
-	}
-	jobIDs := make([]uuid.UUID, 0, len(versions))
-	for _, version := range versions {
-		jobIDs = append(jobIDs, version.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get jobs: %s", err),
-		})
-		return
-	}
-	jobByID := map[string]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID.String()] = job
-	}
-
-	for _, version := range versions {
-		job, exists := jobByID[version.JobID.String()]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
-			})
-			return
+	var err error
+	apiVersions := []codersdk.TemplateVersion{}
+	err = api.Database.InTx(func(store database.Store) error {
+		if paginationParams.AfterID != uuid.Nil {
+			// See if the record exists first. If the record does not exist, the pagination
+			// query will not work.
+			_, err := store.GetTemplateVersionByID(r.Context(), paginationParams.AfterID)
+			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exists.", paginationParams.AfterID.String()),
+				})
+				return err
+			} else if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: "Internal error fetching template version at after_id.",
+					Detail:  err.Error(),
+				})
+				return err
+			}
 		}
-		apiVersion = append(apiVersion, convertTemplateVersion(version, convertProvisionerJob(job)))
+
+		versions, err := store.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+			TemplateID: template.ID,
+			AfterID:    paginationParams.AfterID,
+			LimitOpt:   int32(paginationParams.Limit),
+			OffsetOpt:  int32(paginationParams.Offset),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusOK, apiVersions)
+			return err
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Internal error fetching template versions.",
+				Detail:  err.Error(),
+			})
+			return err
+		}
+
+		jobIDs := make([]uuid.UUID, 0, len(versions))
+		for _, version := range versions {
+			jobIDs = append(jobIDs, version.JobID)
+		}
+		jobs, err := store.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return err
+		}
+		jobByID := map[string]database.ProvisionerJob{}
+		for _, job := range jobs {
+			jobByID[job.ID.String()] = job
+		}
+
+		for _, version := range versions {
+			job, exists := jobByID[version.JobID.String()]
+			if !exists {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("Job %q doesn't exist for version %q.", version.JobID, version.ID),
+				})
+				return err
+			}
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job)))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, apiVersion)
+	httpapi.Write(rw, http.StatusOK, apiVersions)
 }
 
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
@@ -237,20 +492,22 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no template version found by name %q", templateVersionName),
+			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version by name: %s", err),
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -271,13 +528,14 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	version, err := api.Database.GetTemplateVersionByID(r.Context(), req.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "template version not found",
+			Message: "Template version not found.",
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -293,7 +551,8 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update active template version: %s", err),
+			Message: "Internal error updating active template version.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -315,13 +574,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		_, err := api.Database.GetTemplateByID(r.Context(), req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-				Message: "template does not exist",
+				Message: "Template does not exist.",
 			})
 			return
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get template: %s", err),
+				Message: "Internal error fetching template.",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -330,13 +590,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "file not found",
+			Message: "File not found.",
 		})
 		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get file: %s", err),
+			Message: "Internal error fetching file.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -371,7 +632,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		provisionerJob, err = api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -395,7 +656,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		templateVersion, err = api.Database.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
+		templateVersion, err = db.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
@@ -434,7 +695,8 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -454,7 +716,8 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -463,12 +726,13 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
-		ID:         version.ID,
-		TemplateID: &version.TemplateID.UUID,
-		CreatedAt:  version.CreatedAt,
-		UpdatedAt:  version.UpdatedAt,
-		Name:       version.Name,
-		Job:        job,
-		Readme:     version.Readme,
+		ID:             version.ID,
+		TemplateID:     &version.TemplateID.UUID,
+		OrganizationID: version.OrganizationID,
+		CreatedAt:      version.CreatedAt,
+		UpdatedAt:      version.UpdatedAt,
+		Name:           version.Name,
+		Job:            job,
+		Readme:         version.Readme,
 	}
 }

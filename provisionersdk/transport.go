@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"io"
+	"net"
 
 	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
@@ -17,22 +18,14 @@ const (
 
 // TransportPipe creates an in-memory pipe for dRPC transport.
 func TransportPipe() (*yamux.Session, *yamux.Session) {
-	clientReader, clientWriter := io.Pipe()
-	serverReader, serverWriter := io.Pipe()
+	c1, c2 := net.Pipe()
 	yamuxConfig := yamux.DefaultConfig()
 	yamuxConfig.LogOutput = io.Discard
-	client, err := yamux.Client(&readWriteCloser{
-		ReadCloser: clientReader,
-		Writer:     serverWriter,
-	}, yamuxConfig)
+	client, err := yamux.Client(c1, yamuxConfig)
 	if err != nil {
 		panic(err)
 	}
-
-	server, err := yamux.Server(&readWriteCloser{
-		ReadCloser: serverReader,
-		Writer:     clientWriter,
-	}, yamuxConfig)
+	server, err := yamux.Server(c2, yamuxConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -42,11 +35,6 @@ func TransportPipe() (*yamux.Session, *yamux.Session) {
 // Conn returns a multiplexed dRPC connection from a yamux session.
 func Conn(session *yamux.Session) drpc.Conn {
 	return &multiplexedDRPC{session}
-}
-
-type readWriteCloser struct {
-	io.ReadCloser
-	io.Writer
 }
 
 // Allows concurrent requests on a single dRPC connection.

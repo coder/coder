@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import { MockTemplate } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
@@ -32,7 +31,7 @@ describe("TemplatesPage", () => {
     render(<TemplatesPage />)
 
     // Then
-    await screen.findByText(Language.emptyViewCreate)
+    await screen.findByText(Language.emptyMessage)
   })
 
   it("renders a filled templates page", async () => {

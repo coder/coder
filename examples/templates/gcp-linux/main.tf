@@ -11,20 +11,8 @@ terraform {
   }
 }
 
-variable "service_account" {
-  description = <<EOF
-Coder requires a Google Cloud Service Account to provision workspaces.
-
-1. Create a service account:
-   https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts/create
-2. Add the roles:
-   - Compute Admin
-   - Service Account User
-3. Click on the created key, and navigate to the "Keys" tab.
-4. Click "Add key", then "Create new key".
-5. Generate a JSON private key, and paste the contents below.
-EOF
-  sensitive   = true
+variable "project_id" {
+  description = "Which Google Compute Project should your workspace live in?"
 }
 
 variable "zone" {
@@ -37,9 +25,8 @@ variable "zone" {
 }
 
 provider "google" {
-  zone        = var.zone
-  credentials = var.service_account
-  project     = jsondecode(var.service_account).project_id
+  zone    = var.zone
+  project = var.project_id
 }
 
 data "google_compute_default_service_account" "default" {
@@ -83,5 +70,21 @@ resource "google_compute_instance" "dev" {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
-  metadata_startup_script = coder_agent.dev.init_script
+  # The startup script runs as root with no $HOME environment set up, which can break workspace applications, so
+  # instead of directly running the agent init script, setup the home directory, write the init script, and then execute
+  # it.
+  metadata_startup_script = <<EOMETA
+#!/usr/bin/env sh
+set -eux pipefail
+
+mkdir /root || true
+cat <<'EOCODER' > /root/coder_agent.sh
+${coder_agent.dev.init_script}
+EOCODER
+chmod +x /root/coder_agent.sh
+
+export HOME=/root
+/root/coder_agent.sh
+
+EOMETA
 }

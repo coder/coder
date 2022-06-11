@@ -101,17 +101,19 @@ WHERE
 		WHEN @search :: text != '' THEN (
 			email LIKE concat('%', @search, '%')
 			OR username LIKE concat('%', @search, '%')
-		)	
+		)
 		ELSE true
 	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN @status :: text != '' THEN (
-			status = @status :: user_status
+		WHEN cardinality(@status :: user_status[]) > 0 THEN (
+			status = ANY(@status :: user_status[])
 		)
-		ELSE true
+		ELSE
+		    -- Only show active by default
+		    status = 'active'
 	END
 	-- End of filters
 ORDER BY
@@ -132,10 +134,20 @@ WHERE
 	id = $1 RETURNING *;
 
 
--- name: GetAllUserRoles :one
+-- name: GetAuthorizationUserRoles :one
+-- This function returns roles for authorization purposes. Implied member roles
+-- are included.
 SELECT
-    -- username is returned just to help for logging purposes
-	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+	-- username is returned just to help for logging purposes
+	-- status is used to enforce 'suspended' users, as all roles are ignored
+	--	when suspended.
+	id, username, status,
+	array_cat(
+		-- All users are members
+			array_append(users.rbac_roles, 'member'),
+		-- All org_members get the org-member role for their orgs
+			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
+	    AS roles
 FROM
 	users
 LEFT JOIN organization_members

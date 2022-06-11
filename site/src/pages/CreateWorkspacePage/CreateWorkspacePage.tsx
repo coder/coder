@@ -1,49 +1,50 @@
 import { useMachine } from "@xstate/react"
-import React from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { Template } from "../../api/typesGenerated"
+import { FC } from "react"
+import { Helmet } from "react-helmet"
+import { useNavigate, useParams } from "react-router-dom"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
+import { pageTitle } from "../../util/page"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
-const CreateWorkspacePage: React.FC = () => {
+const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
-  const [searchParams] = useSearchParams()
-  const preSelectedTemplateName = searchParams.get("template")
+  const { template } = useParams()
+  const templateName = template ? template : ""
   const navigate = useNavigate()
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId, preSelectedTemplateName },
+    context: { organizationId, templateName },
     actions: {
       onCreateWorkspace: (_, event) => {
-        navigate("/workspaces/" + event.data.id)
+        navigate(`/@${event.data.owner_name}/${event.data.name}`)
       },
     },
   })
 
   return (
-    <CreateWorkspacePageView
-      loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
-      loadingTemplateSchema={createWorkspaceState.matches("gettingTemplateSchema")}
-      creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
-      templates={createWorkspaceState.context.templates}
-      selectedTemplate={createWorkspaceState.context.selectedTemplate}
-      templateSchema={createWorkspaceState.context.templateSchema}
-      onCancel={() => {
-        navigate(preSelectedTemplateName ? "/templates" : "/workspaces")
-      }}
-      onSubmit={(request) => {
-        send({
-          type: "CREATE_WORKSPACE",
-          request,
-        })
-      }}
-      onSelectTemplate={(template: Template) => {
-        send({
-          type: "SELECT_TEMPLATE",
-          template,
-        })
-      }}
-    />
+    <>
+      <Helmet>
+        <title>{pageTitle("Create Workspace")}</title>
+      </Helmet>
+      <CreateWorkspacePageView
+        loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
+        loadingTemplateSchema={createWorkspaceState.matches("gettingTemplateSchema")}
+        creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
+        templateName={createWorkspaceState.context.templateName}
+        templates={createWorkspaceState.context.templates}
+        selectedTemplate={createWorkspaceState.context.selectedTemplate}
+        templateSchema={createWorkspaceState.context.templateSchema}
+        onCancel={() => {
+          navigate("/templates")
+        }}
+        onSubmit={(request) => {
+          send({
+            type: "CREATE_WORKSPACE",
+            request,
+          })
+        }}
+      />
+    </>
   )
 }
 

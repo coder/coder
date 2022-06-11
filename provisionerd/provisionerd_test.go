@@ -315,6 +315,85 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
+	t.Run("TemplateDryRun", func(t *testing.T) {
+		t.Parallel()
+		var (
+			didComplete   atomic.Bool
+			didLog        atomic.Bool
+			didAcquireJob atomic.Bool
+			completeChan  = make(chan struct{})
+			completeOnce  sync.Once
+
+			parameterValues = []*sdkproto.ParameterValue{
+				{
+					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+					Name:              "test_var",
+					Value:             "dean was here",
+				},
+				{
+					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+					Name:              "test_var_2",
+					Value:             "1234",
+				},
+			}
+			metadata = &sdkproto.Provision_Metadata{}
+		)
+
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					if !didAcquireJob.CAS(false, true) {
+						completeOnce.Do(func() { close(completeChan) })
+						return &proto.AcquiredJob{}, nil
+					}
+
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						TemplateSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_TemplateDryRun_{
+							TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
+								ParameterValues: parameterValues,
+								Metadata:        metadata,
+							},
+						},
+					}, nil
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
+						didLog.Store(true)
+					}
+					return &proto.UpdateJobResponse{}, nil
+				},
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					didComplete.Store(true)
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Resources: []*sdkproto.Resource{},
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+			}),
+		})
+
+		<-completeChan
+		require.True(t, didLog.Load())
+		require.True(t, didComplete.Load())
+		require.NoError(t, closer.Close())
+	})
+
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		var (

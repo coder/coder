@@ -1,106 +1,121 @@
 import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC } from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Margins } from "../Margins/Margins"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
+import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export interface WorkspaceProps {
+  bannerProps: {
+    isLoading?: boolean
+    onExtend: () => void
+  }
   handleStart: () => void
   handleStop: () => void
+  handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
+  canUpdateWorkspace: boolean
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({
+export const Workspace: FC<WorkspaceProps> = ({
+  bannerProps,
   handleStart,
   handleStop,
+  handleDelete,
   handleUpdate,
   handleCancel,
   workspace,
   resources,
   getResourcesError,
   builds,
+  canUpdateWorkspace,
 }) => {
   const styles = useStyles()
+  const navigate = useNavigate()
 
   return (
-    <div className={styles.root}>
-      <div className={styles.header}>
-        <div>
-          <Typography variant="h4" className={styles.title}>
-            {workspace.name}
-          </Typography>
-
-          <Typography color="textSecondary" className={styles.subtitle}>
-            {workspace.owner_name}
-          </Typography>
-        </div>
-
-        <div className={styles.headerActions}>
+    <Margins>
+      <PageHeader
+        className={styles.header}
+        actions={
           <WorkspaceActions
             workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
+            handleDelete={handleDelete}
             handleUpdate={handleUpdate}
             handleCancel={handleCancel}
           />
-        </div>
-      </div>
+        }
+      >
+        <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+        <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+      </PageHeader>
 
-      <Stack direction="row" spacing={3} className={styles.layout}>
-        <Stack spacing={3} className={styles.main}>
+      <Stack direction="row" spacing={3}>
+        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
+          <WorkspaceScheduleBanner
+            isLoading={bannerProps.isLoading}
+            onExtend={bannerProps.onExtend}
+            workspace={workspace}
+          />
+
+          <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/workspaces/new`)} />
+
           <WorkspaceStats workspace={workspace} />
-          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
+
+          {!!resources && !!resources.length && (
+            <Resources
+              resources={resources}
+              getResourcesError={getResourcesError}
+              workspace={workspace}
+              canUpdateWorkspace={canUpdateWorkspace}
+            />
+          )}
+
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
         </Stack>
 
-        <Stack spacing={3} className={styles.sidebar}>
+        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}>
           <WorkspaceSchedule workspace={workspace} />
         </Stack>
       </Stack>
-    </div>
+    </Margins>
   )
 }
 
+const spacerWidth = 300
+
 export const useStyles = makeStyles((theme) => {
   return {
-    root: {
-      display: "flex",
-      flexDirection: "column",
+    firstColumnSpacer: {
+      flex: 2,
+    },
+    secondColumnSpacer: {
+      flex: `0 0 ${spacerWidth}px`,
     },
     header: {
-      paddingTop: theme.spacing(5),
-      paddingBottom: theme.spacing(5),
-      fontFamily: MONOSPACE_FONT_FAMILY,
-      display: "flex",
-      alignItems: "center",
-    },
-    headerActions: {
-      marginLeft: "auto",
-    },
-    title: {
-      fontWeight: 600,
-      fontFamily: "inherit",
-    },
-    subtitle: {
-      fontFamily: "inherit",
-      marginTop: theme.spacing(0.5),
+      // 100% - (the size of sidebar + the space between both )
+      maxWidth: `calc(100% - (${spacerWidth}px + ${theme.spacing(3)}px))`,
     },
     layout: {
       alignItems: "flex-start",

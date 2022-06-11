@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { MockWorkspaceBuildLogs } from "../../testHelpers/entities"
 import { WorkspaceBuildLogs, WorkspaceBuildLogsProps } from "./WorkspaceBuildLogs"
 
@@ -13,4 +12,10 @@ const Template: Story<WorkspaceBuildLogsProps> = (args) => <WorkspaceBuildLogs {
 export const Example = Template.bind({})
 Example.args = {
   logs: MockWorkspaceBuildLogs,
+}
+
+export const Loading = Template.bind({})
+Loading.args = {
+  logs: MockWorkspaceBuildLogs,
+  isWaitingForLogs: true,
 }

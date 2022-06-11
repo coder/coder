@@ -1,12 +1,12 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC, ReactNode } from "react"
 import { FormCloseButton } from "../FormCloseButton/FormCloseButton"
 import { FormTitle } from "../FormTitle/FormTitle"
 import { Margins } from "../Margins/Margins"
 
 export interface FullPageFormProps {
   title: string
-  detail?: React.ReactNode
+  detail?: ReactNode
   onCancel: () => void
 }
 
@@ -19,11 +19,11 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-export const FullPageForm: React.FC<FullPageFormProps> = ({ title, detail, onCancel, children }) => {
+export const FullPageForm: FC<FullPageFormProps> = ({ title, detail, onCancel, children }) => {
   const styles = useStyles()
   return (
     <main className={styles.root}>
-      <Margins>
+      <Margins size="small">
         <FormTitle title={title} detail={detail} />
         <FormCloseButton onClose={onCancel} />
 

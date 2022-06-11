@@ -1,8 +1,10 @@
 import { useMachine } from "@xstate/react"
-import React from "react"
+import { FC } from "react"
+import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
 import { Loader } from "../../components/Loader/Loader"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
+import { pageTitle } from "../../util/page"
 import { templateMachine } from "../../xServices/template/templateXService"
 import { TemplatePageView } from "./TemplatePageView"
 
@@ -16,7 +18,7 @@ const useTemplateName = () => {
   return template
 }
 
-export const TemplatePage: React.FC = () => {
+export const TemplatePage: FC = () => {
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
   const [templateState] = useMachine(templateMachine, {
@@ -33,10 +35,15 @@ export const TemplatePage: React.FC = () => {
   }
 
   return (
-    <TemplatePageView
-      template={template}
-      activeTemplateVersion={activeTemplateVersion}
-      templateResources={templateResources}
-    />
+    <>
+      <Helmet>
+        <title>{pageTitle(`${template.name} · Template`)}</title>
+      </Helmet>
+      <TemplatePageView
+        template={template}
+        activeTemplateVersion={activeTemplateVersion}
+        templateResources={templateResources}
+      />
+    </>
   )
 }

@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -35,6 +36,9 @@ type ProvisionerJobOptions struct {
 	FetchInterval time.Duration
 	// Verbose determines whether debug and trace logs will be shown.
 	Verbose bool
+	// Silent determines whether log output will be shown unless there is an
+	// error.
+	Silent bool
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
@@ -133,12 +137,30 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 		return xerrors.Errorf("logs: %w", err)
 	}
 
+	var (
+		// logOutput is where log output is written
+		logOutput = writer
+		// logBuffer is where logs are buffered if opts.Silent is true
+		logBuffer = &bytes.Buffer{}
+	)
+	if opts.Silent {
+		logOutput = logBuffer
+	}
+	flushLogBuffer := func() {
+		if opts.Silent {
+			_, _ = io.Copy(writer, logBuffer)
+		}
+	}
+
 	ticker := time.NewTicker(opts.FetchInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case err = <-errChan:
+			flushLogBuffer()
 			return err
 		case <-ctx.Done():
+			flushLogBuffer()
 			return ctx.Err()
 		case <-ticker.C:
 			updateJob()
@@ -160,8 +182,10 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				}
 				err = xerrors.New(job.Error)
 				jobMutex.Unlock()
+				flushLogBuffer()
 				return err
 			}
+
 			output := ""
 			switch log.Level {
 			case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
@@ -176,14 +200,17 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 			case codersdk.LogLevelInfo:
 				output = log.Output
 			}
+
 			jobMutex.Lock()
 			if log.Stage != currentStage && log.Stage != "" {
 				updateStage(log.Stage, log.CreatedAt)
 				jobMutex.Unlock()
 				continue
 			}
-			_, _ = fmt.Fprintf(writer, "%s %s\n", Styles.Placeholder.Render(" "), output)
-			didLogBetweenStage = true
+			_, _ = fmt.Fprintf(logOutput, "%s %s\n", Styles.Placeholder.Render(" "), output)
+			if !opts.Silent {
+				didLogBetweenStage = true
+			}
 			jobMutex.Unlock()
 		}
 	}

@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { ReactElement } from "react"
 import { CodeBlock } from "../CodeBlock/CodeBlock"
 import { createCtas } from "./createCtas"
 
@@ -63,7 +63,7 @@ export const createFormattedStackTrace = (error: Error, mappedStack: string[] | 
 /**
  * A code block component that contains the error stack resulting from an error boundary trigger
  */
-export const RuntimeErrorReport = ({ error, mappedStack }: ReportState): React.ReactElement => {
+export const RuntimeErrorReport = ({ error, mappedStack }: ReportState): ReactElement => {
   const styles = useStyles()
 
   if (!mappedStack) {

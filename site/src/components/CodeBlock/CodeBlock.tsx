@@ -1,15 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC, Fragment, ReactElement } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface CodeBlockProps {
   lines: string[]
-  ctas?: React.ReactElement[]
+  ctas?: ReactElement[]
   className?: string
 }
 
-export const CodeBlock: React.FC<CodeBlockProps> = ({ lines, ctas, className = "" }) => {
+export const CodeBlock: FC<CodeBlockProps> = ({ lines, ctas, className = "" }) => {
   const styles = useStyles()
 
   return (
@@ -24,7 +24,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ lines, ctas, className = "
       {ctas && ctas.length && (
         <div className={styles.ctaBar}>
           {ctas.map((cta, i) => {
-            return <React.Fragment key={i}>{cta}</React.Fragment>
+            return <Fragment key={i}>{cta}</Fragment>
           })}
         </div>
       )}

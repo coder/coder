@@ -1,6 +1,5 @@
 import PlayArrowRoundedIcon from "@material-ui/icons/PlayArrowRounded"
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { WorkspaceActionButton, WorkspaceActionButtonProps } from "./WorkspaceActionButton"
 
 export default {

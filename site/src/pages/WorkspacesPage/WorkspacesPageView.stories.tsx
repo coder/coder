@@ -1,7 +1,7 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
-import { ProvisionerJobStatus, Workspace } from "../../api/typesGenerated"
+import { ProvisionerJobStatus, Workspace, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
+import { workspaceFilterQuery } from "../../util/workspace"
 import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 
 export default {
@@ -11,7 +11,10 @@ export default {
 
 const Template: Story<WorkspacesPageViewProps> = (args) => <WorkspacesPageView {...args} />
 
-const createWorkspaceWithStatus = (status: ProvisionerJobStatus, transition = "start"): Workspace => {
+const createWorkspaceWithStatus = (
+  status: ProvisionerJobStatus,
+  transition: WorkspaceTransition = "start",
+): Workspace => {
   return {
     ...MockWorkspace,
     latest_build: {
@@ -46,5 +49,14 @@ AllStates.args = {
   ],
 }
 
-export const Empty = Template.bind({})
-Empty.args = {}
+export const OwnerHasNoWorkspaces = Template.bind({})
+OwnerHasNoWorkspaces.args = {
+  workspaces: [],
+  filter: workspaceFilterQuery.me,
+}
+
+export const NoResults = Template.bind({})
+NoResults.args = {
+  workspaces: [],
+  filter: "searchtearmwithnoresults",
+}

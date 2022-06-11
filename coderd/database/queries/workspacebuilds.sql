@@ -27,6 +27,15 @@ WHERE
 	workspace_id = $1
 	AND "name" = $2;
 
+-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
+SELECT
+	*
+FROM
+	workspace_builds
+WHERE
+	workspace_id = $1
+	AND build_number = $2;
+
 -- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
 	*

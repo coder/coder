@@ -1,5 +1,5 @@
 import Button from "@material-ui/core/Button"
-import React from "react"
+import { FC } from "react"
 
 export interface WorkspaceActionButtonProps {
   label: string
@@ -8,7 +8,7 @@ export interface WorkspaceActionButtonProps {
   className?: string
 }
 
-export const WorkspaceActionButton: React.FC<WorkspaceActionButtonProps> = ({ label, icon, onClick, className }) => {
+export const WorkspaceActionButton: FC<WorkspaceActionButtonProps> = ({ label, icon, onClick, className }) => {
   return (
     <Button className={className} startIcon={icon} onClick={onClick}>
       {label}

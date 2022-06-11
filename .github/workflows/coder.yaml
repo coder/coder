@@ -44,6 +44,19 @@ jobs:
         with:
           version: v1.46.0
 
+  style-lint-shellcheck:
+    name: style/lint/shellcheck
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@1.1.0
+        env:
+          SHELLCHECK_OPTS: --external-sources
+        with:
+          ignore: node_modules
+
   style-lint-typescript:
     name: "style/lint/typescript"
     timeout-minutes: 5
@@ -133,7 +146,12 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: "make --output-sync -j -B fmt"
+      - name: Install shfmt
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
+
+      - run: |
+          export PATH=${PATH}:$(go env GOPATH)/bin
+          make --output-sync -j -B fmt
 
   test-go:
     name: "test/go"
@@ -337,10 +355,6 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
-
       - name: Cache Node
         id: cache-node
         uses: actions/cache@v3
@@ -348,9 +362,13 @@ jobs:
           path: |
             **/node_modules
             .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          key: js-${{ runner.os }}-release-node-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             js-${{ runner.os }}-
+
+      - uses: goreleaser/goreleaser-action@v3
+        with:
+          install-only: true
 
       - name: Build site
         run: make -B site/out/index.html
@@ -360,18 +378,6 @@ jobs:
         with:
           version: latest
           args: release --snapshot --rm-dist --skip-sign
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coder_windows_amd64.zip
-          path: ./dist/coder_*_windows_amd64.zip
-          retention-days: 7
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coder_linux_amd64.tar.gz
-          path: ./dist/coder_*_linux_amd64.tar.gz
-          retention-days: 7
 
       - name: Install Release
         run: |
@@ -383,6 +389,14 @@ jobs:
 
       - name: Start
         run: gcloud compute ssh coder -- sudo service coder restart
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: coder
+          path: |
+            ./dist/coder_*_linux_amd64.tar.gz
+            ./dist/coder_*_windows_amd64.zip
+          retention-days: 7
 
   test-js:
     name: "test/js"

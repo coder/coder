@@ -1,16 +1,18 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { getDisplayStatus } from "../../util/workspace"
+import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
+  workspaceDetails: "Workspace Details",
   templateLabel: "Template",
-  statusLabel: "Status",
+  statusLabel: "Workspace Status",
   versionLabel: "Version",
   lastBuiltLabel: "Last Built",
   outdated: "Outdated",
@@ -21,13 +23,13 @@ export interface WorkspaceStatsProps {
   workspace: Workspace
 }
 
-export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, workspace.latest_build)
 
   return (
-    <div className={styles.stats}>
+    <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.templateLabel}</span>
         <Link
@@ -37,15 +39,6 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
         >
           {workspace.template_name}
         </Link>
-      </div>
-      <div className={styles.statsDivider} />
-      <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.statusLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: status.color }} role="status">
-            {status.status}
-          </span>
-        </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
@@ -65,7 +58,16 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
           {dayjs().to(dayjs(workspace.latest_build.created_at))}
         </span>
       </div>
-    </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.statusLabel}</span>
+        <span className={styles.statsValue}>
+          <span style={{ color: status.color }} role="status">
+            {status.status}
+          </span>
+        </span>
+      </div>
+    </WorkspaceSection>
   )
 }
 
@@ -79,11 +81,11 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: theme.palette.text.secondary,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    border: `1px solid ${theme.palette.divider}`,
+    margin: "0px",
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "20%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

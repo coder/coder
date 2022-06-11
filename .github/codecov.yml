@@ -1,5 +1,7 @@
 codecov:
   require_ci_to_pass: false
+  notify:
+    after_n_builds: 5
 
 comment: false
 
@@ -19,7 +21,7 @@ coverage:
 ignore:
   # This is generated code.
   - coderd/database/models.go
-  - coderd/database/query.sql.go
+  - coderd/database/queries.sql.go
   - coderd/database/databasefake
   # These are generated or don't require tests.
   - cmd
@@ -29,6 +31,6 @@ ignore:
   - peerbroker/proto
   - provisionerd/proto
   - provisionersdk/proto
-  - scripts/datadog-cireport
+  - scripts
   - site/.storybook
   - rules.go

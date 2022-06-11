@@ -7,52 +7,37 @@ terraform {
   }
 }
 
-variable "access_key" {
-  description = <<EOT
-Create an AWS access key to provision resources with Coder:
-- https://console.aws.amazon.com/iam/home#/users
-
-See the template README for an example permissions policy,
-if needed.
-  
-AWS Access Key ID
-EOT
-  sensitive   = true
-}
-
-variable "secret_key" {
-  description = <<EOT
-AWS Secret Key
-EOT
-  sensitive   = true
-}
-
+# Last updated 2022-05-31
+# aws ec2 describe-regions | jq -r '[.Regions[].RegionName] | sort'
 variable "region" {
   description = "What region should your workspace live in?"
   default     = "us-east-1"
   validation {
-    condition     = contains(["us-east-1", "us-east-2", "us-west-1", "us-west-2"], var.region)
+    condition = contains([
+      "ap-northeast-1",
+      "ap-northeast-2",
+      "ap-northeast-3",
+      "ap-south-1",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-north-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "sa-east-1",
+      "us-east-1",
+      "us-east-2",
+      "us-west-1",
+      "us-west-2"
+    ], var.region)
     error_message = "Invalid region!"
   }
 }
 
-variable "disk_size" {
-  description = "Specify your disk size (GiBs)"
-  default     = "20"
-  type        = number
-  validation {
-    condition = (
-      var.disk_size >= 8 &&
-      var.disk_size <= 256
-    )
-    error_message = "Disk size must be between 8 and 256."
-  }
-}
-
 provider "aws" {
-  region     = var.region
-  access_key = var.access_key
-  secret_key = var.secret_key
+  region = var.region
 }
 
 data "coder_workspace" "me" {
@@ -95,6 +80,11 @@ Content-Disposition: attachment; filename="cloud-config.txt"
 #cloud-config
 cloud_final_modules:
 - [scripts-user, always]
+hostname: ${lower(data.coder_workspace.me.name)}
+users:
+- name: ${local.linux_user}
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  shell: /bin/bash
 
 --//
 Content-Type: text/x-shellscript; charset="us-ascii"
@@ -103,7 +93,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -E -u ubuntu sh -c '${coder_agent.dev.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.dev.init_script}'
 --//--
 EOT
 
@@ -131,12 +121,16 @@ Content-Disposition: attachment; filename="userdata.txt"
 sudo shutdown -h now
 --//--
 EOT
+
+  # Ensure Coder username is a valid Linux username
+  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+
 }
 
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
-  instance_type     = "t3.micro"
+  instance_type     = "t3.xlarge"
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {

@@ -22,17 +22,21 @@ const (
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID                uuid.UUID           `json:"id"`
-	CreatedAt         time.Time           `json:"created_at"`
-	UpdatedAt         time.Time           `json:"updated_at"`
-	WorkspaceID       uuid.UUID           `json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `json:"template_version_id"`
-	BuildNumber       int32               `json:"build_number"`
-	Name              string              `json:"name"`
-	Transition        WorkspaceTransition `json:"transition"`
-	InitiatorID       uuid.UUID           `json:"initiator_id"`
-	Job               ProvisionerJob      `json:"job"`
-	Deadline          time.Time           `json:"deadline"`
+	ID                 uuid.UUID           `json:"id"`
+	CreatedAt          time.Time           `json:"created_at"`
+	UpdatedAt          time.Time           `json:"updated_at"`
+	WorkspaceID        uuid.UUID           `json:"workspace_id"`
+	WorkspaceName      string              `json:"workspace_name"`
+	WorkspaceOwnerID   uuid.UUID           `json:"workspace_owner_id"`
+	WorkspaceOwnerName string              `json:"workspace_owner_name"`
+	TemplateVersionID  uuid.UUID           `json:"template_version_id"`
+	BuildNumber        int32               `json:"build_number"`
+	Name               string              `json:"name"`
+	Transition         WorkspaceTransition `json:"transition"`
+	InitiatorID        uuid.UUID           `json:"initiator_id"`
+	InitiatorUsername  string              `json:"initiator_name"`
+	Job                ProvisionerJob      `json:"job"`
+	Deadline           time.Time           `json:"deadline"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.
@@ -98,4 +102,17 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 		return nil, readBodyAsError(res)
 	}
 	return io.ReadAll(res.Body)
+}
+
+func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx context.Context, username string, workspaceName string, buildNumber string) (WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s/builds/%s", username, workspaceName, buildNumber), nil)
+	if err != nil {
+		return WorkspaceBuild{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuild{}, readBodyAsError(res)
+	}
+	var workspaceBuild WorkspaceBuild
+	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }

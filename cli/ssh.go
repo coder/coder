@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
@@ -34,6 +35,7 @@ func ssh() *cobra.Command {
 		stdio          bool
 		shuffle        bool
 		forwardAgent   bool
+		identityAgent  string
 		wsPollInterval time.Duration
 	)
 	cmd := &cobra.Command{
@@ -43,10 +45,6 @@ func ssh() *cobra.Command {
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := currentOrganization(cmd, client)
 			if err != nil {
 				return err
 			}
@@ -63,7 +61,7 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0], shuffle)
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
@@ -110,8 +108,11 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if forwardAgent && os.Getenv("SSH_AUTH_SOCK") != "" {
-				err = gosshagent.ForwardToRemote(sshClient, os.Getenv("SSH_AUTH_SOCK"))
+			if identityAgent == "" {
+				identityAgent = os.Getenv("SSH_AUTH_SOCK")
+			}
+			if forwardAgent && identityAgent != "" {
+				err = gosshagent.ForwardToRemote(sshClient, identityAgent)
 				if err != nil {
 					return xerrors.Errorf("forward agent failed: %w", err)
 				}
@@ -171,6 +172,7 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
 	_ = cmd.Flags().MarkHidden("shuffle")
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
+	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 
 	return cmd
@@ -179,7 +181,7 @@ func ssh() *cobra.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	ctx := cmd.Context()
 
 	var (
@@ -188,7 +190,9 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 		err            error
 	)
 	if shuffle {
-		workspaces, err := client.WorkspacesByOwner(cmd.Context(), orgID, userID)
+		workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -201,7 +205,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	} else {
-		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), orgID, userID, workspaceParts[0])
+		workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -285,21 +289,18 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.TTL == nil || *ws.TTL == 0 {
+		if ptr.NilOrZero(ws.TTLMillis) {
 			return time.Time{}, nil
 		}
 
-		deadline = ws.LatestBuild.UpdatedAt.Add(*ws.TTL)
+		deadline = ws.LatestBuild.Deadline
 		callback = func() {
 			ttl := deadline.Sub(now)
 			var title, body string
 			if ttl > time.Minute {
-				title = fmt.Sprintf(`Workspace %s stopping in %.0f mins`, ws.Name, ttl.Minutes())
+				title = fmt.Sprintf(`Workspace %s stopping soon`, ws.Name)
 				body = fmt.Sprintf(
-					`Your Coder workspace %s is scheduled to stop at %s.`,
-					ws.Name,
-					deadline.Format(time.Kitchen),
-				)
+					`Your Coder workspace %s is scheduled to stop in %.0f mins`, ws.Name, ttl.Minutes())
 			} else {
 				title = fmt.Sprintf("Workspace %s stopping!", ws.Name)
 				body = fmt.Sprintf("Your Coder workspace %s is stopping any time now!", ws.Name)

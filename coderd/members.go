@@ -20,13 +20,23 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID == member.UserID {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "You cannot change your own organization roles.",
+		})
+		return
+	}
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	added, removed := rbac.ChangeRoleSet(member.Roles, params.Roles)
+	// The org-member role is always implied.
+	impliedTypes := append(params.Roles, rbac.RoleOrgMember(organization.ID))
+	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
 		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
@@ -66,11 +76,11 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 
 		roleOrg, err := uuid.Parse(orgID)
 		if err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("role must have proper uuids for organization, %q does not", r)
+			return database.OrganizationMember{}, xerrors.Errorf("Role must have proper UUIDs for organization, %q does not", r)
 		}
 
 		if roleOrg != args.OrgID {
-			return database.OrganizationMember{}, xerrors.Errorf("must only pass roles for org %q", args.OrgID.String())
+			return database.OrganizationMember{}, xerrors.Errorf("Must only pass roles for org %q", args.OrgID.String())
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
@@ -80,7 +90,7 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 
 	updatedUser, err := api.Database.UpdateMemberRoles(ctx, args)
 	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("update site roles: %w", err)
+		return database.OrganizationMember{}, xerrors.Errorf("Update site roles: %w", err)
 	}
 	return updatedUser, nil
 }

@@ -5,35 +5,39 @@
 #
 # Usage: yarn_install.sh [optional extra flags]
 
-set -euo pipefail
+set -eo pipefail
 
-PROJECT_ROOT=$(git rev-parse --show-toplevel)
-cd "$PROJECT_ROOT/site"
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 
-yarn_flags=(
-  # Do not execute install scripts
-  # TODO: check if build works properly with this enabled
-  # --ignore-scripts
+(
+	cd "$PROJECT_ROOT/site"
 
-  # Check if existing node_modules are valid
-  # TODO: determine if this is necessary
-  # --check-files
+	yarn_flags=(
+		# Do not execute install scripts
+		# TODO: check if build works properly with this enabled
+		# --ignore-scripts
+
+		# Check if existing node_modules are valid
+		# TODO: determine if this is necessary
+		# --check-files
+	)
+
+	if [ -n "${CI:-}" ]; then
+		yarn_flags+=(
+			# Install dependencies from lockfile, ensuring builds are fully
+			# reproducible
+			--frozen-lockfile
+			# Suppress progress information
+			--silent
+			# Disable interactive prompts for build
+			--non-interactive
+		)
+	fi
+
+	# Append whatever is specified on the command line
+	yarn_flags+=("$@")
+
+	echo "+ yarn install ${yarn_flags[*]}"
+	yarn install "${yarn_flags[@]}"
 )
-
-if [ -n "${CI:-}" ]; then
-  yarn_flags+=(
-    # Install dependencies from lockfile, ensuring builds are fully
-    # reproducible
-    --frozen-lockfile
-    # Suppress progress information
-    --silent
-    # Disable interactive prompts for build
-    --non-interactive
-  )
-fi
-
-# Append whatever is specified on the command line
-yarn_flags+=("$@")
-
-echo "+ yarn install ${yarn_flags[*]}"
-yarn install "${yarn_flags[@]}"

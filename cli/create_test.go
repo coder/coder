@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"testing"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
@@ -59,6 +63,57 @@ func TestCreate(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("AboveTemplateMaxTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref((12 * time.Hour).Milliseconds())
+		})
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--ttl", "12h1m",
+			"-y", // don't bother with waiting
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "TTL must be below template maximum 12h0m0s")
+	})
+
+	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+		})
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--autostart-minute", "*", // Every minute
+			"--autostart-hour", "*", // Every hour
+			"-y", // don't bother with waiting
+		}
+		cmd, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "minimum autostart interval 1m0s is above template constraint 1h0m0s")
+	})
+
 	t.Run("CreateErrInvalidTz", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -71,19 +126,15 @@ func TestCreate(t *testing.T) {
 			"my-workspace",
 			"--template", template.Name,
 			"--tz", "invalid",
+			"-y",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
-		}()
-		<-doneChan
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "Invalid autostart schedule: Invalid workspace autostart timezone: unknown time zone invalid")
 	})
 
 	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
@@ -98,19 +149,15 @@ func TestCreate(t *testing.T) {
 			"my-workspace",
 			"--template", template.Name,
 			"--ttl", "0s",
+			"-y",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.EqualError(t, err, "TTL must be at least 1 minute")
-		}()
-		<-doneChan
+		err := cmd.Execute()
+		assert.EqualError(t, err, "TTL must be at least 1 minute")
 	})
 
 	t.Run("CreateFromListWithSkip", func(t *testing.T) {
@@ -249,6 +296,7 @@ func TestCreate(t *testing.T) {
 		<-doneChan
 		removeTmpDirUntilSuccess(t, tempDir)
 	})
+
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -278,6 +326,50 @@ func TestCreate(t *testing.T) {
 		}()
 		<-doneChan
 		removeTmpDirUntilSuccess(t, tempDir)
+	})
+
+	t.Run("FailedDryRun", func(t *testing.T) {
+		t.Parallel()
+		client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionDryRun: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Error: "test error",
+						},
+					},
+				},
+			},
+		})
+
+		// The template import job should end up failed, but we need it to be
+		// succeeded so the dry-run can begin.
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobFailed, version.Job.Status, "job is not failed")
+		err := api.Database.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID: version.Job.ID,
+			CompletedAt: sql.NullTime{
+				Time:  time.Now(),
+				Valid: true,
+			},
+			UpdatedAt: time.Now(),
+			Error:     sql.NullString{},
+		})
+		require.NoError(t, err, "update provisioner job")
+
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		cmd, root := clitest.New(t, "create", "test")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		err = cmd.Execute()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "dry-run workspace")
 	})
 }
 

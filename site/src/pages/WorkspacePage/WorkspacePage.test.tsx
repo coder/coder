@@ -1,6 +1,5 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
@@ -28,7 +27,10 @@ import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+  renderWithAuth(<WorkspacePage />, {
+    route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+    path: "/@:username/:workspace",
+  })
   await screen.findByText(MockWorkspace.name)
 }
 
@@ -41,14 +43,16 @@ const renderWorkspacePage = async () => {
 
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
-  const button = await screen.findByText(label)
+  // REMARK: exact here because the "Start" button and "START" label for
+  //         workspace schedule could otherwise conflict.
+  const button = await screen.findByText(label, { exact: true })
   await waitFor(() => fireEvent.click(button))
   expect(actionMock).toBeCalled()
 }
 
 const testStatus = async (mock: Workspace, label: string) => {
   server.use(
-    rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+    rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(mock))
     }),
   )
@@ -76,9 +80,19 @@ describe("Workspace Page", () => {
     const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
     await testButton(Language.stop, stopWorkspaceMock)
   })
+  it("requests a delete job when the user presses Delete and confirms", async () => {
+    const deleteWorkspaceMock = jest.spyOn(api, "deleteWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    await renderWorkspacePage()
+    const button = await screen.findByText(Language.delete)
+    await waitFor(() => fireEvent.click(button))
+    const confirmDialog = await screen.findByRole("dialog")
+    const confirmButton = within(confirmDialog).getByText("Delete")
+    await waitFor(() => fireEvent.click(confirmButton))
+    expect(deleteWorkspaceMock).toBeCalled()
+  })
   it("requests a start job when the user presses Start", async () => {
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockStoppedWorkspace))
       }),
     )
@@ -89,7 +103,7 @@ describe("Workspace Page", () => {
   })
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockStartingWorkspace))
       }),
     )
@@ -101,7 +115,7 @@ describe("Workspace Page", () => {
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
     server.use(
-      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
       }),
     )
@@ -139,14 +153,21 @@ describe("Workspace Page", () => {
     it("shows the timeline build", async () => {
       await renderWorkspacePage()
       const table = await screen.findByTestId("builds-table")
-      const rows = table.querySelectorAll("tbody > tr")
-      expect(rows).toHaveLength(MockBuilds.length)
+
+      // Wait for the results to be loaded
+      await waitFor(async () => {
+        const rows = table.querySelectorAll("tbody > tr")
+        expect(rows).toHaveLength(MockBuilds.length)
+      })
     })
   })
 
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
-      renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+      renderWithAuth(<WorkspacePage />, {
+        route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+        path: "/@:username/:workspace",
+      })
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(2)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)

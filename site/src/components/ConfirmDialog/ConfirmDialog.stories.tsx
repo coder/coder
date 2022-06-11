@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 export default {
@@ -36,4 +35,25 @@ InfoDialog.args = {
   description: "Information is cool!",
   hideCancel: true,
   type: "info",
+}
+
+export const InfoDialogWithCancel = Template.bind({})
+InfoDialogWithCancel.args = {
+  description: "Information can be cool!",
+  hideCancel: false,
+  type: "info",
+}
+
+export const SuccessDialog = Template.bind({})
+SuccessDialog.args = {
+  description: "I am successful.",
+  hideCancel: true,
+  type: "success",
+}
+
+export const SuccessDialogWithCancel = Template.bind({})
+SuccessDialogWithCancel.args = {
+  description: "I may be successful.",
+  hideCancel: false,
+  type: "success",
 }

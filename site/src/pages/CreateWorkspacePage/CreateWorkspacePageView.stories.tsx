@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { ParameterSchema } from "../../api/typesGenerated"
 import { MockTemplate } from "../../testHelpers/entities"
 import { CreateWorkspacePageView, CreateWorkspacePageViewProps } from "./CreateWorkspacePageView"

@@ -1,4 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
+import ndjsonStream from "can-ndjson-stream"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
@@ -63,7 +64,7 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 }
 
 export const getUsers = async (): Promise<TypesGen.User[]> => {
-  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active")
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active,suspended")
   return response.data
 }
 
@@ -107,8 +108,11 @@ export const getTemplateVersionResources = async (versionId: string): Promise<Ty
   return response.data
 }
 
-export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+export const getWorkspace = async (
+  workspaceId: string,
+  params?: TypesGen.WorkspaceOptions,
+): Promise<TypesGen.Workspace> => {
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`, { params })
   return response.data
 }
 
@@ -116,11 +120,14 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.OrganizationID) {
-    searchParams.append("organization_id", filter.OrganizationID)
+  if (filter?.organization_id) {
+    searchParams.append("organization_id", filter.organization_id)
   }
-  if (filter?.Owner) {
-    searchParams.append("owner", filter.Owner)
+  if (filter?.owner) {
+    searchParams.append("owner", filter.owner)
+  }
+  if (filter?.name) {
+    searchParams.append("name", filter.name)
   }
 
   const searchString = searchParams.toString()
@@ -135,13 +142,13 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 }
 
 export const getWorkspaceByOwnerAndName = async (
-  organizationID: string,
   username = "me",
   workspaceName: string,
+  params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
-  )
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`, {
+    params,
+  })
   return response.data
 }
 
@@ -218,13 +225,20 @@ export const updateProfile = async (
   return response.data
 }
 
+export const activateUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/activate`)
+  return response.data
+}
+
 export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
   const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/suspend`)
   return response.data
 }
 
-export const updateUserPassword = async (password: string, userId: TypesGen.User["id"]): Promise<undefined> =>
-  axios.put(`/api/v2/users/${userId}/password`, { password })
+export const updateUserPassword = async (
+  userId: TypesGen.User["id"],
+  updatePassword: TypesGen.UpdateUserPasswordRequest,
+): Promise<undefined> => axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
 export const getSiteRoles = async (): Promise<Array<TypesGen.Role>> => {
   const response = await axios.get<Array<TypesGen.Role>>(`/api/v2/users/roles`)
@@ -254,12 +268,39 @@ export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.
   return response.data
 }
 
-export const getWorkspaceBuild = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await axios.get<TypesGen.WorkspaceBuild>(`/api/v2/workspacebuilds/${workspaceId}`)
+export const getWorkspaceBuildByNumber = async (
+  username = "me",
+  workspaceName: string,
+  buildNumber: string,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild>(
+    `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+  )
   return response.data
 }
 
 export const getWorkspaceBuildLogs = async (buildname: string): Promise<TypesGen.ProvisionerJobLog[]> => {
   const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
+}
+
+export const streamWorkspaceBuildLogs = async (
+  buildname: string,
+): Promise<ReadableStreamDefaultReader<TypesGen.ProvisionerJobLog>> => {
+  // Axios does not support HTTP stream in the browser
+  // https://github.com/axios/axios/issues/1474
+  // So we are going to use window.fetch and return a "stream" reader
+  const reader = await window
+    .fetch(`/api/v2/workspacebuilds/${buildname}/logs?follow=true`)
+    .then((res) => ndjsonStream<TypesGen.ProvisionerJobLog>(res.body))
+    .then((stream) => stream.getReader())
+
+  return reader
+}
+
+export const putWorkspaceExtension = async (
+  workspaceId: string,
+  extendWorkspaceRequest: TypesGen.PutExtendWorkspaceRequest,
+): Promise<void> => {
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, extendWorkspaceRequest)
 }

@@ -1,6 +1,6 @@
 import Box from "@material-ui/core/Box"
 import { Story } from "@storybook/react"
-import React from "react"
+import { MockUser } from "../../testHelpers/entities"
 import { UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
 export default {
@@ -19,7 +19,7 @@ const Template: Story<UserDropdownProps> = (args: UserDropdownProps) => (
 
 export const Example = Template.bind({})
 Example.args = {
-  user: { id: "1", username: "CathyCoder", email: "cathy@coder.com", created_at: "dawn" },
+  user: MockUser,
   onSignOut: () => {
     return Promise.resolve()
   },

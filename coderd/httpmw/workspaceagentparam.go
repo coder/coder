@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -33,20 +34,22 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			agent, err := db.GetWorkspaceAgentByID(r.Context(), agentUUID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: "agent doesn't exist with that id",
+					Message: "Agent doesn't exist with that id.",
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get agent: %s", err),
+					Message: "Internal error fetching workspace agent.",
+					Detail:  err.Error(),
 				})
 				return
 			}
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get resource: %s", err),
+					Message: "Internal error fetching workspace resource.",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -54,7 +57,8 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get job: %s", err),
+					Message: "Internal error fetching provisioner job.",
+					Detail:  err.Error(),
 				})
 				return
 			}
@@ -67,27 +71,14 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get workspace build: %s", err),
-				})
-				return
-			}
-			workspace, err := db.GetWorkspaceByID(r.Context(), build.WorkspaceID)
-			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get workspace: %s", err),
-				})
-				return
-			}
-
-			apiKey := APIKey(r)
-			if apiKey.UserID != workspace.OwnerID {
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: "getting non-personal agents isn't supported",
+					Message: "Internal error fetching workspace build.",
+					Detail:  err.Error(),
 				})
 				return
 			}
 
 			ctx := context.WithValue(r.Context(), workspaceAgentParamContextKey{}, agent)
+			chi.RouteContext(ctx).URLParams.Add("workspace", build.WorkspaceID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

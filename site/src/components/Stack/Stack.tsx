@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { CSSProperties } from "@material-ui/core/styles/withStyles"
+import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 
 type Direction = "column" | "row"
@@ -7,6 +8,7 @@ type Direction = "column" | "row"
 interface StyleProps {
   direction: Direction
   spacing: number
+  alignItems?: CSSProperties["alignItems"]
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -14,6 +16,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: ({ direction }: StyleProps) => direction,
     gap: ({ spacing }: StyleProps) => theme.spacing(spacing),
+    alignItems: ({ alignItems }: StyleProps) => alignItems,
   },
 }))
 
@@ -21,10 +24,11 @@ export interface StackProps {
   className?: string
   direction?: Direction
   spacing?: number
+  alignItems?: CSSProperties["alignItems"]
 }
 
-export const Stack: React.FC<StackProps> = ({ children, className, direction = "column", spacing = 2 }) => {
-  const styles = useStyles({ spacing, direction })
+export const Stack: FC<StackProps> = ({ children, className, direction = "column", spacing = 2, alignItems }) => {
+  const styles = useStyles({ spacing, direction, alignItems })
 
   return <div className={combineClasses([styles.stack, className])}>{children}</div>
 }

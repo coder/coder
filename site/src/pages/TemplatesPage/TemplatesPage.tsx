@@ -1,5 +1,7 @@
 import { useActor, useMachine } from "@xstate/react"
 import React, { useContext } from "react"
+import { Helmet } from "react-helmet"
+import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 import { templatesMachine } from "../../xServices/templates/templatesXService"
 import { TemplatesPageView } from "./TemplatesPageView"
@@ -10,11 +12,16 @@ const TemplatesPage: React.FC = () => {
   const [templatesState] = useMachine(templatesMachine)
 
   return (
-    <TemplatesPageView
-      templates={templatesState.context.templates}
-      canCreateTemplate={authState.context.permissions?.createTemplates}
-      loading={templatesState.hasTag("loading")}
-    />
+    <>
+      <Helmet>
+        <title>{pageTitle("Templates")}</title>
+      </Helmet>
+      <TemplatesPageView
+        templates={templatesState.context.templates}
+        canCreateTemplate={authState.context.permissions?.createTemplates}
+        loading={templatesState.hasTag("loading")}
+      />
+    </>
   )
 }
 

@@ -123,7 +123,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 0,
         },
         {
-          ttl: undefined,
+          ttl_ms: undefined,
         },
       ],
       [
@@ -133,7 +133,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 2,
         },
         {
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
       ],
       [
@@ -143,7 +143,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl: 8,
         },
         {
-          ttl: 28_800_000_000_000,
+          ttl_ms: 28_800_000,
         },
       ],
     ])(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
@@ -157,20 +157,20 @@ describe("WorkspaceSchedulePage", () => {
       [
         {
           ...Mocks.MockWorkspace,
-          autostart_schedule: "",
-          ttl: undefined,
+          autostart_schedule: undefined,
+          ttl_ms: undefined,
         },
         {
           sunday: false,
-          monday: false,
-          tuesday: false,
-          wednesday: false,
-          thursday: false,
-          friday: false,
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
           saturday: false,
-          startTime: "",
+          startTime: "09:30",
           timezone: "",
-          ttl: 0,
+          ttl: 8,
         },
       ],
 
@@ -179,17 +179,17 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "",
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
         {
           sunday: false,
-          monday: false,
-          tuesday: false,
-          wednesday: false,
-          thursday: false,
-          friday: false,
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
           saturday: false,
-          startTime: "",
+          startTime: "09:30",
           timezone: "",
           ttl: 2,
         },
@@ -203,7 +203,7 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "CRON_TZ=UTC 30 9 * * 1-5",
-          ttl: 7_200_000_000_000,
+          ttl_ms: 7_200_000,
         },
         {
           sunday: false,
@@ -224,7 +224,7 @@ describe("WorkspaceSchedulePage", () => {
         {
           ...Mocks.MockWorkspace,
           autostart_schedule: "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
-          ttl: 28_800_000_000_000,
+          ttl_ms: 28_800_000,
         },
         {
           sunday: false,

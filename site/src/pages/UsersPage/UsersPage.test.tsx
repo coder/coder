@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
-import React from "react"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
@@ -103,13 +102,13 @@ describe("Users Page", () => {
     expect(users.length).toEqual(2)
   })
 
-  it("shows 'New user' button to an authorized user", () => {
+  it("shows 'Create user' button to an authorized user", () => {
     render(<UsersPage />)
-    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
-    expect(newUserButton).toBeDefined()
+    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    expect(createUserButton).toBeDefined()
   })
 
-  it("does not show 'New user' button to unauthorized user", () => {
+  it("does not show 'Create user' button to unauthorized user", () => {
     server.use(
       rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
         const permissions = Object.keys(permissionsToCheck)
@@ -125,8 +124,8 @@ describe("Users Page", () => {
       }),
     )
     render(<UsersPage />)
-    const newUserButton = screen.queryByText(UsersViewLanguage.newUserButton)
-    expect(newUserButton).toBeNull()
+    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    expect(createUserButton).toBeNull()
   })
 
   describe("suspend user", () => {
@@ -198,7 +197,7 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(expect.any(String), MockUser.id)
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
       })
     })
 
@@ -220,7 +219,7 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(expect.any(String), MockUser.id)
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
       })
     })
   })
@@ -243,7 +242,7 @@ describe("Users Page", () => {
         }, MockAuditorRole)
 
         // Check if the select text was updated with the Auditor role
-        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Member, Auditor"))
+        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Auditor"))
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
@@ -272,6 +271,26 @@ describe("Users Page", () => {
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
         expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+      })
+      it("shows an error from the backend", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        server.use(
+          rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
+            return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
+          }),
+        )
+
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        await updateUserRole(() => {}, MockAuditorRole)
+
+        // Check if the error message is displayed
+        await screen.findByText("message from the backend")
       })
     })
   })

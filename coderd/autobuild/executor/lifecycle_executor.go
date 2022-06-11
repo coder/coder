@@ -17,10 +17,18 @@ import (
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
-	ctx  context.Context
-	db   database.Store
-	log  slog.Logger
-	tick <-chan time.Time
+	ctx     context.Context
+	db      database.Store
+	log     slog.Logger
+	tick    <-chan time.Time
+	statsCh chan<- Stats
+}
+
+// Stats contains information about one run of Executor.
+type Stats struct {
+	Transitions map[uuid.UUID]database.WorkspaceTransition
+	Elapsed     time.Duration
+	Error       error
 }
 
 // New returns a new autobuild executor.
@@ -34,22 +42,42 @@ func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan ti
 	return le
 }
 
+// WithStatsChannel will cause Executor to push a RunStats to ch after
+// every tick.
+func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
+	e.statsCh = ch
+	return e
+}
+
 // Run will cause executor to start or stop workspaces on every
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
 	go func() {
 		for t := range e.tick {
-			if err := e.runOnce(t); err != nil {
-				e.log.Error(e.ctx, "error running once", slog.Error(err))
+			stats := e.runOnce(t)
+			if stats.Error != nil {
+				e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
 			}
+			if e.statsCh != nil {
+				e.statsCh <- stats
+			}
+			e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 		}
 	}()
 }
 
-func (e *Executor) runOnce(t time.Time) error {
+func (e *Executor) runOnce(t time.Time) Stats {
+	var err error
+	stats := Stats{
+		Transitions: make(map[uuid.UUID]database.WorkspaceTransition),
+	}
+	defer func() {
+		stats.Elapsed = time.Since(t)
+		stats.Error = err
+	}()
 	currentTick := t.Truncate(time.Minute)
-	return e.db.InTx(func(db database.Store) error {
+	err = e.db.InTx(func(db database.Store) error {
 		// TTL is set at the workspace level, and deadline at the workspace build level.
 		// When a workspace build is created, its deadline initially starts at zero.
 		// When provisionerd successfully completes a provision job, the deadline is
@@ -88,7 +116,7 @@ func (e *Executor) runOnce(t time.Time) error {
 			}
 
 			if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
-				e.log.Warn(e.ctx, "last workspace build did not complete successfully, skipping",
+				e.log.Debug(e.ctx, "last workspace build did not complete successfully, skipping",
 					slog.F("workspace_id", ws.ID),
 					slog.F("error", priorJob.Error.String),
 				)
@@ -107,13 +135,14 @@ func (e *Executor) runOnce(t time.Time) error {
 					)
 					continue
 				}
-				// Truncate to nearest minute for consistency with autostart behavior
-				nextTransition = priorHistory.Deadline.Truncate(time.Minute)
+				// For stopping, do not truncate. This is inconsistent with autostart, but
+				// it ensures we will not stop too early.
+				nextTransition = priorHistory.Deadline
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart
 				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 				if err != nil {
-					e.log.Warn(e.ctx, "workspace has invalid autostart schedule, skipping",
+					e.log.Debug(e.ctx, "workspace has invalid autostart schedule, skipping",
 						slog.F("workspace_id", ws.ID),
 						slog.F("autostart_schedule", ws.AutostartSchedule.String),
 					)
@@ -145,6 +174,7 @@ func (e *Executor) runOnce(t time.Time) error {
 				slog.F("transition", validTransition),
 			)
 
+			stats.Transitions[ws.ID] = validTransition
 			if err := build(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
 				e.log.Error(e.ctx, "unable to transition workspace",
 					slog.F("workspace_id", ws.ID),
@@ -155,6 +185,7 @@ func (e *Executor) runOnce(t time.Time) error {
 		}
 		return nil
 	})
+	return stats
 }
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.

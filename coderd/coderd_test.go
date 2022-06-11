@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -61,14 +62,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
-	organizationParam, err := client.CreateParameter(ctx, codersdk.ParameterOrganization, organization.ID, codersdk.CreateParameterRequest{
-		Name:              "test-param",
-		SourceValue:       "hello world",
-		SourceScheme:      codersdk.ParameterSourceSchemeData,
-		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-	})
-	require.NoError(t, err, "create org param")
-
 	// Setup some data in the database.
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -82,6 +75,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 						Agents: []*proto.Agent{{
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
+							Apps: []*proto.App{{
+								Name: "app",
+								Url:  "http://localhost:3000",
+							}},
 						}},
 					}},
 				},
@@ -96,6 +93,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "upload file")
 	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 	require.NoError(t, err, "workspace resources")
+	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+		ParameterValues: []codersdk.CreateParameterRequest{},
+	})
+	require.NoError(t, err, "template version dry-run")
+
+	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		Name:              "test-param",
+		SourceValue:       "hello world",
+		SourceScheme:      codersdk.ParameterSourceSchemeData,
+		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+	})
+	require.NoError(t, err, "create template param")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -104,6 +113,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String())
 
 	// skipRoutes allows skipping routes from being checked.
+	skipRoutes := map[string]string{
+		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
+	}
+
 	type routeCheck struct {
 		NoAuthorize  bool
 		AssertAction rbac.Action
@@ -117,9 +130,17 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
-		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
+
+		"GET:/%40{user}/{workspacename}/apps/{application}/*": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/@{user}/{workspacename}/apps/{application}/*": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -133,29 +154,24 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}":                   {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
-		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
-		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
-			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
+		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
+		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
+			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/me/workspace/{workspacename}/builds/{buildnumber}": {
+			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
 		},
 		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspacename}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
-		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
@@ -194,6 +210,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
 			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
+			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaces/": {
@@ -259,6 +287,27 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
+		"POST:/api/v2/templateversions/{templateversion}/dry-run": {
+			// The first check is to read the template
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/resources": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
+		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/cancel": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+		},
 		"GET:/api/v2/provisionerdaemons": {
 			StatusCode:   http.StatusOK,
 			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
@@ -266,15 +315,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"GET:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceOrganization.WithID(organization.ID.String()),
+			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
@@ -310,8 +359,20 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		assertRoute[noTrailSlash] = v
 	}
 
+	for k, v := range skipRoutes {
+		noTrailSlash := strings.TrimRight(k, "/")
+		if _, ok := skipRoutes[noTrailSlash]; ok && noTrailSlash != k {
+			t.Errorf("route %q & %q is declared twice", noTrailSlash, k)
+			t.FailNow()
+		}
+		skipRoutes[noTrailSlash] = v
+	}
+
 	err = chi.Walk(api.Handler, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
+		if _, ok := skipRoutes[strings.TrimRight(name, "/")]; ok {
+			return nil
+		}
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()
 			routeAssertions, ok := assertRoute[strings.TrimRight(name, "/")]
@@ -331,14 +392,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{workspaceagent}", workspaceResources[0].Agents[0].ID.String())
+			route = strings.ReplaceAll(route, "{buildnumber}", strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10))
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
+			route = strings.ReplaceAll(route, "{workspaceapp}", workspaceResources[0].Agents[0].Apps[0].Name)
 			route = strings.ReplaceAll(route, "{templateversion}", version.ID.String())
+			route = strings.ReplaceAll(route, "{templateversiondryrun}", templateVersionDryRun.ID.String())
 			route = strings.ReplaceAll(route, "{templatename}", template.Name)
-			// Only checking org scoped params here
-			route = strings.ReplaceAll(route, "{scope}", string(organizationParam.Scope))
-			route = strings.ReplaceAll(route, "{id}", organizationParam.ScopeID.String())
+			// Only checking template scoped params here
+			route = strings.ReplaceAll(route, "{scope}", string(templateParam.Scope))
+			route = strings.ReplaceAll(route, "{id}", templateParam.ScopeID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")

@@ -1,14 +1,18 @@
 import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { FC, ReactNode } from "react"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string
   /** Longer optional description to display below the message */
-  description?: string
-  cta?: React.ReactNode
+  description?: string | React.ReactNode
+  descriptionClassName?: string
+  cta?: ReactNode
+  className?: string
 }
 
 /**
@@ -19,18 +23,22 @@ export interface EmptyStateProps {
  * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
  * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: React.FC<EmptyStateProps> = (props) => {
-  const { message, description, cta, ...boxProps } = props
+export const EmptyState: FC<EmptyStateProps> = (props) => {
+  const { message, description, cta, descriptionClassName, className, ...boxProps } = props
   const styles = useStyles()
 
   return (
-    <Box className={styles.root} {...boxProps}>
+    <Box className={combineClasses([styles.root, className])} {...boxProps}>
       <div className={styles.header}>
         <Typography variant="h5" className={styles.title}>
           {message}
         </Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" className={styles.description}>
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            className={combineClasses([styles.description, descriptionClassName])}
+          >
             {description}
           </Typography>
         )}
@@ -48,17 +56,20 @@ const useStyles = makeStyles(
       justifyContent: "center",
       alignItems: "center",
       textAlign: "center",
-      minHeight: 120,
+      minHeight: 300,
       padding: theme.spacing(3),
+      fontFamily: MONOSPACE_FONT_FAMILY,
     },
     header: {
       marginBottom: theme.spacing(3),
     },
     title: {
-      fontWeight: 400,
+      fontWeight: 600,
+      fontFamily: "inherit",
     },
     description: {
       marginTop: theme.spacing(1),
+      fontFamily: "inherit",
     },
   }),
   { name: "EmptyState" },

@@ -5,7 +5,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 )
 
 func show() *cobra.Command {
@@ -19,11 +18,7 @@ func show() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}

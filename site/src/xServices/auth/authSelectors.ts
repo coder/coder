@@ -10,3 +10,7 @@ export const selectOrgId = (state: AuthState): string | undefined => {
 export const selectPermissions = (state: AuthState): AuthContext["permissions"] => {
   return state.context.permissions
 }
+
+export const selectUser = (state: AuthState): AuthContext["me"] => {
+  return state.context.me
+}

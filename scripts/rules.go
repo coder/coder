@@ -69,3 +69,84 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
+
+// InTx checks to ensure the database used inside the transaction closure is the transaction
+// database, and not the original database that creates the tx.
+func InTx(m dsl.Matcher) {
+	// ':=' and '=' are 2 different matches :(
+	m.Match(`
+	$x.InTx(func($y) error {
+		$*_
+		$*_ = $x.$f($*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y) error {
+		$*_
+		$*_ := $x.$f($*_)
+		$*_
+	})
+	`).Where(m["x"].Text != m["y"].Text).
+		At(m["f"]).
+		Report("Do not use the database directly within the InTx closure. Use '$y' instead of '$x'.")
+
+	//When using a tx closure, ensure that if you pass the db to another
+	//function inside the closure, it is the tx.
+	//This will miss more complex cases such as passing the db as apart
+	//of another struct.
+	m.Match(`
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$*_ = $f($*_, $x, $*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$*_ := $f($*_, $x, $*_)
+		$*_
+	})
+	`, `
+	$x.InTx(func($y database.Store) error {
+		$*_
+		$f($*_, $x, $*_)
+		$*_
+	})
+	`).Where(m["x"].Text != m["y"].Text).
+		At(m["f"]).Report("Pass the tx database into the '$f' function inside the closure. Use '$y' over $x'")
+}
+
+// HttpAPIErrorMessage intends to enforce constructing proper sentences as
+// error messages for the api. A proper sentence includes proper capitalization
+// and ends with punctuation.
+// There are ways around the linter, but this should work in the common cases.
+func HttpAPIErrorMessage(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/coderd/httpapi")
+
+	isNotProperError := func(v dsl.Var) bool {
+		return v.Type.Is("string") &&
+			// Either starts with a lowercase, or ends without punctuation.
+			// The reason I don't check for NOT ^[A-Z].*[.!?]$ is because there
+			// are some exceptions. Any string starting with a formatting
+			// directive (%s) for example is exempt.
+			(m["m"].Text.Matches(`^"[a-z].*`) ||
+				m["m"].Text.Matches(`.*[^.!?]"$`))
+	}
+
+	m.Match(`
+	httpapi.Write($_, $s, httpapi.Response{
+		$*_,
+		Message: $m,
+		$*_,
+	})
+	`, `
+	httpapi.Write($_, $s, httpapi.Response{
+		$*_,
+		Message: fmt.$f($m, $*_),
+		$*_,
+	})
+	`,
+	).Where(isNotProperError(m["m"])).
+		At(m["m"]).
+		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
+}

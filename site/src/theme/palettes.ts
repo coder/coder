@@ -1,15 +1,5 @@
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 
-/**
- * Augment MUI Palette with Coder-specific design system
- */
-
-/**
- * Dark theme color palette
- *
- * This maps to our design system at:
- * https://www.figma.com/file/VkXU4873QOsSprMQV02GgR/Design-System?node-id=219%3A40
- */
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
@@ -21,6 +11,7 @@ export const darkPalette: PaletteOptions = {
   secondary: {
     main: "#008510",
     contrastText: "#f8f8f8",
+    dark: "#7057FF",
   },
   background: {
     default: "#1F1F1F",

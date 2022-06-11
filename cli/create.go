@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -48,7 +49,7 @@ func create() *cobra.Command {
 				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
+						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 						if err == nil {
 							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 						}
@@ -60,21 +61,7 @@ func create() *cobra.Command {
 				}
 			}
 
-			tz, err := time.LoadLocation(tzName)
-			if err != nil {
-				return xerrors.Errorf("Invalid workspace autostart timezone: %w", err)
-			}
-			schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tz.String(), autostartMinute, autostartHour, autostartDow)
-			_, err = schedule.Weekly(schedSpec)
-			if err != nil {
-				return xerrors.Errorf("invalid workspace autostart schedule: %w", err)
-			}
-
-			if ttl == 0 {
-				return xerrors.Errorf("TTL must be at least 1 minute")
-			}
-
-			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
+			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -128,6 +115,23 @@ func create() *cobra.Command {
 				}
 			}
 
+			schedSpec, err := validSchedule(
+				autostartMinute,
+				autostartHour,
+				autostartDow,
+				tzName,
+				time.Duration(template.MinAutostartIntervalMillis)*time.Millisecond,
+			)
+			if err != nil {
+				return xerrors.Errorf("Invalid autostart schedule: %w", err)
+			}
+			if ttl < time.Minute {
+				return xerrors.Errorf("TTL must be at least 1 minute")
+			}
+			if ttlMax := time.Duration(template.MaxTTLMillis) * time.Millisecond; ttl > ttlMax {
+				return xerrors.Errorf("TTL must be below template maximum %s", ttlMax)
+			}
+
 			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
 			if err != nil {
 				return err
@@ -170,10 +174,40 @@ func create() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
-			resources, err := client.TemplateVersionResources(cmd.Context(), templateVersion.ID)
+			// Run a dry-run with the given parameters to check correctness
+			after := time.Now()
+			dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+				WorkspaceName:   workspaceName,
+				ParameterValues: parameters,
+			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("begin workspace dry-run: %w", err)
 			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
+			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+				},
+				Cancel: func() error {
+					return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
+				},
+				// Don't show log output for the dry-run unless there's an error.
+				Silent: true,
+			})
+			if err != nil {
+				// TODO (Dean): reprompt for parameter values if we deem it to
+				// be a validation error
+				return xerrors.Errorf("dry-run workspace: %w", err)
+			}
+
+			resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
+			if err != nil {
+				return xerrors.Errorf("get workspace dry-run resources: %w", err)
+			}
+
 			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspaceName,
 				// Since agent's haven't connected yet, hiding this makes more sense.
@@ -192,36 +226,23 @@ func create() *cobra.Command {
 				return err
 			}
 
-			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
-				AutostartSchedule: &schedSpec,
-				TTL:               &ttl,
+				AutostartSchedule: schedSpec,
+				TTLMillis:         ptr.Ref(ttl.Milliseconds()),
 				ParameterValues:   parameters,
 			})
 			if err != nil {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, before)
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, after)
 			if err != nil {
 				return err
 			}
 
-			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspaceName,
-			})
-			if err != nil {
-				return err
-			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
 			return nil
 		},
 	}
@@ -232,7 +253,27 @@ func create() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &autostartMinute, "autostart-minute", "", "CODER_WORKSPACE_AUTOSTART_MINUTE", "0", "Specify the minute(s) at which the workspace should autostart (e.g. 0).")
 	cliflag.StringVarP(cmd.Flags(), &autostartHour, "autostart-hour", "", "CODER_WORKSPACE_AUTOSTART_HOUR", "9", "Specify the hour(s) at which the workspace should autostart (e.g. 9).")
 	cliflag.StringVarP(cmd.Flags(), &autostartDow, "autostart-day-of-week", "", "CODER_WORKSPACE_AUTOSTART_DOW", "MON-FRI", "Specify the days(s) on which the workspace should autostart (e.g. MON,TUE,WED,THU,FRI)")
-	cliflag.StringVarP(cmd.Flags(), &tzName, "tz", "", "TZ", "", "Specify your timezone location for workspace autostart (e.g. US/Central).")
+	cliflag.StringVarP(cmd.Flags(), &tzName, "tz", "", "TZ", "UTC", "Specify your timezone location for workspace autostart (e.g. US/Central).")
 	cliflag.DurationVarP(cmd.Flags(), &ttl, "ttl", "", "CODER_WORKSPACE_TTL", 8*time.Hour, "Specify a time-to-live (TTL) for the workspace (e.g. 8h).")
 	return cmd
+}
+
+func validSchedule(minute, hour, dow, tzName string, min time.Duration) (*string, error) {
+	_, err := time.LoadLocation(tzName)
+	if err != nil {
+		return nil, xerrors.Errorf("Invalid workspace autostart timezone: %w", err)
+	}
+
+	schedSpec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", tzName, minute, hour, dow)
+
+	sched, err := schedule.Weekly(schedSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	if schedMin := sched.Min(); schedMin < min {
+		return nil, xerrors.Errorf("minimum autostart interval %s is above template constraint %s", schedMin, min)
+	}
+
+	return &schedSpec, nil
 }

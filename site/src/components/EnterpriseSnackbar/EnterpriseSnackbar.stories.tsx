@@ -1,5 +1,4 @@
 import { Story } from "@storybook/react"
-import React from "react"
 import { EnterpriseSnackbar, EnterpriseSnackbarProps } from "./EnterpriseSnackbar"
 
 export default {
@@ -21,4 +20,11 @@ Info.args = {
   variant: "info",
   open: true,
   message: "Hey, something happened.",
+}
+
+export const Success = Template.bind({})
+Success.args = {
+  variant: "success",
+  open: true,
+  message: "Hey, something good happened.",
 }

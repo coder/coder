@@ -49,7 +49,7 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:81:6
+// From codersdk/parameters.go:79:6
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
@@ -63,6 +63,14 @@ export interface CreateTemplateRequest {
   readonly description?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
+  readonly max_ttl_ms?: number
+  readonly min_autostart_interval_ms?: number
+}
+
+// From codersdk/templateversions.go:121:6
+export interface CreateTemplateVersionDryRunRequest {
+  readonly WorkspaceName: string
+  readonly ParameterValues: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go:36:6
@@ -90,13 +98,12 @@ export interface CreateWorkspaceBuildRequest {
   readonly state?: string
 }
 
-// From codersdk/organizations.go:67:6
+// From codersdk/organizations.go:76:6
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
   readonly autostart_schedule?: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -153,7 +160,7 @@ export interface Pagination {
   readonly offset?: number
 }
 
-// From codersdk/parameters.go:46:6
+// From codersdk/parameters.go:44:6
 export interface Parameter {
   readonly id: string
   readonly created_at: string
@@ -165,7 +172,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/parameters.go:57:6
+// From codersdk/parameters.go:55:6
 export interface ParameterSchema {
   readonly id: string
   readonly created_at: string
@@ -216,7 +223,7 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
-// From codersdk/workspaces.go:182:6
+// From codersdk/workspaces.go:201:6
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
@@ -227,7 +234,7 @@ export interface Role {
   readonly display_name: string
 }
 
-// From codersdk/templates.go:15:6
+// From codersdk/templates.go:16:6
 export interface Template {
   readonly id: string
   readonly created_at: string
@@ -238,12 +245,17 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly max_ttl_ms: number
+  readonly min_autostart_interval_ms: number
+  readonly created_by_id?: string
+  readonly created_by_name: string
 }
 
 // From codersdk/templateversions.go:14:6
 export interface TemplateVersion {
   readonly id: string
   readonly template_id?: string
+  readonly organization_id?: string
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
@@ -251,7 +263,7 @@ export interface TemplateVersion {
   readonly readme: string
 }
 
-// From codersdk/templateversions.go:25:6
+// From codersdk/templateversions.go:26:6
 export interface TemplateVersionParameter {
   readonly id: string
   readonly created_at: string
@@ -266,12 +278,12 @@ export interface TemplateVersionParameter {
   readonly default_source_value: boolean
 }
 
-// From codersdk/templates.go:73:6
+// From codersdk/templates.go:100:6
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
-// From codersdk/templates.go:27:6
+// From codersdk/templates.go:32:6
 export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
@@ -281,26 +293,32 @@ export interface UpdateRoles {
   readonly roles: string[]
 }
 
-// From codersdk/users.go:67:6
+// From codersdk/templates.go:36:6
+export interface UpdateTemplateMeta {
+  readonly description?: string
+  readonly max_ttl_ms?: number
+  readonly min_autostart_interval_ms?: number
+}
+
+// From codersdk/users.go:66:6
 export interface UpdateUserPasswordRequest {
+  readonly old_password: string
   readonly password: string
 }
 
 // From codersdk/users.go:62:6
 export interface UpdateUserProfileRequest {
-  readonly email: string
   readonly username: string
 }
 
-// From codersdk/workspaces.go:141:6
+// From codersdk/workspaces.go:160:6
 export interface UpdateWorkspaceAutostartRequest {
-  readonly schedule: string
+  readonly schedule?: string
 }
 
-// From codersdk/workspaces.go:161:6
+// From codersdk/workspaces.go:180:6
 export interface UpdateWorkspaceTTLRequest {
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly ttl_ms?: number
 }
 
 // From codersdk/files.go:16:6
@@ -365,9 +383,8 @@ export interface Workspace {
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
-  readonly autostart_schedule: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly ttl?: number
+  readonly autostart_schedule?: string
+  readonly ttl_ms?: number
 }
 
 // From codersdk/workspaceresources.go:31:6
@@ -387,6 +404,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly apps: WorkspaceApp[]
 }
 
 // From codersdk/workspaceagents.go:47:6
@@ -394,7 +412,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:57:6
+// From codersdk/workspaceresources.go:58:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -407,7 +425,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:49:6
+// From codersdk/workspaceresources.go:50:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
@@ -416,30 +434,48 @@ export interface WorkspaceAgentResourceMetadata {
   readonly cpu_mhz: number
 }
 
+// From codersdk/workspaceapps.go:7:6
+export interface WorkspaceApp {
+  readonly id: string
+  readonly name: string
+  readonly command?: string
+  readonly icon?: string
+}
+
 // From codersdk/workspacebuilds.go:24:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
   readonly workspace_id: string
+  readonly workspace_name: string
+  readonly workspace_owner_id: string
+  readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
   readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
+  readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly deadline: string
 }
 
-// From codersdk/workspaces.go:64:6
+// From codersdk/workspaces.go:83:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:200:6
+// From codersdk/workspaces.go:219:6
 export interface WorkspaceFilter {
-  readonly OrganizationID: string
-  readonly Owner: string
+  readonly organization_id?: string
+  readonly owner?: string
+  readonly name?: string
+}
+
+// From codersdk/workspaces.go:41:6
+export interface WorkspaceOptions {
+  readonly include_deleted?: boolean
 }
 
 // From codersdk/workspaceresources.go:21:6
@@ -459,16 +495,16 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 // From codersdk/provisionerdaemons.go:16:6
 export type LogSource = "provisioner" | "provisioner_daemon"
 
-// From codersdk/parameters.go:30:6
+// From codersdk/parameters.go:28:6
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
 
 // From codersdk/parameters.go:14:6
-export type ParameterScope = "organization" | "template" | "user" | "workspace"
+export type ParameterScope = "template" | "workspace"
 
-// From codersdk/parameters.go:23:6
+// From codersdk/parameters.go:21:6
 export type ParameterSourceScheme = "data" | "none"
 
-// From codersdk/parameters.go:38:6
+// From codersdk/parameters.go:36:6
 export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go:42:6

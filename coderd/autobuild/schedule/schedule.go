@@ -108,6 +108,35 @@ func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }
 
+var t0 = time.Date(1970, 1, 1, 1, 1, 1, 0, time.UTC)
+var tMax = t0.Add(168 * time.Hour)
+
+// Min returns the minimum duration of the schedule.
+// This is calculated as follows:
+//  - Let t(0) be a given point in time (1970-01-01T01:01:01Z00:00)
+//  - Let t(max) be 168 hours after t(0).
+//  - Let t(1) be the next scheduled time after t(0).
+//  - Let t(n) be the next scheduled time after t(n-1).
+//  - Then, the minimum duration of s d(min)
+//    = min( t(n) - t(n-1) ∀ n ∈ N, t(n) < t(max) )
+func (s Schedule) Min() time.Duration {
+	durMin := tMax.Sub(t0)
+	tPrev := s.Next(t0)
+	tCurr := s.Next(tPrev)
+	for {
+		dur := tCurr.Sub(tPrev)
+		if dur < durMin {
+			durMin = dur
+		}
+		tPrev = tCurr
+		tCurr = s.Next(tCurr)
+		if tCurr.After(tMax) {
+			break
+		}
+	}
+	return durMin
+}
+
 // validateWeeklySpec ensures that the day-of-month and month options of
 // spec are both set to *
 func validateWeeklySpec(spec string) error {

@@ -9,6 +9,29 @@ By building on top of common development interfaces (SSH) and infrastructure too
 > production environments, please consider [Coder v1](https://coder.com/docs) or
 > [code-server](https://github.com/cdr/code-server).
 
+## How it works
+
+Coder workspaces are represented with Terraform. But, no Terraform knowledge is
+required to get started. We have a database of pre-made templates built into the
+product.
+
+<p align="center">
+  <img src="./images/providers-compute.png">
+</p>
+
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+and whatever else Terraform lets you dream up.
+
+[Learn more about managing infrastructure.](./templates.md)
+
+## IDE Support
+
+You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+
+<p align="center">
+  <img src="./images/ide-icons.svg" height=72>
+</p>
+
 ## Why remote development
 
 Migrating from local developer machines to workspaces hosted by cloud services

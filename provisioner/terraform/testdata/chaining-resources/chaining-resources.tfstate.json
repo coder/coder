@@ -1,0 +1,63 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.2.2",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "44e31a74-646f-4f29-a979-ff0da7108ed6",
+            "init_script": "",
+            "os": "linux",
+            "startup_script": null,
+            "token": "3c011212-912c-45f5-8cdb-84b7e03a8d44"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.a",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "a",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "5747685929405905376",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.dev",
+            "null_resource.b"
+          ]
+        },
+        {
+          "address": "null_resource.b",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "b",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "4234681175686342228",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.dev"
+          ]
+        }
+      ]
+    }
+  }
+}

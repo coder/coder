@@ -1,0 +1,10 @@
+[*]
+indent_style = space
+indent_size = 2
+
+[*.go]
+indent_style = tab
+indent_size = unset
+
+[node_modules/**]
+ignore = true

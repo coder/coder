@@ -5,9 +5,18 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
-import React from "react"
+import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
+import { AppLink } from "../AppLink/AppLink"
+import {
+  HelpTooltip,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../HelpTooltip/HelpTooltip"
+import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -19,15 +28,45 @@ const Language = {
   agentLabel: "Agent",
   statusLabel: "Status",
   accessLabel: "Access",
+  resourceTooltipTitle: "What is a resource?",
+  resourceTooltipText: "A resource is an infrastructure object that is create when the workspace is provisioned.",
+  resourceTooltipLink: "Persistent and ephemeral resources",
+  agentTooltipTitle: "What is an agent?",
+  agentTooltipText:
+    "The Coder agent runs inside your resource and gives you direct access to the shell via the UI or CLI.",
+}
+
+const ResourcesHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>{Language.resourceTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.resourceTooltipText}</HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#persistent-and-ephemeral-resources">
+          {Language.resourceTooltipLink}
+        </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
+}
+
+const AgentHelpTooltip: React.FC = () => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>{Language.agentTooltipTitle}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.agentTooltipText}</HelpTooltipText>
+    </HelpTooltip>
+  )
 }
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
   getResourcesError?: Error
   workspace: Workspace
+  canUpdateWorkspace: boolean
 }
 
-export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
+export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace, canUpdateWorkspace }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
@@ -39,10 +78,20 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
         <Table className={styles.table}>
           <TableHead>
             <TableHeaderRow>
-              <TableCell>{Language.resourceLabel}</TableCell>
-              <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
+              <TableCell>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {Language.resourceLabel}
+                  <ResourcesHelpTooltip />
+                </Stack>
+              </TableCell>
+              <TableCell className={styles.agentColumn}>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {Language.agentLabel}
+                  <AgentHelpTooltip />
+                </Stack>
+              </TableCell>
+              {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
               <TableCell>{Language.statusLabel}</TableCell>
-              <TableCell>{Language.accessLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -57,7 +106,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                 }
                 if (!agent) {
                   return (
-                    <TableRow>
+                    <TableRow key={`${resource.id}-${agentIndex}`}>
                       <TableCell className={styles.resourceNameCell}>
                         {resource.name}
                         <span className={styles.resourceType}>{resource.type}</span>
@@ -82,20 +131,34 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
+                    {canUpdateWorkspace && (
+                      <TableCell>
+                        <Stack>
+                          {agent.status === "connected" && (
+                            <TerminalLink
+                              className={styles.accessLink}
+                              workspaceName={workspace.name}
+                              agentName={agent.name}
+                              userName={workspace.owner_name}
+                            />
+                          )}
+                          {agent.status === "connected" &&
+                            agent.apps.map((app) => (
+                              <AppLink
+                                key={app.name}
+                                appIcon={app.icon}
+                                appName={app.name}
+                                userName={workspace.owner_name}
+                                workspaceName={workspace.name}
+                              />
+                            ))}
+                        </Stack>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
                         {getDisplayAgentStatus(theme, agent).status}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      {agent.status === "connected" && (
-                        <TerminalLink
-                          className={styles.accessLink}
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                          userName={workspace.owner_name}
-                        />
-                      )}
                     </TableCell>
                   </TableRow>
                 )
