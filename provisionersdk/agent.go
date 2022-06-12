@@ -21,7 +21,7 @@ set -eux pipefail
 BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
 if which curl >/dev/null 2>&1; then
-	curl -fsSL "${BINARY_URL}" -o "${BINARY_LOCATION}"
+	curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_LOCATION}"
 elif which wget >/dev/null 2>&1; then
 	wget -q "${BINARY_URL}" -O "${BINARY_LOCATION}"
 elif which busybox >/dev/null 2>&1; then
@@ -38,7 +38,7 @@ exec $BINARY_LOCATION agent`
 	darwinScript = `#!/usr/bin/env sh
 set -eux pipefail
 BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
-curl -fsSL "${ACCESS_URL}bin/coder-darwin-${ARCH}" -o "${BINARY_LOCATION}"
+curl -fsSL --compressed "${ACCESS_URL}bin/coder-darwin-${ARCH}" -o "${BINARY_LOCATION}"
 chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
