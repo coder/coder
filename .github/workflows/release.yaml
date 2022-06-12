@@ -53,7 +53,14 @@ jobs:
         run: make site/out/index.html
 
       - name: Build Slim Binaries
-        run: make bin
+        run: |
+          mkdir -p ./dist
+          ./scripts/build_go_slim.sh \
+            --version "$(VERSION)" \
+            --output ./dist/ \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
 
       - name: Build Linux and Windows Binaries
         run: |
@@ -120,7 +127,14 @@ jobs:
         run: make site/out/index.html
 
       - name: Build Slim Binaries
-        run: make bin
+        run: |
+          mkdir -p ./dist
+          ./scripts/build_go_slim.sh \
+            --version "$(VERSION)" \
+            --output ./dist/ \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
 
       - name: Build darwin Binaries (with signatures)
         run: |
