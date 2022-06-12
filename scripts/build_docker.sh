@@ -92,14 +92,9 @@ ln -P Dockerfile "$temp_dir/"
 cd "$temp_dir"
 
 build_args=(
-	"--platform=$arch"
-	"--label=org.opencontainers.image.title=Coder"
-	"--label=org.opencontainers.image.description=A tool for provisioning self-hosted development environments with Terraform."
-	"--label=org.opencontainers.image.url=https://github.com/coder/coder"
-	"--label=org.opencontainers.image.source=https://github.com/coder/coder"
-	"--label=org.opencontainers.image.version=$version"
-	"--label=org.opencontainers.image.licenses=AGPL-3.0"
-	"--tag=$image_tag"
+	--platform "$arch"
+	--build-arg "CODER_VERSION=$version"
+	--tag "$image_tag"
 )
 
 log "--- Building Docker image for $arch ($image_tag)"

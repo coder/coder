@@ -59,6 +59,7 @@ for image_tag in "$@"; do
 	create_args+=(--amend "$image_tag")
 done
 
+# Sadly, multi-arch images don't seem to support labels.
 output_tag="$(execrelative ./image_tag.sh --version "$version")"
 log "--- Creating multi-arch Docker image ($output_tag)"
 docker manifest create \

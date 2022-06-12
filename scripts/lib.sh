@@ -6,6 +6,27 @@
 
 set -euo pipefail
 
+# realpath returns an absolute path to the given relative path. It will fail if
+# the parent directory of the path does not exist. Make sure you are in the
+# expected directory before running this to avoid errors.
+#
+# GNU realpath relies on coreutils, which are not installed or the default on
+# Macs out of the box, so we have this mostly working bash alternative instead.
+#
+# Taken from https://stackoverflow.com/a/3915420 (CC-BY-SA 4.0)
+realpath() {
+	dir="$(dirname "$1")"
+	base="$(basename "$1")"
+	if [[ ! -d "$dir" ]]; then
+		error "Could not change directory to '$dir': directory does not exist"
+	fi
+	echo "$(
+		cd "$dir" || error "Could not change directory to '$dir'"
+		pwd -P
+	)"/"$base"
+}
+
+# We have to define realpath before these otherwise it fails on Mac's bash.
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
 
@@ -38,26 +59,6 @@ execrelative() {
 	pushd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
 	"$@"
 	popd
-}
-
-# realpath returns an absolute path to the given relative path. It will fail if
-# the parent directory of the path does not exist. Make sure you are in the
-# expected directory before running this to avoid errors.
-#
-# GNU realpath relies on coreutils, which are not installed or the default on
-# Macs out of the box, so we have this mostly working bash alternative instead.
-#
-# Taken from https://stackoverflow.com/a/3915420 (CC-BY-SA 4.0)
-realpath() {
-	dir="$(dirname "$1")"
-	base="$(basename "$1")"
-	if [[ ! -d "$dir" ]]; then
-		error "Could not change directory to '$dir': directory does not exist"
-	fi
-	echo "$(
-		cd "$dir" || error "Could not change directory to '$dir'"
-		pwd -P
-	)"/"$base"
 }
 
 # maybedryrun prints the given program and flags, and then, if the first
