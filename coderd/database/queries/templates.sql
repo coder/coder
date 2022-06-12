@@ -37,6 +37,9 @@ WHERE
 	organization_id = $1
 	AND deleted = $2;
 
+-- name: GetTemplates :many
+SELECT * FROM templates;
+
 -- name: InsertTemplate :one
 INSERT INTO
 	templates (

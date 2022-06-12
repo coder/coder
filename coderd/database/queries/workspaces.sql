@@ -8,7 +8,7 @@ WHERE
 LIMIT
 	1;
 
--- name: GetWorkspacesWithFilter :many
+-- name: GetWorkspaces :many
 SELECT
     *
 FROM

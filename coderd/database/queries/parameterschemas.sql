@@ -6,6 +6,9 @@ FROM
 WHERE
 	job_id = $1;
 
+-- name: GetParameterSchemasCreatedAfter :many
+SELECT * FROM parameter_schemas WHERE created_at > $1;
+
 -- name: InsertParameterSchema :one
 INSERT INTO
 	parameter_schemas (

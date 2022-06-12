@@ -108,7 +108,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ownerFilter := r.URL.Query().Get("owner")
 	nameFilter := r.URL.Query().Get("name")
 
-	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
+	filter := database.GetWorkspacesParams{Deleted: false}
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
 		if err == nil {
@@ -137,7 +137,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.Name = nameFilter
 	}
 
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching workspaces.",
