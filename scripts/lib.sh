@@ -57,8 +57,10 @@ cdroot() {
 # be sourced by other scripts.
 execrelative() {
 	pushd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
-	"$@"
+	rc=0
+	"$@" || rc=$?
 	popd
+	return $rc
 }
 
 # maybedryrun prints the given program and flags, and then, if the first

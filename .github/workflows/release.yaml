@@ -24,7 +24,7 @@ on:
 # In a non-snapshot we want the ./scripts/version.sh script to never generate a
 # +dev version.
 env:
-  CODER_NO_DEV_VERSION: ${{ github.event.inputs.snapshot && '' || 'true' }}
+  CODER_NO_DEV_VERSION: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
 jobs:
   linux-windows:

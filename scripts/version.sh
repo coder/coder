@@ -20,7 +20,14 @@ version="$last_tag"
 # Dev versions are denoted by the "+dev." suffix with a trailing commit short
 # SHA.
 if [[ "$last_tag" != "$current" ]]; then
-	if [[ "${CODER_NO_DEV_VERSION:-}" != "" ]]; then
+	if [[ "${CODER_NO_DEV_VERSION:-}" == *t* ]]; then
+		# make won't exit on $(shell cmd) failures :(
+		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
+			log "ERROR: version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
+			kill "$PPID"
+			exit 1
+		fi
+
 		error "version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
 	fi
 	version+="+dev.$(git rev-parse --short HEAD)"
