@@ -82,7 +82,7 @@ func server() *cobra.Command {
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowSignups         bool
-		telemetryEnabled                 bool
+		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
@@ -327,8 +327,8 @@ func server() *cobra.Command {
 			}
 			// Disable telemetry if in dev-mode. If the telemetry flag
 			// is manually specified, override this behavior!
-			if buildModeDev && !cmd.Flags().Changed("telemetry") {
-				telemetryEnabled = false
+			if buildModeDev && !cmd.Flags().Changed("telemetry-enable") {
+				telemetryEnable = false
 			}
 			reporter, err := telemetry.New(telemetry.Options{
 				DeploymentID: deploymentID,
@@ -336,7 +336,7 @@ func server() *cobra.Command {
 				Logger:       logger.Named("telemetry"),
 				URL:          telemetryURL,
 				DevMode:      dev,
-				Disabled:     !telemetryEnabled,
+				Disabled:     !telemetryEnable,
 			})
 			if err != nil {
 				return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -580,7 +580,7 @@ func server() *cobra.Command {
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
-	cliflag.BoolVarP(root.Flags(), &telemetryEnabled, "telemetry", "", "CODER_TELEMETRY", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product!")
+	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry-enable", "", "CODER_TELEMETRY_ENABLE", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product!")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
 	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")

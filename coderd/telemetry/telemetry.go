@@ -28,7 +28,8 @@ import (
 type Options struct {
 	Database database.Store
 	Logger   slog.Logger
-	URL      *url.URL
+	// URL is an endpoint to direct telemetry towards!
+	URL *url.URL
 
 	DeploymentID string
 	DevMode      bool
@@ -155,9 +156,13 @@ func (r *Reporter) runSnapshotter() {
 			case <-ticker.C:
 			}
 			// Skip the ticker on the first run to report instantly!
-			first = false
 		}
+		first = false
 		r.closeMutex.Lock()
+		if r.isClosed() {
+			r.closeMutex.Unlock()
+			return
+		}
 		r.report()
 		r.closeMutex.Unlock()
 	}
@@ -345,6 +350,8 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 			emailHashed := ""
 			atSymbol := strings.LastIndex(dbUser.Email, "@")
 			if atSymbol >= 0 {
+				// We hash the beginning of the user to allow for indexing users
+				// by email between deployments.
 				hash := sha256.Sum256([]byte(dbUser.Email[:atSymbol]))
 				emailHashed = fmt.Sprintf("%x%s", hash[:], dbUser.Email[atSymbol:])
 			}
@@ -366,6 +373,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
 			snapshot.Workspaces = append(snapshot.Workspaces, Workspace{
+				ID:             dbWorkspace.ID,
 				OrganizationID: dbWorkspace.OrganizationID,
 				OwnerID:        dbWorkspace.OwnerID,
 				TemplateID:     dbWorkspace.TemplateID,
@@ -475,10 +483,10 @@ type Snapshot struct {
 
 // Deployment contains information about the host running Coder.
 type Deployment struct {
-	ID            string     `json:"id" validate:"required"`
+	ID            string     `json:"id"`
 	Architecture  string     `json:"architecture"`
 	Containerized bool       `json:"containerized"`
-	DevMode       bool       `json:"dev_mode" validate:"required"`
+	DevMode       bool       `json:"dev_mode"`
 	OSType        string     `json:"os_type"`
 	OSFamily      string     `json:"os_family"`
 	OSPlatform    string     `json:"os_platform"`
@@ -487,7 +495,7 @@ type Deployment struct {
 	CPUCores      int        `json:"cpu_cores"`
 	MemoryTotal   uint64     `json:"memory_total"`
 	MachineID     string     `json:"machine_id"`
-	Version       string     `json:"version" validate:"required"`
+	Version       string     `json:"version"`
 	StartedAt     time.Time  `json:"started_at"`
 	ShutdownAt    *time.Time `json:"shutdown_at"`
 }
@@ -537,6 +545,7 @@ type WorkspaceBuild struct {
 }
 
 type Workspace struct {
+	ID             uuid.UUID `json:"id"`
 	OrganizationID uuid.UUID `json:"organization_id"`
 	OwnerID        uuid.UUID `json:"owner_id"`
 	TemplateID     uuid.UUID `json:"template_id"`
@@ -578,7 +587,7 @@ type ProvisionerJob struct {
 }
 
 type ParameterSchema struct {
-	ID                  uuid.UUID `json:"parameter_schema"`
+	ID                  uuid.UUID `json:"id"`
 	JobID               uuid.UUID `json:"job_id"`
 	Name                string    `json:"name"`
 	ValidationCondition string    `json:"validation_condition"`

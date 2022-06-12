@@ -348,7 +348,7 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		t.Cleanup(server.Close)
 
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--telemetry", "true", "--telemetry-url", server.URL)
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--telemetry-enable", "true", "--telemetry-url", server.URL)
 		var buf strings.Builder
 		errC := make(chan error)
 		root.SetOutput(&buf)

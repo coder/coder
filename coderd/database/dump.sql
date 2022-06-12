@@ -226,7 +226,7 @@ CREATE TABLE provisioner_jobs (
     worker_id uuid
 );
 
-CREATE TABLE site_config (
+CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
     value character varying(8192) NOT NULL
 );
@@ -383,8 +383,8 @@ ALTER TABLE ONLY provisioner_job_logs
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY site_config
-    ADD CONSTRAINT site_config_key_key UNIQUE (key);
+ALTER TABLE ONLY site_configs
+    ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);

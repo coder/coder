@@ -981,7 +981,7 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.templates, nil
+	return q.templates[:], nil
 }
 
 func (q *fakeQuerier) GetTemplatesByOrganization(_ context.Context, arg database.GetTemplatesByOrganizationParams) ([]database.Template, error) {
