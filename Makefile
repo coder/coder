@@ -65,11 +65,12 @@ dev:
 
 fmt/prettier:
 	@echo "--- prettier"
+	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	cd site && yarn run format:check
+	yarn run format:check
 else
-	cd site && yarn run format:write
+	yarn run format:write
 endif
 .PHONY: fmt/prettier
 
@@ -150,14 +151,16 @@ provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 
 site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
 	./scripts/yarn_install.sh
-	cd site && yarn typegen
-	cd site && yarn build
+	cd site
+	yarn typegen
+	yarn build
 	# Restores GITKEEP files!
-	git checkout HEAD site/out
+	git checkout HEAD out
 
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
-	cd site && yarn run format:types
+	cd site
+	yarn run format:types
 
 test: test-clean
 	gotestsum -- -v -short ./...

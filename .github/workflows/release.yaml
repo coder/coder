@@ -112,7 +112,9 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Install make
-        run: brew install make
+        run: |
+          brew install make
+          echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
 
       - name: Build Site
         run: make site/out/index.html
