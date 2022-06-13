@@ -10,6 +10,7 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine)
   const [searchParams, setSearchParams] = useSearchParams()
+  const { workspaceRefs } = workspacesState.context
 
   useEffect(() => {
     const filter = searchParams.get("filter")
@@ -30,7 +31,7 @@ const WorkspacesPage: FC = () => {
       <WorkspacesPageView
         filter={workspacesState.context.filter}
         loading={workspacesState.hasTag("loading")}
-        workspaces={workspacesState.context.workspaces}
+        workspaceRefs={workspaceRefs}
         onFilter={(query) => {
           searchParams.set("filter", query)
           setSearchParams(searchParams)

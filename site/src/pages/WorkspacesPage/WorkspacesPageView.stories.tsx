@@ -1,7 +1,9 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import { spawn } from "xstate"
 import { ProvisionerJobStatus, Workspace, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { workspaceFilterQuery } from "../../util/workspace"
+import { workspaceItemMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 
 export default {
@@ -43,27 +45,29 @@ const workspaces: { [key in ProvisionerJobStatus]: Workspace } = {
 
 export const AllStates = Template.bind({})
 AllStates.args = {
-  workspaces: [
+  workspaceRefs: [
     ...Object.values(workspaces),
     createWorkspaceWithStatus("running", "stop"),
     createWorkspaceWithStatus("succeeded", "stop"),
     createWorkspaceWithStatus("running", "delete"),
-  ],
+  ].map((data) => spawn(workspaceItemMachine.withContext({ data }))),
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
-  workspaces: [createWorkspaceWithStatus("running", "stop", true)],
+  workspaceRefs: [createWorkspaceWithStatus("running", "stop", true)].map((data) =>
+    spawn(workspaceItemMachine.withContext({ data })),
+  ),
 }
 
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
-  workspaces: [],
+  workspaceRefs: [],
   filter: workspaceFilterQuery.me,
 }
 
 export const NoResults = Template.bind({})
 NoResults.args = {
-  workspaces: [],
+  workspaceRefs: [],
   filter: "searchtearmwithnoresults",
 }

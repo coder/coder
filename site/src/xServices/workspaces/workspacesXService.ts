@@ -1,22 +1,135 @@
-import { assign, createMachine } from "xstate"
+import { ActorRefFrom, assign, createMachine, spawn } from "xstate"
 import * as API from "../../api/api"
+import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
+import { displayError, displayMsg } from "../../components/GlobalSnackbar/utils"
 import { workspaceQueryToFilter } from "../../util/workspace"
 
+interface WorkspaceItemContext {
+  data: TypesGen.Workspace
+  updatedTemplate?: TypesGen.Template
+}
+
+type WorkspaceItemEvent = {
+  type: "UPDATE_VERSION"
+}
+
+export const workspaceItemMachine = createMachine(
+  {
+    id: "workspaceItemMachine",
+    schema: {
+      context: {} as WorkspaceItemContext,
+      events: {} as WorkspaceItemEvent,
+      services: {} as {
+        getTemplate: {
+          data: TypesGen.Template
+        }
+        startWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
+      },
+    },
+    tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
+    initial: "idle",
+    states: {
+      idle: {
+        on: {
+          UPDATE_VERSION: "updatingVersion",
+        },
+      },
+      updatingVersion: {
+        entry: "displayUpdatingVersionMessage",
+        initial: "gettingUpdatedTemplate",
+        onDone: "idle",
+        states: {
+          gettingUpdatedTemplate: {
+            invoke: {
+              id: "getTemplate",
+              src: "getTemplate",
+              onDone: {
+                actions: "assignUpdatedTemplate",
+                target: "restartingWorkspace",
+              },
+              onError: {
+                target: "error",
+                actions: "displayUpdateVersionError",
+              },
+            },
+          },
+          restartingWorkspace: {
+            invoke: {
+              id: "startWorkspace",
+              src: "startWorkspace",
+              onDone: {
+                actions: "assignLatestBuild",
+                target: "success",
+              },
+              onError: {
+                target: "error",
+                actions: "displayUpdateVersionError",
+              },
+            },
+          },
+          error: {
+            type: "final",
+          },
+          success: {
+            type: "final",
+          },
+        },
+      },
+    },
+  },
+  {
+    services: {
+      getTemplate: (context) => API.getTemplate(context.data.template_id),
+      startWorkspace: (context) => {
+        if (!context.updatedTemplate) {
+          throw new Error("Updated template is not loaded.")
+        }
+
+        return API.startWorkspace(context.data.id, context.updatedTemplate.active_version_id)
+      },
+    },
+    actions: {
+      assignUpdatedTemplate: assign({
+        updatedTemplate: (_, event) => event.data,
+      }),
+      assignLatestBuild: assign({
+        data: (context, event) => {
+          return {
+            ...context.data,
+            latest_build: event.data,
+          }
+        },
+      }),
+      displayUpdateVersionError: (_, event) => {
+        const message = getErrorMessage(event.data, "Error on update workspace version.")
+        displayError(message)
+      },
+      displayUpdatingVersionMessage: () => {
+        displayMsg("Updating workspace version", "When it is done, the workspace will be updated in the list.")
+      },
+    },
+  },
+)
+
+export type WorkspaceItemMachineRef = ActorRefFrom<typeof workspaceItemMachine>
+
 interface WorkspaceContext {
-  workspaces?: TypesGen.Workspace[]
+  workspaceRefs?: WorkspaceItemMachineRef[]
   filter?: string
   getWorkspacesError?: Error | unknown
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "SET_FILTER"; query: string }
+type WorkspacesEvent = { type: "SET_FILTER"; query: string } | { type: "UPDATE_VERSION"; workspaceId: string }
 
 export const workspacesMachine = createMachine(
   {
-    tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
+    tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
     schema: {
       context: {} as WorkspaceContext,
-      events: {} as WorkspaceEvent,
+      events: {} as WorkspacesEvent,
       services: {} as {
         getWorkspaces: {
           data: TypesGen.Workspace[]
@@ -29,6 +142,9 @@ export const workspacesMachine = createMachine(
       ready: {
         on: {
           SET_FILTER: "extractingFilter",
+          UPDATE_VERSION: {
+            actions: "triggerUpdateVersion",
+          },
         },
       },
       extractingFilter: {
@@ -44,7 +160,7 @@ export const workspacesMachine = createMachine(
           id: "getWorkspaces",
           onDone: {
             target: "ready",
-            actions: ["assignWorkspaces", "clearGetWorkspacesError"],
+            actions: ["assignWorkspaceRefs", "clearGetWorkspacesError"],
           },
           onError: {
             target: "ready",
@@ -57,8 +173,11 @@ export const workspacesMachine = createMachine(
   },
   {
     actions: {
-      assignWorkspaces: assign({
-        workspaces: (_, event) => event.data,
+      assignWorkspaceRefs: assign({
+        workspaceRefs: (_, event) =>
+          event.data.map((data) => {
+            return spawn(workspaceItemMachine.withContext({ data }), data.id)
+          }),
       }),
       assignFilter: assign({
         filter: (_, event) => event.query,
@@ -68,6 +187,15 @@ export const workspacesMachine = createMachine(
       }),
       clearGetWorkspacesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
       clearWorkspaces: (context) => assign({ ...context, workspaces: undefined }),
+      triggerUpdateVersion: (context, event) => {
+        const workspaceRef = context.workspaceRefs?.find((ref) => ref.id === event.workspaceId)
+
+        if (!workspaceRef) {
+          throw new Error(`No workspace ref found for ${event.workspaceId}.`)
+        }
+
+        workspaceRef.send("UPDATE_VERSION")
+      },
     },
     services: {
       getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
