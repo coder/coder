@@ -186,10 +186,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Description:          createTemplate.Description,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
-			CreatedBy: uuid.NullUUID{
-				UUID:  apiKey.UserID,
-				Valid: true,
-			},
+			CreatedBy:            apiKey.UserID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -453,15 +450,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
 	creators := make(map[string]string, len(templates))
 	for _, template := range templates {
-		if template.CreatedBy.Valid {
-			creator, err := db.GetUserByID(ctx, template.CreatedBy.UUID)
-			if err != nil {
-				return map[string]string{}, err
-			}
-			creators[template.ID.String()] = creator.Username
-		} else {
-			creators[template.ID.String()] = ""
+		creator, err := db.GetUserByID(ctx, template.CreatedBy)
+		if err != nil {
+			return map[string]string{}, err
 		}
+		creators[template.ID.String()] = creator.Username
 	}
 	return creators, nil
 }
