@@ -204,7 +204,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	// Create the organization member in the org.
 	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
