@@ -127,6 +127,10 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			}
 		}
 
+		if agentResource == nil {
+			continue
+		}
+
 		agents, exists := resourceAgents[agentResource.Label]
 		if !exists {
 			agents = make([]*proto.Agent, 0)
