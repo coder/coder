@@ -119,9 +119,9 @@ describe("api.ts", () => {
       [undefined, "/api/v2/workspaces"],
 
       [{ q: "" }, "/api/v2/workspaces"],
-      [{ q: "owner:1" }, "/api/v2/workspaces?q=owner:1"],
+      [{ q: "owner:1" }, "/api/v2/workspaces?q=owner%3A1"],
 
-      [{ q: "owner:me" }, "/api/v2/workspaces?q=owner:me"],
+      [{ q: "owner:me" }, "/api/v2/workspaces?q=owner%3Ame"],
     ])(`getWorkspacesURL(%p) returns %p`, (filter, expected) => {
       expect(getWorkspacesURL(filter)).toBe(expected)
     })
