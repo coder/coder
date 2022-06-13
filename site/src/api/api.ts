@@ -120,7 +120,7 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.q && filter.q != "") {
+  if (filter?.q && filter.q !== "") {
     searchParams.append("q", filter.q)
   }
 
