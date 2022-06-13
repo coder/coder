@@ -91,7 +91,7 @@ func templateUpdate() *cobra.Command {
 			}
 
 			if templateVersion.Job.Status != codersdk.ProvisionerJobSucceeded {
-				return xerrors.New("job failed")
+				return xerrors.Errorf("job failed: %s", templateVersion.Job.Error)
 			}
 
 			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
