@@ -22,7 +22,7 @@ import {
   HelpTooltipTitle,
 } from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 
@@ -50,7 +50,6 @@ export const Language = {
   templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
   createdByLabel: "Created by",
-  defaultTemplateCreator: "<unknown>",
 }
 
 const TemplateHelpTooltip: React.FC = () => {
@@ -87,7 +86,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
           </Stack>
         </PageHeaderTitle>
         {props.templates && props.templates.length > 0 && (
-          <PageHeaderText>Choose a template to create a new workspace.</PageHeaderText>
+          <PageHeaderSubtitle>Choose a template to create a new workspace.</PageHeaderSubtitle>
         )}
       </PageHeader>
 
@@ -140,7 +139,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
                 <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
-                <TableCell>{template.created_by_name || Language.defaultTemplateCreator}</TableCell>
+                <TableCell>{template.created_by_name}</TableCell>
                 <TableCell>
                   <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />

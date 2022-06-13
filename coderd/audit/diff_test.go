@@ -88,7 +88,7 @@ func TestDiff(t *testing.T) {
 				ActiveVersionID:      uuid.UUID{3},
 				MaxTtl:               int64(time.Hour),
 				MinAutostartInterval: int64(time.Minute),
-				CreatedBy:            uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
+				CreatedBy:            uuid.UUID{4},
 			},
 			exp: audit.Map{
 				"id":                     uuid.UUID{1}.String(),
