@@ -4,18 +4,19 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
-
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -351,7 +352,16 @@ func New(options *Options) *API {
 		})
 	})
 
-	r.NotFound(middleware.Compress(5, "gzip", "deflate")(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
+	cmp := middleware.NewCompressor(5,
+		"text/*",
+		"application/*",
+		"image/*",
+	)
+	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
+		return brotli.NewWriterLevel(w, level)
+	})
+
+	r.NotFound(cmp.Handler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
 
