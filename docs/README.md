@@ -1,5 +1,9 @@
 # Coder Documentation
 
+<p align="center">
+  <img src="images/hero-image.png">
+</p>
+
 ## Table of Contents
 
 - [About Coder](./about.md#about-coder)
