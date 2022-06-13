@@ -27,7 +27,7 @@ func NewQueryParamParser() *QueryParamParser {
 }
 
 func (p *QueryParamParser) Int(r *http.Request, def int, queryParam string) int {
-	v, err := parse(r, strconv.Atoi, def, queryParam)
+	v, err := parseQueryParam(r, strconv.Atoi, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
@@ -45,7 +45,7 @@ func (p *QueryParamParser) UUIDorMe(r *http.Request, def uuid.UUID, me uuid.UUID
 }
 
 func (p *QueryParamParser) UUID(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
-	v, err := parse(r, uuid.Parse, def, queryParam)
+	v, err := parseQueryParam(r, uuid.Parse, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
@@ -55,8 +55,8 @@ func (p *QueryParamParser) UUID(r *http.Request, def uuid.UUID, queryParam strin
 	return v
 }
 
-func (p *QueryParamParser) UUIDArray(r *http.Request, def []uuid.UUID, queryParam string) []uuid.UUID {
-	v, err := parse(r, func(v string) ([]uuid.UUID, error) {
+func (p *QueryParamParser) UUIDs(r *http.Request, def []uuid.UUID, queryParam string) []uuid.UUID {
+	v, err := parseQueryParam(r, func(v string) ([]uuid.UUID, error) {
 		var badValues []string
 		strs := strings.Split(v, ",")
 		ids := make([]uuid.UUID, 0, len(strs))
@@ -84,7 +84,7 @@ func (p *QueryParamParser) UUIDArray(r *http.Request, def []uuid.UUID, queryPara
 }
 
 func (p *QueryParamParser) String(r *http.Request, def string, queryParam string) string {
-	v, err := parse(r, func(v string) (string, error) {
+	v, err := parseQueryParam(r, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
 	if err != nil {
@@ -96,7 +96,7 @@ func (p *QueryParamParser) String(r *http.Request, def string, queryParam string
 	return v
 }
 
-func parse[T any](r *http.Request, parse func(v string) (T, error), def T, queryParam string) (T, error) {
+func parseQueryParam[T any](r *http.Request, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	if !r.URL.Query().Has(queryParam) || r.URL.Query().Get(queryParam) == "" {
 		return def, nil
 	}

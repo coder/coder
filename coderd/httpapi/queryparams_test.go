@@ -131,7 +131,7 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.Int)
 	})
 
-	t.Run("UUIDArray", func(t *testing.T) {
+	t.Run("UUIDs", func(t *testing.T) {
 		t.Parallel()
 		expParams := []queryParamTestCase[[]uuid.UUID]{
 			{
@@ -171,7 +171,7 @@ func TestParseQueryParams(t *testing.T) {
 		}
 
 		parser := httpapi.NewQueryParamParser()
-		testQueryParams(t, expParams, parser, parser.UUIDArray)
+		testQueryParams(t, expParams, parser, parser.UUIDs)
 	})
 }
 
