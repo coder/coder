@@ -107,14 +107,14 @@ require (
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220516162934-403b01795ae8
 	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
-	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/net v0.0.0-20220526153639-5463443f8c37
 	golang.org/x/oauth2 v0.0.0-20220524215830-622c5d57e401
 	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
-	golang.org/x/tools v0.1.10
+	golang.org/x/tools v0.1.11
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df
 	golang.zx2c4.com/wireguard v0.0.0-20220407013110-ef5c587f782d
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220407013110-ef5c587f782d
