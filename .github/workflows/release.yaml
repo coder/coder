@@ -116,28 +116,22 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: which bash
-        run: |
-          which bash
-          echo "$0"
-
       - name: Install dependencies
         run: |
+          # The version of bash that MacOS ships with is too old
           brew install bash
 
+          # The version of make that MacOS ships with is too old
           brew install make
           echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
 
+          # BSD getopt is incompatible with the build scripts
           brew install gnu-getopt
           echo "$(brew --prefix)/opt/gnu-getopt/bin" >> $GITHUB_PATH
 
+          # Used for notarizing the binaries
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
-
-      - name: which bash
-        run: |
-          which bash
-          echo "$0"
 
       - name: Build Site
         run: make site/out/index.html
@@ -162,6 +156,7 @@ jobs:
         env:
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+          AC_APPLICATION_IDENTITY: BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
 
       - name: Upload Binary Artifacts
         uses: actions/upload-artifact@v3
