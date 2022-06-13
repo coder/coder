@@ -126,7 +126,11 @@ for spec in "$@"; do
 done
 
 # Remove duplicate specs while maintaining the same order.
-mapfile -t specs < <(echo "${specs[@]}" | tr " " "\n" | awk '!a[$0]++')
+specs_str="${specs[*]}"
+specs=()
+for s in $(echo "$specs_str" | tr " " "\n" | awk '!a[$0]++'); do
+	specs+=("$s")
+done
 
 build_args=()
 if [[ "$slim" == 1 ]]; then

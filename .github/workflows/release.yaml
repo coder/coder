@@ -52,9 +52,10 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Build Slim Binaries
+      - name: Build Linux and Windows Binaries
         run: |
           mkdir -p ./dist
+          # build slim binaries
           ./scripts/build_go_slim.sh \
             --version "$(VERSION)" \
             --output ./dist/ \
@@ -62,8 +63,7 @@ jobs:
             windows:amd64,arm64 \
             darwin:amd64,arm64
 
-      - name: Build Linux and Windows Binaries
-        run: |
+          # build linux and windows binaries
           ./scripts/build_go_matrix.sh \
             --output ./dist/ \
             --archive \
@@ -126,9 +126,10 @@ jobs:
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Build Slim Binaries
+      - name: Build darwin Binaries (with signatures)
         run: |
           mkdir -p ./dist
+          # build slim binaries
           ./scripts/build_go_slim.sh \
             --version "$(VERSION)" \
             --output ./dist/ \
@@ -136,8 +137,7 @@ jobs:
             windows:amd64,arm64 \
             darwin:amd64,arm64
 
-      - name: Build darwin Binaries (with signatures)
-        run: |
+          # build darwin binaries
           ./scripts/build_go_matrix.sh \
             --output ./dist/ \
             --archive \
