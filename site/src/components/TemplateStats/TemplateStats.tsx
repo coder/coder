@@ -13,6 +13,8 @@ const Language = {
   lastUpdateLabel: "Last updated",
   userPlural: "users",
   userSingular: "user",
+  createdByLabel: "Created by",
+  defaultTemplateCreator: "<unknown>",
 }
 
 export interface TemplateStatsProps {
@@ -45,6 +47,11 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
           {dayjs().to(dayjs(template.updated_at))}
         </span>
       </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.createdByLabel}</span>
+        <span className={styles.statsValue}>{template.created_by_name || Language.defaultTemplateCreator}</span>
+      </div>
     </div>
   )
 }
@@ -63,7 +70,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "20%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

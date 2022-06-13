@@ -103,3 +103,16 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 	}
 	return io.ReadAll(res.Body)
 }
+
+func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx context.Context, username string, workspaceName string, buildNumber string) (WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s/builds/%s", username, workspaceName, buildNumber), nil)
+	if err != nil {
+		return WorkspaceBuild{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuild{}, readBodyAsError(res)
+	}
+	var workspaceBuild WorkspaceBuild
+	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+}

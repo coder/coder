@@ -22,7 +22,7 @@ export const WorkspaceNotRunning = Template.bind({})
 WorkspaceNotRunning.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...defaultWorkspaceSchedule(5, "asdfasdf"),
+    ...defaultWorkspaceSchedule(5),
     timezone: "UTC",
   },
   workspace: {
@@ -41,7 +41,7 @@ export const WorkspaceWillNotShutDown = Template.bind({})
 WorkspaceWillNotShutDown.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...defaultWorkspaceSchedule(5, "asdfasdf"),
+    ...defaultWorkspaceSchedule(5),
     timezone: "UTC",
     ttl: 0,
   },
@@ -60,7 +60,7 @@ export const WorkspaceWillShutdown = Template.bind({})
 WorkspaceWillShutdown.args = {
   now: dayjs("2022-05-17T17:40:00Z"),
   initialValues: {
-    ...defaultWorkspaceSchedule(5, "asdfasdf"),
+    ...defaultWorkspaceSchedule(5),
     timezone: "UTC",
   },
   workspace: {
@@ -76,9 +76,9 @@ WorkspaceWillShutdown.args = {
 
 export const WorkspaceWillShutdownSoon = Template.bind({})
 WorkspaceWillShutdownSoon.args = {
-  now: dayjs("2022-05-17T18:10:00Z"),
+  now: dayjs("2022-05-17T16:39:00Z"),
   initialValues: {
-    ...defaultWorkspaceSchedule(5, "asdfasdf"),
+    ...defaultWorkspaceSchedule(2),
     timezone: "UTC",
     ttl: 1,
   },
@@ -86,8 +86,9 @@ WorkspaceWillShutdownSoon.args = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      updated_at: "2022-05-17T17:39:00Z",
+      deadline: "2022-05-17T18:09:00Z",
     },
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
   },
   onCancel: () => action("onCancel"),
   onSubmit: () => action("onSubmit"),
@@ -95,9 +96,9 @@ WorkspaceWillShutdownSoon.args = {
 
 export const WorkspaceWillShutdownImmediately = Template.bind({})
 WorkspaceWillShutdownImmediately.args = {
-  now: dayjs("2022-05-17T18:40:00Z"),
+  now: dayjs("2022-05-17T17:09:00Z"),
   initialValues: {
-    ...defaultWorkspaceSchedule(5, "asdfasdf"),
+    ...defaultWorkspaceSchedule(1),
     timezone: "UTC",
     ttl: 1,
   },
@@ -105,8 +106,9 @@ WorkspaceWillShutdownImmediately.args = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      updated_at: "2022-05-17T17:39:00Z",
+      deadline: "2022-05-17T18:09:00Z",
     },
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
   },
   onCancel: () => action("onCancel"),
   onSubmit: () => action("onSubmit"),

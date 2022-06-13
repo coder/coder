@@ -6,19 +6,9 @@ import { pageTitle } from "../../util/page"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 
-const useBuildId = () => {
-  const { buildId } = useParams()
-
-  if (!buildId) {
-    throw new Error("buildId param is required.")
-  }
-
-  return buildId
-}
-
 export const WorkspaceBuildPage: FC = () => {
-  const buildId = useBuildId()
-  const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
+  const { username, workspace: workspaceName, buildNumber } = useParams()
+  const [buildState] = useMachine(workspaceBuildMachine, { context: { username, workspaceName, buildNumber } })
   const { logs, build } = buildState.context
   const isWaitingForLogs = !buildState.matches("logs.loaded")
 

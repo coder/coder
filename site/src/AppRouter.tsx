@@ -113,15 +113,6 @@ export const AppRouter: FC = () => (
         <Route path="ssh-keys" element={<SSHKeysPage />} />
       </Route>
 
-      <Route
-        path="builds/:buildId"
-        element={
-          <AuthAndFrame>
-            <WorkspaceBuildPage />
-          </AuthAndFrame>
-        }
-      />
-
       <Route path="/@:username">
         <Route path=":workspace">
           <Route
@@ -160,6 +151,15 @@ export const AppRouter: FC = () => (
               }
             />
           </Route>
+
+          <Route
+            path="builds/:buildNumber"
+            element={
+              <AuthAndFrame>
+                <WorkspaceBuildPage />
+              </AuthAndFrame>
+            }
+          />
         </Route>
       </Route>
 

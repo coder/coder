@@ -214,7 +214,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                       message={Language.emptyCreateWorkspaceMessage}
                       description={Language.emptyCreateWorkspaceDescription}
                       cta={
-                        <Link underline="none" component={RouterLink} to="/workspaces/new">
+                        <Link underline="none" component={RouterLink} to="/templates">
                           <Button startIcon={<AddCircleOutline />}>{Language.createFromTemplateButton}</Button>
                         </Link>
                       }

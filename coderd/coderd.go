@@ -270,7 +270,10 @@ func New(options *Options) *API {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
-					r.Get("/workspace/{workspacename}", api.workspaceByOwnerAndName)
+					r.Route("/workspace/{workspacename}", func(r chi.Router) {
+						r.Get("/", api.workspaceByOwnerAndName)
+						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
