@@ -14,9 +14,11 @@ const Template: Story<WorkspacesPageViewProps> = (args) => <WorkspacesPageView {
 const createWorkspaceWithStatus = (
   status: ProvisionerJobStatus,
   transition: WorkspaceTransition = "start",
+  outdated = false,
 ): Workspace => {
   return {
     ...MockWorkspace,
+    outdated,
     latest_build: {
       ...MockWorkspace.latest_build,
       transition,
@@ -47,6 +49,11 @@ AllStates.args = {
     createWorkspaceWithStatus("succeeded", "stop"),
     createWorkspaceWithStatus("running", "delete"),
   ],
+}
+
+export const Outdated = Template.bind({})
+Outdated.args = {
+  workspaces: [createWorkspaceWithStatus("running", "stop", true)],
 }
 
 export const OwnerHasNoWorkspaces = Template.bind({})

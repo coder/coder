@@ -3,8 +3,10 @@ import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
-import { useState } from "react"
+import React, { useState } from "react"
 import { Stack } from "../Stack/Stack"
+
+type Icon = typeof HelpIcon
 
 type Size = "small" | "medium"
 export interface HelpTooltipProps {
@@ -70,6 +72,17 @@ export const HelpTooltipLink: React.FC<{ href: string }> = ({ children, href }) 
   )
 }
 
+export const HelpTooltipAction: React.FC<{ icon: Icon; onClick: () => void }> = ({ children, icon: Icon, onClick }) => {
+  const styles = useStyles()
+
+  return (
+    <button className={styles.action} onClick={onClick}>
+      <Icon className={styles.actionIcon} />
+      {children}
+    </button>
+  )
+}
+
 export const HelpTooltipLinksGroup: React.FC = ({ children }) => {
   const styles = useStyles()
 
@@ -110,11 +123,12 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
     border: 0,
     background: "transparent",
-    color: theme.palette.text.secondary,
+    color: theme.palette.text.primary,
+    opacity: 0.5,
     cursor: "pointer",
 
     "&:hover": {
-      color: theme.palette.text.primary,
+      opacity: 0.75,
     },
   },
 
@@ -155,5 +169,23 @@ const useStyles = makeStyles((theme) => ({
 
   linksGroup: {
     marginTop: theme.spacing(2),
+  },
+
+  action: {
+    display: "flex",
+    alignItems: "center",
+    background: "none",
+    border: 0,
+    color: theme.palette.primary.light,
+    padding: 0,
+    cursor: "pointer",
+    fontSize: 14,
+  },
+
+  actionIcon: {
+    color: "inherit",
+    width: 14,
+    height: 14,
+    marginRight: theme.spacing(1),
   },
 }))

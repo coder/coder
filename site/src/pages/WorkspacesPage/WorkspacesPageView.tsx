@@ -13,6 +13,7 @@ import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import RefreshIcon from "@material-ui/icons/Refresh"
 import SearchIcon from "@material-ui/icons/Search"
 import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
@@ -26,6 +27,7 @@ import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/Dro
 import { EmptyState } from "../../components/EmptyState/EmptyState"
 import {
   HelpTooltip,
+  HelpTooltipAction,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
@@ -54,6 +56,11 @@ export const Language = {
   workspaceTooltipLink1: "Create workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",
+  outdatedLabel: "Outdated",
+  upToDateLabel: "Up to date",
+  versionTooltipText:
+    "Looks like the version you are using for this workspace is outdated and there is a newest version that you could use.",
+  updateVersionLabel: "Update version",
 }
 
 const WorkspaceHelpTooltip: React.FC = () => {
@@ -71,6 +78,20 @@ const WorkspaceHelpTooltip: React.FC = () => {
         <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/workspaces.md#editors-and-ides">
           {Language.workspaceTooltipLink3}
         </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
+}
+
+const OutdatedHelpTooltip: React.FC<{ onUpdateVersion: () => void }> = ({ onUpdateVersion }) => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipAction icon={RefreshIcon} onClick={onUpdateVersion}>
+          {Language.updateVersionLabel}
+        </HelpTooltipAction>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
   )
@@ -256,9 +277,16 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                   <TableCell>{workspace.template_name}</TableCell>
                   <TableCell>
                     {workspace.outdated ? (
-                      <span style={{ color: theme.palette.error.main }}>outdated</span>
+                      <span className={styles.outdatedLabel}>
+                        {Language.outdatedLabel}
+                        <OutdatedHelpTooltip
+                          onUpdateVersion={() => {
+                            console.log("UPDATE!!")
+                          }}
+                        />
+                      </span>
                     ) : (
-                      <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+                      <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -340,5 +368,11 @@ const useStyles = makeStyles((theme) => ({
   },
   arrowCell: {
     display: "flex",
+  },
+  outdatedLabel: {
+    color: theme.palette.error.main,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
   },
 }))
