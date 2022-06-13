@@ -232,6 +232,8 @@ func parseTime(s string) (time.Time, error) {
 		"1504",
 		"03PM",
 		"03pm",
+		"3PM",
+		"3pm",
 	} {
 		t, err := time.Parse(layout, s)
 		if err == nil {
