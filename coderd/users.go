@@ -522,6 +522,11 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
 	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
