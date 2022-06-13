@@ -104,7 +104,7 @@ describe("util > workspace", () => {
   describe("workspaceQueryToFilter", () => {
     it.each<[string | undefined, TypesGen.WorkspaceFilter]>([
       [undefined, {}],
-      ["", { q:"" }],
+      ["", { q: "" }],
       ["asdkfvjn", { q: "asdkfvjn" }],
       ["owner:me", { q: "owner:me" }],
       ["owner:me owner:me2", { q: "owner:me owner:me2" }],
