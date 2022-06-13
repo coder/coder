@@ -9,7 +9,7 @@ to everybody. Users can also manually update their workspaces.
 
 ## Manage templates
 
-Coder provides production-ready [sample templates]([../examples/templates/](https://github.com/coder/coder/tree/main/examples/templates)),
+Coder provides production-ready [sample templates](https://github.com/coder/coder/tree/main/examples/templates),
 but you can modify the templates with Terraform.
 
 ```sh
