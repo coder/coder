@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NYTimes/gziphandler"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
@@ -352,7 +351,7 @@ func New(options *Options) *API {
 		})
 	})
 
-	r.NotFound(gziphandler.GzipHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
+	r.NotFound(middleware.Compress(5, "gzip", "deflate")(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
 
