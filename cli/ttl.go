@@ -1,14 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -91,30 +91,6 @@ func ttlset() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s\n", truncated)
 			}
 
-			if changed, newDeadline := changedNewDeadline(workspace, truncated); changed {
-				// For the purposes of the user, "less than a minute" is essentially the same as "immediately".
-				timeRemaining := time.Until(newDeadline).Truncate(time.Minute)
-				humanRemaining := "in " + timeRemaining.String()
-				if timeRemaining <= 0 {
-					humanRemaining = "immediately"
-				}
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text: fmt.Sprintf(
-						"Workspace %q will be stopped %s. Are you sure?",
-						workspace.Name,
-						humanRemaining,
-					),
-					Default:   "yes",
-					IsConfirm: true,
-				})
-				if err != nil {
-					if errors.Is(err, cliui.Canceled) {
-						return nil
-					}
-					return err
-				}
-			}
-
 			millis := truncated.Milliseconds()
 			if err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: &millis,
@@ -122,6 +98,28 @@ func ttlset() *cobra.Command {
 				return xerrors.Errorf("update workspace ttl: %w", err)
 			}
 
+			if ptr.NilOrEmpty(workspace.AutostartSchedule) {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down %s after start.\n", workspace.Name, truncated)
+				return nil
+			}
+
+			sched, err := schedule.Weekly(*workspace.AutostartSchedule)
+			if err != nil {
+				return xerrors.Errorf("parse workspace schedule: %w", err)
+			}
+
+			loc, err := time.LoadLocation(sched.Timezone())
+			if err != nil {
+				return xerrors.Errorf("schedule has invalid timezone: %w", err)
+			}
+
+			nextShutdown := sched.Next(time.Now()).Add(truncated).In(loc)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down at %s on %s (%s after start).\n",
+				workspace.Name,
+				nextShutdown.Format("15:04:05 MST"),
+				nextShutdown.Format("2006-02-01"),
+				truncated,
+			)
 			return nil
 		},
 	}
@@ -156,19 +154,4 @@ func ttlunset() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func changedNewDeadline(ws codersdk.Workspace, newTTL time.Duration) (changed bool, newDeadline time.Time) {
-	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		// not running
-		return false, newDeadline
-	}
-
-	if ws.LatestBuild.Job.CompletedAt == nil {
-		// still building
-		return false, newDeadline
-	}
-
-	newDeadline = ws.LatestBuild.Job.CompletedAt.Add(newTTL)
-	return true, newDeadline
 }

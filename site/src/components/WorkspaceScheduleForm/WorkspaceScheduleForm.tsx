@@ -9,7 +9,8 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
-import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
+import duration from "dayjs/plugin/duration"
+import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
@@ -18,7 +19,6 @@ import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
 import { Workspace } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
-import { isWorkspaceOn } from "../../util/workspace"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -28,7 +28,8 @@ import { zones } from "./zones"
 //         sorted alphabetically.
 dayjs.extend(utc)
 dayjs.extend(advancedFormat)
-dayjs.extend(isSameOrBefore)
+dayjs.extend(duration)
+dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
@@ -48,11 +49,8 @@ export const Language = {
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
-  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
-  ttlCausesShutdownAt: "at",
-  ttlCausesShutdownImmediately: "immediately!",
-  ttlCausesShutdownSoon: "within 30 minutes.",
+  ttlCausesShutdownAfterStart: "after start",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
 }
 
@@ -269,7 +267,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(now, workspace, form.values.timezone, form.values.ttl))}
+            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl))}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
@@ -283,29 +281,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   )
 }
 
-export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, formTTL: number): string => {
-  // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
-  // SEE: #1834
-  const deadline = dayjs(workspace.latest_build.deadline).utc()
-  const hasDeadline = deadline.year() > 1
-  const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
-  const delta = formTTL - ttl
-
-  if (delta === 0 || !isWorkspaceOn(workspace)) {
-    return Language.ttlHelperText
-  } else if (formTTL === 0) {
+export const ttlShutdownAt = (formTTL: number): string => {
+  if (formTTL === 0) {
     return Language.ttlCausesNoShutdownHelperText
   } else {
-    const newDeadline = dayjs(hasDeadline ? deadline : now).add(delta, "hours")
-    if (newDeadline.isSameOrBefore(now)) {
-      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
-    } else if (newDeadline.isSameOrBefore(now.add(30, "minutes"))) {
-      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
-    } else {
-      return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadline
-        .tz(tz)
-        .format("MMM D, YYYY h:mm A")}.`
-    }
+    return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${Language.ttlCausesShutdownAfterStart
+      }.`
   }
 }
 
