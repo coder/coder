@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func testProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
+func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -46,7 +46,7 @@ func testProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient
 func TestProvision(t *testing.T) {
 	t.Parallel()
 
-	ctx, api := testProvisioner(t)
+	ctx, api := setupProvisioner(t)
 
 	for _, testCase := range []struct {
 		Name     string
@@ -298,9 +298,11 @@ func TestProvision(t *testing.T) {
 
 // nolint:paralleltest
 func TestProvision_ExtraEnv(t *testing.T) {
+	secretValue := "oinae3uinxase"
 	t.Setenv("TF_LOG", "INFO")
+	t.Setenv("TF_SUPERSECRET", secretValue)
 
-	ctx, api := testProvisioner(t)
+	ctx, api := setupProvisioner(t)
 
 	directory := t.TempDir()
 	path := filepath.Join(directory, "main.tf")
@@ -330,6 +332,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 			if strings.Contains(log.Output, "TF_LOG") {
 				found = true
 			}
+			require.NotContains(t, log.Output, secretValue)
 		}
 		if c := msg.GetComplete(); c != nil {
 			require.Empty(t, c.Error)

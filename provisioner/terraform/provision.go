@@ -181,11 +181,38 @@ func provisionEnv(start *proto.Provision_Start) ([]string, error) {
 	return env, nil
 }
 
+var (
+	// tfEnvSafeToPrint is the set of terraform environment variables that we are quite sure won't contain secrets,
+	// and therefore it's ok to log their values
+	tfEnvSafeToPrint = map[string]bool{
+		"TF_LOG":                      true,
+		"TF_LOG_PATH":                 true,
+		"TF_INPUT":                    true,
+		"TF_DATA_DIR":                 true,
+		"TF_WORKSPACE":                true,
+		"TF_IN_AUTOMATION":            true,
+		"TF_REGISTRY_DISCOVERY_RETRY": true,
+		"TF_REGISTRY_CLIENT_TIMEOUT":  true,
+		"TF_CLI_CONFIG_FILE":          true,
+		"TF_IGNORE":                   true,
+	}
+)
+
 func logTerraformEnvVars(logger provisionersdk.Logger) error {
 	env := os.Environ()
 	for _, e := range env {
 		if strings.HasPrefix(e, "TF_") {
-			err := logger.Log(&proto.Log{Level: proto.LogLevel_WARN, Output: "terraform environment variable: " + e})
+			parts := strings.SplitN(e, "=", 2)
+			if len(parts) != 2 {
+				panic("os.Environ() returned vars not in key=value form")
+			}
+			if !tfEnvSafeToPrint[parts[0]] {
+				parts[1] = "<value redacted>"
+			}
+			err := logger.Log(&proto.Log{
+				Level:  proto.LogLevel_WARN,
+				Output: fmt.Sprintf("terraform environment variable: %s=%s", parts[0], parts[1]),
+			})
 			if err != nil {
 				return err
 			}
