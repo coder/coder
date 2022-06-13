@@ -3,7 +3,6 @@
 package tz
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
