@@ -116,6 +116,11 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: which bash
+        run: |
+          which bash
+          echo "$0"
+
       - name: Install dependencies
         run: |
           brew install bash
