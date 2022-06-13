@@ -64,8 +64,8 @@ func TestParseQueryParams(t *testing.T) {
 		}
 
 		parser := httpapi.NewQueryParamParser()
-		testQueryParams(t, expParams, parser, func(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
-			return parser.UUIDorMe(r, def, me, queryParam)
+		testQueryParams(t, expParams, parser, func(vals url.Values, def uuid.UUID, queryParam string) uuid.UUID {
+			return parser.UUIDorMe(vals, def, me, queryParam)
 		})
 	})
 
@@ -175,7 +175,7 @@ func TestParseQueryParams(t *testing.T) {
 	})
 }
 
-func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], parser *httpapi.QueryParamParser, parse func(r *http.Request, def T, queryParam string) T) {
+func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], parser *httpapi.QueryParamParser, parse func(vals url.Values, def T, queryParam string) T) {
 	v := url.Values{}
 	for _, c := range testCases {
 		if c.NoSet {
@@ -183,14 +183,11 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		}
 		v.Set(c.QueryParam, c.Value)
 	}
-	r, err := http.NewRequest("GET", "https://example.com", nil)
-	require.NoError(t, err, "new request")
-	r.URL.RawQuery = v.Encode()
 
 	for _, c := range testCases {
 		// !! Do not run these in parallel !!
 		t.Run(c.QueryParam, func(t *testing.T) {
-			v := parse(r, c.Default, c.QueryParam)
+			v := parse(v, c.Default, c.QueryParam)
 			require.Equal(t, c.Expected, v, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
 			if c.ExpectedErrorContains != "" {
 				errors := parser.Errors

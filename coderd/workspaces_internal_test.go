@@ -1,7 +1,11 @@
 package coderd
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/coder/coder/coderd/httpapi"
 
 	"github.com/stretchr/testify/require"
 )
@@ -123,12 +127,16 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, err := workspaceSearchQuery(c.Query)
+			values, errs := workspaceSearchQuery(c.Query)
 			if c.ExpectedErrorContains != "" {
-				require.Error(t, err, "expected error")
-				require.ErrorContains(t, err, c.ExpectedErrorContains)
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
-				require.NoError(t, err, "expected no error")
+				require.Equal(t, []httpapi.Error{}, errs, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
 			}
 		})

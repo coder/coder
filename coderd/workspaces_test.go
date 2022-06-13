@@ -1067,11 +1067,3 @@ func mustLocation(t *testing.T, location string) *time.Location {
 
 	return loc
 }
-
-func must[T any](s T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-
-	return s
-}

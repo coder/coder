@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -105,43 +106,11 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	queryStr := r.URL.Query().Get("q")
-	values, err := workspaceSearchQuery(queryStr)
-	if err != nil {
+	filter, errs := workspaceSearchQuery(queryStr)
+	if len(errs) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace search query.",
-			Validations: []httpapi.Error{
-				{Field: "q", Detail: err.Error()},
-			},
-		})
-		return
-	}
-
-	// Set all the query params from the "q" field.
-	q := r.URL.Query()
-	for k, v := range values {
-		// Do not allow overriding if the user also set query param fields
-		// outside the query string.
-		if q.Has(k) {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("Workspace filter %q cannot be set twice. In query params %q and %q.", k, k, "q"),
-			})
-			return
-		}
-		q.Set(k, v)
-	}
-	r.URL.RawQuery = q.Encode()
-
-	parser := httpapi.NewQueryParamParser()
-	filter := database.GetWorkspacesWithFilterParams{
-		Deleted:       false,
-		OwnerUsername: parser.String(r, "", "owner"),
-		TemplateName:  parser.String(r, "", "template"),
-		Name:          parser.String(r, "", "name"),
-	}
-	if len(parser.Errors) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: parser.Errors,
+			Message:     "Invalid workspace search query.",
+			Validations: errs,
 		})
 		return
 	}
@@ -978,12 +947,13 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 	}, nil
 }
 
-// workspaceSearchQuery takes a query string and breaks it into its queryparams
-// as a set of key=value.
-func workspaceSearchQuery(query string) (map[string]string, error) {
-	searchParams := make(map[string]string)
+// workspaceSearchQuery takes a query string and returns the workspace filter.
+// It also can return the list of validation errors to return to the api.
+func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams, []httpapi.Error) {
+	searchParams := make(url.Values)
 	if query == "" {
-		return searchParams, nil
+		// No filter
+		return database.GetWorkspacesWithFilterParams{}, nil
 	}
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
@@ -997,21 +967,35 @@ func workspaceSearchQuery(query string) (map[string]string, error) {
 			parts = splitQueryParameterByDelimiter(element, '/', false)
 			switch len(parts) {
 			case 1:
-				searchParams["name"] = parts[0]
+				searchParams.Set("name", parts[0])
 			case 2:
-				searchParams["owner"] = parts[0]
-				searchParams["name"] = parts[1]
+				searchParams.Set("owner", parts[0])
+				searchParams.Set("name", parts[1])
 			default:
-				return nil, xerrors.Errorf("Query element %q can only contain 1 '/'", element)
+				return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
+				}
 			}
 		case 2:
-			searchParams[parts[0]] = parts[1]
+			searchParams.Set(parts[0], parts[1])
 		default:
-			return nil, xerrors.Errorf("Query element %q can only contain 1 ':'", element)
+			return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
 		}
 	}
 
-	return searchParams, nil
+	// Using the query param parser here just returns consistent errors with
+	// other parsing.
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetWorkspacesWithFilterParams{
+		Deleted:       false,
+		OwnerUsername: parser.String(searchParams, "", "owner"),
+		TemplateName:  parser.String(searchParams, "", "template"),
+		Name:          parser.String(searchParams, "", "name"),
+	}
+
+	return filter, parser.Errors
 }
 
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements

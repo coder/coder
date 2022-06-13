@@ -2,7 +2,7 @@ package httpapi
 
 import (
 	"fmt"
-	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -26,8 +26,8 @@ func NewQueryParamParser() *QueryParamParser {
 	}
 }
 
-func (p *QueryParamParser) Int(r *http.Request, def int, queryParam string) int {
-	v, err := parseQueryParam(r, strconv.Atoi, def, queryParam)
+func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
+	v, err := parseQueryParam(vals, strconv.Atoi, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
@@ -37,15 +37,15 @@ func (p *QueryParamParser) Int(r *http.Request, def int, queryParam string) int 
 	return v
 }
 
-func (p *QueryParamParser) UUIDorMe(r *http.Request, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
-	if r.URL.Query().Get(queryParam) == "me" {
+func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
+	if vals.Get(queryParam) == "me" {
 		return me
 	}
-	return p.UUID(r, def, queryParam)
+	return p.UUID(vals, def, queryParam)
 }
 
-func (p *QueryParamParser) UUID(r *http.Request, def uuid.UUID, queryParam string) uuid.UUID {
-	v, err := parseQueryParam(r, uuid.Parse, def, queryParam)
+func (p *QueryParamParser) UUID(vals url.Values, def uuid.UUID, queryParam string) uuid.UUID {
+	v, err := parseQueryParam(vals, uuid.Parse, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, Error{
 			Field:  queryParam,
@@ -55,8 +55,8 @@ func (p *QueryParamParser) UUID(r *http.Request, def uuid.UUID, queryParam strin
 	return v
 }
 
-func (p *QueryParamParser) UUIDs(r *http.Request, def []uuid.UUID, queryParam string) []uuid.UUID {
-	v, err := parseQueryParam(r, func(v string) ([]uuid.UUID, error) {
+func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam string) []uuid.UUID {
+	v, err := parseQueryParam(vals, func(v string) ([]uuid.UUID, error) {
 		var badValues []string
 		strs := strings.Split(v, ",")
 		ids := make([]uuid.UUID, 0, len(strs))
@@ -83,8 +83,8 @@ func (p *QueryParamParser) UUIDs(r *http.Request, def []uuid.UUID, queryParam st
 	return v
 }
 
-func (p *QueryParamParser) String(r *http.Request, def string, queryParam string) string {
-	v, err := parseQueryParam(r, func(v string) (string, error) {
+func (p *QueryParamParser) String(vals url.Values, def string, queryParam string) string {
+	v, err := parseQueryParam(vals, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
 	if err != nil {
@@ -96,10 +96,10 @@ func (p *QueryParamParser) String(r *http.Request, def string, queryParam string
 	return v
 }
 
-func parseQueryParam[T any](r *http.Request, parse func(v string) (T, error), def T, queryParam string) (T, error) {
-	if !r.URL.Query().Has(queryParam) || r.URL.Query().Get(queryParam) == "" {
+func parseQueryParam[T any](vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
+	if !vals.Has(queryParam) || vals.Get(queryParam) == "" {
 		return def, nil
 	}
-	str := r.URL.Query().Get(queryParam)
+	str := vals.Get(queryParam)
 	return parse(str)
 }

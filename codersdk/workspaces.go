@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -218,11 +219,11 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 
 type WorkspaceFilter struct {
 	// Owner can be "me" or a username
-	Owner string `json:"owner,omitempty"`
+	Owner string `json:"owner,omitempty" typescript:"-"`
 	// Template is a template name
-	Template string `json:"template,omitempty"`
+	Template string `json:"template,omitempty" typescript:"-"`
 	// Name will return partial matches
-	Name string `json:"name,omitempty"`
+	Name string `json:"name,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -231,19 +232,25 @@ type WorkspaceFilter struct {
 // It modifies the request query parameters.
 func (f WorkspaceFilter) asRequestOption() requestOption {
 	return func(r *http.Request) {
-		q := r.URL.Query()
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
 		if f.Owner != "" {
-			q.Set("owner", f.Owner)
+			params = append(params, fmt.Sprintf("owner:%q", f.Owner))
 		}
 		if f.Name != "" {
-			q.Set("name", f.Name)
+			params = append(params, fmt.Sprintf("name:%q", f.Name))
 		}
 		if f.Template != "" {
-			q.Set("template", f.Template)
+			params = append(params, fmt.Sprintf("template:%q", f.Template))
 		}
 		if f.FilterQuery != "" {
-			q.Set("q", f.FilterQuery)
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
 		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
 		r.URL.RawQuery = q.Encode()
 	}
 }
