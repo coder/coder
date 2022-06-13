@@ -21,7 +21,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 )
 
@@ -37,13 +36,22 @@ type Options struct {
 	// and sent. This allows callers to still execute the API
 	// without having to check whether it's enabled.
 	Disabled          bool
+	GitHubOAuth       bool
+	Prometheus        bool
+	STUN              bool
 	SnapshotFrequency time.Duration
+	Tunnel            bool
 }
 
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
 func New(options Options) (*Reporter, error) {
+	if options.Disabled {
+		return &Reporter{
+			options: options,
+		}, nil
+	}
 	if options.SnapshotFrequency == 0 {
 		// Report six times a day by default!
 		options.SnapshotFrequency = 4 * time.Hour
@@ -87,39 +95,47 @@ type Reporter struct {
 	shutdownAt *time.Time
 }
 
-// Snapshot reports a snapshot to the telemetry server.
-// The contents of the snapshot can be a partial representation of
-// the database. For example, if a new user is added, a snapshot
-// can contain just that user entry.
-func (r *Reporter) Snapshot(ctx context.Context, snapshot *Snapshot) {
+// Report sends a snapshot to the telemetry server.
+// The contents of the snapshot can be a partial representation of the
+// database. For example, if a new user is added, a snapshot can
+// contain just that user entry.
+func (r *Reporter) Report(snapshot *Snapshot) {
 	if r.options.Disabled {
 		return
 	}
-	data, err := json.Marshal(snapshot)
-	if err != nil {
-		r.options.Logger.Error(ctx, "marshal snapshot: %w", slog.Error(err))
-		return
-	}
-	req, err := http.NewRequestWithContext(ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
-	if err != nil {
-		r.options.Logger.Error(ctx, "create request", slog.Error(err))
-		return
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// If the request fails it's not necessarily an error.
-		// In an airgapped environment, it's fine if this fails!
-		r.options.Logger.Debug(ctx, "submit", slog.Error(err))
-		return
-	}
-	if resp.StatusCode != http.StatusAccepted {
-		r.options.Logger.Debug(ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
-		return
-	}
-	r.options.Logger.Debug(ctx, "submitted snapshot")
+	snapshot.DeploymentID = r.options.DeploymentID
+
+	// Runs in a goroutine so it's non-blocking to callers!
+	go func() {
+		data, err := json.Marshal(snapshot)
+		if err != nil {
+			r.options.Logger.Error(r.ctx, "marshal snapshot: %w", slog.Error(err))
+			return
+		}
+		req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
+		if err != nil {
+			r.options.Logger.Error(r.ctx, "create request", slog.Error(err))
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			// If the request fails it's not necessarily an error.
+			// In an airgapped environment, it's fine if this fails!
+			r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
+			return
+		}
+		if resp.StatusCode != http.StatusAccepted {
+			r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
+			return
+		}
+		r.options.Logger.Debug(r.ctx, "submitted snapshot")
+	}()
 }
 
 func (r *Reporter) Close() {
+	if r.options.Disabled {
+		return
+	}
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 	if r.isClosed() {
@@ -131,7 +147,7 @@ func (r *Reporter) Close() {
 	// Report a final collection of telemetry prior to close!
 	// This could indicate final actions a user has taken, and
 	// the time the deployment was shutdown.
-	r.report()
+	r.reportWithDeployment()
 	r.closeFunc()
 }
 
@@ -163,12 +179,12 @@ func (r *Reporter) runSnapshotter() {
 			r.closeMutex.Unlock()
 			return
 		}
-		r.report()
+		r.reportWithDeployment()
 		r.closeMutex.Unlock()
 	}
 }
 
-func (r *Reporter) report() {
+func (r *Reporter) reportWithDeployment() {
 	// Submit deployment information before creating a snapshot!
 	// This is separated from the snapshot API call to reduce
 	// duplicate data from being inserted. Snapshot may be called
@@ -186,14 +202,11 @@ func (r *Reporter) report() {
 		r.options.Logger.Error(r.ctx, "create snapshot", slog.Error(err))
 		return
 	}
-	r.Snapshot(r.ctx, snapshot)
+	r.Report(snapshot)
 }
 
 // deployment collects host information and reports it to the telemetry server.
 func (r *Reporter) deployment() error {
-	if r.options.Disabled {
-		return nil
-	}
 	sysInfoHost, err := sysinfo.Host()
 	if err != nil {
 		return xerrors.Errorf("get host info: %w", err)
@@ -213,6 +226,10 @@ func (r *Reporter) deployment() error {
 		Architecture:  sysInfo.Architecture,
 		Containerized: containerized,
 		DevMode:       r.options.DevMode,
+		GitHubOAuth:   r.options.GitHubOAuth,
+		Prometheus:    r.options.Prometheus,
+		STUN:          r.options.STUN,
+		Tunnel:        r.options.Tunnel,
 		OSType:        sysInfo.OS.Type,
 		OSFamily:      sysInfo.OS.Family,
 		OSPlatform:    sysInfo.OS.Platform,
@@ -221,7 +238,6 @@ func (r *Reporter) deployment() error {
 		CPUCores:      runtime.NumCPU(),
 		MemoryTotal:   mem.Total,
 		MachineID:     sysInfo.UniqueID,
-		Version:       buildinfo.Version(),
 		StartedAt:     r.startedAt,
 		ShutdownAt:    r.shutdownAt,
 	})
@@ -277,25 +293,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.ProvisionerJobs = make([]ProvisionerJob, 0, len(jobs))
 		for _, job := range jobs {
-			snapJob := ProvisionerJob{
-				ID:             job.ID,
-				OrganizationID: job.OrganizationID,
-				InitiatorID:    job.InitiatorID,
-				CreatedAt:      job.CreatedAt,
-				UpdatedAt:      job.UpdatedAt,
-				Error:          job.Error.String,
-				Type:           job.Type,
-			}
-			if job.StartedAt.Valid {
-				snapJob.StartedAt = &job.StartedAt.Time
-			}
-			if job.CanceledAt.Valid {
-				snapJob.CanceledAt = &job.CanceledAt.Time
-			}
-			if job.CompletedAt.Valid {
-				snapJob.CompletedAt = &job.CompletedAt.Time
-			}
-			snapshot.ProvisionerJobs = append(snapshot.ProvisionerJobs, snapJob)
+			snapshot.ProvisionerJobs = append(snapshot.ProvisionerJobs, ConvertProvisionerJob(job))
 		}
 		return nil
 	})
@@ -345,6 +343,15 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get users: %w", err)
 		}
+		var firstUser database.User
+		for _, dbUser := range users {
+			if firstUser.CreatedAt.IsZero() {
+				firstUser = dbUser
+			}
+			if dbUser.CreatedAt.After(firstUser.CreatedAt) {
+				firstUser = dbUser
+			}
+		}
 		snapshot.Users = make([]User, 0, len(users))
 		for _, dbUser := range users {
 			emailHashed := ""
@@ -355,13 +362,16 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 				hash := sha256.Sum256([]byte(dbUser.Email[:atSymbol]))
 				emailHashed = fmt.Sprintf("%x%s", hash[:], dbUser.Email[atSymbol:])
 			}
-
-			snapshot.Users = append(snapshot.Users, User{
+			user := User{
 				ID:          dbUser.ID,
 				EmailHashed: emailHashed,
 				RBACRoles:   dbUser.RBACRoles,
 				CreatedAt:   dbUser.CreatedAt,
-			})
+			}
+			if firstUser.ID == dbUser.ID {
+				user.Email = dbUser.Email
+			}
+			snapshot.Users = append(snapshot.Users, user)
 		}
 		return nil
 	})
@@ -372,14 +382,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
-			snapshot.Workspaces = append(snapshot.Workspaces, Workspace{
-				ID:             dbWorkspace.ID,
-				OrganizationID: dbWorkspace.OrganizationID,
-				OwnerID:        dbWorkspace.OwnerID,
-				TemplateID:     dbWorkspace.TemplateID,
-				CreatedAt:      dbWorkspace.CreatedAt,
-				Deleted:        dbWorkspace.Deleted,
-			})
+			snapshot.Workspaces = append(snapshot.Workspaces, ConvertWorkspace(dbWorkspace))
 		}
 		return nil
 	})
@@ -390,13 +393,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.WorkspaceApps = make([]WorkspaceApp, 0, len(workspaceApps))
 		for _, app := range workspaceApps {
-			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, WorkspaceApp{
-				ID:           app.ID,
-				CreatedAt:    app.CreatedAt,
-				AgentID:      app.AgentID,
-				Icon:         app.Icon != "",
-				RelativePath: app.RelativePath,
-			})
+			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, ConvertWorkspaceApp(app))
 		}
 		return nil
 	})
@@ -407,17 +404,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.WorkspaceAgents = make([]WorkspaceAgent, 0, len(workspaceAgents))
 		for _, agent := range workspaceAgents {
-			snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, WorkspaceAgent{
-				ID:                   agent.ID,
-				CreatedAt:            agent.CreatedAt,
-				ResourceID:           agent.ResourceID,
-				InstanceAuth:         agent.AuthInstanceID.Valid,
-				Architecture:         agent.Architecture,
-				OperatingSystem:      agent.OperatingSystem,
-				EnvironmentVariables: agent.EnvironmentVariables.Valid,
-				StartupScript:        agent.StartupScript.Valid,
-				Directory:            agent.Directory != "",
-			})
+			snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, ConvertWorkspaceAgent(agent))
 		}
 		return nil
 	})
@@ -428,14 +415,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
-			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, WorkspaceBuild{
-				ID:                build.ID,
-				CreatedAt:         build.CreatedAt,
-				WorkspaceID:       build.WorkspaceID,
-				JobID:             build.JobID,
-				TemplateVersionID: build.TemplateVersionID,
-				BuildNumber:       uint32(build.BuildNumber),
-			})
+			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build))
 		}
 		return nil
 	})
@@ -446,12 +426,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.WorkspaceResources = make([]WorkspaceResource, 0, len(workspaceResources))
 		for _, resource := range workspaceResources {
-			snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, WorkspaceResource{
-				ID:         resource.ID,
-				JobID:      resource.JobID,
-				Transition: resource.Transition,
-				Type:       resource.Type,
-			})
+			snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, ConvertWorkspaceResource(resource))
 		}
 		return nil
 	})
@@ -461,6 +436,90 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		return nil, err
 	}
 	return snapshot, nil
+}
+
+// ConvertWorkspace anonymizes a workspace.
+func ConvertWorkspace(workspace database.Workspace) Workspace {
+	return Workspace{
+		ID:                workspace.ID,
+		OrganizationID:    workspace.OrganizationID,
+		OwnerID:           workspace.OwnerID,
+		TemplateID:        workspace.TemplateID,
+		CreatedAt:         workspace.CreatedAt,
+		Deleted:           workspace.Deleted,
+		AutostartSchedule: workspace.AutostartSchedule.String,
+	}
+}
+
+// ConvertWorkspaceBuild anonymizes a workspace build.
+func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
+	return WorkspaceBuild{
+		ID:                build.ID,
+		CreatedAt:         build.CreatedAt,
+		WorkspaceID:       build.WorkspaceID,
+		JobID:             build.JobID,
+		TemplateVersionID: build.TemplateVersionID,
+		BuildNumber:       uint32(build.BuildNumber),
+	}
+}
+
+// ConvertProvisionerJob anonymizes a provisioner job.
+func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
+	snapJob := ProvisionerJob{
+		ID:             job.ID,
+		OrganizationID: job.OrganizationID,
+		InitiatorID:    job.InitiatorID,
+		CreatedAt:      job.CreatedAt,
+		UpdatedAt:      job.UpdatedAt,
+		Error:          job.Error.String,
+		Type:           job.Type,
+	}
+	if job.StartedAt.Valid {
+		snapJob.StartedAt = &job.StartedAt.Time
+	}
+	if job.CanceledAt.Valid {
+		snapJob.CanceledAt = &job.CanceledAt.Time
+	}
+	if job.CompletedAt.Valid {
+		snapJob.CompletedAt = &job.CompletedAt.Time
+	}
+	return snapJob
+}
+
+// ConvertWorkspaceAgent anonymizes a workspace agent.
+func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
+	return WorkspaceAgent{
+		ID:                   agent.ID,
+		CreatedAt:            agent.CreatedAt,
+		ResourceID:           agent.ResourceID,
+		InstanceAuth:         agent.AuthInstanceID.Valid,
+		Architecture:         agent.Architecture,
+		OperatingSystem:      agent.OperatingSystem,
+		EnvironmentVariables: agent.EnvironmentVariables.Valid,
+		StartupScript:        agent.StartupScript.Valid,
+		Directory:            agent.Directory != "",
+	}
+}
+
+// ConvertWorkspaceApp anonymizes a workspace app.
+func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
+	return WorkspaceApp{
+		ID:           app.ID,
+		CreatedAt:    app.CreatedAt,
+		AgentID:      app.AgentID,
+		Icon:         app.Icon != "",
+		RelativePath: app.RelativePath,
+	}
+}
+
+// ConvertWorkspaceResource anonymizes a workspace resource.
+func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceResource {
+	return WorkspaceResource{
+		ID:         resource.ID,
+		JobID:      resource.JobID,
+		Transition: resource.Transition,
+		Type:       resource.Type,
+	}
 }
 
 // Snapshot represents a point-in-time anonymized database dump.
@@ -487,6 +546,10 @@ type Deployment struct {
 	Architecture  string     `json:"architecture"`
 	Containerized bool       `json:"containerized"`
 	DevMode       bool       `json:"dev_mode"`
+	Tunnel        bool       `json:"tunnel"`
+	GitHubOAuth   bool       `json:"github_oauth"`
+	Prometheus    bool       `json:"prometheus"`
+	STUN          bool       `json:"stun"`
 	OSType        string     `json:"os_type"`
 	OSFamily      string     `json:"os_family"`
 	OSPlatform    string     `json:"os_platform"`
@@ -495,14 +558,15 @@ type Deployment struct {
 	CPUCores      int        `json:"cpu_cores"`
 	MemoryTotal   uint64     `json:"memory_total"`
 	MachineID     string     `json:"machine_id"`
-	Version       string     `json:"version"`
 	StartedAt     time.Time  `json:"started_at"`
 	ShutdownAt    *time.Time `json:"shutdown_at"`
 }
 
 type User struct {
-	ID          uuid.UUID           `json:"uuid"`
-	CreatedAt   time.Time           `json:"created_at"`
+	ID        uuid.UUID `json:"uuid"`
+	CreatedAt time.Time `json:"created_at"`
+	// Email is only filled in for the first/admin user!
+	Email       string              `json:"email"`
 	EmailHashed string              `json:"email_hashed"`
 	RBACRoles   []string            `json:"rbac_roles"`
 	Status      database.UserStatus `json:"status"`
@@ -545,12 +609,13 @@ type WorkspaceBuild struct {
 }
 
 type Workspace struct {
-	ID             uuid.UUID `json:"id"`
-	OrganizationID uuid.UUID `json:"organization_id"`
-	OwnerID        uuid.UUID `json:"owner_id"`
-	TemplateID     uuid.UUID `json:"template_id"`
-	CreatedAt      time.Time `json:"created_at"`
-	Deleted        bool      `json:"deleted"`
+	ID                uuid.UUID `json:"id"`
+	OrganizationID    uuid.UUID `json:"organization_id"`
+	OwnerID           uuid.UUID `json:"owner_id"`
+	TemplateID        uuid.UUID `json:"template_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	Deleted           bool      `json:"deleted"`
+	AutostartSchedule string    `json:"autostart_schedule"`
 }
 
 type Template struct {

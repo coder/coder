@@ -337,6 +337,10 @@ func server() *cobra.Command {
 				URL:          telemetryURL,
 				DevMode:      dev,
 				Disabled:     !telemetryEnable,
+				GitHubOAuth:  oauth2GithubClientID != "",
+				Prometheus:   promEnabled,
+				STUN:         len(stunServers) != 0,
+				Tunnel:       tunnel,
 			})
 			if err != nil {
 				return xerrors.Errorf("create telemetry reporter: %w", err)
