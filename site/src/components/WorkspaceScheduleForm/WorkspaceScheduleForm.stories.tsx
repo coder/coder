@@ -4,7 +4,6 @@ import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import * as Mocks from "../../testHelpers/entities"
 import { defaultWorkspaceSchedule, WorkspaceScheduleForm, WorkspaceScheduleFormProps } from "./WorkspaceScheduleForm"
 
 dayjs.extend(advancedFormat)
