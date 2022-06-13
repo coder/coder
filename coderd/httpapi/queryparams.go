@@ -26,7 +26,7 @@ func NewQueryParamParser() *QueryParamParser {
 	}
 }
 
-func (p *QueryParamParser) Integer(r *http.Request, def int, queryParam string) int {
+func (p *QueryParamParser) Int(r *http.Request, def int, queryParam string) int {
 	v, err := parse(r, strconv.Atoi, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, Error{

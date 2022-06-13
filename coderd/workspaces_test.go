@@ -426,7 +426,7 @@ func TestWorkspaceFilter(t *testing.T) {
 		{
 			Name: "Owner",
 			Filter: codersdk.WorkspaceFilter{
-				Owner: users[must(cryptorand.Intn(len(users)))].User.Username,
+				Owner: users[2].User.Username,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
 				return workspace.Owner.Username == f.Owner

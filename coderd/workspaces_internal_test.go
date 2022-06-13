@@ -1,9 +1,8 @@
-package coderd_test
+package coderd
 
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd"
 	"github.com/stretchr/testify/require"
 )
 
@@ -124,7 +123,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, err := coderd.WorkspaceSearchQuery(c.Query)
+			values, err := workspaceSearchQuery(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.Error(t, err, "expected error")
 				require.ErrorContains(t, err, c.ExpectedErrorContains)
