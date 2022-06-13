@@ -58,6 +58,18 @@ func TestParseCLISchedule(t *testing.T) {
 			tzEnv:            "UTC",
 		},
 		{
+			name:             "LazyTime",
+			input:            []string{"9am", "America/Chicago"},
+			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * *",
+			tzEnv:            "UTC",
+		},
+		{
+			name:             "ZeroPrefixedLazyTime",
+			input:            []string{"09am", "America/Chicago"},
+			expectedSchedule: "CRON_TZ=America/Chicago 0 9 * * *",
+			tzEnv:            "UTC",
+		},
+		{
 			name:          "InvalidTime",
 			input:         []string{"nine"},
 			expectedError: errInvalidTimeFormat.Error(),

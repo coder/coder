@@ -24,32 +24,18 @@ const cmdTimezone = "[Windows.Globalization.Calendar,Windows.Globalization,Conte
 // is used instead to get the current time location in IANA format.
 // Reference: https://superuser.com/a/1584968
 func TimezoneIANA() (*time.Location, error) {
-	if tzEnv, found := os.LookupEnv("TZ"); found {
-		if tzEnv == "" {
-			return time.UTC, nil
-		}
-		loc, err := time.LoadLocation(tzEnv)
-		if err != nil {
-			return nil, xerrors.Errorf("load location from TZ env: %w", err)
-		}
+	loc, err := locationFromEnv()
+	if err == nil {
 		return loc, nil
+	}
+	if !xerrors.Is(err, errNoEnvSet) {
+		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
 	}
 
 	// https://superuser.com/a/1584968
 	cmd := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, xerrors.Errorf("run powershell: %w", err)
-	}
-
-	done := make(chan struct{})
-	go func() {
-		defer stdin.Close()
-		defer close(done)
-		_, _ = fmt.Fprintln(stdin, cmdTimezone)
-	}()
-
-	<-done
+	// Powershell echoes its stdin so write a newline
+	cmd.Stdin = strings.NewReader(cmdTimezone + "\n")
 
 	outBytes, err := cmd.CombinedOutput()
 	if err != nil {
@@ -62,7 +48,7 @@ func TimezoneIANA() (*time.Location, error) {
 	}
 	// What we want is the second line of output
 	locStr := strings.TrimSpace(outLines[1])
-	loc, err := time.LoadLocation(locStr)
+	loc, err = time.LoadLocation(locStr)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid location %q from powershell: %w", locStr, err)
 	}

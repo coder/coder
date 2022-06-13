@@ -3,7 +3,6 @@
 package tz
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -22,16 +21,12 @@ const zoneInfoPath = "/usr/share/zoneinfo"
 // is used instead to get the current time location in IANA format.
 // Reference: https://superuser.com/a/1584968
 func TimezoneIANA() (*time.Location, error) {
-	if tzEnv, found := os.LookupEnv("TZ"); found {
-		// TZ set but empty means UTC.
-		if tzEnv == "" {
-			return time.UTC, nil
-		}
-		loc, err := time.LoadLocation(tzEnv)
-		if err != nil {
-			return nil, xerrors.Errorf("load location from TZ env: %w", err)
-		}
+	loc, err := locationFromEnv()
+	if err == nil {
 		return loc, nil
+	}
+	if !xerrors.Is(err, errNoEnvSet) {
+		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
 	}
 
 	lp, err := filepath.EvalSymlinks(etcLocaltime)
@@ -41,7 +36,7 @@ func TimezoneIANA() (*time.Location, error) {
 
 	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
 	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
-	loc, err := time.LoadLocation(stripped)
+	loc, err = time.LoadLocation(stripped)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
 	}

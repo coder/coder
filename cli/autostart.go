@@ -15,7 +15,7 @@ import (
 )
 
 const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
-When enabling autostart, enter a schedule in the format: start-time [day-of-week] [location].
+When enabling autostart, enter a schedule in the format: <start-time> [day-of-week] [location].
   * Start-time (required) is accepted either in 12-hour (hh:mm{am|pm}) format, or 24-hour format hh:mm.
   * Day-of-week (optional) allows specifying in the cron format, e.g. 1,3,5 or Mon-Fri.
     Aliases such as @daily are not supported.
@@ -225,12 +225,13 @@ func parseTime(s string) (time.Time, error) {
 	// Try a number of possible layouts.
 	for _, layout := range []string{
 		time.Kitchen, // 03:04PM
+		"03:04pm",
+		"3:04PM",
+		"3:04pm",
 		"15:04",
 		"1504",
-		"3pm",
-		"3PM",
-		"3:04pm",
-		"3:04PM",
+		"03PM",
+		"03pm",
 	} {
 		t, err := time.Parse(layout, s)
 		if err == nil {
