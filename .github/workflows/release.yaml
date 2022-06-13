@@ -99,11 +99,6 @@ jobs:
         with:
           go-version: "~1.18"
 
-      - name: Install gon
-        run: |
-          brew tap mitchellh/gon
-          brew install mitchellh/gon/gon
-
       - name: Import Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v1
         with:
@@ -121,10 +116,20 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: Install make
+      - name: Install dependencies
         run: |
+          brew install bash
+
           brew install make
           echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+
+          brew tap mitchellh/gon
+          brew install mitchellh/gon/gon
+
+      - name: which bash
+        run: |
+          which bash
+          echo "$0"
 
       - name: Build Site
         run: make site/out/index.html
