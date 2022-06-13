@@ -128,6 +128,9 @@ jobs:
           brew install make
           echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
 
+          brew install gnu-getopt
+          echo "$(brew --prefix)/opt/gnu-getopt/bin" >> $GITHUB_PATH
+
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
 

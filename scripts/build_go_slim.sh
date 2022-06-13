@@ -17,6 +17,7 @@
 # they can be packaged into non-slim binaries correctly.
 
 set -euo pipefail
+shopt -s nullglob
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
