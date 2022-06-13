@@ -23,3 +23,21 @@ UsedByMany.args = {
   },
   activeVersion: Mocks.MockTemplateVersion,
 }
+
+export const LongTemplateVersion = Template.bind({})
+LongTemplateVersion.args = {
+  template: Mocks.MockTemplate,
+  activeVersion: {
+    ...Mocks.MockTemplateVersion,
+    name: "thisisareallyreallylongnamefortesting",
+  },
+}
+
+export const SmallViewport = Template.bind({})
+SmallViewport.args = {
+  template: Mocks.MockTemplate,
+  activeVersion: Mocks.MockTemplateVersion,
+}
+SmallViewport.parameters = {
+  chromatic: { viewports: [480, 1200] },
+}
