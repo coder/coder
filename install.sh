@@ -397,7 +397,7 @@ install_standalone() {
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
 	if [ -f "$COPY_LOCATION" ]; then
-    	"$sh_c" rm $COPY_LOCATION
+		"$sh_c" rm "$COPY_LOCATION"
 	fi
 
 	# Copy the binary to the correct location.
