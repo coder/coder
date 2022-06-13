@@ -109,10 +109,19 @@ fi
 
 # Parse the os:arch specs into an array.
 specs=()
+may_zip=0
+may_tar=0
 for spec in "$@"; do
 	spec_os="$(echo "$spec" | cut -d ":" -f 1)"
 	if [[ "$spec_os" == "" ]] || [[ "$spec_os" == *" "* ]]; then
 		error "Could not parse matrix build spec '$spec': invalid OS '$spec_os'"
+	fi
+
+	# Determine which dependencies we need.
+	if [[ "$spec_os" == "windows" ]] || [[ "$spec_os" == "darwin" ]]; then
+		may_zip=1
+	else
+		may_tar=1
 	fi
 
 	# No quoting is important here.
@@ -131,6 +140,33 @@ specs=()
 for s in $(echo "$specs_str" | tr " " "\n" | awk '!a[$0]++'); do
 	specs+=("$s")
 done
+
+# Check dependencies
+if ! command -v go; then
+	error "The 'go' binary is required."
+fi
+if [[ "$sign_darwin" == 1 ]]; then
+	if ! command -v jq; then
+		error "The 'jq' binary is required."
+	fi
+	if ! command -v codesign; then
+		error "The 'codesign' binary is required."
+	fi
+	if ! command -v gon; then
+		error "The 'gon' binary is required."
+	fi
+fi
+if [[ "$archive" == 1 ]]; then
+	if [[ "$may_zip" == 1 ]] && ! command -v zip; then
+		error "The 'zip' binary is required."
+	fi
+	if [[ "$may_tar" == 1 ]] && ! command -v tar; then
+		error "The 'zip' binary is required."
+	fi
+fi
+if [[ "$package_linux" == 1 ]] && ! command -v nfpm; then
+	error "The 'nfpm' binary is required."
+fi
 
 build_args=()
 if [[ "$slim" == 1 ]]; then

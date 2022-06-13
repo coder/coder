@@ -72,6 +72,25 @@ if [[ ! -f "$1" ]]; then
 fi
 input_file="$(realpath "$1")"
 
+# Check dependencies
+if [[ "$format" == "zip" ]] && ! command -v zip; then
+	error "The 'zip' binary is required."
+fi
+if [[ "$format" == "tar.gz" ]] && ! command -v tar; then
+	error "The 'tar' binary is required."
+fi
+if [[ "$sign_darwin" == 1 ]]; then
+	if ! command -v jq; then
+		error "The 'jq' binary is required."
+	fi
+	if ! command -v codesign; then
+		error "The 'codesign' binary is required."
+	fi
+	if ! command -v gon; then
+		error "The 'gon' binary is required."
+	fi
+fi
+
 # Determine default output path.
 if [[ "$output_path" == "" ]]; then
 	output_path="${input_file%.exe}"

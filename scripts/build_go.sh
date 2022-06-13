@@ -79,6 +79,22 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
+# Check dependencies
+if ! command -v go; then
+	error "The 'go' binary is required."
+fi
+if [[ "$sign_darwin" == 1 ]]; then
+	if ! command -v jq; then
+		error "The 'jq' binary is required."
+	fi
+	if ! command -v codesign; then
+		error "The 'codesign' binary is required."
+	fi
+	if ! command -v gon; then
+		error "The 'gon' binary is required."
+	fi
+fi
+
 build_args=(
 	-ldflags "-s -w -X 'github.com/coder/coder/buildinfo.tag=$version'"
 )

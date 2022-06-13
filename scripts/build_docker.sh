@@ -56,6 +56,11 @@ if [[ "$arch" == "" ]]; then
 	error "The --arch parameter is required"
 fi
 
+# Check dependencies
+if ! command -v docker; then
+	error "The 'docker' binary is required."
+fi
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then

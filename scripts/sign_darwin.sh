@@ -20,6 +20,17 @@ if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
 	error "AC_APPLICATION_IDENTITY must be set for ./sign_darwin.sh"
 fi
 
+# Check dependencies
+if ! command -v jq; then
+	error "The 'jq' binary is required."
+fi
+if ! command -v codesign; then
+	error "The 'codesign' binary is required."
+fi
+if ! command -v gon; then
+	error "The 'gon' binary is required."
+fi
+
 # Create the gon config.
 config="$(mktemp -d)/gon.json"
 jq -r --null-input --arg path "$(pwd)/$1" '{

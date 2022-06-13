@@ -50,6 +50,11 @@ if [[ ! -f "$1" ]]; then
 fi
 input_file="$(realpath "$1")"
 
+# Check dependencies
+if ! command -v nfpm; then
+	error "The 'nfpm' binary is required."
+fi
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then

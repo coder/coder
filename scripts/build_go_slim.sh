@@ -45,6 +45,11 @@ while true; do
 	esac
 done
 
+# Check dependencies
+if ! command -v go; then
+	error "The 'go' binary is required."
+fi
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then

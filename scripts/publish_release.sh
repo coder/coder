@@ -50,6 +50,11 @@ while true; do
 	esac
 done
 
+# Check dependencies
+if ! command -v gh; then
+	error "The 'gh' binary is required."
+fi
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then

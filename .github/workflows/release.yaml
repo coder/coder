@@ -49,6 +49,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
       - name: Build Site
         run: make site/out/index.html
 

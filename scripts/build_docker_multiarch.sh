@@ -44,14 +44,19 @@ while true; do
 	esac
 done
 
+if [[ "$#" == 0 ]]; then
+	error "At least one argument must be provided to this script, $# were supplied"
+fi
+
+# Check dependencies
+if ! command -v docker; then
+	error "The 'docker' binary is required."
+fi
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
-fi
-
-if [[ "$#" == 0 ]]; then
-	error "At least one argument must be provided to this script, $# were supplied"
 fi
 
 create_args=()
