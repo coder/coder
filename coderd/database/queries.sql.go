@@ -1797,7 +1797,7 @@ type InsertTemplateParams struct {
 	Description          string          `db:"description" json:"description"`
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
-	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
+	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
