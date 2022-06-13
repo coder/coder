@@ -28,10 +28,10 @@ When enabling autostart, enter a schedule in the format: <start-time> [day-of-we
 func autostart() *cobra.Command {
 	autostartCmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "autostart enable <workspace>",
+		Use:         "autostart set <workspace> <start-time> [day-of-week] [location]",
 		Short:       "schedule a workspace to automatically start at a regular time",
 		Long:        autostartDescriptionLong,
-		Example:     "coder autostart set my-workspace Mon-Fri 9:30AM Europe/Dublin",
+		Example:     "coder autostart set my-workspace 9:30AM Mon-Fri Europe/Dublin",
 	}
 
 	autostartCmd.AddCommand(autostartShow())
