@@ -85,7 +85,7 @@ func (e executor) execParseJSON(ctx context.Context, args, env []string, v inter
 }
 
 func (e executor) checkMinVersion(ctx context.Context) error {
-	v, err := e.getVersion(ctx)
+	v, err := e.version(ctx)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-func (e executor) getVersion(ctx context.Context) (*version.Version, error) {
+func (e executor) version(ctx context.Context) (*version.Version, error) {
 	// #nosec
 	cmd := exec.CommandContext(ctx, e.binaryPath, "version", "-json")
 	out, err := cmd.Output()
@@ -234,7 +234,7 @@ func (e executor) apply(ctx context.Context, env, vars []string, logger provisio
 }
 
 func (e executor) stateResources(ctx context.Context) ([]*proto.Resource, error) {
-	state, err := e.getState(ctx)
+	state, err := e.state(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -252,12 +252,12 @@ func (e executor) stateResources(ctx context.Context) ([]*proto.Resource, error)
 	return resources, nil
 }
 
-func (e executor) getState(ctx context.Context) (*tfjson.State, error) {
+func (e executor) state(ctx context.Context) (*tfjson.State, error) {
 	args := []string{"show", "-json"}
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, args, e.basicEnv(), state)
 	if err != nil {
-		return nil, xerrors.Errorf("get terraform state: %w", err)
+		return nil, xerrors.Errorf("terraform show state: %w", err)
 	}
 	return state, nil
 }
