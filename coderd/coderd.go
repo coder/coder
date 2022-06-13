@@ -13,6 +13,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
@@ -352,16 +353,7 @@ func New(options *Options) *API {
 		})
 	})
 
-	cmp := middleware.NewCompressor(5,
-		"text/*",
-		"application/*",
-		"image/*",
-	)
-	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
-		return brotli.NewWriterLevel(w, level)
-	})
-
-	r.NotFound(cmp.Handler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
+	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
 
@@ -391,4 +383,24 @@ func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(rw, r)
 		})
 	}
+}
+
+func compressHandler(h http.Handler) http.Handler {
+	cmp := middleware.NewCompressor(5,
+		"text/*",
+		"application/*",
+		"image/*",
+	)
+	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
+		return brotli.NewWriterLevel(w, level)
+	})
+	cmp.SetEncoder("zstd", func(w io.Writer, level int) io.Writer {
+		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			panic("invalid zstd compressor: " + err.Error())
+		}
+		return zw
+	})
+
+	return cmp.Handler(h)
 }
