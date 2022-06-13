@@ -17,7 +17,6 @@ import { useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { FieldErrors } from "../../api/errors"
-import { Workspace } from "../../api/typesGenerated"
 import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -58,10 +57,8 @@ export interface WorkspaceScheduleFormProps {
   fieldErrors?: FieldErrors
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
-  now?: dayjs.Dayjs
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
-  workspace: Workspace
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -184,10 +181,8 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
   initialValues = defaultWorkspaceSchedule(),
   isLoading,
-  now = dayjs(),
   onCancel,
   onSubmit,
-  workspace,
 }) => {
   const styles = useStyles()
 
@@ -285,8 +280,9 @@ export const ttlShutdownAt = (formTTL: number): string => {
   if (formTTL === 0) {
     return Language.ttlCausesNoShutdownHelperText
   } else {
-    return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${Language.ttlCausesShutdownAfterStart
-      }.`
+    return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${
+      Language.ttlCausesShutdownAfterStart
+    }.`
   }
 }
 
