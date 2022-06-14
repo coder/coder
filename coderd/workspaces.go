@@ -319,8 +319,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	if !dbTTL.Valid {
-		// Default to template maximum when creating a new workspace
-		dbTTL = sql.NullInt64{Valid: true, Int64: template.MaxTtl}
+		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
+		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(12*time.Hour))}
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -939,4 +939,11 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 		Valid:  true,
 		String: *s,
 	}, nil
+}
+
+func min(x, y int64) int64 {
+	if x < y {
+		return x
+	}
+	return y
 }
