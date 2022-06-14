@@ -247,11 +247,7 @@ export interface Template {
   readonly description: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
-<<<<<<< HEAD
-  readonly created_by_id?: string
-=======
   readonly created_by_id: string
->>>>>>> main
   readonly created_by_name: string
 }
 

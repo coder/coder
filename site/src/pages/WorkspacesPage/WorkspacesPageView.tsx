@@ -34,15 +34,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-<<<<<<< HEAD
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
-=======
-} from "../../components/HelpTooltip/HelpTooltip"
-import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
->>>>>>> main
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 
@@ -138,21 +130,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
 
   return (
     <Margins>
-<<<<<<< HEAD
-      <PageHeader
-        actions={
-          <PageHeaderText>
-            Create a new workspace from a{" "}
-            <Link component={RouterLink} to="/templates">
-              template
-            </Link>
-            .
-          </PageHeaderText>
-        }
-      >
-=======
       <PageHeader>
->>>>>>> main
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>Workspaces</span>
