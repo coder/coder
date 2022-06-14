@@ -59,6 +59,21 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
+# realpath-ify all input files so we can cdroot below.
+files=()
+for f in "$@"; do
+	if [[ ! -e "$f" ]]; then
+		error "File not found: $f"
+	fi
+	files+=("$(realpath "$f")")
+done
+if [[ "${#files[@]}" == 0 ]]; then
+	error "No files supplied"
+fi
+
+# The git commands need to be executed from within the repository.
+cdroot
+
 # Verify that we're currently checked out on the supplied tag.
 new_tag="v$version"
 if [[ "$(git describe --always)" != "$new_tag" ]]; then
@@ -80,24 +95,26 @@ if [[ "$dry_run" == 1 ]]; then
 fi
 
 # Craft the release notes.
+changelog="$(git log --no-merges --pretty=format:"- %h %s" "$changelog_range")"
+image_tag="$(execrelative ./image_tag.sh --version "$version")"
 release_notes="
 ## Changelog
 
-$(git log --no-merges --pretty=format:"- %h %s" "$changelog_range")
+$changelog
 
 ## Container Image
-- \`docker pull $(execrelative ./image_tag.sh --version "$version")\`
+- \`docker pull $image_tag\`
 
 "
 
-# Create temporary release folder so we can generate checksums.
+# Create temporary release folder so we can generate checksums. Both the
+# sha256sum and gh binaries support symlinks as input files so this works well.
 temp_dir="$(mktemp -d)"
-for f in "$@"; do
-	ln -s "$(realpath "$f")" "$temp_dir/"
+for f in "${files[@]}"; do
+	ln -s "$f" "$temp_dir/"
 done
 
-# Generate checksums file. sha256sum seems to play nicely with symlinks so this
-# works well.
+# Generate checksums file which will be uploaded to the GitHub release.
 pushd "$temp_dir"
 sha256sum ./* | sed -e 's/\.\///' - >"coder_${version}_checksums.txt"
 popd
@@ -116,8 +133,6 @@ log
 
 # We echo the release notes in instead of writing to a file and referencing that
 # to prevent GitHub CLI from becoming interactive.
-#
-# GitHub CLI seems to follow symlinks when uploading files.
 echo "$release_notes" |
 	maybedryrun "$dry_run" gh release create \
 		--title "$new_tag" \
