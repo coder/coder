@@ -67,6 +67,7 @@ type ProvisionerJob struct {
 	Error       string               `json:"error,omitempty"`
 	Status      ProvisionerJobStatus `json:"status"`
 	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
+	SourceHash  string
 }
 
 type ProvisionerJobLog struct {
