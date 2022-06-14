@@ -17,7 +17,7 @@ const WorkspacesPage: FC = () => {
     const query = filter !== null ? filter : workspaceFilterQuery.me
 
     send({
-      type: "SET_FILTER",
+      type: "GET_WORKSPACES",
       query,
     })
   }, [searchParams, send])

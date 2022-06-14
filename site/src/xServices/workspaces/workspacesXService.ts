@@ -16,9 +16,14 @@ interface WorkspaceItemContext {
   updatedTemplate?: TypesGen.Template
 }
 
-type WorkspaceItemEvent = {
-  type: "UPDATE_VERSION"
-}
+type WorkspaceItemEvent =
+  | {
+      type: "UPDATE_VERSION"
+    }
+  | {
+      type: "UPDATE_DATA"
+      data: TypesGen.Workspace
+    }
 
 export const workspaceItemMachine = createMachine(
   {
@@ -40,6 +45,7 @@ export const workspaceItemMachine = createMachine(
     },
     tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
     type: "parallel",
+
     states: {
       updateVersion: {
         initial: "idle",
@@ -53,6 +59,9 @@ export const workspaceItemMachine = createMachine(
                 // don't need to display an extra spinner.
                 actions: ["assignQueuedStatus", "displayUpdatingVersionMessage"],
               },
+              UPDATE_DATA: {
+                actions: "assignUpdatedData",
+              },
             },
           },
           gettingUpdatedTemplate: {
@@ -64,7 +73,7 @@ export const workspaceItemMachine = createMachine(
                 target: "restartingWorkspace",
               },
               onError: {
-                target: "error",
+                target: "idle",
                 actions: "displayUpdateVersionError",
               },
             },
@@ -78,7 +87,7 @@ export const workspaceItemMachine = createMachine(
                 target: "waitingToBeUpdated",
               },
               onError: {
-                target: "error",
+                target: "idle",
                 actions: "displayUpdateVersionError",
               },
             },
@@ -99,17 +108,11 @@ export const workspaceItemMachine = createMachine(
                   actions: ["assignUpdatedData"],
                 },
                 {
-                  target: "success",
+                  target: "idle",
                   actions: ["assignUpdatedData", "displayUpdatedSuccessMessage"],
                 },
               ],
             },
-          },
-          error: {
-            type: "final",
-          },
-          success: {
-            type: "final",
           },
         },
       },
@@ -187,7 +190,7 @@ interface WorkspacesContext {
   getWorkspacesError?: Error | unknown
 }
 
-type WorkspacesEvent = { type: "SET_FILTER"; query: string } | { type: "UPDATE_VERSION"; workspaceId: string }
+type WorkspacesEvent = { type: "GET_WORKSPACES"; query: string } | { type: "UPDATE_VERSION"; workspaceId: string }
 
 export const workspacesMachine = createMachine(
   {
@@ -201,42 +204,54 @@ export const workspacesMachine = createMachine(
         }
       },
     },
-    id: "workspaceState",
-    initial: "ready",
-    states: {
-      ready: {
-        on: {
-          SET_FILTER: "extractingFilter",
-          UPDATE_VERSION: {
-            actions: "triggerUpdateVersion",
-          },
-        },
+    id: "workspacesState",
+    on: {
+      GET_WORKSPACES: {
+        actions: "assignFilter",
+        target: "gettingWorkspaces",
       },
-      extractingFilter: {
-        entry: "assignFilter",
-        always: {
-          target: "gettingWorkspaces",
-        },
+      UPDATE_VERSION: {
+        actions: "triggerUpdateVersion",
+      },
+    },
+    initial: "idle",
+    states: {
+      idle: {
+        tags: ["loading"],
       },
       gettingWorkspaces: {
         entry: "clearGetWorkspacesError",
         invoke: {
           src: "getWorkspaces",
           id: "getWorkspaces",
-          onDone: {
-            target: "ready",
-            actions: ["assignWorkspaceRefs", "clearGetWorkspacesError"],
-          },
+          onDone: [
+            {
+              target: "waitToRefreshWorkspaces",
+              actions: ["assignWorkspaceRefs"],
+              cond: "isEmpty",
+            },
+            {
+              target: "waitToRefreshWorkspaces",
+              actions: ["updateWorkspaceRefs"],
+            },
+          ],
           onError: {
-            target: "ready",
-            actions: ["assignGetWorkspacesError", "clearWorkspaces"],
+            target: "waitToRefreshWorkspaces",
+            actions: ["assignGetWorkspacesError"],
           },
         },
-        tags: "loading",
+      },
+      waitToRefreshWorkspaces: {
+        after: {
+          5000: "gettingWorkspaces",
+        },
       },
     },
   },
   {
+    guards: {
+      isEmpty: (context) => !context.workspaceRefs,
+    },
     actions: {
       assignWorkspaceRefs: assign({
         workspaceRefs: (_, event) =>
@@ -251,7 +266,6 @@ export const workspacesMachine = createMachine(
         getWorkspacesError: (_, event) => event.data,
       }),
       clearGetWorkspacesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
-      clearWorkspaces: (context) => assign({ ...context, workspaces: undefined }),
       triggerUpdateVersion: (context, event) => {
         const workspaceRef = context.workspaceRefs?.find((ref) => ref.id === event.workspaceId)
 
@@ -261,6 +275,44 @@ export const workspacesMachine = createMachine(
 
         workspaceRef.send("UPDATE_VERSION")
       },
+      updateWorkspaceRefs: assign({
+        workspaceRefs: (context, event) => {
+          let workspaceRefs = context.workspaceRefs
+
+          if (!workspaceRefs) {
+            throw new Error("No workspaces loaded.")
+          }
+
+          // Update the existent workspaces or create the new ones
+          for (const data of event.data) {
+            const ref = workspaceRefs.find((ref) => ref.id === data.id)
+
+            if (!ref) {
+              workspaceRefs.push(spawn(workspaceItemMachine.withContext({ data }), data.id))
+            } else {
+              ref.send({ type: "UPDATE_DATA", data })
+            }
+          }
+
+          // Remove workspaces that were deleted
+          for (const ref of workspaceRefs) {
+            const refData = event.data.find((workspaceData) => workspaceData.id === ref.id)
+
+            // If there is no refData, it is because the workspace was deleted
+            if (!refData) {
+              // Stop the actor before remove it from the array
+              if (ref.stop) {
+                ref.stop()
+              }
+
+              // Remove ref from the array
+              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id === ref.id)
+            }
+          }
+
+          return workspaceRefs
+        },
+      }),
     },
     services: {
       getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
