@@ -2,9 +2,15 @@ import { ActorRefFrom, assign, createMachine, spawn } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displayMsg } from "../../components/GlobalSnackbar/utils"
+import { displayError, displayMsg, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { workspaceQueryToFilter } from "../../util/workspace"
 
+/**
+ * Workspace item machine
+ *
+ * It is used to control the state and actions of each workspace in the
+ * workspaces page view
+ **/
 interface WorkspaceItemContext {
   data: TypesGen.Workspace
   updatedTemplate?: TypesGen.Template
@@ -30,18 +36,22 @@ export const workspaceItemMachine = createMachine(
       },
     },
     tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
-    initial: "idle",
+    type: "parallel",
     states: {
-      idle: {
-        on: {
-          UPDATE_VERSION: "updatingVersion",
-        },
-      },
-      updatingVersion: {
-        entry: "displayUpdatingVersionMessage",
-        initial: "gettingUpdatedTemplate",
-        onDone: "idle",
+      updateVersion: {
+        initial: "idle",
         states: {
+          idle: {
+            on: {
+              UPDATE_VERSION: {
+                target: "gettingUpdatedTemplate",
+                // We can improve the UI by optimistically updating the workspace status
+                // to "Queued" so the UI can display the updated state right away and we
+                // don't need to display an extra spinner.
+                actions: ["assignQueuedStatus", "displayUpdatingVersionMessage"],
+              },
+            },
+          },
           gettingUpdatedTemplate: {
             invoke: {
               id: "getTemplate",
@@ -62,12 +72,33 @@ export const workspaceItemMachine = createMachine(
               src: "startWorkspace",
               onDone: {
                 actions: "assignLatestBuild",
-                target: "success",
+                target: "waitingToBeUpdated",
               },
               onError: {
                 target: "error",
                 actions: "displayUpdateVersionError",
               },
+            },
+          },
+          waitingToBeUpdated: {
+            after: {
+              5000: "gettingUpdatedWorkspaceData",
+            },
+          },
+          gettingUpdatedWorkspaceData: {
+            invoke: {
+              id: "getWorkspace",
+              src: "getWorkspace",
+              onDone: [
+                {
+                  target: "waitingToBeUpdated",
+                  cond: "isOutdated",
+                },
+                {
+                  target: "success",
+                  actions: "displayUpdatedSuccessMessage",
+                },
+              ],
             },
           },
           error: {
@@ -81,6 +112,9 @@ export const workspaceItemMachine = createMachine(
     },
   },
   {
+    guards: {
+      isOutdated: (ctx) => !ctx.data.outdated,
+    },
     services: {
       getTemplate: (context) => API.getTemplate(context.data.template_id),
       startWorkspace: (context) => {
@@ -108,15 +142,38 @@ export const workspaceItemMachine = createMachine(
         displayError(message)
       },
       displayUpdatingVersionMessage: () => {
-        displayMsg("Updating workspace version", "When it is done, the workspace will be updated in the list.")
+        displayMsg("Updating your workspace", "It will be running in a few seconds.")
+      },
+      assignQueuedStatus: assign({
+        data: (ctx) => {
+          return {
+            ...ctx.data,
+            latest_build: {
+              ...ctx.data.latest_build,
+              job: {
+                ...ctx.data.latest_build.job,
+                status: "pending" as TypesGen.ProvisionerJobStatus,
+              },
+            },
+          }
+        },
+      }),
+      displayUpdatedSuccessMessage: () => {
+        displaySuccess("Workspace updated successfully.")
       },
     },
   },
 )
 
+/**
+ * Workspaces machine
+ *
+ * It is used to control the state of the workspace list
+ **/
+
 export type WorkspaceItemMachineRef = ActorRefFrom<typeof workspaceItemMachine>
 
-interface WorkspaceContext {
+interface WorkspacesContext {
   workspaceRefs?: WorkspaceItemMachineRef[]
   filter?: string
   getWorkspacesError?: Error | unknown
@@ -128,7 +185,7 @@ export const workspacesMachine = createMachine(
   {
     tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
     schema: {
-      context: {} as WorkspaceContext,
+      context: {} as WorkspacesContext,
       events: {} as WorkspacesEvent,
       services: {} as {
         getWorkspaces: {
