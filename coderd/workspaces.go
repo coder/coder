@@ -29,6 +29,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const workspaceDefaultTTL = 12 * time.Hour
+
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
@@ -320,7 +322,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	if !dbTTL.Valid {
 		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
-		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(12*time.Hour))}
+		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(workspaceDefaultTTL))}
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{

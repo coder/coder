@@ -111,10 +111,12 @@ func ttlset() *cobra.Command {
 			nextShutdown := sched.Next(time.Now()).Add(truncated).In(sched.Location())
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down at %s on %s (%s after start).\n",
 				workspace.Name,
-				nextShutdown.Format("15:04:05 MST"),
-				nextShutdown.Format("2006-02-01"),
+				nextShutdown.Format(timeFormat),
+				nextShutdown.Format(dateFormat),
 				truncated,
 			)
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "NOTE: this will only take effect the next time the workspace is started.\n")
 			return nil
 		},
 	}

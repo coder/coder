@@ -58,8 +58,9 @@ func bump() *cobra.Command {
 
 			_, _ = fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"Workspace %q will now stop at %s\n", workspace.Name,
-				newDeadline.Format(time.RFC822),
+				"Workspace %q will now stop at %s on %s\n", workspace.Name,
+				newDeadline.Format(timeFormat),
+				newDeadline.Format(dateFormat),
 			)
 
 			return nil
