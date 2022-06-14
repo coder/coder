@@ -76,6 +76,14 @@ type Error struct {
 	Detail string `json:"detail" validate:"required"`
 }
 
+// ResourceNotFound is intentionally vague. All 404 responses should be identical
+// to prevent leaking existence of resources.
+func ResourceNotFound(rw http.ResponseWriter) {
+	Write(rw, http.StatusNotFound, Response{
+		Message: "Resource not found or you do not have access to this resource",
+	})
+}
+
 func Forbidden(rw http.ResponseWriter) {
 	Write(rw, http.StatusForbidden, Response{
 		Message: "Forbidden.",
