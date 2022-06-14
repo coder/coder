@@ -57,10 +57,11 @@ jobs:
 
       - name: Build Linux and Windows Binaries
         run: |
+          go mod download
+
           mkdir -p ./dist
           # build slim binaries
           ./scripts/build_go_slim.sh \
-            --version "$(VERSION)" \
             --output ./dist/ \
             linux:amd64,armv7,arm64 \
             windows:amd64,arm64 \
@@ -138,10 +139,11 @@ jobs:
 
       - name: Build darwin Binaries (with signatures)
         run: |
+          go mod download
+
           mkdir -p ./dist
           # build slim binaries
           ./scripts/build_go_slim.sh \
-            --version "$(VERSION)" \
             --output ./dist/ \
             linux:amd64,armv7,arm64 \
             windows:amd64,arm64 \

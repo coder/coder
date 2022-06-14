@@ -55,4 +55,4 @@ if [[ "$arch" != "" ]]; then
 fi
 
 tag="${tag//+/-}"
-echo -n "$image:$tag"
+echo "$image:$tag"

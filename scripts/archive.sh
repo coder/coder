@@ -124,4 +124,4 @@ if [[ "$sign_darwin" == 1 ]]; then
 	execrelative ./sign_darwin.sh "$output_path"
 fi
 
-echo -n "$output_path"
+echo "$output_path"

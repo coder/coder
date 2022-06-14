@@ -74,4 +74,4 @@ if [[ "$push" == 1 ]]; then
 	docker push "$output_tag"
 fi
 
-echo -n "$output_tag"
+echo "$output_tag"

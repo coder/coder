@@ -111,4 +111,4 @@ if [[ "$push" == 1 ]]; then
 	docker push "$image_tag"
 fi
 
-echo -n "$image_tag"
+echo "$image_tag"

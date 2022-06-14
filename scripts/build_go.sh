@@ -123,4 +123,4 @@ if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
 	codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
 fi
 
-echo -n "$output_path"
+echo "$output_path"

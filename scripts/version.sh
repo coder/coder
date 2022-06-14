@@ -34,4 +34,4 @@ if [[ "$last_tag" != "$current" ]]; then
 fi
 
 # Remove the "v" prefix.
-echo -n "${version#v}"
+echo "${version#v}"
