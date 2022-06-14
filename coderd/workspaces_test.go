@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -296,7 +295,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		// Then:
 		// When we call without includes_deleted, we don't expect to get the workspace back
 		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
-		require.ErrorContains(t, err, "403")
+		require.ErrorContains(t, err, "404")
 
 		// Then:
 		// When we call with includes_deleted, we should get the workspace back
@@ -860,7 +859,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})
 }
 
@@ -975,7 +974,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})
 }
 

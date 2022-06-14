@@ -178,7 +178,7 @@ func TestTTL(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 404:", "unexpected error")
 	})
 
 	t.Run("Unset_NotFound", func(t *testing.T) {
@@ -195,7 +195,7 @@ func TestTTL(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 404:", "unexpected error")
 	})
 
 	t.Run("TemplateMaxTTL", func(t *testing.T) {

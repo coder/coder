@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/database"
@@ -45,9 +44,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 
 			organization, err := db.GetOrganizationByID(r.Context(), orgID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Organization %q does not exist.", orgID),
-				})
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {
@@ -76,9 +73,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				UserID:         user.ID,
 			})
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
-					Message: "Not a member of the organization.",
-				})
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {
