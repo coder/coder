@@ -108,12 +108,7 @@ func ttlset() *cobra.Command {
 				return xerrors.Errorf("parse workspace schedule: %w", err)
 			}
 
-			loc, err := time.LoadLocation(sched.Timezone())
-			if err != nil {
-				return xerrors.Errorf("schedule has invalid timezone: %w", err)
-			}
-
-			nextShutdown := sched.Next(time.Now()).Add(truncated).In(loc)
+			nextShutdown := sched.Next(time.Now()).Add(truncated).In(sched.Location())
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down at %s on %s (%s after start).\n",
 				workspace.Name,
 				nextShutdown.Format("15:04:05 MST"),
