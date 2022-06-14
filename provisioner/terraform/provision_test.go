@@ -298,6 +298,7 @@ func TestProvision(t *testing.T) {
 
 // nolint:paralleltest
 func TestProvision_ExtraEnv(t *testing.T) {
+	// #nosec
 	secretValue := "oinae3uinxase"
 	t.Setenv("TF_LOG", "INFO")
 	t.Setenv("TF_SUPERSECRET", secretValue)
