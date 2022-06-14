@@ -33,6 +33,9 @@ export const workspaceItemMachine = createMachine(
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
+        getWorkspace: {
+          data: TypesGen.Workspace
+        }
       },
     },
     tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
@@ -93,10 +96,11 @@ export const workspaceItemMachine = createMachine(
                 {
                   target: "waitingToBeUpdated",
                   cond: "isOutdated",
+                  actions: ["assignUpdatedData"],
                 },
                 {
                   target: "success",
-                  actions: "displayUpdatedSuccessMessage",
+                  actions: ["assignUpdatedData", "displayUpdatedSuccessMessage"],
                 },
               ],
             },
@@ -113,7 +117,7 @@ export const workspaceItemMachine = createMachine(
   },
   {
     guards: {
-      isOutdated: (ctx) => !ctx.data.outdated,
+      isOutdated: (_, event) => event.data.outdated,
     },
     services: {
       getTemplate: (context) => API.getTemplate(context.data.template_id),
@@ -124,6 +128,7 @@ export const workspaceItemMachine = createMachine(
 
         return API.startWorkspace(context.data.id, context.updatedTemplate.active_version_id)
       },
+      getWorkspace: (context) => API.getWorkspace(context.data.id),
     },
     actions: {
       assignUpdatedTemplate: assign({
@@ -142,7 +147,7 @@ export const workspaceItemMachine = createMachine(
         displayError(message)
       },
       displayUpdatingVersionMessage: () => {
-        displayMsg("Updating your workspace", "It will be running in a few seconds.")
+        displayMsg("Updating workspace...")
       },
       assignQueuedStatus: assign({
         data: (ctx) => {
@@ -161,6 +166,9 @@ export const workspaceItemMachine = createMachine(
       displayUpdatedSuccessMessage: () => {
         displaySuccess("Workspace updated successfully.")
       },
+      assignUpdatedData: assign({
+        data: (_, event) => event.data,
+      }),
     },
   },
 )
