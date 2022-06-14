@@ -277,7 +277,8 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 }
 
 export const ttlShutdownAt = (formTTL: number): string => {
-  if (formTTL === 0) {
+  if (formTTL < 1) {
+    // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
     return Language.ttlCausesNoShutdownHelperText
   } else {
     return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${
