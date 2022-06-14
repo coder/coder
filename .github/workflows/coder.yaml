@@ -111,9 +111,8 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
-      - run: curl -sSL
-          https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz
-          | sudo tar -C /usr/bin -xz sqlc
+      - run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
 
       - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
