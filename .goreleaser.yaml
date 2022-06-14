@@ -93,6 +93,8 @@ nfpms:
         type: "config|noreplace"
       - src: coder.service
         dst: /usr/lib/systemd/system/coder.service
+    scripts:
+      preinstall: preinstall.sh
 
 # Image templates are empty on snapshots to avoid lengthy builds for development.
 dockers:

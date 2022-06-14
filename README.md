@@ -47,10 +47,14 @@ To install, run:
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
-Once installed, you can run a temporary deployment in dev mode (all data is in-memory and destroyed on exit):
+Once installed, you can start a production deployment with a single command:
 
 ```sh
-coder server --dev
+# Automatically sets up PostgreSQL and an external access URL on *.try.coder.app
+coder server --postgres-builtin --tunnel
+
+# Requires a PostgreSQL instance and external access URL
+coder server --postgres-url <url> --access-url <url>
 ```
 
 Use `coder --help` to get a complete list of flags and environment variables. Use our [quickstart guide](./docs/quickstart.md) for a full walkthrough.

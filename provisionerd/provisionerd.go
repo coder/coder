@@ -964,10 +964,6 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
 	if !p.isRunningJob() {
-		if p.isClosed() {
-			return
-		}
-		p.opts.Logger.Info(context.Background(), "skipping job fail; none running", slog.F("error_message", failedJob.Error))
 		return
 	}
 	if p.jobFailed.Load() {

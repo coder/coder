@@ -97,12 +97,8 @@ PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
 EOF
 	fi
 	cath <<EOF
-Run Coder (temporary):
-  $STANDALONE_BINARY_NAME server --dev
-
-Or run a production deployment with PostgreSQL:
-    CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \\
-        $STANDALONE_BINARY_NAME server
+Run Coder:
+  $STANDALONE_BINARY_NAME server
 
 EOF
 }
@@ -114,15 +110,10 @@ $1 package has been installed.
 
 To run Coder as a system service:
 
-  # Configure the PostgreSQL database for Coder
+  # Setup PostgreSQL and an external access URL
   sudo vim /etc/coder.d/coder.env
-  # Have systemd start Coder now and restart on boot
+  # Use systemd to start Coder now and on reboot
   sudo systemctl enable --now coder
-
-Or, run a temporary deployment (all data is in-memory
-and destroyed on exit):
-
-  coder server --dev
 
 EOF
 }

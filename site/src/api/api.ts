@@ -235,6 +235,13 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
+export const postFirstUser = async (
+  req: TypesGen.CreateFirstUserRequest,
+): Promise<TypesGen.CreateFirstUserResponse> => {
+  const response = await axios.post(`/api/v2/users/first`, req)
+  return response.data
+}
+
 export const updateUserPassword = async (
   userId: TypesGen.User["id"],
   updatePassword: TypesGen.UpdateUserPasswordRequest,

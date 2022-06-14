@@ -37,7 +37,12 @@ func init() {
 }
 
 func login() *cobra.Command {
-	return &cobra.Command{
+	var (
+		email    string
+		username string
+		password string
+	)
+	cmd := &cobra.Command{
 		Use:   "login <url>",
 		Short: "Authenticate with a Coder deployment",
 		Args:  cobra.ExactArgs(1),
@@ -66,71 +71,77 @@ func login() *cobra.Command {
 				return xerrors.Errorf("has initial user: %w", err)
 			}
 			if !hasInitialUser {
-				if !isTTY(cmd) {
-					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
-				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Your Coder deployment hasn't been set up!\n")
 
-				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Would you like to create the first user?",
-					Default:   "yes",
-					IsConfirm: true,
-				})
-				if errors.Is(err, cliui.Canceled) {
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-				currentUser, err := user.Current()
-				if err != nil {
-					return xerrors.Errorf("get current user: %w", err)
-				}
-				username, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
-					Default: currentUser.Username,
-				})
-				if errors.Is(err, cliui.Canceled) {
-					return nil
-				}
-				if err != nil {
-					return xerrors.Errorf("pick username prompt: %w", err)
-				}
-
-				email, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
-					Validate: func(s string) error {
-						err := validator.New().Var(s, "email")
-						if err != nil {
-							return xerrors.New("That's not a valid email address!")
-						}
-						return err
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("specify email prompt: %w", err)
-				}
-
-				password, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
-					Secret:   true,
-					Validate: cliui.ValidateNotEmpty,
-				})
-				if err != nil {
-					return xerrors.Errorf("specify password prompt: %w", err)
-				}
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
-					Secret: true,
-					Validate: func(s string) error {
-						if s != password {
-							return xerrors.Errorf("Passwords do not match")
-						}
+				if username == "" {
+					if !isTTY(cmd) {
+						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
+					}
+					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:      "Would you like to create the first user?",
+						Default:   "yes",
+						IsConfirm: true,
+					})
+					if errors.Is(err, cliui.Canceled) {
 						return nil
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("confirm password prompt: %w", err)
+					}
+					if err != nil {
+						return err
+					}
+					currentUser, err := user.Current()
+					if err != nil {
+						return xerrors.Errorf("get current user: %w", err)
+					}
+					username, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
+						Default: currentUser.Username,
+					})
+					if errors.Is(err, cliui.Canceled) {
+						return nil
+					}
+					if err != nil {
+						return xerrors.Errorf("pick username prompt: %w", err)
+					}
+				}
+
+				if email == "" {
+					email, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
+						Validate: func(s string) error {
+							err := validator.New().Var(s, "email")
+							if err != nil {
+								return xerrors.New("That's not a valid email address!")
+							}
+							return err
+						},
+					})
+					if err != nil {
+						return xerrors.Errorf("specify email prompt: %w", err)
+					}
+				}
+
+				if password == "" {
+					password, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
+						Secret:   true,
+						Validate: cliui.ValidateNotEmpty,
+					})
+					if err != nil {
+						return xerrors.Errorf("specify password prompt: %w", err)
+					}
+					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
+						Secret: true,
+						Validate: func(s string) error {
+							if s != password {
+								return xerrors.Errorf("Passwords do not match")
+							}
+							return nil
+						},
+					})
+					if err != nil {
+						return xerrors.Errorf("confirm password prompt: %w", err)
+					}
 				}
 
 				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
@@ -219,6 +230,10 @@ func login() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&email, "email", "e", "", "Specifies an email address to authenticate with.")
+	cmd.Flags().StringVarP(&username, "username", "u", "", "Specifies a username to authenticate with.")
+	cmd.Flags().StringVarP(&password, "password", "p", "", "Specifies a password to authenticate with.")
+	return cmd
 }
 
 // isWSL determines if coder-cli is running within Windows Subsystem for Linux
