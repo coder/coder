@@ -32,6 +32,9 @@ LongTemplateVersion.args = {
     name: "thisisareallyreallylongnamefortesting",
   },
 }
+LongTemplateVersion.parameters = {
+  chromatic: { viewports: [960] },
+}
 
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
@@ -39,5 +42,5 @@ SmallViewport.args = {
   activeVersion: Mocks.MockTemplateVersion,
 }
 SmallViewport.parameters = {
-  chromatic: { viewports: [480, 1200] },
+  chromatic: { viewports: [600] },
 }
