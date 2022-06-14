@@ -99,9 +99,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	}
 
 	reader, writer := io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
-	go func() {
+	go func(reader *io.PipeReader) {
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
 			_ = stream.Send(&proto.Provision_Response{
@@ -113,13 +111,15 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 				},
 			})
 		}
-	}()
+	}(reader)
+
 	terraform.SetStderr(writer)
 	err = terraform.Init(shutdown)
+	_ = reader.Close()
+	_ = writer.Close()
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
-	_ = reader.Close()
 	terraform.SetStderr(io.Discard)
 
 	env := os.Environ()
