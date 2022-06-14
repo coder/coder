@@ -70,13 +70,20 @@ if [[ "$(git describe --always)" != "$new_tag" ]]; then
 fi
 
 # This returns the tag before the current tag.
-old_tag="$(git describe --abbrev=0 --tags "$(git rev-list --tags --skip=1 --max-count=1)")"
+old_tag="$(git describe --abbrev=0 HEAD^1)"
+
+# For dry-run builds we want to use the SHA instead of the tag, because the new
+# tag probably doesn't exist.
+changelog_range="$old_tag..$new_tag"
+if [[ "$dry_run" == 1 ]]; then
+	changelog_range="$old_tag..$(git rev-parse --short HEAD)"
+fi
 
 # Craft the release notes.
 release_notes="
 ## Changelog
 
-$(git log --no-merges --pretty=format:"- %h %s" "$old_tag..$new_tag")
+$(git log --no-merges --pretty=format:"- %h %s" "$changelog_range")
 
 ## Container Image
 - \`docker pull $(execrelative ./image_tag.sh --version "$version")\`
