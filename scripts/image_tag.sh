@@ -54,5 +54,6 @@ if [[ "$arch" != "" ]]; then
 	tag+="-$arch"
 fi
 
+# Dev versions contain plus signs which are illegal characters in Docker tags.
 tag="${tag//+/-}"
 echo "$image:$tag"

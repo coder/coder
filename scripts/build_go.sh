@@ -2,7 +2,7 @@
 
 # This script builds a single Go binary of Coder with the given parameters.
 #
-# Usage: ./build_go.sh [--version 1.2.3+devel.abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim]
+# Usage: ./build_go.sh [--version 1.2.3-devel+abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim]
 #
 # Defaults to linux:amd64 with slim disabled, but can be controlled with GOOS,
 # GOARCH and CODER_SLIM_BUILD=1. If no version is specified, defaults to the

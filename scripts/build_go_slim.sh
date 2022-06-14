@@ -3,7 +3,7 @@
 # This script builds multiple "slim" Go binaries for Coder with the given OS and
 # architecture combinations. This wraps ./build_go_matrix.sh.
 #
-# Usage: ./build_go_slim.sh [--version 1.2.3+devel.abcdef] [--output dist/] os1:arch1,arch2 os2:arch1 os1:arch3
+# Usage: ./build_go_slim.sh [--version 1.2.3-devel+abcdef] [--output dist/] os1:arch1,arch2 os2:arch1 os1:arch3
 #
 # If no OS:arch combinations are provided, nothing will happen and no error will
 # be returned. If no version is specified, defaults to the version from
