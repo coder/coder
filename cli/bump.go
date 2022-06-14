@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	bumpDescriptionLong = `Make your workspace stop at a certain point in the future.`
+	bumpDescriptionLong = `Specify a duration from now when you would like your workspace to shut down.`
 )
 
 func bump() *cobra.Command {
@@ -22,7 +22,7 @@ func bump() *cobra.Command {
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: workspaceCommand,
 		Use:         "bump <workspace-name> <duration from now>",
-		Short:       "Make your workspace stop at a certain point in the future.",
+		Short:       "Specify a duration from now when you would like your workspace to shut down.",
 		Long:        bumpDescriptionLong,
 		Example:     "coder bump my-workspace 90m",
 		RunE: func(cmd *cobra.Command, args []string) error {
