@@ -15,7 +15,7 @@ import (
 
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
 func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
-	logger := provisionersdk.NewProvisionLogger(stream)
+	logr := streamLogger{stream: stream}
 	shutdown, shutdownFunc := context.WithCancel(stream.Context())
 	defer shutdownFunc()
 
@@ -53,7 +53,7 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	if err := e.checkMinVersion(stream.Context()); err != nil {
 		return err
 	}
-	if err := logTerraformEnvVars(logger); err != nil {
+	if err := logTerraformEnvVars(logr); err != nil {
 		return err
 	}
 
@@ -88,7 +88,7 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 
 	t.logger.Debug(shutdown, "running initialization")
-	err = e.init(stream.Context(), logger)
+	err = e.init(stream.Context(), logr)
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
@@ -104,10 +104,10 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	var resp *proto.Provision_Response
 	if start.DryRun {
-		resp, err = e.plan(shutdown, env, vars, logger,
+		resp, err = e.plan(shutdown, env, vars, logr,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	} else {
-		resp, err = e.apply(shutdown, env, vars, logger,
+		resp, err = e.apply(shutdown, env, vars, logr,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	}
 	if err != nil {
@@ -198,7 +198,7 @@ var (
 	}
 )
 
-func logTerraformEnvVars(logger provisionersdk.Logger) error {
+func logTerraformEnvVars(logr logger) error {
 	env := os.Environ()
 	for _, e := range env {
 		if strings.HasPrefix(e, "TF_") {
@@ -209,7 +209,7 @@ func logTerraformEnvVars(logger provisionersdk.Logger) error {
 			if !tfEnvSafeToPrint[parts[0]] {
 				parts[1] = "<value redacted>"
 			}
-			err := logger.Log(&proto.Log{
+			err := logr.Log(&proto.Log{
 				Level:  proto.LogLevel_WARN,
 				Output: fmt.Sprintf("terraform environment variable: %s=%s", parts[0], parts[1]),
 			})

@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,7 +18,6 @@ import (
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 
-	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -113,14 +113,14 @@ func (e executor) version(ctx context.Context) (*version.Version, error) {
 	return version.NewVersion(vj.Version)
 }
 
-func (e executor) init(ctx context.Context, logger provisionersdk.Logger) error {
-	writer, doneLogging := provisionersdk.LogWriter(logger, proto.LogLevel_DEBUG)
+func (e executor) init(ctx context.Context, logr logger) error {
+	writer, doneLogging := logWriter(logr, proto.LogLevel_DEBUG)
 	defer func() { <-doneLogging }()
 	return e.execWriteOutput(ctx, []string{"init"}, e.basicEnv(), writer)
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) plan(ctx context.Context, env, vars []string, logger provisionersdk.Logger, destroy bool) (*proto.Provision_Response, error) {
+func (e executor) plan(ctx context.Context, env, vars []string, logr logger, destroy bool) (*proto.Provision_Response, error) {
 	planfilePath := filepath.Join(e.workdir, "terraform.tfplan")
 	args := []string{
 		"plan",
@@ -137,7 +137,7 @@ func (e executor) plan(ctx context.Context, env, vars []string, logger provision
 		args = append(args, "-var", variable)
 	}
 
-	writer, doneLogging := provisionLogWriter(logger)
+	writer, doneLogging := provisionLogWriter(logr)
 	defer func() { <-doneLogging }()
 
 	err := e.execWriteOutput(ctx, args, env, writer)
@@ -190,7 +190,7 @@ func (e executor) graph(ctx context.Context) (string, error) {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) apply(ctx context.Context, env, vars []string, logger provisionersdk.Logger, destroy bool,
+func (e executor) apply(ctx context.Context, env, vars []string, logr logger, destroy bool,
 ) (*proto.Provision_Response, error) {
 	args := []string{
 		"apply",
@@ -207,7 +207,7 @@ func (e executor) apply(ctx context.Context, env, vars []string, logger provisio
 		args = append(args, "-var", variable)
 	}
 
-	writer, doneLogging := provisionLogWriter(logger)
+	writer, doneLogging := provisionLogWriter(logr)
 	defer func() { <-doneLogging }()
 
 	err := e.execWriteOutput(ctx, args, env, writer)
@@ -262,14 +262,55 @@ func (e executor) state(ctx context.Context) (*tfjson.State, error) {
 	return state, nil
 }
 
-func provisionLogWriter(logger provisionersdk.Logger) (io.WriteCloser, <-chan any) {
+type logger interface {
+	Log(*proto.Log) error
+}
+
+type streamLogger struct {
+	stream proto.DRPCProvisioner_ProvisionStream
+}
+
+func (s streamLogger) Log(l *proto.Log) error {
+	return s.stream.Send(&proto.Provision_Response{
+		Type: &proto.Provision_Response_Log{
+			Log: l,
+		},
+	})
+}
+
+// logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
+// by the caller to end logging, after which the returned channel will be closed to indicate that logging of the written
+// data has finished.  Failure to close the WriteCloser will leak a goroutine.
+func logWriter(logr logger, level proto.LogLevel) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
-	go provisionReadAndLog(logger, r, done)
+	go readAndLog(logr, r, done, level)
 	return w, done
 }
 
-func provisionReadAndLog(logger provisionersdk.Logger, reader io.Reader, done chan<- any) {
+func readAndLog(logr logger, r io.Reader, done chan<- any, level proto.LogLevel) {
+	defer close(done)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		err := logr.Log(&proto.Log{Level: level, Output: scanner.Text()})
+		if err != nil {
+			// Not much we can do.  We can't log because logging is itself breaking!
+			return
+		}
+	}
+}
+
+// provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
+// closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
+// written data has finished.  Failure to close the WriteCloser will leak a goroutine.
+func provisionLogWriter(logr logger) (io.WriteCloser, <-chan any) {
+	r, w := io.Pipe()
+	done := make(chan any)
+	go provisionReadAndLog(logr, r, done)
+	return w, done
+}
+
+func provisionReadAndLog(logr logger, reader io.Reader, done chan<- any) {
 	defer close(done)
 	decoder := json.NewDecoder(reader)
 	for {
@@ -278,9 +319,9 @@ func provisionReadAndLog(logger provisionersdk.Logger, reader io.Reader, done ch
 		if err != nil {
 			return
 		}
-		logLevel := convertTerraformLogLevel(log.Level, logger)
+		logLevel := convertTerraformLogLevel(log.Level, logr)
 
-		err = logger.Log(&proto.Log{Level: logLevel, Output: log.Message})
+		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Message})
 		if err != nil {
 			// Not much we can do.  We can't log because logging is itself breaking!
 			return
@@ -291,11 +332,11 @@ func provisionReadAndLog(logger provisionersdk.Logger, reader io.Reader, done ch
 		}
 
 		// If the diagnostic is provided, let's provide a bit more info!
-		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, logger)
+		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, logr)
 		if err != nil {
 			continue
 		}
-		err = logger.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
+		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
 		if err != nil {
 			// Not much we can do.  We can't log because logging is itself breaking!
 			return
@@ -303,7 +344,7 @@ func provisionReadAndLog(logger provisionersdk.Logger, reader io.Reader, done ch
 	}
 }
 
-func convertTerraformLogLevel(logLevel string, logger provisionersdk.Logger) proto.LogLevel {
+func convertTerraformLogLevel(logLevel string, logr logger) proto.LogLevel {
 	switch strings.ToLower(logLevel) {
 	case "trace":
 		return proto.LogLevel_TRACE
@@ -316,7 +357,7 @@ func convertTerraformLogLevel(logLevel string, logger provisionersdk.Logger) pro
 	case "error":
 		return proto.LogLevel_ERROR
 	default:
-		_ = logger.Log(&proto.Log{
+		_ = logr.Log(&proto.Log{
 			Level:  proto.LogLevel_WARN,
 			Output: fmt.Sprintf("unable to convert log level %s", logLevel),
 		})
