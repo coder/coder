@@ -57,7 +57,7 @@ Use `coder --help` to get a complete list of flags and environment variables. Us
 
 ## Documentation
 
-Visit our docs [here](./docs/index.md).
+Visit our docs [here](https://coder.com/docs/coder-oss).
 
 ## Comparison
 
