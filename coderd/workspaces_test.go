@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -867,23 +868,20 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name             string
-		ttlMillis        *int64
-		expectedError    string
-		expectedDeadline *time.Time
-		modifyTemplate   func(*codersdk.CreateTemplateRequest)
+		name           string
+		ttlMillis      *int64
+		expectedError  string
+		modifyTemplate func(*codersdk.CreateTemplateRequest)
 	}{
 		{
-			name:             "disable ttl",
-			ttlMillis:        nil,
-			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Time{}),
+			name:          "disable ttl",
+			ttlMillis:     nil,
+			expectedError: "",
 		},
 		{
-			name:             "update ttl",
-			ttlMillis:        ptr.Ref(12 * time.Hour.Milliseconds()),
-			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(12*time.Hour + time.Minute)),
+			name:          "update ttl",
+			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
+			expectedError: "",
 		},
 		{
 			name:          "below minimum ttl",
@@ -891,16 +889,14 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "ttl must be at least one minute",
 		},
 		{
-			name:             "minimum ttl",
-			ttlMillis:        ptr.Ref(time.Minute.Milliseconds()),
-			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(2 * time.Minute)),
+			name:          "minimum ttl",
+			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
+			expectedError: "",
 		},
 		{
-			name:             "maximum ttl",
-			ttlMillis:        ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
-			expectedError:    "",
-			expectedDeadline: ptr.Ref(time.Now().Add(24*7*time.Hour + time.Minute)),
+			name:          "maximum ttl",
+			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
@@ -953,9 +949,6 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
-			if testCase.expectedDeadline != nil {
-				require.WithinDuration(t, *testCase.expectedDeadline, updated.LatestBuild.Deadline, time.Minute, "expected autostop deadline to be equal expected")
-			}
 		})
 	}
 

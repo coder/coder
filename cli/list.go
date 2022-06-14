@@ -127,6 +127,9 @@ func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
 	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		return false, 0
 	}
+	if ws.LatestBuild.Job.CompletedAt == nil {
+		return false, 0
+	}
 	if ws.LatestBuild.Deadline.IsZero() {
 		return false, 0
 	}
@@ -134,7 +137,7 @@ func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
 		return false, 0
 	}
 	ttl := time.Duration(*ws.TTLMillis) * time.Millisecond
-	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(ws.LatestBuild.CreatedAt)
+	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(*ws.LatestBuild.Job.CompletedAt)
 	if delta < time.Minute {
 		return false, 0
 	}
