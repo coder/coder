@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -82,7 +84,13 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			job, parameters, err := createValidTemplateVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash, parameterFile)
+			job, parameters, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+				Client:        client,
+				Organization:  organization,
+				Provisioner:   database.ProvisionerType(provisioner),
+				FileHash:      resp.Hash,
+				ParameterFile: parameterFile,
+			})
 			if err != nil {
 				return err
 			}
@@ -133,13 +141,26 @@ func templateCreate() *cobra.Command {
 	return cmd
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, hash string, parameterFile string, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+type createValidTemplateVersionArgs struct {
+	Client        *codersdk.Client
+	Organization  codersdk.Organization
+	Provisioner   database.ProvisionerType
+	FileHash      string
+	ParameterFile string
+	// TemplateID is only required if updating a template's active version.
+	TemplateID uuid.UUID
+}
+
+func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	before := time.Now()
-	version, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
+	client := args.Client
+
+	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, codersdk.CreateTemplateVersionRequest{
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-		StorageSource:   hash,
-		Provisioner:     codersdk.ProvisionerType(provisioner),
+		StorageSource:   args.FileHash,
+		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
+		TemplateID:      args.TemplateID,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -195,9 +216,9 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
-		if parameterFile != "" {
+		if args.ParameterFile != "" {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
+			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -218,7 +239,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 
 		// This recursion is only 1 level deep in practice.
 		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(cmd, client, organization, provisioner, hash, parameterFile, parameters...)
+		return createValidTemplateVersion(cmd, args, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {

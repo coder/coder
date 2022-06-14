@@ -30,7 +30,8 @@ type Template struct {
 }
 
 type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required"`
+	ID              uuid.UUID                `json:"id" validate:"required"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 type UpdateTemplateMeta struct {
