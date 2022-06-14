@@ -263,7 +263,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
