@@ -27,7 +27,11 @@ func TestCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           echo.ParseComplete,
+			Provision:       provisionCompleteWithAgent,
+			ProvisionDryRun: provisionCompleteWithAgent,
+		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		args := []string{
@@ -51,14 +55,19 @@ func TestCreate(t *testing.T) {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		}()
-		matches := []string{
-			"Confirm create", "yes",
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
+			{match: "Confirm create", write: "yes"},
 		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
 		}
 		<-doneChan
 	})
