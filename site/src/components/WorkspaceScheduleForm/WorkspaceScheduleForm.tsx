@@ -9,6 +9,7 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
@@ -23,11 +24,11 @@ import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
 import { zones } from "./zones"
 
-// REMARK: timezone plugin depends on UTC
-//
-// SEE: https://day.js.org/docs/en/timezone/timezone
-dayjs.extend(advancedFormat)
+// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
+//         sorted alphabetically.
 dayjs.extend(utc)
+dayjs.extend(advancedFormat)
+dayjs.extend(isSameOrBefore)
 dayjs.extend(timezone)
 
 export const Language = {
@@ -282,19 +283,29 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   )
 }
 
-export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, newTTL: number): string => {
-  const newDeadline = dayjs(workspace.latest_build.updated_at).add(newTTL, "hour")
-  if (!isWorkspaceOn(workspace)) {
+export const ttlShutdownAt = (now: dayjs.Dayjs, workspace: Workspace, tz: string, formTTL: number): string => {
+  // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+  // SEE: #1834
+  const deadline = dayjs(workspace.latest_build.deadline).utc()
+  const hasDeadline = deadline.year() > 1
+  const ttl = workspace.ttl_ms ? workspace.ttl_ms / (1000 * 60 * 60) : 0
+  const delta = formTTL - ttl
+
+  if (delta === 0 || !isWorkspaceOn(workspace)) {
     return Language.ttlHelperText
-  } else if (newTTL === 0) {
+  } else if (formTTL === 0) {
     return Language.ttlCausesNoShutdownHelperText
-  } else if (newDeadline.isBefore(now)) {
-    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
-  } else if (newDeadline.isBefore(now.add(30, "minute"))) {
-    return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
   } else {
-    const newDeadlineString = newDeadline.tz(tz).format("hh:mm A z")
-    return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadlineString}.`
+    const newDeadline = dayjs(hasDeadline ? deadline : now).add(delta, "hours")
+    if (newDeadline.isSameOrBefore(now)) {
+      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`
+    } else if (newDeadline.isSameOrBefore(now.add(30, "minutes"))) {
+      return `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`
+    } else {
+      return `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} ${newDeadline
+        .tz(tz)
+        .format("MMM D, YYYY h:mm A")}.`
+    }
   }
 }
 

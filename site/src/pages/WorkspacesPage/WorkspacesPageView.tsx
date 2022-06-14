@@ -24,17 +24,17 @@ import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
+import { Margins } from "../../components/Margins/Margins"
+import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip"
-import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
+} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 
@@ -214,7 +214,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                       message={Language.emptyCreateWorkspaceMessage}
                       description={Language.emptyCreateWorkspaceDescription}
                       cta={
-                        <Link underline="none" component={RouterLink} to="/workspaces/new">
+                        <Link underline="none" component={RouterLink} to="/templates">
                           <Button startIcon={<AddCircleOutline />}>{Language.createFromTemplateButton}</Button>
                         </Link>
                       }
