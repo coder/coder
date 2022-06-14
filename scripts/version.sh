@@ -24,7 +24,7 @@ if [[ "$last_tag" != "$current" ]]; then
 		# make won't exit on $(shell cmd) failures :(
 		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
 			log "ERROR: version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
-			kill "$PPID"
+			kill "$PPID" || true
 			exit 1
 		fi
 

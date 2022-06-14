@@ -57,9 +57,7 @@ if [[ "$arch" == "" ]]; then
 fi
 
 # Check dependencies
-if ! command -v docker; then
-	error "The 'docker' binary is required."
-fi
+dependencies docker
 
 # Remove the "v" prefix.
 version="${version#v}"

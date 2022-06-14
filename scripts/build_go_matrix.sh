@@ -142,34 +142,26 @@ for s in $(echo "$specs_str" | tr " " "\n" | awk '!a[$0]++'); do
 done
 
 # Check dependencies
-if ! command -v go; then
-	error "The 'go' binary is required."
-fi
+dependencies go
 if [[ "$sign_darwin" == 1 ]]; then
-	if ! command -v jq; then
-		error "The 'jq' binary is required."
-	fi
-	if ! command -v codesign; then
-		error "The 'codesign' binary is required."
-	fi
-	if ! command -v gon; then
-		error "The 'gon' binary is required."
-	fi
+	dependencies jq codesign gon
 fi
 if [[ "$archive" == 1 ]]; then
-	if [[ "$may_zip" == 1 ]] && ! command -v zip; then
-		error "The 'zip' binary is required."
+	if [[ "$may_zip" == 1 ]]; then
+		dependencies zip
 	fi
-	if [[ "$may_tar" == 1 ]] && ! command -v tar; then
-		error "The 'zip' binary is required."
+	if [[ "$may_tar" == 1 ]]; then
+		dependencies tar
 	fi
 fi
-if [[ "$package_linux" == 1 ]] && ! command -v nfpm; then
-	error "The 'nfpm' binary is required."
+if [[ "$package_linux" == 1 ]]; then
+	dependencies nfpm
 fi
 
+bin_name="coder"
 build_args=()
 if [[ "$slim" == 1 ]]; then
+	bin_name+="-slim"
 	build_args+=(--slim)
 fi
 if [[ "$sign_darwin" == 1 ]]; then
@@ -195,7 +187,7 @@ for spec in "${specs[@]}"; do
 	# Ensure parent dir.
 	mkdir -p "$(dirname "$spec_output")"
 
-	log "--- Building coder for $spec_os $spec_arch ($spec_output_binary)"
+	log "--- Building $bin_name for $spec_os $spec_arch ($spec_output_binary)"
 	execrelative ./build_go.sh \
 		--version "$version" \
 		--os "$spec_os" \

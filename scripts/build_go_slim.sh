@@ -47,9 +47,7 @@ while true; do
 done
 
 # Check dependencies
-if ! command -v go; then
-	error "The 'go' binary is required."
-fi
+dependencies go
 
 # Remove the "v" prefix.
 version="${version#v}"

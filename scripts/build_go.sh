@@ -80,19 +80,9 @@ if [[ "$version" == "" ]]; then
 fi
 
 # Check dependencies
-if ! command -v go; then
-	error "The 'go' binary is required."
-fi
+dependencies go
 if [[ "$sign_darwin" == 1 ]]; then
-	if ! command -v jq; then
-		error "The 'jq' binary is required."
-	fi
-	if ! command -v codesign; then
-		error "The 'codesign' binary is required."
-	fi
-	if ! command -v gon; then
-		error "The 'gon' binary is required."
-	fi
+	dependencies codesign
 fi
 
 build_args=(

@@ -51,9 +51,7 @@ while true; do
 done
 
 # Check dependencies
-if ! command -v gh; then
-	error "The 'gh' binary is required."
-fi
+dependencies gh
 
 # Remove the "v" prefix.
 version="${version#v}"

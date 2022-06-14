@@ -21,19 +21,13 @@ if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
 fi
 
 # Check dependencies
-if ! command -v jq; then
-	error "The 'jq' binary is required."
-fi
-if ! command -v codesign; then
-	error "The 'codesign' binary is required."
-fi
-if ! command -v gon; then
-	error "The 'gon' binary is required."
-fi
+dependencies jq codesign gon
+
+output_path="$1"
 
 # Create the gon config.
 config="$(mktemp -d)/gon.json"
-jq -r --null-input --arg path "$(pwd)/$1" '{
+jq -r --null-input --arg path "$output_path" '{
 	"notarize": [
 		{
 			"path": $path,
@@ -43,7 +37,7 @@ jq -r --null-input --arg path "$(pwd)/$1" '{
 }' >"$config"
 
 # Sign the zip file with our certificate.
-codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$1"
+codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
 
 # Notarize the signed zip file.
 #

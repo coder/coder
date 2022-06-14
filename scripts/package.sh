@@ -51,9 +51,7 @@ fi
 input_file="$(realpath "$1")"
 
 # Check dependencies
-if ! command -v nfpm; then
-	error "The 'nfpm' binary is required."
-fi
+dependencies nfpm
 
 # Remove the "v" prefix.
 version="${version#v}"

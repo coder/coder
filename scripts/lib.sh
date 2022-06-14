@@ -15,8 +15,11 @@ set -euo pipefail
 #
 # Taken from https://stackoverflow.com/a/3915420 (CC-BY-SA 4.0)
 realpath() {
+	local dir
+	local base
 	dir="$(dirname "$1")"
 	base="$(basename "$1")"
+
 	if [[ ! -d "$dir" ]]; then
 		error "Could not change directory to '$dir': directory does not exist"
 	fi
@@ -57,10 +60,25 @@ cdroot() {
 # be sourced by other scripts.
 execrelative() {
 	pushd "$SCRIPT_DIR" || error "Could not change directory to '$SCRIPT_DIR'"
-	rc=0
+	local rc=0
 	"$@" || rc=$?
 	popd
 	return $rc
+}
+
+dependencies() {
+	local fail=0
+	for dep in "$@"; do
+		if ! command -v "$dep" >/dev/null; then
+			log "ERROR: The '$dep' dependency is required, but is not available."
+			fail=1
+		fi
+	done
+
+	if [[ "$fail" == 1 ]]; then
+		log
+		error "One or more dependencies are not available, check above log output for more details."
+	fi
 }
 
 # maybedryrun prints the given program and flags, and then, if the first
