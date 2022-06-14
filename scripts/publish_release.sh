@@ -107,6 +107,9 @@ $changelog
 
 "
 
+release_notes_file="$(mktemp)"
+echo "$release_notes" >"$release_notes_file"
+
 # Create temporary release folder so we can generate checksums. Both the
 # sha256sum and gh binaries support symlinks as input files so this works well.
 temp_dir="$(mktemp -d)"
@@ -131,13 +134,13 @@ popd
 log
 log
 
-# We echo the release notes in instead of writing to a file and referencing that
-# to prevent GitHub CLI from becoming interactive.
-echo "$release_notes" |
+# We pipe `true` into `gh` so that it never tries to be interactive.
+true |
 	maybedryrun "$dry_run" gh release create \
 		--title "$new_tag" \
-		--notes-file - \
+		--notes-file "$release_notes_file" \
 		"$new_tag" \
 		"$temp_dir"/*
 
 rm -rf "$temp_dir"
+rm -rf "$release_notes_file"
