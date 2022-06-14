@@ -188,7 +188,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -226,7 +226,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   test-go-postgres:
@@ -258,7 +258,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -310,7 +310,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   deploy:
@@ -366,18 +366,11 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
-
       - name: Build site
         run: make -B site/out/index.html
 
       - name: Build Release
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --snapshot --rm-dist --skip-sign
+        run: make build
 
       - name: Install Release
         run: |
@@ -437,7 +430,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
       - name: Upload DataDog Trace
@@ -483,10 +476,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: "14"
-
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
