@@ -365,6 +365,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
       - name: Build site
         run: make -B site/out/index.html
 
@@ -386,8 +389,11 @@ jobs:
         with:
           name: coder
           path: |
-            ./dist/coder_*_linux_amd64.tar.gz
-            ./dist/coder_*_windows_amd64.zip
+            ./dist/*.zip
+            ./dist/*.tar.gz
+            ./dist/*.apk
+            ./dist/*.deb
+            ./dist/*.rpm
           retention-days: 7
 
   test-js:
