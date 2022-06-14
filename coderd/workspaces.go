@@ -31,6 +31,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const workspaceDefaultTTL = 12 * time.Hour
+
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
@@ -291,8 +293,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	if !dbTTL.Valid {
-		// Default to template maximum when creating a new workspace
-		dbTTL = sql.NullInt64{Valid: true, Int64: template.MaxTtl}
+		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
+		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(workspaceDefaultTTL))}
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -513,30 +515,22 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Error fetching workspace template!",
-		})
-		return
-	}
+	var validErrs []httpapi.Error
 
-	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace TTL.",
-			Detail:  err.Error(),
-			Validations: []httpapi.Error{
-				{
-					Field:  "ttl_ms",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
-	}
+	err := api.Database.InTx(func(s database.Store) error {
+		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Error fetching workspace template!",
+			})
+			return xerrors.Errorf("fetch workspace template: %w", err)
+		}
 
-	err = api.Database.InTx(func(s database.Store) error {
+		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
+		if err != nil {
+			validErrs = append(validErrs, httpapi.Error{Field: "ttl_ms", Detail: err.Error()})
+			return err
+		}
 		if err := s.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
 			ID:  workspace.ID,
 			Ttl: dbTTL,
@@ -544,44 +538,18 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update workspace TTL: %w", err)
 		}
 
-		// Also extend the workspace deadline if the workspace is running
-		latestBuild, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
-		if err != nil {
-			return xerrors.Errorf("get latest workspace build: %w", err)
-		}
-
-		if latestBuild.Transition != database.WorkspaceTransitionStart {
-			return nil // nothing to do
-		}
-
-		if latestBuild.UpdatedAt.IsZero() {
-			// Build in progress; provisionerd should update with the new TTL.
-			return nil
-		}
-
-		var newDeadline time.Time
-		if dbTTL.Valid {
-			newDeadline = latestBuild.UpdatedAt.Add(time.Duration(dbTTL.Int64))
-		}
-
-		if err := s.UpdateWorkspaceBuildByID(
-			r.Context(),
-			database.UpdateWorkspaceBuildByIDParams{
-				ID:               latestBuild.ID,
-				UpdatedAt:        latestBuild.UpdatedAt,
-				ProvisionerState: latestBuild.ProvisionerState,
-				Deadline:         newDeadline,
-			},
-		); err != nil {
-			return xerrors.Errorf("update workspace deadline: %w", err)
-		}
 		return nil
 	})
 
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Error updating workspace time until shutdown!",
-			Detail:  err.Error(),
+		code := http.StatusInternalServerError
+		if len(validErrs) > 0 {
+			code = http.StatusBadRequest
+		}
+		httpapi.Write(rw, code, httpapi.Response{
+			Message:     "Error updating workspace time until shutdown!",
+			Validations: validErrs,
+			Detail:      err.Error(),
 		})
 		return
 	}
@@ -1027,4 +995,11 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
+}
+
+func min(x, y int64) int64 {
+	if x < y {
+		return x
+	}
+	return y
 }

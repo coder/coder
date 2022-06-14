@@ -1,6 +1,3 @@
-import dayjs from "dayjs"
-import { Workspace } from "../../api/typesGenerated"
-import * as Mocks from "../../testHelpers/entities"
 import { Language, ttlShutdownAt, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
 
@@ -160,99 +157,29 @@ describe("validationSchema", () => {
 })
 
 describe("ttlShutdownAt", () => {
-  it.each<[string, dayjs.Dayjs, Workspace, string, number, string]>([
+  it.each<[string, number, string]>([
+    ["Manual shutdown --> manual helper text", 0, Language.ttlCausesNoShutdownHelperText],
     [
-      "Workspace is stopped --> helper text",
-      dayjs("2022-05-17T18:09:00Z"),
-      Mocks.MockStoppedWorkspace,
-      "America/Chicago",
+      "One hour --> helper text shows shutdown after an hour",
       1,
-      Language.ttlHelperText,
+      `${Language.ttlCausesShutdownHelperText} an hour ${Language.ttlCausesShutdownAfterStart}.`,
     ],
     [
-      "TTL is not modified --> helper text",
-      dayjs("2022-05-17T16:09:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          deadline: "2022-05-17T18:09:00Z",
-        },
-        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
-      },
-      "America/Chicago",
+      "Two hours --> helper text shows shutdown after 2 hours",
       2,
-      Language.ttlHelperText,
+      `${Language.ttlCausesShutdownHelperText} 2 hours ${Language.ttlCausesShutdownAfterStart}.`,
     ],
     [
-      "TTL becomes 0 --> manual helper text",
-      dayjs("2022-05-17T18:09:00Z"),
-      Mocks.MockWorkspace,
-      "America/Chicago",
-      0,
-      Language.ttlCausesNoShutdownHelperText,
+      "24 hours --> helper text shows shutdown after a day",
+      24,
+      `${Language.ttlCausesShutdownHelperText} a day ${Language.ttlCausesShutdownAfterStart}.`,
     ],
     [
-      "Deadline of 18:09 becomes 17:09 at 17:09 --> immediate shutdown",
-      dayjs("2022-05-17T17:09:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          deadline: "2022-05-17T18:09:00Z",
-        },
-        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
-      },
-      "America/Chicago",
-      1,
-      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownImmediately} ⚠️`,
+      "48 hours --> helper text shows shutdown after 2 days",
+      48,
+      `${Language.ttlCausesShutdownHelperText} 2 days ${Language.ttlCausesShutdownAfterStart}.`,
     ],
-    [
-      "Deadline of 18:09 becomes 17:09 at 16:39 --> display shutdown soon",
-      dayjs("2022-05-17T16:39:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          deadline: "2022-05-17T18:09:00Z",
-        },
-        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
-      },
-      "America/Chicago",
-      1,
-      `⚠️ ${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownSoon} ⚠️`,
-    ],
-    [
-      "Deadline of 18:09 becomes 17:09 at 16:09 --> display 12:09 CDT",
-      dayjs("2022-05-17T16:09:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          deadline: "2022-05-17T18:09:00Z",
-        },
-        ttl_ms: 2 * 60 * 60 * 1000, // 2 hours = shuts off at 18:09
-      },
-      "America/Chicago",
-      1,
-      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} May 17, 2022 12:09 PM.`,
-    ],
-    [
-      "Manual workspace gets new deadline of 18:09 at 17:09 --> display 1:09 CDT",
-      dayjs("2022-05-17T17:09:00Z"),
-      {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          deadline: "0001-01-01T00:00:00Z",
-        },
-        ttl_ms: 0,
-      },
-      "America/Chicago",
-      1,
-      `${Language.ttlCausesShutdownHelperText} ${Language.ttlCausesShutdownAt} May 17, 2022 1:09 PM.`,
-    ],
-  ])("%p", (_, now, workspace, timezone, ttlHours, expected) => {
-    expect(ttlShutdownAt(now, workspace, timezone, ttlHours)).toEqual(expected)
+  ])("%p", (_, ttlHours, expected) => {
+    expect(ttlShutdownAt(ttlHours)).toEqual(expected)
   })
 })
