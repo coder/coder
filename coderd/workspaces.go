@@ -575,11 +575,25 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	resp := httpapi.Response{}
 
 	err := api.Database.InTx(func(s database.Store) error {
+		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching workspace template!"
+			return xerrors.Errorf("get workspace template: %w", err)
+		}
+
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			code = http.StatusInternalServerError
-			resp.Message = "Workspace not found."
+			resp.Message = "Error fetching workspace build."
 			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		job, err := s.GetProvisionerJobByID(r.Context(), build.JobID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching workspace provisioner job."
+			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
 		if build.Transition != database.WorkspaceTransitionStart {
@@ -588,8 +602,20 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
+		if !job.CompletedAt.Valid {
+			code = http.StatusConflict
+			resp.Message = "Workspace is still building!"
+			return xerrors.Errorf("workspace is still building")
+		}
+
+		if build.Deadline.IsZero() {
+			code = http.StatusConflict
+			resp.Message = "Workspace shutdown is manual."
+			return xerrors.Errorf("workspace shutdown is manual")
+		}
+
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(build.Deadline, newDeadline); err != nil {
+		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
 			code = http.StatusBadRequest
 			resp.Message = "Bad extend workspace request."
 			resp.Validations = append(resp.Validations, httpapi.Error{Field: "deadline", Detail: err.Error()})
@@ -878,14 +904,20 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 	}, nil
 }
 
-func validWorkspaceDeadline(old, new time.Time) error {
-	if old.IsZero() {
-		return xerrors.New("nothing to do: no existing deadline set")
+func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration) error {
+	soon := time.Now().Add(29 * time.Minute)
+	if newDeadline.Before(soon) {
+		return xerrors.New("new deadline must be at least 30 minutes in the future")
 	}
 
-	soon := time.Now().Add(29 * time.Minute)
-	if new.Before(soon) {
-		return xerrors.New("new deadline must be at least 30 minutes in the future")
+	// No idea how this could happen.
+	if newDeadline.Before(startedAt) {
+		return xerrors.Errorf("new deadline must be before workspace start time")
+	}
+
+	delta := newDeadline.Sub(startedAt)
+	if delta > max {
+		return xerrors.New("new deadline is greater than template allows")
 	}
 
 	return nil

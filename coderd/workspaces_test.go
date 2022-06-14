@@ -981,8 +981,8 @@ func TestWorkspaceExtend(t *testing.T) {
 		user        = coderdtest.CreateFirstUser(t, client)
 		version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_           = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		project     = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
 		})
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -1016,6 +1016,13 @@ func TestWorkspaceExtend(t *testing.T) {
 		Deadline: deadlineTooSoon,
 	})
 	require.ErrorContains(t, err, "new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
+
+	// And with a deadline greater than the template max_ttl should also fail
+	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: deadlineExceedsMaxTTL,
+	})
+	require.ErrorContains(t, err, "new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
 
 	// Updating with a deadline 30 minutes in the future should succeed
 	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)

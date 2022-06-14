@@ -5,16 +5,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/util/tz"
-
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/util/tz"
 	"github.com/coder/coder/codersdk"
 )
 
 const (
-	bumpDescriptionLong = `Specify a duration from now when you would like your workspace to shut down.`
+	bumpDescriptionShort = `Shut your workspace down after a given duration has passed.`
+	bumpDescriptionLong  = `Modify the time at which your workspace will shut down automatically.
+* Provide a duration from now (for example, 1h30m).
+* The minimum duration is 30 minutes.
+* If the workspace template restricts the maximum runtime of a workspace, this will be enforced here.
+* If the workspace does not already have a shutdown scheduled, this does nothing.
+`
 )
 
 func bump() *cobra.Command {
@@ -22,7 +27,7 @@ func bump() *cobra.Command {
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: workspaceCommand,
 		Use:         "bump <workspace-name> <duration from now>",
-		Short:       "Specify a duration from now when you would like your workspace to shut down.",
+		Short:       bumpDescriptionShort,
 		Long:        bumpDescriptionLong,
 		Example:     "coder bump my-workspace 90m",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -43,7 +48,7 @@ func bump() *cobra.Command {
 
 			loc, err := tz.TimezoneIANA()
 			if err != nil {
-				loc = time.UTC // best guess
+				loc = time.UTC // best effort
 			}
 
 			if bumpDuration < 29*time.Minute {
