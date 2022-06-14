@@ -1,3 +1,4 @@
+// nolint:testpackage
 package terraform
 
 import (
