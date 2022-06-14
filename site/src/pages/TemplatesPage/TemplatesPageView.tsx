@@ -15,7 +15,7 @@ import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderText, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
