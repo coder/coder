@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/coderd/util/tz"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -12,15 +14,15 @@ import (
 )
 
 const (
-	bumpDescriptionLong = `To extend the autostop deadline for a workspace.`
+	bumpDescriptionLong = `Make your workspace stop at a certain point in the future.`
 )
 
 func bump() *cobra.Command {
 	bumpCmd := &cobra.Command{
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: workspaceCommand,
-		Use:         "bump <workspace-name> <duration>",
-		Short:       "Extend the autostop deadline for a workspace.",
+		Use:         "bump <workspace-name> <duration from now>",
+		Short:       "Make your workspace stop at a certain point in the future.",
 		Long:        bumpDescriptionLong,
 		Example:     "coder bump my-workspace 90m",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,17 +41,20 @@ func bump() *cobra.Command {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
-			newDeadline := time.Now().Add(bumpDuration)
+			loc, err := tz.TimezoneIANA()
+			if err != nil {
+				loc = time.UTC // best guess
+			}
 
-			if newDeadline.Before(workspace.LatestBuild.Deadline) {
+			if bumpDuration < 29*time.Minute {
 				_, _ = fmt.Fprintf(
 					cmd.OutOrStdout(),
-					"The proposed deadline is %s before the current deadline.\n",
-					workspace.LatestBuild.Deadline.Sub(newDeadline).Round(time.Minute),
+					"Please specify a duration of at least 30 minutes.\n",
 				)
 				return nil
 			}
 
+			newDeadline := time.Now().In(loc).Add(bumpDuration)
 			if err := client.PutExtendWorkspace(cmd.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
 				Deadline: newDeadline,
 			}); err != nil {
@@ -62,7 +67,6 @@ func bump() *cobra.Command {
 				newDeadline.Format(timeFormat),
 				newDeadline.Format(dateFormat),
 			)
-
 			return nil
 		},
 	}

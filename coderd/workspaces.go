@@ -883,18 +883,9 @@ func validWorkspaceDeadline(old, new time.Time) error {
 		return xerrors.New("nothing to do: no existing deadline set")
 	}
 
-	now := time.Now()
-	if new.Before(now) {
-		return xerrors.New("new deadline must be in the future")
-	}
-
-	delta := new.Sub(old)
-	if delta < time.Minute {
-		return xerrors.New("minimum extension is one minute")
-	}
-
-	if delta > 24*time.Hour {
-		return xerrors.New("maximum extension is 24 hours")
+	soon := time.Now().Add(29 * time.Minute)
+	if new.Before(soon) {
+		return xerrors.New("new deadline must be at least 30 minutes in the future")
 	}
 
 	return nil
