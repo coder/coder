@@ -68,8 +68,8 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspacesByTemplateID(r.Context(), database.GetWorkspacesByTemplateIDParams{
-		TemplateID: template.ID,
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
+		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -241,7 +241,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
+	templates, err := api.Database.GetTemplatesWithFilter(r.Context(), database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {

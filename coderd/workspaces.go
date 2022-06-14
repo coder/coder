@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -103,38 +105,19 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
-	// Empty strings mean no filter
-	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner")
-	nameFilter := r.URL.Query().Get("name")
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := workspaceSearchQuery(queryStr)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid workspace search query.",
+			Validations: errs,
+		})
+		return
+	}
 
-	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
-	if orgFilter != "" {
-		orgID, err := uuid.Parse(orgFilter)
-		if err == nil {
-			filter.OrganizationID = orgID
-		}
-	}
-	if ownerFilter == "me" {
+	if filter.OwnerUsername == "me" {
 		filter.OwnerID = apiKey.UserID
-	} else if ownerFilter != "" {
-		userID, err := uuid.Parse(ownerFilter)
-		if err != nil {
-			// Maybe it's a username
-			user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-				// Why not just accept 1 arg and use it for both in the sql?
-				Username: ownerFilter,
-				Email:    ownerFilter,
-			})
-			if err == nil {
-				filter.OwnerID = user.ID
-			}
-		} else {
-			filter.OwnerID = userID
-		}
-	}
-	if nameFilter != "" {
-		filter.Name = nameFilter
+		filter.OwnerUsername = ""
 	}
 
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
@@ -276,26 +259,13 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		return
+	}
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
-		})
-		return
-	}
-	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: template.OrganizationID,
-		UserID:         apiKey.UserID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "You aren't allowed to access templates in that organization.",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching organization member.",
-			Detail:  err.Error(),
 		})
 		return
 	}
@@ -791,7 +761,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
-	templates, err := db.GetTemplatesByIDs(ctx, templateIDs)
+	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		Ids: templateIDs,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -973,4 +945,82 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 		Valid:  true,
 		String: *s,
 	}, nil
+}
+
+// workspaceSearchQuery takes a query string and returns the workspace filter.
+// It also can return the list of validation errors to return to the api.
+func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams, []httpapi.Error) {
+	searchParams := make(url.Values)
+	if query == "" {
+		// No filter
+		return database.GetWorkspacesWithFilterParams{}, nil
+	}
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	for _, element := range elements {
+		parts := splitQueryParameterByDelimiter(element, ':', false)
+		switch len(parts) {
+		case 1:
+			// No key:value pair. It is a workspace name, and maybe includes an owner
+			parts = splitQueryParameterByDelimiter(element, '/', false)
+			switch len(parts) {
+			case 1:
+				searchParams.Set("name", parts[0])
+			case 2:
+				searchParams.Set("owner", parts[0])
+				searchParams.Set("name", parts[1])
+			default:
+				return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
+				}
+			}
+		case 2:
+			searchParams.Set(parts[0], parts[1])
+		default:
+			return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
+		}
+	}
+
+	// Using the query param parser here just returns consistent errors with
+	// other parsing.
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetWorkspacesWithFilterParams{
+		Deleted:       false,
+		OwnerUsername: parser.String(searchParams, "", "owner"),
+		TemplateName:  parser.String(searchParams, "", "template"),
+		Name:          parser.String(searchParams, "", "name"),
+	}
+
+	return filter, parser.Errors
+}
+
+// splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
+// of the query. Each element is separated by a delimiter. All quoted strings are
+// kept as a single element.
+//
+// Although all our names cannot have spaces, that is a validation error.
+// We should still parse the quoted string as a single value so that validation
+// can properly fail on the space. If we do not, a value of `template:"my name"`
+// will search `template:"my name:name"`, which produces an empty list instead of
+// an error.
+// nolint:revive
+func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes bool) []string {
+	quoted := false
+	parts := strings.FieldsFunc(query, func(r rune) bool {
+		if r == '"' {
+			quoted = !quoted
+		}
+		return !quoted && r == delimiter
+	})
+	if !maintainQuotes {
+		for i, part := range parts {
+			parts[i] = strings.Trim(part, "\"")
+		}
+	}
+
+	return parts
 }

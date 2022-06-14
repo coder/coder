@@ -8,13 +8,33 @@ WHERE
 LIMIT
 	1;
 
--- name: GetTemplatesByIDs :many
+-- name: GetTemplatesWithFilter :many
 SELECT
 	*
 FROM
 	templates
 WHERE
-	id = ANY(@ids :: uuid [ ]);
+	-- Optionally include deleted templates
+	templates.deleted = @deleted
+	-- Filter by organization_id
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by exact name
+	AND CASE
+		WHEN @exact_name :: text != '' THEN
+			LOWER("name") = LOWER(@exact_name)
+		ELSE true
+	END
+	-- Filter by ids
+	AND CASE
+		WHEN array_length(@ids :: uuid[], 1) > 0 THEN
+			id = ANY(@ids)
+		ELSE true
+	END
+;
 
 -- name: GetTemplateByOrganizationAndName :one
 SELECT
@@ -27,15 +47,6 @@ WHERE
 	AND LOWER("name") = LOWER(@name)
 LIMIT
 	1;
-
--- name: GetTemplatesByOrganization :many
-SELECT
-	*
-FROM
-	templates
-WHERE
-	organization_id = $1
-	AND deleted = $2;
 
 -- name: InsertTemplate :one
 INSERT INTO
