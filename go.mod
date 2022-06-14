@@ -43,6 +43,7 @@ require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.6.1
 	github.com/AlecAivazis/survey/v2 v2.3.4
+	github.com/andybalholm/brotli v1.0.4
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/bgentry/speakeasy v0.1.0
@@ -63,7 +64,7 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.100.1
+	github.com/gohugoio/hugo v0.100.2
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
@@ -180,7 +181,7 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.15.0 // indirect
+	github.com/klauspost/compress v1.15.6
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -200,7 +201,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.0-beta.7.0.20220408132554-2377ac4bc04c // indirect
+	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
 	github.com/pion/dtls/v2 v2.1.5 // indirect
 	github.com/pion/ice/v2 v2.2.6 // indirect
 	github.com/pion/interceptor v0.1.11 // indirect

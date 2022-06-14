@@ -46,7 +46,6 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTe
       >
         <PageHeaderTitle>{template.name}</PageHeaderTitle>
         <PageHeaderSubtitle>
-          {" "}
           {template.description === "" ? Language.noDescription : template.description}
         </PageHeaderSubtitle>
       </PageHeader>

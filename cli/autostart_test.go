@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -50,7 +48,7 @@ func TestAutostart(t *testing.T) {
 		require.Contains(t, stdoutBuf.String(), "schedule: 30 17 * * 1-5")
 	})
 
-	t.Run("EnableDisableOK", func(t *testing.T) {
+	t.Run("setunsetOK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -62,8 +60,8 @@ func TestAutostart(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			tz        = "Europe/Dublin"
-			cmdArgs   = []string{"autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
-			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
+			cmdArgs   = []string{"autostart", "set", workspace.Name, "9:30AM", "Mon-Fri", tz}
+			sched     = "CRON_TZ=Europe/Dublin 30 9 * * Mon-Fri"
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -73,15 +71,15 @@ func TestAutostart(t *testing.T) {
 
 		err := cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Contains(t, stdoutBuf.String(), "will automatically start at", "unexpected output")
+		require.Contains(t, stdoutBuf.String(), "will automatically start at 9:30AM Mon-Fri (Europe/Dublin)", "unexpected output")
 
 		// Ensure autostart schedule updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Equal(t, sched, *updated.AutostartSchedule, "expected autostart schedule to be set")
 
-		// Disable schedule
-		cmd, root = clitest.New(t, "autostart", "disable", workspace.Name)
+		// unset schedule
+		cmd, root = clitest.New(t, "autostart", "unset", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -95,7 +93,7 @@ func TestAutostart(t *testing.T) {
 		require.Nil(t, updated.AutostartSchedule, "expected autostart schedule to not be set")
 	})
 
-	t.Run("Enable_NotFound", func(t *testing.T) {
+	t.Run("set_NotFound", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -105,14 +103,14 @@ func TestAutostart(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "autostart", "enable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostart", "set", "doesnotexist", "09:30AM")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
 
-	t.Run("Disable_NotFound", func(t *testing.T) {
+	t.Run("unset_NotFound", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -122,63 +120,39 @@ func TestAutostart(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "autostart", "disable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostart", "unset", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
 	})
+}
 
-	t.Run("Enable_DefaultSchedule", func(t *testing.T) {
-		t.Parallel()
+//nolint:paralleltest // t.Setenv
+func TestAutostartSetDefaultSchedule(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	var (
+		ctx       = context.Background()
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user      = coderdtest.CreateFirstUser(t, client)
+		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+		stdoutBuf = &bytes.Buffer{}
+	)
 
-		var (
-			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		)
+	expectedSchedule := fmt.Sprintf("CRON_TZ=%s 30 9 * * *", "UTC")
+	cmd, root := clitest.New(t, "autostart", "set", workspace.Name, "9:30AM")
+	clitest.SetupConfig(t, client, root)
+	cmd.SetOutput(stdoutBuf)
 
-		// check current TZ env var
-		currTz := os.Getenv("TZ")
-		if currTz == "" {
-			currTz = "UTC"
-		}
-		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 9 * * 1-5", currTz)
-		cmd, root := clitest.New(t, "autostart", "enable", workspace.Name)
-		clitest.SetupConfig(t, client, root)
+	err := cmd.Execute()
+	require.NoError(t, err, "unexpected error")
 
-		err := cmd.Execute()
-		require.NoError(t, err, "unexpected error")
-
-		// Ensure nothing happened
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
-	})
-
-	t.Run("BelowTemplateConstraint", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user    = coderdtest.CreateFirstUser(t, client)
-			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
-			})
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"autostart", "enable", workspace.Name, "--minute", "*", "--hour", "*"}
-		)
-
-		cmd, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
-
-		err := cmd.Execute()
-		require.ErrorContains(t, err, "schedule: Minimum autostart interval 1m0s below template minimum 1h0m0s")
-	})
+	// Ensure nothing happened
+	updated, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "fetch updated workspace")
+	require.Equal(t, expectedSchedule, *updated.AutostartSchedule, "expected default autostart schedule")
+	require.Contains(t, stdoutBuf.String(), "will automatically start at 9:30AM daily (UTC)")
 }

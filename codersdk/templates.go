@@ -25,7 +25,7 @@ type Template struct {
 	Description                string          `json:"description"`
 	MaxTTLMillis               int64           `json:"max_ttl_ms"`
 	MinAutostartIntervalMillis int64           `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.NullUUID   `json:"created_by_id"`
+	CreatedByID                uuid.UUID       `json:"created_by_id"`
 	CreatedByName              string          `json:"created_by_name"`
 }
 

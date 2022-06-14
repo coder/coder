@@ -32,12 +32,6 @@ export const PageHeaderSubtitle: React.FC = ({ children }) => {
   return <h2 className={styles.subtitle}>{children}</h2>
 }
 
-export const PageHeaderText: React.FC = ({ children }) => {
-  const styles = useStyles()
-
-  return <h3 className={styles.text}>{children}</h3>
-}
-
 const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
@@ -56,16 +50,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   subtitle: {
-    fontSize: theme.spacing(2.5),
-    color: theme.palette.text.secondary,
-    fontWeight: 400,
-    display: "block",
-    margin: 0,
-    marginTop: theme.spacing(1),
-  },
-
-  text: {
-    fontSize: theme.spacing(2),
+    fontSize: theme.spacing(2.25),
     color: theme.palette.text.secondary,
     fontWeight: 400,
     display: "block",

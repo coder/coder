@@ -3,6 +3,7 @@
 package schedule
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -74,7 +75,8 @@ func Weekly(raw string) (*Schedule, error) {
 }
 
 // Schedule represents a cron schedule.
-// It's essentially a thin wrapper for robfig/cron/v3 that implements Stringer.
+// It's essentially a wrapper for robfig/cron/v3 that has additional
+// convenience methods.
 type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
@@ -92,9 +94,9 @@ func (s Schedule) String() string {
 	return sb.String()
 }
 
-// Timezone returns the timezone for the schedule.
-func (s Schedule) Timezone() string {
-	return s.sched.Location.String()
+// Location returns the IANA location for the schedule.
+func (s Schedule) Location() *time.Location {
+	return s.sched.Location
 }
 
 // Cron returns the cron spec for the schedule with the leading CRON_TZ
@@ -135,6 +137,26 @@ func (s Schedule) Min() time.Duration {
 		}
 	}
 	return durMin
+}
+
+// DaysOfWeek returns a humanized form of the day-of-week field.
+func (s Schedule) DaysOfWeek() string {
+	dow := strings.Fields(s.cronStr)[4]
+	if dow == "*" {
+		return "daily"
+	}
+	for _, weekday := range []time.Weekday{
+		time.Sunday,
+		time.Monday,
+		time.Tuesday,
+		time.Wednesday,
+		time.Thursday,
+		time.Friday,
+		time.Saturday,
+	} {
+		dow = strings.Replace(dow, fmt.Sprintf("%d", weekday), weekday.String()[:3], 1)
+	}
+	return dow
 }
 
 // validateWeeklySpec ensures that the day-of-month and month options of

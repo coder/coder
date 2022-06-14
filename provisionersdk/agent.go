@@ -20,11 +20,11 @@ Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru`
 set -eux pipefail
 BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
-if which curl >/dev/null 2>&1; then
-	curl -fsSL "${BINARY_URL}" -o "${BINARY_LOCATION}"
-elif which wget >/dev/null 2>&1; then
+if command -v curl >/dev/null 2>&1; then
+	curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_LOCATION}"
+elif command -v wget >/dev/null 2>&1; then
 	wget -q "${BINARY_URL}" -O "${BINARY_LOCATION}"
-elif which busybox >/dev/null 2>&1; then
+elif command -v busybox >/dev/null 2>&1; then
 	busybox wget -q "${BINARY_URL}" -O "${BINARY_LOCATION}"
 else
 	echo "error: no download tool found, please install curl, wget or busybox wget"
@@ -38,7 +38,7 @@ exec $BINARY_LOCATION agent`
 	darwinScript = `#!/usr/bin/env sh
 set -eux pipefail
 BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
-curl -fsSL "${ACCESS_URL}bin/coder-darwin-${ARCH}" -o "${BINARY_LOCATION}"
+curl -fsSL --compressed "${ACCESS_URL}bin/coder-darwin-${ARCH}" -o "${BINARY_LOCATION}"
 chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"

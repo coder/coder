@@ -68,8 +68,8 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspacesByTemplateID(r.Context(), database.GetWorkspacesByTemplateIDParams{
-		TemplateID: template.ID,
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
+		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -186,10 +186,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Description:          createTemplate.Description,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
-			CreatedBy: uuid.NullUUID{
-				UUID:  apiKey.UserID,
-				Valid: true,
-			},
+			CreatedBy:            apiKey.UserID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -244,7 +241,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
+	templates, err := api.Database.GetTemplatesWithFilter(r.Context(), database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -453,15 +450,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
 	creators := make(map[string]string, len(templates))
 	for _, template := range templates {
-		if template.CreatedBy.Valid {
-			creator, err := db.GetUserByID(ctx, template.CreatedBy.UUID)
-			if err != nil {
-				return map[string]string{}, err
-			}
-			creators[template.ID.String()] = creator.Username
-		} else {
-			creators[template.ID.String()] = ""
+		creator, err := db.GetUserByID(ctx, template.CreatedBy)
+		if err != nil {
+			return map[string]string{}, err
 		}
+		creators[template.ID.String()] = creator.Username
 	}
 	return creators, nil
 }
