@@ -2,11 +2,11 @@
 
 ## Table of Contents
 
-- [About Coder](./about.md#about-coder)
-  - [Why remote development](./about.md#why-remote-development)
-  - [Why Coder](./about.md#why-coder)
-  - [What Coder is not](./about.md#what-coder-is-not)
-  - [Comparison: Coder vs. [product]](./about.md#comparison)
+- [About Coder](./README.md#about-coder)
+  - [Why remote development](./README.md#why-remote-development)
+  - [Why Coder](./README.md#why-coder)
+  - [What Coder is not](./README.md#what-coder-is-not)
+  - [Product comparison](../README.md#comparison)
 - [Quickstart](./quickstart.md)
   - [Creating your first template and workspace](./quickstart.md#creating-your-first-template-and-workspace)
   - [Modifying templates](./quickstart.md#modifying-templates)
