@@ -110,7 +110,6 @@ func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.
 			continue
 		}
 		return parameterValue, nil
-
 	}
 	return database.ParameterValue{}, sql.ErrNoRows
 }

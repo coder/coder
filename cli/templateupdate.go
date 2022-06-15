@@ -5,14 +5,12 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/coderd/database"
-
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -99,7 +97,7 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			//templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
+			// templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
 			//	TemplateID:    template.ID,
 			//	StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			//	StorageSource: resp.Hash,

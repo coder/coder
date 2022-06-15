@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/briandowns/spinner"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 

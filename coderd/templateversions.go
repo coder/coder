@@ -683,7 +683,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		for _, parameterValue := range req.ParameterValues {
 			if parameterValue.CopyFromParameter != uuid.Nil {
 				continue
-
 			}
 
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
