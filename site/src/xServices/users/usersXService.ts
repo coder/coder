@@ -16,7 +16,9 @@ export const Language = {
   createUserSuccess: "Successfully created user.",
   createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
-  suspendUserError: "Error on suspending the user.",
+  suspendUserError: "Error suspending user.",
+  activateUserSuccess: "Successfully activated the user.",
+  activateUserError: "Error activating user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
   resetUserPasswordError: "Error on resetting the user password.",
   updateUserRolesSuccess: "Successfully updated the user roles.",
@@ -32,6 +34,9 @@ export interface UsersContext {
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
   suspendUserError?: Error | unknown
+  // Activate user
+  userIdToActivate?: TypesGen.User["id"]
+  activateUserError?: Error | unknown
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"]
   resetUserPasswordError?: Error | unknown
@@ -49,6 +54,10 @@ export type UsersEvent =
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
+  // Activate events
+  | { type: "ACTIVATE_USER"; userId: TypesGen.User["id"] }
+  | { type: "CONFIRM_USER_ACTIVATION" }
+  | { type: "CANCEL_USER_ACTIVATION" }
   // Reset password events
   | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
@@ -72,6 +81,9 @@ export const usersMachine = createMachine(
         suspendUser: {
           data: TypesGen.User
         }
+        activateUser: {
+          data: TypesGen.User
+        }
         updateUserPassword: {
           data: undefined
         }
@@ -91,6 +103,10 @@ export const usersMachine = createMachine(
           SUSPEND_USER: {
             target: "confirmUserSuspension",
             actions: ["assignUserIdToSuspend"],
+          },
+          ACTIVATE_USER: {
+            target: "confirmUserActivation",
+            actions: ["assignUserIdToActivate"],
           },
           RESET_USER_PASSWORD: {
             target: "confirmUserPasswordReset",
@@ -150,6 +166,12 @@ export const usersMachine = createMachine(
           CANCEL_USER_SUSPENSION: "idle",
         },
       },
+      confirmUserActivation: {
+        on: {
+          CONFIRM_USER_ACTIVATION: "activatingUser",
+          CANCEL_USER_ACTIVATION: "idle",
+        },
+      },
       suspendingUser: {
         entry: "clearSuspendUserError",
         invoke: {
@@ -163,6 +185,22 @@ export const usersMachine = createMachine(
           onError: {
             target: "idle",
             actions: ["assignSuspendUserError", "displaySuspendedErrorMessage"],
+          },
+        },
+      },
+      activatingUser: {
+        entry: "clearActivateUserError",
+        invoke: {
+          src: "activateUser",
+          id: "activateUser",
+          onDone: {
+            // Update users list
+            target: "gettingUsers",
+            actions: ["displayActivateSuccess"],
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignActivateUserError", "displayActivatedErrorMessage"],
           },
         },
       },
@@ -223,6 +261,13 @@ export const usersMachine = createMachine(
 
         return API.suspendUser(context.userIdToSuspend)
       },
+      activateUser: (context) => {
+        if (!context.userIdToActivate) {
+          throw new Error("userIdToActivate is undefined")
+        }
+
+        return API.activateUser(context.userIdToActivate)
+      },
       resetUserPassword: (context) => {
         if (!context.userIdToResetPassword) {
           throw new Error("userIdToResetPassword is undefined")
@@ -258,6 +303,9 @@ export const usersMachine = createMachine(
       assignUserIdToSuspend: assign({
         userIdToSuspend: (_, event) => event.userId,
       }),
+      assignUserIdToActivate: assign({
+        userIdToActivate: (_, event) => event.userId,
+      }),
       assignUserIdToResetPassword: assign({
         userIdToResetPassword: (_, event) => event.userId,
       }),
@@ -278,6 +326,9 @@ export const usersMachine = createMachine(
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
       }),
+      assignActivateUserError: assign({
+        activateUserError: (_, event) => event.data,
+      }),
       assignResetUserPasswordError: assign({
         resetUserPasswordError: (_, event) => event.data,
       }),
@@ -291,6 +342,9 @@ export const usersMachine = createMachine(
       })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
+      }),
+      clearActivateUserError: assign({
+        activateUserError: (_) => undefined,
       }),
       clearResetUserPasswordError: assign({
         resetUserPasswordError: (_) => undefined,
@@ -306,6 +360,13 @@ export const usersMachine = createMachine(
       },
       displaySuspendedErrorMessage: (context) => {
         const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        displayError(message)
+      },
+      displayActivateSuccess: () => {
+        displaySuccess(Language.activateUserSuccess)
+      },
+      displayActivatedErrorMessage: (context) => {
+        const message = getErrorMessage(context.activateUserError, Language.activateUserError)
         displayError(message)
       },
       displayResetPasswordSuccess: () => {
