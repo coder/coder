@@ -804,6 +804,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
+			CachePath(filepath.Join(cfg.PostgresPath(), "cache")).
 			Username("coder").
 			Password(pgPassword).
 			Database("coder").
