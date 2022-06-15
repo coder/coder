@@ -190,7 +190,7 @@ export interface ParameterSchema {
   readonly validation_condition: string
   readonly validation_type_system: string
   readonly validation_value_type: string
-  readonly validation_contains: string[]
+  readonly validation_contains?: string[]
 }
 
 // From codersdk/provisionerdaemons.go:33:6
