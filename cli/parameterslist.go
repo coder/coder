@@ -6,8 +6,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func parameterList() *cobra.Command {
@@ -58,7 +59,7 @@ func parameterList() *cobra.Command {
 				})
 			}
 
-			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(args[0]), scopeID)
+			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
 			if err != nil {
 				return xerrors.Errorf("fetch params: %w", err)
 			}

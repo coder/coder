@@ -1,10 +1,11 @@
 package cli
 
 import (
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func parameters() *cobra.Command {
@@ -33,7 +34,6 @@ func displayParameters(filterColumns []string, params ...codersdk.Parameter) str
 		Name: "name",
 	}})
 	for _, param := range params {
-		//fmt.Println(param, filterColumns)
 		tableWriter.AppendRow(table.Row{
 			param.ID.String(),
 			param.Scope,
