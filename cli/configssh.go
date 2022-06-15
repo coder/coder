@@ -200,20 +200,25 @@ func configSSH() *cobra.Command {
 			// Keep track of changes we are making.
 			var changes []string
 
-			lastConfig := sshConfigParseLastOptions(bytes.NewReader(configRaw))
-
-			// Deprecated: Remove after migration period.
+			// Parse the previous configuration only if config-ssh
+			// has been run previously.
+			var lastConfig *sshConfigOptions
 			var ok bool
 			var coderConfigRaw []byte
 			if coderConfigFile, coderConfigRaw, ok = readDeprecatedCoderConfigFile(homedir, coderConfigFile); ok {
+				// Deprecated: Remove after migration period.
 				changes = append(changes, fmt.Sprintf("Remove old auto-generated coder config file at %s", coderConfigFile))
 				// Backwards compate, restore old options.
-				lastConfig = sshConfigParseLastOptions(bytes.NewReader(coderConfigRaw))
+				c := sshConfigParseLastOptions(bytes.NewReader(coderConfigRaw))
+				lastConfig = &c
+			} else if section, ok := sshConfigGetCoderSection(configRaw); ok {
+				c := sshConfigParseLastOptions(bytes.NewReader(section))
+				lastConfig = &c
 			}
 
 			// Avoid prompting in diff mode (unexpected behavior)
 			// or when a previous config does not exist.
-			if !showDiff && !sshConfigOpts.equal(lastConfig) {
+			if !showDiff && lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
@@ -234,7 +239,7 @@ func configSSH() *cobra.Command {
 						return nil
 					}
 					// Selecting "no" will use the last config.
-					sshConfigOpts = lastConfig
+					sshConfigOpts = *lastConfig
 				}
 				_, _ = fmt.Fprint(out, "\n")
 			}
@@ -439,6 +444,15 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	}
 
 	return o
+}
+
+func sshConfigGetCoderSection(data []byte) (section []byte, ok bool) {
+	startIndex := bytes.Index(data, []byte(sshStartToken))
+	endIndex := bytes.Index(data, []byte(sshEndToken))
+	if startIndex != -1 && endIndex != -1 {
+		return data[startIndex : endIndex+len(sshEndToken)], true
+	}
+	return nil, false
 }
 
 // sshConfigSplitOnCoderSection splits the SSH config into two sections,

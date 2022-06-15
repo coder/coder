@@ -136,7 +136,7 @@ func TestConfigSSH(t *testing.T) {
 		_ = listener.Close()
 	})
 
-	sshConfigFile, coderConfigFile := sshConfigFileNames(t)
+	sshConfigFile, _ := sshConfigFileNames(t)
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
@@ -144,7 +144,6 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-option", "HostName "+tcpAddr.IP.String(),
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", sshConfigFile,
-		"--test.ssh-coder-config-file", coderConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
@@ -326,6 +325,26 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 					"",
 				}, "\n"),
 			},
+			matches: []match{
+				{match: "Continue?", write: "yes"},
+			},
+		},
+		{
+			name: "Do not prompt for new options on first run",
+			writeConfig: writeConfig{
+				ssh: "",
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-option=ForwardAgent=yes",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{"--ssh-option", "ForwardAgent=yes"},
 			matches: []match{
 				{match: "Continue?", write: "yes"},
 			},
