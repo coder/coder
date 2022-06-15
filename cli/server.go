@@ -192,9 +192,13 @@ func server() *cobra.Command {
 						Text:      "Would you like to start a tunnel for simple setup?",
 						IsConfirm: true,
 					})
-					if errors.Is(err, cliui.Canceled) {
+
+					if err != nil && !errors.Is(err, cliui.Canceled) {
 						return err
 					}
+
+					// Don't tunnel if the user specifies no tunnel.
+					tunnel = !errors.Is(err, cliui.Canceled)
 				}
 				if err == nil {
 					devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
