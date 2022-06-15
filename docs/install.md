@@ -4,7 +4,7 @@ This article walks you through the various ways of installing and deploying Code
 
 ## install.sh
 
-The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/main/install.sh) for Linux and macOS. The install script
+The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS. The install script
 attempts to use the system package manager detection-reference if possible.
 
 You can preview what occurs during the install process:
@@ -120,5 +120,10 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
    ```bash
    CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-     coder server
+      coder server
    ```
+
+## Next steps
+
+Once you've installed and started Coder, see the [quickstart](./quickstart.md)
+for instructions on creating your first template and workspace.
