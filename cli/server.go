@@ -279,7 +279,6 @@ func server() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Create the following number of provisioner daemons on start: %d\n", provisionerDaemonCount)
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Access your Coder UI in a browser at: %s\n", accessURL)
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
