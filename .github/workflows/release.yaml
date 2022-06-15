@@ -21,11 +21,8 @@ on:
         type: boolean
         required: true
 
-# In a non-snapshot we want the ./scripts/version.sh script to never generate a
-# +dev version.
 env:
-  CODER_FORCE_DEV_VERSION: ${{ github.event.inputs.snapshot && 'true' || 'false' }}
-  CODER_NO_DEV_VERSION: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
 jobs:
   linux-windows:
@@ -79,14 +76,14 @@ jobs:
 
       - name: Build Linux Docker images
         run: |
-          set -euo pipefail
+          set -euxo pipefail
 
           # build and push Docker images for each architecture
           images=()
           for arch in amd64 armv7 arm64; do
             img="$(
               ./scripts/build_docker.sh \
-                ${{ !github.event.inputs.dry_run && !github.event.inputs.snapshot && '--push' }} \
+                ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
                 --arch "$arch" \
                 ./dist/coder_*_linux_"$arch"
             )"
@@ -95,7 +92,7 @@ jobs:
 
           # build and push multi-arch manifest
           ./scripts/build_docker_multiarch.sh \
-            ${{ !github.event.inputs.dry_run && !github.event.inputs.snapshot && '--push' }} \
+            ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
             "${images[@]}"
 
           # if the current version is equal to the highest (according to semver)
@@ -104,7 +101,7 @@ jobs:
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
             ./scripts/build_docker_multiarch.sh \
               --target "$(./scripts/image_tag.sh --version latest)" \
-              ${{ !github.event.inputs.dry_run && !github.event.inputs.snapshot && '--push' }} \
+              ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
               "${images[@]}"
           fi
 

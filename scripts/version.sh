@@ -4,38 +4,37 @@
 # versions. Note: the version returned by this script will NOT include the "v"
 # prefix that is included in the Git tag.
 #
-# If $CODER_FORCE_DEV_VERSION is set to "true", the returned version will be a
-# dev version even if the current commit is tagged.
+# If $CODER_RELEASE is set to "true", the returned version will equal the
+# current git tag. If the current commit is not tagged, this will fail.
 #
-# If $CODER_NO_DEV_VERSION is set to "true", the script will fail if the current
-# commit is not tagged.
+# If $CODER_RELEASE is not set, the returned version will always be a dev
+# version.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-# $current will equal $last_tag if we currently have the tag checked out.
-last_tag="$(git describe --tags --abbrev=0)"
-current="$(git describe --always)"
-
-version="$last_tag"
+version="$(git describe --tags --abbrev=0)"
 
 # If the HEAD has extra commits since the last tag then we are in a dev version.
 #
 # Dev versions are denoted by the "-devel+" suffix with a trailing commit short
 # SHA.
-if [[ "${CODER_FORCE_DEV_VERSION:-}" == *t* ]] || [[ "$last_tag" != "$current" ]]; then
-	if [[ "${CODER_NO_DEV_VERSION:-}" == *t* ]]; then
-		# make won't exit on $(shell cmd) failures :(
+if [[ "${CODER_RELEASE:-}" == *t* ]]; then
+	# $version will equal `git describe --always` if we currently have the tag
+	# checked out.
+	if [[ "$version" != "$(git describe --always)" ]]; then
+		# make won't exit on $(shell cmd) failures, so we have to kill it :(
 		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
-			log "ERROR: version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
+			log "ERROR: version.sh attemped to generate a dev version string when CODER_RELEASE was set"
 			kill "$PPID" || true
 			exit 1
 		fi
 
-		error "version.sh attemped to generate a dev version string when CODER_NO_DEV_VERSION was set"
+		error "version.sh attemped to generate a dev version string when CODER_RELEASE was set"
 	fi
+else
 	version+="-devel+$(git rev-parse --short HEAD)"
 fi
 
