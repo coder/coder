@@ -35,8 +35,11 @@ You can use any Web IDE ([code-server](https://github.com/coder/code-server), [p
 ## Why remote development
 
 Migrating from local developer machines to workspaces hosted by cloud services
-is an increasingly common solution for developers[^1] and organizations[^2]
-alike. There are several benefits, including:
+is an [increasingly common solution for
+developers](https://blog.alexellis.io/the-internet-is-my-computer/) and
+[organizations
+alike](https://slack.engineering/development-environments-at-slack). There are
+several benefits, including:
 
 - **Increased speed:** Server-grade compute speeds up operations in software
   development, such as IDE loading, code compilation and building, and the
@@ -94,6 +97,3 @@ Azure, Google Cloud, Kubernetes, and more.
   Coder on a cloud service (AWS, Azure, GCP) or your private data center.
 
 Next: [Templates](./templates.md)
-
-[^1]: alexellis.io: [The Internet is my computer](https://blog.alexellis.io/the-internet-is-my-computer/)
-[^2]: slack.engineering: [Development environments at Slack](https://slack.engineering/development-environments-at-slack)
