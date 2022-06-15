@@ -77,7 +77,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             workspace={workspace}
           />
 
-          <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/workspaces/new`)} />
+          <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
 
           <WorkspaceStats workspace={workspace} />
 
