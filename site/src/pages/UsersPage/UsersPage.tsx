@@ -15,7 +15,7 @@ export const Language = {
   suspendDialogMessagePrefix: "Do you want to suspend the user",
   activateDialogTitle: "Activate user",
   activateDialogAction: "Activate",
-  activateDialogMessagePrefix: "Do you want to active the user",
+  activateDialogMessagePrefix: "Do you want to activate the user",
 }
 
 export const UsersPage: React.FC = () => {
@@ -108,6 +108,7 @@ export const UsersPage: React.FC = () => {
       />
 
       <ConfirmDialog
+        type="success"
         hideCancel={false}
         open={usersState.matches("confirmUserActivation")}
         confirmLoading={usersState.matches("activatingUser")}
