@@ -4,14 +4,14 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
-
-	"github.com/coder/coder/cli/cliui"
 )
 
 func templateList() *cobra.Command {
-	return &cobra.Command{
+	var (
+		columns []string
+	)
+	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -34,22 +34,11 @@ func templateList() *cobra.Command {
 				return nil
 			}
 
-			tableWriter := cliui.Table()
-			tableWriter.AppendHeader(table.Row{"Name", "Last updated", "Used by"})
-
-			for _, template := range templates {
-				suffix := ""
-				if template.WorkspaceOwnerCount != 1 {
-					suffix = "s"
-				}
-				tableWriter.AppendRow(table.Row{
-					template.Name,
-					template.UpdatedAt.Format("January 2, 2006"),
-					cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
-				})
-			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), displayTemplates(columns, templates...))
 			return err
 		},
 	}
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "last_updated", "used_by"},
+		"Specify a column to filter in the table.")
+	return cmd
 }

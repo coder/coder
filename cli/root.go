@@ -90,6 +90,7 @@ func Root() *cobra.Command {
 		portForward(),
 		workspaceAgent(),
 		versionCmd(),
+		parameters(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
