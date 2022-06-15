@@ -1010,8 +1010,8 @@ func TestWorkspaceExtend(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "deadline: Validation failed for tag \"required\" with value: \"0001-01-01 00:00:00 +0000 UTC\"", "setting an empty deadline on a workspace should fail")
 
-	// Updating with a deadline 29 minutes in the future should fail
-	deadlineTooSoon := time.Now().Add(29 * time.Minute)
+	// Updating with a deadline less than 30 minutes in the future should fail
+	deadlineTooSoon := time.Now().Add(15 * time.Minute) // XXX: time.Now
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineTooSoon,
 	})
