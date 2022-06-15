@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -29,71 +28,43 @@ import (
 )
 
 const (
-	sshDefaultConfigFileName      = "~/.ssh/config"
-	sshDefaultCoderConfigFileName = "~/.ssh/coder"
-	sshCoderConfigHeader          = "# This file is managed by coder. DO NOT EDIT."
-	sshCoderConfigDocsHeader      = `
+	sshDefaultConfigFileName = "~/.ssh/config"
+	sshStartToken            = "# ------------START-CODER-----------"
+	sshEndToken              = "# ------------END-CODER------------"
+	sshConfigSectionHeader   = "# This section is managed by coder. DO NOT EDIT."
+	sshConfigDocsHeader      = `
 #
-# You should not hand-edit this file, all changes will be lost when running
-# "coder config-ssh".`
-	sshCoderConfigOptionsHeader = `
-#
+# You should not hand-edit this section unless you are removing it, all
+# changes will be lost when running "coder config-ssh".
+`
+	sshConfigOptionsHeader = `#
 # Last config-ssh options:
 `
-	// Relative paths are assumed to be in ~/.ssh, except when
-	// included in /etc/ssh.
-	sshConfigIncludeStatement = "Include coder"
 )
 
-// Regular expressions are used because SSH configs do not have
-// meaningful indentation and keywords are case-insensitive.
-var (
-	// Find the first Host and Match statement as these restrict the
-	// following declarations to be used conditionally.
-	sshHostRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Host|Match)\s[^\n\r]*$`)
-	// Find the semantically correct include statement. Since the user can
-	// modify their configuration as they see fit, there could be:
-	// - Leading indentation (space, tab)
-	// - Trailing indentation (space, tab)
-	// - Select newline after Include statement for cleaner removal
-	// In the following cases, we will not recognize the Include statement
-	// and leave as-is (i.e. they're not supported):
-	// - User adds another file to the Include statement
-	// - User adds a comment on the same line as the Include statement
-	sshCoderIncludedRe = regexp.MustCompile(`(?m)^[\t ]*((?i)Include) coder[\t ]*[\r]?[\n]?$`)
-)
-
-// sshCoderConfigOptions represents options that can be stored and read
+// sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
-type sshCoderConfigOptions struct {
-	sshConfigDefaultFile string
-	sshConfigFile        string
-	sshOptions           []string
+type sshConfigOptions struct {
+	sshOptions []string
 }
 
-func (o sshCoderConfigOptions) equal(other sshCoderConfigOptions) bool {
+func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	// Compare without side-effects or regard to order.
 	opt1 := slices.Clone(o.sshOptions)
 	sort.Strings(opt1)
 	opt2 := slices.Clone(other.sshOptions)
 	sort.Strings(opt2)
-	return o.sshConfigFile == other.sshConfigFile && slices.Equal(opt1, opt2)
+	return slices.Equal(opt1, opt2)
 }
 
-func (o sshCoderConfigOptions) asArgs() (args []string) {
-	if o.sshConfigFile != o.sshConfigDefaultFile {
-		args = append(args, "--ssh-config-file", o.sshConfigFile)
-	}
+func (o sshConfigOptions) asArgs() (args []string) {
 	for _, opt := range o.sshOptions {
 		args = append(args, "--ssh-option", fmt.Sprintf("%q", opt))
 	}
 	return args
 }
 
-func (o sshCoderConfigOptions) asList() (list []string) {
-	if o.sshConfigFile != o.sshConfigDefaultFile {
-		list = append(list, fmt.Sprintf("ssh-config-file: %s", o.sshConfigFile))
-	}
+func (o sshConfigOptions) asList() (list []string) {
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
 	}
@@ -165,7 +136,8 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 
 func configSSH() *cobra.Command {
 	var (
-		coderConfig      sshCoderConfigOptions
+		sshConfigFile    string
+		sshConfigOpts    sshConfigOptions
 		coderConfigFile  string
 		showDiff         bool
 		skipProxyCommand bool
@@ -187,7 +159,6 @@ func configSSH() *cobra.Command {
 
     ` + cliui.Styles.Code.Render("$ coder config-ssh --diff"),
 		PostRun: func(cmd *cobra.Command, args []string) {
-			// TODO(mafredri): Should we refactor this.. e.g. sentinel error?
 			if showDiff && filesDiffer {
 				os.Exit(1) //nolint: revive
 			}
@@ -209,17 +180,14 @@ func configSSH() *cobra.Command {
 				return err
 			}
 
-			dirname, err := os.UserHomeDir()
+			homedir, err := os.UserHomeDir()
 			if err != nil {
 				return xerrors.Errorf("user home dir failed: %w", err)
 			}
 
-			sshConfigFile := coderConfig.sshConfigFile
+			sshConfigFileOrig := sshConfigFile
 			if strings.HasPrefix(sshConfigFile, "~/") {
-				sshConfigFile = filepath.Join(dirname, sshConfigFile[2:])
-			}
-			if strings.HasPrefix(coderConfigFile, "~/") {
-				coderConfigFile = filepath.Join(dirname, coderConfigFile[2:])
+				sshConfigFile = filepath.Join(homedir, sshConfigFile[2:])
 			}
 
 			// Only allow not-exist errors to avoid trashing
@@ -229,32 +197,34 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("read ssh config failed: %w", err)
 			}
 
-			coderConfigExists := true
-			coderConfigRaw, err := os.ReadFile(coderConfigFile)
-			if err != nil {
-				//nolint: revive // Inverting this if statement doesn't improve readability.
-				if errors.Is(err, fs.ErrNotExist) {
-					coderConfigExists = false
-				} else {
-					return xerrors.Errorf("read ssh config failed: %w", err)
-				}
+			// Keep track of changes we are making.
+			var changes []string
+
+			// Parse the previous configuration only if config-ssh
+			// has been run previously.
+			var lastConfig *sshConfigOptions
+			var ok bool
+			var coderConfigRaw []byte
+			if coderConfigFile, coderConfigRaw, ok = readDeprecatedCoderConfigFile(homedir, coderConfigFile); ok {
+				// Deprecated: Remove after migration period.
+				changes = append(changes, fmt.Sprintf("Remove old auto-generated coder config file at %s", coderConfigFile))
+				// Backwards compate, restore old options.
+				c := sshConfigParseLastOptions(bytes.NewReader(coderConfigRaw))
+				lastConfig = &c
+			} else if section, ok := sshConfigGetCoderSection(configRaw); ok {
+				c := sshConfigParseLastOptions(bytes.NewReader(section))
+				lastConfig = &c
 			}
-			if len(coderConfigRaw) > 0 {
-				if !bytes.HasPrefix(coderConfigRaw, []byte(sshCoderConfigHeader)) {
-					return xerrors.Errorf("unexpected content in %s: remove the file and rerun the command to continue", coderConfigFile)
-				}
-			}
-			lastCoderConfig := sshCoderConfigParseLastOptions(bytes.NewReader(coderConfigRaw), coderConfig.sshConfigDefaultFile)
 
 			// Avoid prompting in diff mode (unexpected behavior)
 			// or when a previous config does not exist.
-			if !showDiff && !coderConfig.equal(lastCoderConfig) && coderConfigExists {
-				newOpts := coderConfig.asList()
+			if !showDiff && lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
+				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
 					newOptsMsg = fmt.Sprintf("\n\n  New options:\n    * %s", strings.Join(newOpts, "\n    * "))
 				}
-				oldOpts := lastCoderConfig.asList()
+				oldOpts := lastConfig.asList()
 				oldOptsMsg := "\n\n  Previous options: none"
 				if len(oldOpts) > 0 {
 					oldOptsMsg = fmt.Sprintf("\n\n  Previous options:\n    * %s", strings.Join(oldOpts, "\n    * "))
@@ -265,43 +235,35 @@ func configSSH() *cobra.Command {
 					IsConfirm: true,
 				})
 				if err != nil {
-					// TODO(mafredri): Better way to differ between "no" and Ctrl+C?
 					if line == "" && xerrors.Is(err, cliui.Canceled) {
 						return nil
 					}
 					// Selecting "no" will use the last config.
-					coderConfig = lastCoderConfig
+					sshConfigOpts = *lastConfig
 				}
 				_, _ = fmt.Fprint(out, "\n")
 			}
 
-			// Keep track of changes we are making.
-			var changes []string
-
-			// Check for presence of old config format and
-			// remove if present.
-			configModified, ok := stripOldConfigBlock(configRaw)
-			if ok {
-				changes = append(changes, fmt.Sprintf("Remove old config block (START-CODER/END-CODER) from %s", sshConfigFile))
-			}
+			configModified := configRaw
 
 			// Check for the presence of the coder Include
 			// statement is present and add if missing.
-			configModified, ok = sshConfigAddCoderInclude(configModified)
-			if ok {
-				changes = append(changes, fmt.Sprintf("Add %q to %s", "Include coder", sshConfigFile))
+			// Deprecated: Remove after migration period.
+			if configModified, ok = removeDeprecatedSSHIncludeStatement(configModified); ok {
+				changes = append(changes, fmt.Sprintf("Remove %q from %s", "Include coder", sshConfigFile))
 			}
 
 			root := createConfig(cmd)
 
 			buf := &bytes.Buffer{}
+			before, after := sshConfigSplitOnCoderSection(configModified)
+			// Write the first half of the users config file to buf.
+			_, _ = buf.Write(before)
 
-			// Write header and store the provided options as part
+			// Write comment and store the provided options as part
 			// of the config for future (re)use.
-			err = sshCoderConfigWriteHeader(buf, coderConfig)
-			if err != nil {
-				return xerrors.Errorf("write coder config header failed: %w", err)
-			}
+			newline := len(before) > 0
+			sshConfigWriteSectionHeader(buf, newline, sshConfigOpts)
 
 			workspaceConfigs, err := recvWorkspaceConfigs()
 			if err != nil {
@@ -318,7 +280,7 @@ func configSSH() *cobra.Command {
 					configOptions := []string{
 						"Host coder." + hostname,
 					}
-					for _, option := range coderConfig.sshOptions {
+					for _, option := range sshConfigOpts.sshOptions {
 						configOptions = append(configOptions, "\t"+option)
 					}
 					configOptions = append(configOptions,
@@ -341,13 +303,14 @@ func configSSH() *cobra.Command {
 				}
 			}
 
-			modifyCoderConfig := !bytes.Equal(coderConfigRaw, buf.Bytes())
-			if modifyCoderConfig {
-				if len(coderConfigRaw) == 0 {
-					changes = append(changes, fmt.Sprintf("Write auto-generated coder config file to %s", coderConfigFile))
-				} else {
-					changes = append(changes, fmt.Sprintf("Update auto-generated coder config file in %s", coderConfigFile))
-				}
+			sshConfigWriteSectionEnd(buf)
+
+			// Write the remainder of the users config file to buf.
+			_, _ = buf.Write(after)
+
+			if !bytes.Equal(configModified, buf.Bytes()) {
+				changes = append(changes, fmt.Sprintf("Update coder config section in %s", sshConfigFile))
+				configModified = buf.Bytes()
 			}
 
 			if showDiff {
@@ -360,10 +323,15 @@ func configSSH() *cobra.Command {
 				}
 
 				color := isTTYOut(cmd)
-				for _, diffFn := range []func() ([]byte, error){
+				diffFns := []func() ([]byte, error){
 					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified, color) },
-					func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, buf.Bytes(), color) },
-				} {
+				}
+				if len(coderConfigRaw) > 0 {
+					// Deprecated: Remove after migration period.
+					diffFns = append(diffFns, func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, nil, color) })
+				}
+
+				for _, diffFn := range diffFns {
 					diff, err := diffFn()
 					if err != nil {
 						return xerrors.Errorf("diff failed: %w", err)
@@ -381,7 +349,13 @@ func configSSH() *cobra.Command {
 			if len(changes) > 0 {
 				// In diff mode we don't prompt re-using the previous
 				// configuration, so we output the entire command.
-				diffCommand := fmt.Sprintf("$ %s %s", cmd.CommandPath(), strings.Join(append(coderConfig.asArgs(), "--diff"), " "))
+				var args []string
+				if sshConfigFileOrig != sshDefaultConfigFileName {
+					args = append(args, "--ssh-config-file", sshConfigFileOrig)
+				}
+				args = append(args, sshConfigOpts.asArgs()...)
+				args = append(args, "--diff")
+				diffCommand := fmt.Sprintf("$ %s %s", cmd.CommandPath(), strings.Join(args, " "))
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  To see changes, run diff:\n\n    %s\n\n  Continue?", strings.Join(changes, "\n    * "), diffCommand),
 					IsConfirm: true,
@@ -397,10 +371,11 @@ func configSSH() *cobra.Command {
 						return xerrors.Errorf("write ssh config failed: %w", err)
 					}
 				}
-				if modifyCoderConfig {
-					err := writeWithTempFileAndMove(coderConfigFile, buf)
+				// Deprecated: Remove after migration period.
+				if len(coderConfigRaw) > 0 {
+					err = os.Remove(coderConfigFile)
 					if err != nil {
-						return xerrors.Errorf("write coder ssh config failed: %w", err)
+						return xerrors.Errorf("remove coder config failed: %w", err)
 					}
 				}
 			}
@@ -414,73 +389,42 @@ func configSSH() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &coderConfig.sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
-	cmd.Flags().StringVar(&coderConfig.sshConfigDefaultFile, "test.default-ssh-config-file", sshDefaultConfigFileName, "Specifies the default path to the SSH config file. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("test.default-ssh-config-file")
-	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("test.ssh-coder-config-file")
-	cmd.Flags().StringArrayVarP(&coderConfig.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
+	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
+	cmd.Flags().StringArrayVarP(&sshConfigOpts.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
 	cmd.Flags().BoolVarP(&showDiff, "diff", "D", false, "Show diff of changes that will be made.")
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 
+	// Deprecated: Remove after migration period.
+	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("test.ssh-coder-config-file")
+
 	return cmd
 }
 
-// sshConfigAddCoderInclude checks for the coder Include statement and
-// returns modified = true if it was added.
-func sshConfigAddCoderInclude(data []byte) (modifiedData []byte, modified bool) {
-	valid := false
-	firstHost := sshHostRe.FindIndex(data)
-	coderInclude := sshCoderIncludedRe.FindIndex(data)
-	if firstHost != nil && coderInclude != nil {
-		// If the Coder Include statement exists
-		// before a Host entry, we're good.
-		valid = coderInclude[1] < firstHost[0]
-		if !valid {
-			// Remove invalid Include statement.
-			d := append([]byte{}, data[:coderInclude[0]]...)
-			d = append(d, data[coderInclude[1]:]...)
-			data = d
+//nolint:revive
+func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOptions) {
+	nl := "\n"
+	if !addNewline {
+		nl = ""
+	}
+	_, _ = fmt.Fprint(w, nl+sshStartToken+"\n")
+	_, _ = fmt.Fprint(w, sshConfigSectionHeader)
+	_, _ = fmt.Fprint(w, sshConfigDocsHeader)
+	if len(o.sshOptions) > 0 {
+		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
+		for _, opt := range o.sshOptions {
+			_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-option", opt)
 		}
-	} else if coderInclude != nil {
-		valid = true
-	}
-	if valid {
-		return data, false
-	}
-
-	// Add Include statement to the top of SSH config.
-	// The user is allowed to move it as long as it
-	// stays above the first Host (or Match) statement.
-	sep := "\n\n"
-	if len(data) == 0 {
-		// If SSH config is empty, a single newline will suffice.
-		sep = "\n"
-	}
-	data = append([]byte(sshConfigIncludeStatement+sep), data...)
-
-	return data, true
-}
-
-func sshCoderConfigWriteHeader(w io.Writer, o sshCoderConfigOptions) error {
-	_, _ = fmt.Fprint(w, sshCoderConfigHeader)
-	_, _ = fmt.Fprint(w, sshCoderConfigDocsHeader)
-	_, _ = fmt.Fprint(w, sshCoderConfigOptionsHeader)
-	if o.sshConfigFile != o.sshConfigDefaultFile {
-		_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-config-file", o.sshConfigFile)
-	}
-	for _, opt := range o.sshOptions {
-		_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-option", opt)
 	}
 	_, _ = fmt.Fprint(w, "#\n")
-	return nil
 }
 
-func sshCoderConfigParseLastOptions(r io.Reader, sshConfigDefaultFile string) (o sshCoderConfigOptions) {
-	o.sshConfigDefaultFile = sshConfigDefaultFile
-	o.sshConfigFile = sshConfigDefaultFile // Default value is not written.
+func sshConfigWriteSectionEnd(w io.Writer) {
+	_, _ = fmt.Fprint(w, sshEndToken+"\n")
+}
 
+func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		line := s.Text()
@@ -488,8 +432,6 @@ func sshCoderConfigParseLastOptions(r io.Reader, sshConfigDefaultFile string) (o
 			line = strings.TrimPrefix(line, "# :")
 			parts := strings.SplitN(line, "=", 2)
 			switch parts[0] {
-			case "ssh-config-file":
-				o.sshConfigFile = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			default:
@@ -502,6 +444,38 @@ func sshCoderConfigParseLastOptions(r io.Reader, sshConfigDefaultFile string) (o
 	}
 
 	return o
+}
+
+func sshConfigGetCoderSection(data []byte) (section []byte, ok bool) {
+	startIndex := bytes.Index(data, []byte(sshStartToken))
+	endIndex := bytes.Index(data, []byte(sshEndToken))
+	if startIndex != -1 && endIndex != -1 {
+		return data[startIndex : endIndex+len(sshEndToken)], true
+	}
+	return nil, false
+}
+
+// sshConfigSplitOnCoderSection splits the SSH config into two sections,
+// before contains the lines before sshStartToken and after contains the
+// lines after sshEndToken.
+func sshConfigSplitOnCoderSection(data []byte) (before, after []byte) {
+	startIndex := bytes.Index(data, []byte(sshStartToken))
+	endIndex := bytes.Index(data, []byte(sshEndToken))
+	if startIndex != -1 && endIndex != -1 {
+		// We use -1 and +1 here to also include the preceding
+		// and trailing newline, where applicable.
+		start := startIndex
+		if start > 0 {
+			start--
+		}
+		end := endIndex + len(sshEndToken)
+		if end < len(data) {
+			end++
+		}
+		return data[:start], data[end:]
+	}
+
+	return data, nil
 }
 
 // writeWithTempFileAndMove writes to a temporary file in the same
@@ -609,23 +583,4 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 		b = nil
 	}
 	return b, nil
-}
-
-// stripOldConfigBlock is here to migrate users from old config block
-// format to new include statement.
-func stripOldConfigBlock(data []byte) ([]byte, bool) {
-	const (
-		sshStartToken = "# ------------START-CODER-----------"
-		sshEndToken   = "# ------------END-CODER------------"
-	)
-
-	startIndex := bytes.Index(data, []byte(sshStartToken))
-	endIndex := bytes.Index(data, []byte(sshEndToken))
-	if startIndex != -1 && endIndex != -1 {
-		newdata := append([]byte{}, data[:startIndex-1]...)
-		newdata = append(newdata, data[endIndex+len(sshEndToken):]...)
-		return newdata, true
-	}
-
-	return data, false
 }
