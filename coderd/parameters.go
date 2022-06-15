@@ -89,9 +89,9 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parameterValues, err := api.Database.GetParameterValuesByScope(r.Context(), database.GetParameterValuesByScopeParams{
-		Scope:   scope,
-		ScopeID: scopeID,
+	parameterValues, err := api.Database.ParameterValues(r.Context(), database.ParameterValuesParams{
+		Scope:    scope,
+		ScopeIds: []uuid.UUID{scopeID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -214,6 +214,8 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	switch scope {
 	case database.ParameterScopeWorkspace:
 		resource, err = api.Database.GetWorkspaceByID(ctx, scopeID)
+	case database.ParameterScopeImportJob:
+		resource, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
 	case database.ParameterScopeTemplate:
 		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
 	default:
@@ -235,12 +237,9 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 }
 
 func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {
-	var scope database.ParameterScope
-	switch chi.URLParam(r, "scope") {
-	case string(codersdk.ParameterTemplate):
-		scope = database.ParameterScopeTemplate
-	case string(codersdk.ParameterWorkspace):
-		scope = database.ParameterScopeWorkspace
+	scope := database.ParameterScope(chi.URLParam(r, "scope"))
+	switch scope {
+	case database.ParameterScopeTemplate, database.ParameterScopeImportJob, database.ParameterScopeWorkspace:
 	default:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("Invalid scope %q.", scope),

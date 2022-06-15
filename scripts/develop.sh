@@ -24,7 +24,7 @@ export CODER_DEV_ADMIN_PASSWORD=password
 
 	trap 'kill 0' SIGINT
 	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
-	go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
+	CODER_PG_CONNECTION_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@localhost:5432/${POSTGRES_DB:-postgres}?sslmode=disable go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
 
 	# Just a minor sleep to ensure the first user was created to make the member.
 	sleep 2

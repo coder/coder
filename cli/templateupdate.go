@@ -68,9 +68,7 @@ func templateUpdate() *cobra.Command {
 			}
 			spin.Stop()
 
-			//before := time.Now()
-
-			job, parameters, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
 				Client:        client,
 				Organization:  organization,
 				Provisioner:   database.ProvisionerType(provisioner),
@@ -95,8 +93,7 @@ func templateUpdate() *cobra.Command {
 			}
 
 			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-				ID:              job.ID,
-				ParameterValues: parameters,
+				ID: job.ID,
 			})
 			if err != nil {
 				return err

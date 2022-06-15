@@ -994,54 +994,6 @@ func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg Ge
 	return i, err
 }
 
-const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
-SELECT
-	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-FROM
-	parameter_values
-WHERE
-	scope = $1
-	AND scope_id = $2
-`
-
-type GetParameterValuesByScopeParams struct {
-	Scope   ParameterScope `db:"scope" json:"scope"`
-	ScopeID uuid.UUID      `db:"scope_id" json:"scope_id"`
-}
-
-func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterValuesByScope, arg.Scope, arg.ScopeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterValue
-	for rows.Next() {
-		var i ParameterValue
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Scope,
-			&i.ScopeID,
-			&i.Name,
-			&i.SourceScheme,
-			&i.SourceValue,
-			&i.DestinationScheme,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertParameterValue = `-- name: InsertParameterValue :one
 INSERT INTO
 	parameter_values (
@@ -1096,6 +1048,103 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 		&i.DestinationScheme,
 	)
 	return i, err
+}
+
+const parameterValue = `-- name: ParameterValue :one
+SELECT id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme FROM
+	parameter_values
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error) {
+	row := q.db.QueryRowContext(ctx, parameterValue, id)
+	var i ParameterValue
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Scope,
+		&i.ScopeID,
+		&i.Name,
+		&i.SourceScheme,
+		&i.SourceValue,
+		&i.DestinationScheme,
+	)
+	return i, err
+}
+
+const parameterValues = `-- name: ParameterValues :many
+SELECT
+	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
+FROM
+	parameter_values
+WHERE
+	CASE
+		WHEN $1 :: parameter_scope != '' THEN
+			scope = $1
+		ELSE true
+	END
+    AND CASE
+		WHEN cardinality($2 :: uuid[]) > 0 THEN
+			scope_id = ANY($2 :: uuid[])
+		ELSE true
+	END
+  	AND CASE
+		WHEN cardinality($3 :: uuid[]) > 0 THEN
+			id = ANY($3 :: uuid[])
+		ELSE true
+	END
+  	AND CASE
+		  WHEN cardinality($4 :: text[]) > 0 THEN
+				  "name" = ANY($4 :: text[])
+		  ELSE true
+	END
+`
+
+type ParameterValuesParams struct {
+	Scope    ParameterScope `db:"scope" json:"scope"`
+	ScopeIds []uuid.UUID    `db:"scope_ids" json:"scope_ids"`
+	Ids      []uuid.UUID    `db:"ids" json:"ids"`
+	Names    []string       `db:"names" json:"names"`
+}
+
+func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error) {
+	rows, err := q.db.QueryContext(ctx, parameterValues,
+		arg.Scope,
+		pq.Array(arg.ScopeIds),
+		pq.Array(arg.Ids),
+		pq.Array(arg.Names),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ParameterValue
+	for rows.Next() {
+		var i ParameterValue
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Scope,
+			&i.ScopeID,
+			&i.Name,
+			&i.SourceScheme,
+			&i.SourceValue,
+			&i.DestinationScheme,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one

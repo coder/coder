@@ -196,11 +196,37 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		return nil, nil, err
 	}
 
+	// lastParameterValues are pulled from the current active template version if
+	// templateID is provided. This allows pulling params from the last
+	// version if we are updating template versions.
+	lastParameterValues := make(map[string]codersdk.Parameter)
+	if args.TemplateID != uuid.Nil {
+		template, err := client.Template(cmd.Context(), args.TemplateID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("Fetch template: %w", err)
+		}
+
+		activeVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
+		}
+
+		// We don't want to compute the params, we only want to copy from this scope
+		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
+		}
+		for _, value := range values {
+			lastParameterValues[value.Name] = value
+		}
+	}
+
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
 		valuesBySchemaID := map[string]codersdk.TemplateVersionParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
+
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
@@ -224,6 +250,12 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			}
 		}
 		for _, parameterSchema := range missingSchemas {
+			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok {
+				parameters = append(parameters, codersdk.CreateParameterRequest{
+					CopyFromParameter: inherit.ID,
+				})
+				continue
+			}
 			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err

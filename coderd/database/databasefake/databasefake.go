@@ -101,6 +101,20 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, parameterValue := range q.parameterValues {
+		if parameterValue.ID.String() != id.String() {
+			continue
+		}
+		return parameterValue, nil
+
+	}
+	return database.ParameterValue{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -716,17 +730,26 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 	return organizations, nil
 }
 
-func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.GetParameterValuesByScopeParams) ([]database.ParameterValue, error) {
+func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	parameterValues := make([]database.ParameterValue, 0)
 	for _, parameterValue := range q.parameterValues {
-		if parameterValue.Scope != arg.Scope {
+		if arg.Scope != "" && parameterValue.Scope != arg.Scope {
 			continue
 		}
-		if parameterValue.ScopeID != arg.ScopeID {
-			continue
+
+		if len(arg.ScopeIds) > 0 {
+			if !contains(arg.ScopeIds, parameterValue.ScopeID) {
+				continue
+			}
+		}
+
+		if len(arg.Ids) > 0 {
+			if !contains(arg.Ids, parameterValue.ID) {
+				continue
+			}
 		}
 		parameterValues = append(parameterValues, parameterValue)
 	}
@@ -1979,4 +2002,13 @@ func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	})
 
 	return alog, nil
+}
+
+func contains[T comparable](haystack []T, needle T) bool {
+	for _, hay := range haystack {
+		if needle == hay {
+			return true
+		}
+	}
+	return false
 }
