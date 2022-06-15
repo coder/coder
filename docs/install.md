@@ -41,16 +41,12 @@ Coder publishes the following system packages [in GitHub releases](https://githu
 Once installed, you can run Coder as a system service:
 
 ```sh
-# Specify a PostgreSQL database
-# in the configuration first:
+ # Set up an external access URL or enable CODER_TUNNEL
 sudo vim /etc/coder.d/coder.env
-sudo service coder restart
-```
-
-Or run a **temporary deployment** with dev mode (all data is in-memory and destroyed on exit):
-
-```sh
-coder server --dev
+# Use systemd to start Coder now and on reboot
+sudo systemctl enable --now coder
+# View the logs to ensure a successful start
+journalctl -u coder.service -b
 ```
 
 ## docker-compose
@@ -110,18 +106,13 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
 1. Start a Coder server
 
-   To run a **temporary deployment**, start with dev mode (all data is in-memory and destroyed on exit):
+    ```sh
+    # Automatically sets up an external access URL on *.try.coder.app
+    coder server --tunnel
 
-   ```bash
-   coder server --dev
-   ```
-
-   To run a **production deployment** with PostgreSQL:
-
-   ```bash
-   CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-      coder server
-   ```
+    # Requires a PostgreSQL instance and external access URL
+    coder server --postgres-url <url> --access-url <url>
+    ```
 
 ## Next steps
 

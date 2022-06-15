@@ -20,6 +20,9 @@ replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.
 // Required until https://github.com/storj/drpc/pull/31 is merged.
 replace storj.io/drpc => github.com/kylecarbs/drpc v0.0.31-0.20220424193521-8ebbaf48bdff
 
+// Required until https://github.com/fergusstrange/embedded-postgres/pull/75 is merged.
+replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embedded-postgres v1.17.1-0.20220615202325-461532cecd3a
+
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
@@ -56,6 +59,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
+	github.com/fergusstrange/embedded-postgres v1.16.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
@@ -129,6 +133,8 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
+
+require github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
