@@ -8,7 +8,8 @@
 # The --arch parameter accepts a Golang arch specification. If not specified,
 # the image tag for the multi-arch image will be returned instead.
 #
-# If no version is specified, defaults to the version from ./version.sh.
+# If no version is specified, defaults to the version from ./version.sh. If the
+# supplied version is "latest", no `v` prefix will be added to the tag.
 #
 # The returned tag will be sanitized to remove invalid characters like the plus
 # sign.
@@ -42,7 +43,7 @@ while true; do
 	esac
 done
 
-# Remove the "v" prefix.
+# Remove the "v" prefix because we don't want to add it twice.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
@@ -50,6 +51,9 @@ fi
 
 image="${CODER_IMAGE_BASE:-ghcr.io/coder/coder}"
 tag="v$version"
+if [[ "$version" == "latest" ]]; then
+	tag="latest"
+fi
 if [[ "$arch" != "" ]]; then
 	tag+="-$arch"
 fi

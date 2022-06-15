@@ -3,7 +3,7 @@
 # This script builds a Docker image of Coder containing the given binary, for
 # the given architecture. Only linux binaries are supported at this time.
 #
-# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--push]
+# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--push] path/to/coder
 #
 # The --arch parameter is required and accepts a Golang arch specification. It
 # will be automatically mapped to a suitable architecture that Docker accepts
@@ -80,6 +80,7 @@ declare -A arch_map=(
 	[amd64]="linux/amd64"
 	[arm64]="linux/arm64"
 	[arm]="linux/arm/v7"
+	[armv7]="linux/arm/v7"
 )
 if [[ "${arch_map[$arch]+exists}" != "" ]]; then
 	arch="${arch_map[$arch]}"
