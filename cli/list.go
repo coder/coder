@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -99,7 +98,7 @@ func list() *cobra.Command {
 					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 					autostopDisplay = durationDisplay(dur)
 					if has, ext := hasExtension(workspace); has {
-						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext.Round(time.Minute)))
+						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext))
 					}
 				}
 
@@ -121,52 +120,4 @@ func list() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		"Specify a column to filter in the table.")
 	return cmd
-}
-
-func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
-	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return false, 0
-	}
-	if ws.LatestBuild.Job.CompletedAt == nil {
-		return false, 0
-	}
-	if ws.LatestBuild.Deadline.IsZero() {
-		return false, 0
-	}
-	if ws.TTLMillis == nil {
-		return false, 0
-	}
-	ttl := time.Duration(*ws.TTLMillis) * time.Millisecond
-	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(*ws.LatestBuild.Job.CompletedAt)
-	if delta < time.Minute {
-		return false, 0
-	}
-
-	return true, delta
-}
-
-func durationDisplay(d time.Duration) string {
-	duration := d
-	if duration > time.Hour {
-		duration = duration.Truncate(time.Hour)
-	}
-	if duration > time.Minute {
-		duration = duration.Truncate(time.Minute)
-	}
-	days := 0
-	for duration.Hours() > 24 {
-		days++
-		duration -= 24 * time.Hour
-	}
-	durationDisplay := duration.String()
-	if days > 0 {
-		durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
-	}
-	if strings.HasSuffix(durationDisplay, "m0s") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
-	}
-	if strings.HasSuffix(durationDisplay, "h0m") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
-	}
-	return durationDisplay
 }
