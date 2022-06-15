@@ -41,7 +41,7 @@ $ ssh coder.<workspaceName>
 Your workspace is now accessible via `ssh coder.<workspace_name>` (e.g.,
 `ssh coder.myEnv` if your workspace is named `myEnv`).
 
-## VS Code
+## VS Code Remote
 
 Once you've configured SSH, you can work on projects from your local copy of VS
 Code, connected to your Coder workspace for compute, etc.
@@ -53,3 +53,43 @@ Code, connected to your Coder workspace for compute, etc.
 
 1. In VS Code's left-hand nav bar, click **Remote Explorer** and right-click on
    a workspace to connect.
+
+## VS Code in the browser
+
+> You must have Docker Desktop running for this template to work.
+
+Coder offers a [sample template that includes
+code-server](../examples/templates/docker-code-server/README.md).
+
+To use:
+
+1. Start Coder:
+
+  ```console
+  coder server --dev
+  ```
+
+1. Open a new terminal and run:
+
+  ```console
+  coder templates init
+  ```
+
+1. When prompted, select the **Develop code-server in Docker** option.
+
+1. Navigate into your new folder and create your sample template:
+
+  ```console
+  cd code-server-docker && coder templates create
+  ```
+
+  Follow the prompts that appear in the terminal.
+
+1. Create your workspace:
+
+  ```console
+  coder create --template="docker-code-server" [workspace name]
+  ```
+
+1. Log into Coder's Web UI, and open your workspace. Then,
+   click **code-server** to launch VS Code in a new browser window.
