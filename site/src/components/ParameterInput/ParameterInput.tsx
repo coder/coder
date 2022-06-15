@@ -29,7 +29,7 @@ export const ParameterInput: FC<ParameterInputProps> = ({ disabled, onChange, sc
 }
 
 const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
-  if (schema.validation_contains.length > 0) {
+  if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <RadioGroup
         defaultValue={schema.default_source_value}
