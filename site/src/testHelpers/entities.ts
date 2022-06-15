@@ -51,6 +51,16 @@ export const MockUser2: TypesGen.User = {
   roles: [],
 }
 
+export const SuspendedMockUser: TypesGen.User = {
+  id: "suspended-mock-user",
+  username: "SuspendedMockUser",
+  email: "iamsuspendedsad!@coder.com",
+  created_at: "",
+  status: "suspended",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [],
+}
+
 export const MockOrganization: TypesGen.Organization = {
   id: "test-org",
   name: "Test Organization",
