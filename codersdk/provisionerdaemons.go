@@ -60,13 +60,14 @@ const (
 )
 
 type ProvisionerJob struct {
-	ID          uuid.UUID            `json:"id"`
-	CreatedAt   time.Time            `json:"created_at"`
-	StartedAt   *time.Time           `json:"started_at,omitempty"`
-	CompletedAt *time.Time           `json:"completed_at,omitempty"`
-	Error       string               `json:"error,omitempty"`
-	Status      ProvisionerJobStatus `json:"status"`
-	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
+	ID            uuid.UUID            `json:"id"`
+	CreatedAt     time.Time            `json:"created_at"`
+	StartedAt     *time.Time           `json:"started_at,omitempty"`
+	CompletedAt   *time.Time           `json:"completed_at,omitempty"`
+	Error         string               `json:"error,omitempty"`
+	Status        ProvisionerJobStatus `json:"status"`
+	WorkerID      *uuid.UUID           `json:"worker_id,omitempty"`
+	StorageSource string               `json:"storage_source"`
 }
 
 type ProvisionerJobLog struct {
