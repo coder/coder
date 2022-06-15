@@ -1,5 +1,5 @@
 {
-  "versions": ["0.6.2"],
+  "versions": ["0.6.6"],
   "routes": [
     {
       "title": "Home",

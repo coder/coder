@@ -85,7 +85,8 @@ echo_latest_version() {
 
 echo_standalone_postinstall() {
 	cath <<EOF
-	Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
+
+Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
 
 EOF
 
@@ -391,7 +392,16 @@ install_standalone() {
 		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+	COPY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+
+	# Remove the file if it already exists to
+	# avoid https://github.com/coder/coder/issues/2086
+	if [ -f "$COPY_LOCATION" ]; then
+		"$sh_c" rm "$COPY_LOCATION"
+	fi
+
+	# Copy the binary to the correct location.
+	"$sh_c" cp "$CACHE_DIR/coder" "$COPY_LOCATION"
 
 	echo_standalone_postinstall
 }

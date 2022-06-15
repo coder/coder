@@ -974,22 +974,23 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 func TestWorkspaceExtend(t *testing.T) {
 	t.Parallel()
 	var (
+		ttl         = 8 * time.Hour
+		newDeadline = time.Now().Add(ttl + time.Hour).UTC()
 		ctx         = context.Background()
 		client      = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user        = coderdtest.CreateFirstUser(t, client)
 		version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_           = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		project     = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		extend      = 90 * time.Minute
-		_           = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		oldDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond).UTC()
-		newDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis)*time.Millisecond + extend).UTC()
+		template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
+		})
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	)
 
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch provisioned workspace")
-	require.InDelta(t, oldDeadline.Unix(), workspace.LatestBuild.Deadline.Unix(), 60)
+	oldDeadline := workspace.LatestBuild.Deadline
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -1001,7 +1002,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	// Ensure deadline set correctly
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.InDelta(t, newDeadline.Unix(), updated.LatestBuild.Deadline.Unix(), 60)
+	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline, time.Minute)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
@@ -1009,22 +1010,37 @@ func TestWorkspaceExtend(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "deadline: Validation failed for tag \"required\" with value: \"0001-01-01 00:00:00 +0000 UTC\"", "setting an empty deadline on a workspace should fail")
 
-	// Updating with an earlier time should also fail
+	// Updating with a deadline less than 30 minutes in the future should fail
+	deadlineTooSoon := time.Now().Add(15 * time.Minute) // XXX: time.Now
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: oldDeadline,
+		Deadline: deadlineTooSoon,
 	})
-	require.ErrorContains(t, err, "deadline: minimum extension is one minute", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
-	// Updating with a time far in the future should also fail
+	// And with a deadline greater than the template max_ttl should also fail
+	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: oldDeadline.AddDate(1, 0, 0),
+		Deadline: deadlineExceedsMaxTTL,
 	})
-	require.ErrorContains(t, err, "deadline: maximum extension is 24 hours", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
+
+	// Updating with a deadline 30 minutes in the future should succeed
+	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: deadlineJustSoonEnough,
+	})
+	require.NoError(t, err, "setting a deadline at least 30 minutes in the future should succeed")
+
+	// Updating with a deadline an hour before the previous deadline should succeed
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: oldDeadline.Add(-time.Hour),
+	})
+	require.NoError(t, err, "setting an earlier deadline should not fail")
 
 	// Ensure deadline still set correctly
 	updated, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.InDelta(t, newDeadline.Unix(), updated.LatestBuild.Deadline.Unix(), 60)
+	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline, time.Minute)
 }
 
 func TestWorkspaceWatcher(t *testing.T) {

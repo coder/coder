@@ -124,8 +124,8 @@ func TestBump(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
-		// TODO(cian): need to stop and start the workspace as we do not update the deadline yet
-		//             see: https://github.com/coder/coder/issues/1783
+		// NOTE(cian): need to stop and start the workspace as we do not update the deadline
+		//             see: https://github.com/coder/coder/issues/2224
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 
