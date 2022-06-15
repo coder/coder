@@ -38,83 +38,99 @@ func TestParse(t *testing.T) {
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
-	for _, testCase := range []struct {
+	testCases := []struct {
 		Name     string
 		Files    map[string]string
 		Response *proto.Parse_Response
-	}{{
-		Name: "single-variable",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		// If ErrorContains is not empty, then response.Recv() should return an
+		// error containing this string before a Complete response is returned.
+		ErrorContains string
+	}{
+		{
+			Name: "single-variable",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 				description = "Testing!"
 			}`,
-		},
-		Response: &proto.Parse_Response{
-			Type: &proto.Parse_Response_Complete{
-				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						Name:                "A",
-						RedisplayValue:      true,
-						AllowOverrideSource: true,
-						Description:         "Testing!",
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					}},
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                "A",
+							RedisplayValue:      true,
+							AllowOverrideSource: true,
+							Description:         "Testing!",
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
 				},
 			},
 		},
-	}, {
-		Name: "default-variable-value",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		{
+			Name: "default-variable-value",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 				default = "wow"
 			}`,
-		},
-		Response: &proto.Parse_Response{
-			Type: &proto.Parse_Response_Complete{
-				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						Name:                "A",
-						RedisplayValue:      true,
-						AllowOverrideSource: true,
-						DefaultSource: &proto.ParameterSource{
-							Scheme: proto.ParameterSource_DATA,
-							Value:  "wow",
-						},
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					}},
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                "A",
+							RedisplayValue:      true,
+							AllowOverrideSource: true,
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "wow",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
 				},
 			},
 		},
-	}, {
-		Name: "variable-validation",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		{
+			Name: "variable-validation",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 				validation {
 					condition = var.A == "value"
 				}
 			}`,
-		},
-		Response: &proto.Parse_Response{
-			Type: &proto.Parse_Response_Complete{
-				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						Name:                 "A",
-						RedisplayValue:       true,
-						ValidationCondition:  `var.A == "value"`,
-						ValidationTypeSystem: proto.ParameterSchema_HCL,
-						AllowOverrideSource:  true,
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					}},
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                 "A",
+							RedisplayValue:       true,
+							ValidationCondition:  `var.A == "value"`,
+							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							AllowOverrideSource:  true,
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
 				},
 			},
 		},
-	}} {
+		{
+			Name: "bad-syntax",
+			Files: map[string]string{
+				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
+			},
+			ErrorContains: `The ";" character is not valid.`,
+		},
+	}
+
+	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
@@ -133,10 +149,20 @@ func TestParse(t *testing.T) {
 
 			for {
 				msg, err := response.Recv()
-				require.NoError(t, err)
+				if err != nil {
+					if testCase.ErrorContains != "" {
+						require.ErrorContains(t, err, testCase.ErrorContains)
+						break
+					}
+
+					require.NoError(t, err)
+				}
 
 				if msg.GetComplete() == nil {
 					continue
+				}
+				if testCase.ErrorContains != "" {
+					t.Fatal("expected error but job completed successfully")
 				}
 
 				// Ensure the want and got are equivalent!
