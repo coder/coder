@@ -45,6 +45,8 @@ func templatePull() *cobra.Command {
 				return xerrors.Errorf("template by name: %w", err)
 			}
 
+			// Pull the versions for the template. We'll find the latest
+			// one and download the source.
 			versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 				TemplateID: template.ID,
 			})
@@ -61,10 +63,9 @@ func templatePull() *cobra.Command {
 				return versions[i].CreatedAt.After(versions[j].CreatedAt)
 			})
 
-			// TemplateVersionsByTemplate returns the versions in order from newest
-			// to oldest.
 			latest := versions[0]
 
+			// Download the tar archive.
 			raw, ctype, err := client.Download(ctx, latest.Job.SourceHash)
 			if err != nil {
 				return xerrors.Errorf("download template: %w", err)

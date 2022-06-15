@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -26,10 +28,10 @@ func TestTemplatePull(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// Create an initial template bundle.
-		source1 := clitest.GenTemplateVersion()
+		source1 := genTemplateVersionSource()
 		// Create an updated template bundle. This will be used to ensure
 		// that templates are correctly returned in order from latest to oldest.
-		source2 := clitest.GenTemplateVersion()
+		source2 := genTemplateVersionSource()
 
 		expected, err := echo.Tar(source2)
 		require.NoError(t, err)
@@ -64,10 +66,10 @@ func TestTemplatePull(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// Create an initial template bundle.
-		source1 := clitest.GenTemplateVersion()
+		source1 := genTemplateVersionSource()
 		// Create an updated template bundle. This will be used to ensure
 		// that templates are correctly returned in order from latest to oldest.
-		source2 := clitest.GenTemplateVersion()
+		source2 := genTemplateVersionSource()
 
 		expected, err := echo.Tar(source2)
 		require.NoError(t, err)
@@ -115,4 +117,27 @@ func TestTemplatePull(t *testing.T) {
 
 		require.True(t, bytes.Equal(actual, expected), "tar files differ")
 	})
+}
+
+// genTemplateVersionSource returns a unique bundle that can be used to create
+// a template version source.
+func genTemplateVersionSource() *echo.Responses {
+	return &echo.Responses{
+		Parse: []*proto.Parse_Response{
+			{
+				Type: &proto.Parse_Response_Log{
+					Log: &proto.Log{
+						Output: uuid.NewString(),
+					},
+				},
+			},
+
+			{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{},
+				},
+			},
+		},
+		Provision: echo.ProvisionComplete,
+	}
 }

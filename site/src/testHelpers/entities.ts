@@ -69,7 +69,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  source_hash: "asdf",
+  storage_source: "asdf",
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
