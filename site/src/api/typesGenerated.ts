@@ -211,9 +211,10 @@ export interface ProvisionerJob {
   readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
+  readonly storage_source: string
 }
 
-// From codersdk/provisionerdaemons.go:72:6
+// From codersdk/provisionerdaemons.go:73:6
 export interface ProvisionerJobLog {
   readonly id: string
   readonly created_at: string
