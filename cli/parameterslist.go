@@ -4,9 +4,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
