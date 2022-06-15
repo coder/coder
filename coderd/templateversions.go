@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -473,11 +472,6 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return
 	}
-
-	// Sort the slice from newest to oldest template.
-	sort.SliceStable(apiVersions, func(i, j int) bool {
-		return apiVersions[i].CreatedAt.After(apiVersions[j].CreatedAt)
-	})
 
 	httpapi.Write(rw, http.StatusOK, apiVersions)
 }

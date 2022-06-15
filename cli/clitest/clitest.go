@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // New creates a CLI instance with a configuration pointed to a
@@ -44,6 +46,29 @@ func CreateTemplateVersionSource(t *testing.T, responses *echo.Responses) string
 	require.NoError(t, err)
 	extractTar(t, data, directory)
 	return directory
+}
+
+// GenTemplateVersion returns a unique bundle that can be used to create
+// a template version source.
+func GenTemplateVersion() *echo.Responses {
+	return &echo.Responses{
+		Parse: []*proto.Parse_Response{
+			{
+				Type: &proto.Parse_Response_Log{
+					Log: &proto.Log{
+						Output: uuid.NewString(),
+					},
+				},
+			},
+
+			{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{},
+				},
+			},
+		},
+		Provision: echo.ProvisionComplete,
+	}
 }
 
 func extractTar(t *testing.T, data []byte, directory string) {

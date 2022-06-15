@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
+	"sort"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -54,6 +56,11 @@ func templatePull() *cobra.Command {
 				return xerrors.Errorf("no template versions for template %q", templateName)
 			}
 
+			// Sort the slice from newest to oldest template.
+			sort.SliceStable(versions, func(i, j int) bool {
+				return versions[i].CreatedAt.After(versions[j].CreatedAt)
+			})
+
 			// TemplateVersionsByTemplate returns the versions in order from newest
 			// to oldest.
 			latest := versions[0]
@@ -67,6 +74,8 @@ func templatePull() *cobra.Command {
 				return xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
 			}
 
+			// If the destination is empty then we write to stdout
+			// and bail early.
 			if dest == "" {
 				_, err = cmd.OutOrStdout().Write(raw)
 				if err != nil {
@@ -75,17 +84,39 @@ func templatePull() *cobra.Command {
 				return nil
 			}
 
-			name := fmt.Sprintf("%s.tar", templateName)
-			err = os.WriteFile(filepath.Join(dest, name), raw, 0600)
+			// Stat the destination to ensure nothing exists already.
+			fi, err := os.Stat(dest)
+			if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
+				return xerrors.Errorf("stat destination: %w", err)
+			}
+
+			if fi != nil && fi.IsDir() {
+				// If the destination is a directory we just bail.
+				return xerrors.Errorf("%q already exists.", dest)
+			}
+
+			// If a file exists at the destination prompt the user
+			// to ensure we don't overwrite something valuable.
+			if fi != nil {
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:      fmt.Sprintf("%q already exists, do you want to overwrite it?", dest),
+					IsConfirm: true,
+				})
+				if err != nil {
+					return xerrors.Errorf("parse prompt: %w", err)
+				}
+			}
+
+			err = os.WriteFile(dest, raw, 0600)
 			if err != nil {
 				return xerrors.Errorf("write to path: %w", err)
 			}
 
-			// TODO(Handle '~')
-
 			return nil
 		},
 	}
+
+	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
 }
