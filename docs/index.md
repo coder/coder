@@ -21,3 +21,4 @@
   - [Editors and IDEs](./workspaces.md#editors-and-ides)
   - [Workspace lifecycle](./workspaces.md#workspace-lifecycle)
   - [Updating workspaces](./workspaces.md#updating-workspaces)
+- [IDEs](./ides.md)
