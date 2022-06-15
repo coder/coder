@@ -135,7 +135,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reading all users across the site.
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -190,7 +191,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	// Create the user on the site.
-	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceUser) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -200,8 +202,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the organization member in the org.
-	if !api.Authorize(rw, r, rbac.ActionCreate,
+	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -258,7 +261,8 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -276,7 +280,8 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -343,7 +348,8 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		user := httpmw.UserParam(r)
 		apiKey := httpmw.APIKey(r)
 
-		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser.WithID(user.ID.String())) {
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 
@@ -387,7 +393,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		params codersdk.UpdateUserPasswordRequest
 	)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -411,7 +418,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	// admins can change passwords without sending old_password
 	if params.OldPassword == "" {
-		if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+			httpapi.Forbidden(rw)
 			return
 		}
 	} else {
@@ -464,8 +472,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.
-		WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -514,18 +522,25 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
 	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
 	for _, roleName := range added {
 		// Assigning a role requires the create permission.
-		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
+		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
+			httpapi.Forbidden(rw)
 			return
 		}
 	}
 	for _, roleName := range removed {
 		// Removing a role requires the delete permission.
-		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
+		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
+			httpapi.Forbidden(rw)
 			return
 		}
 	}
@@ -606,20 +621,22 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
-		// Return unauthorized rather than a 404 to not leak if the organization
-		// exists.
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
-		httpapi.Forbidden(rw)
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching organization.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead,
+	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceOrganization.
 			InOrg(organization.ID).
 			WithID(organization.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -684,7 +701,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

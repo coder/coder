@@ -33,7 +33,8 @@ import (
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
@@ -64,7 +65,8 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
@@ -379,7 +381,8 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)

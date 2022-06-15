@@ -1,5 +1,15 @@
+import axios from "axios"
+import { postFirstUser } from "../src/api/api"
+import * as constants from "./constants"
+
 const globalSetup = async (): Promise<void> => {
-  // Nothing yet!
+  axios.defaults.baseURL = "http://localhost:3000"
+  await postFirstUser({
+    email: constants.email,
+    organization: constants.organization,
+    username: constants.username,
+    password: constants.password,
+  })
 }
 
 export default globalSetup

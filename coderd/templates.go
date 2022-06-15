@@ -29,6 +29,11 @@ var (
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -41,7 +46,8 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -64,12 +70,13 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(rw, r, rbac.ActionDelete, template) {
+	if !api.Authorize(r, rbac.ActionDelete, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspacesByTemplateID(r.Context(), database.GetWorkspacesByTemplateIDParams{
-		TemplateID: template.ID,
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
+		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -108,7 +115,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	var createTemplate codersdk.CreateTemplateRequest
 	organization := httpmw.OrganizationParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -241,7 +249,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
+	templates, err := api.Database.GetTemplatesWithFilter(r.Context(), database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -296,9 +304,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-				Message: fmt.Sprintf("No template found by name %q in the %q organization.", templateName, organization.Name),
-			})
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 
@@ -309,7 +315,8 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -344,7 +351,8 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(rw, r, rbac.ActionUpdate, template) {
+	if !api.Authorize(r, rbac.ActionUpdate, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

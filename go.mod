@@ -20,6 +20,9 @@ replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.
 // Required until https://github.com/storj/drpc/pull/31 is merged.
 replace storj.io/drpc => github.com/kylecarbs/drpc v0.0.31-0.20220424193521-8ebbaf48bdff
 
+// Required until https://github.com/fergusstrange/embedded-postgres/pull/75 is merged.
+replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embedded-postgres v1.17.1-0.20220615202325-461532cecd3a
+
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
@@ -56,6 +59,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
+	github.com/fergusstrange/embedded-postgres v1.16.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
@@ -81,6 +85,7 @@ require (
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/lib/pq v1.10.6
 	github.com/mattn/go-isatty v0.0.14
+	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v20.10.17+incompatible
 	github.com/open-policy-agent/opa v0.41.0
@@ -128,6 +133,8 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
+
+require github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -190,7 +197,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/miekg/dns v1.1.45 // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect

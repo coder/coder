@@ -14,9 +14,9 @@ import (
 type ParameterScope string
 
 const (
-	ParameterTemplate  ParameterScope = "template"
-	ParameterWorkspace ParameterScope = "workspace"
-	ParameterImportJob ParameterScope = "import_job"
+	ParameterTemplate       ParameterScope = "template"
+	ParameterWorkspace      ParameterScope = "workspace"
+	ParameterScopeImportJob ParameterScope = "import_job"
 )
 
 type ParameterSourceScheme string
@@ -73,7 +73,7 @@ type ParameterSchema struct {
 
 	// This is a special array of items provided if the validation condition
 	// explicitly states the value must be one of a set.
-	ValidationContains []string `json:"validation_contains"`
+	ValidationContains []string `json:"validation_contains,omitempty"`
 }
 
 // CreateParameterRequest is used to create a new parameter value for a scope.

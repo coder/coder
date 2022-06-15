@@ -14,6 +14,7 @@ import (
 
 func TestPagination(t *testing.T) {
 	t.Parallel()
+	const invalidValues = "Query parameters have invalid values"
 	testCases := []struct {
 		Name string
 
@@ -27,27 +28,27 @@ func TestPagination(t *testing.T) {
 		{
 			Name:          "BadAfterID",
 			AfterID:       "bogus",
-			ExpectedError: "Query param 'after_id' must be a valid UUID",
+			ExpectedError: invalidValues,
 		},
 		{
 			Name:          "ShortAfterID",
 			AfterID:       "ff22a7b-bb6f-43d8-83e1-eefe0a1f5197",
-			ExpectedError: "Query param 'after_id' must be a valid UUID",
+			ExpectedError: invalidValues,
 		},
 		{
 			Name:          "LongAfterID",
 			AfterID:       "cff22a7b-bb6f-43d8-83e1-eefe0a1f51972",
-			ExpectedError: "Query param 'after_id' must be a valid UUID",
+			ExpectedError: invalidValues,
 		},
 		{
 			Name:          "BadLimit",
 			Limit:         "bogus",
-			ExpectedError: "Query param 'limit' must be a valid integer",
+			ExpectedError: invalidValues,
 		},
 		{
 			Name:          "BadOffset",
 			Offset:        "bogus",
-			ExpectedError: "Query param 'offset' must be a valid integer",
+			ExpectedError: invalidValues,
 		},
 
 		// Valid values

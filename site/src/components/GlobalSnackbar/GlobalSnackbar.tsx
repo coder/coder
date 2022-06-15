@@ -72,6 +72,7 @@ export const GlobalSnackbar: React.FC = () => {
 
   return (
     <EnterpriseSnackbar
+      key={notification.msg}
       open={open}
       variant={variantFromMsgType(notification.msgType)}
       message={

@@ -38,6 +38,7 @@ func templates() *cobra.Command {
 		templateUpdate(),
 		templateVersions(),
 		templateDelete(),
+		templatePull(),
 	)
 
 	return cmd
@@ -69,8 +70,8 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) st
 			template.Provisioner,
 			template.ActiveVersionID.String(),
 			cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
-			fmt.Sprintf("%s", time.Duration(template.MaxTTLMillis)*time.Millisecond),
-			fmt.Sprintf("%s", time.Duration(template.MinAutostartIntervalMillis)*time.Millisecond),
+			(time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
+			(time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		})
 	}
 	return tableWriter.Render()

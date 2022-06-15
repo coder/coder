@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
-	"github.com/spf13/cobra"
 )
 
 func parameterList() *cobra.Command {
@@ -46,19 +46,19 @@ func parameterList() *cobra.Command {
 				}
 				scopeID = template.ID
 
-			case codersdk.ParameterImportJob, "template_version":
-				scope = string(codersdk.ParameterImportJob)
+			case codersdk.ParameterScopeImportJob, "template_version":
+				scope = string(codersdk.ParameterScopeImportJob)
 				scopeID, err = uuid.Parse(name)
 				if err != nil {
 					return xerrors.Errorf("%q must be a uuid for this scope type", name)
 				}
 			default:
 				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
-					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterImportJob,
+					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterScopeImportJob,
 				})
 			}
 
-			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(args[0]), scopeID)
+			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
 			if err != nil {
 				return xerrors.Errorf("fetch params: %w", err)
 			}
