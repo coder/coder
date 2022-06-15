@@ -183,7 +183,7 @@ func server() *cobra.Command {
 					"Coder requires a URL accessible by workspaces you provision. "+
 						"A free tunnel can be created for simple setup. This will "+
 						"expose your Coder deployment to a publicly accessible URL. "+
-						"If you'd like to use your own domain, you can provide it "+
+						"If you'd like to use your own hostname, you can provide it "+
 						"with the "+
 						cliui.Styles.Field.Render("--access-url")+" flag.\n",
 				))

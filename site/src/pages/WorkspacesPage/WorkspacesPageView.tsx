@@ -50,7 +50,7 @@ export const Language = {
   allWorkspacesButton: "All workspaces",
   workspaceTooltipTitle: "What is a workspace?",
   workspaceTooltipText:
-    "A workspace is your development environment in the cloud. It includes the compute infrastructure and tools you need to work on your project",
+    "A workspace is your development environment in the cloud. It includes the infrastructure and tools you need to work on your project.",
   workspaceTooltipLink1: "Create workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",
