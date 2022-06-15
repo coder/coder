@@ -134,7 +134,7 @@ func server() *cobra.Command {
 
 			config := createConfig(cmd)
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if postgresURL == "" {
+			if !inMemoryDatabase && postgresURL == "" {
 				var closeFunc func() error
 				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
 				postgresURL, closeFunc, err = startBuiltinPostgres(cmd.Context(), config, logger)

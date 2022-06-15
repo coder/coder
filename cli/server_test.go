@@ -67,21 +67,13 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
-	t.Run("NoPostgres", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--address", ":0")
-		err := root.ExecuteContext(ctx)
-		require.Error(t, err)
-	})
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {
 			t.SkipNow()
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		root, cfg := clitest.New(t, "server", "--address", ":0", "--postgres-builtin")
+		root, cfg := clitest.New(t, "server", "--address", ":0")
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
