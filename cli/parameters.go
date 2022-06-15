@@ -10,7 +10,9 @@ import (
 func parameters() *cobra.Command {
 	cmd := &cobra.Command{
 		Short:   "List parameters for a given scope",
+		Example: "coder parameters list workspace my-workspace",
 		Use:     "parameters",
+		Hidden:  true,
 		Aliases: []string{"params"},
 	}
 	cmd.AddCommand(
