@@ -545,9 +545,33 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	err = api.Database.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
-		ID:              template.ID,
-		ActiveVersionID: req.ID,
+
+	err = api.Database.InTx(func(store database.Store) error {
+		for _, parameterValue := range req.ParameterValues {
+			_, err = store.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeImportJob,
+				ScopeID:           version.JobID,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
+
+		err = store.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
+			ID:              template.ID,
+			ActiveVersionID: req.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("update active version: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
