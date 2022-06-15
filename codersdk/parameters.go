@@ -72,7 +72,7 @@ type ParameterSchema struct {
 
 	// This is a special array of items provided if the validation condition
 	// explicitly states the value must be one of a set.
-	ValidationContains []string `json:"validation_contains"`
+	ValidationContains []string `json:"validation_contains,omitempty"`
 }
 
 // CreateParameterRequest is used to create a new parameter value for a scope.
