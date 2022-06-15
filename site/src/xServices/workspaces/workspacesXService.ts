@@ -275,6 +275,7 @@ export const workspacesMachine = createMachine(
 
         workspaceRef.send("UPDATE_VERSION")
       },
+      // Opened discussion on XState https://github.com/statelyai/xstate/discussions/3406
       updateWorkspaceRefs: assign({
         workspaceRefs: (context, event) => {
           let workspaceRefs = context.workspaceRefs

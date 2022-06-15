@@ -59,8 +59,7 @@ export const Language = {
   workspaceTooltipLink3: "Editors and IDEs",
   outdatedLabel: "Outdated",
   upToDateLabel: "Up to date",
-  versionTooltipText:
-    "This workspace version is outdated and a newer version is available.",
+  versionTooltipText: "This workspace version is outdated and a newer version is available.",
   updateVersionLabel: "Update version",
 }
 
