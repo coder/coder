@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -63,8 +62,6 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCP
 		}
 	}()
 
-	// Required for randomly generated names to not conflict!
-	rand.Seed(time.Now().UnixMicro())
 	name := namesgenerator.GetRandomName(1)
 	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),

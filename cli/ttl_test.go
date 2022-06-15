@@ -3,7 +3,6 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -109,9 +108,6 @@ func TestTTL(t *testing.T) {
 			assert.NoError(t, err, "unexpected error")
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("warning: ttl rounded down to %s", ttl.Truncate(time.Minute)))
-		pty.ExpectMatch(fmt.Sprintf("Workspace %q will be stopped in 8h29m0s. Are you sure?", workspace.Name))
-		pty.WriteLine("yes")
 		// Ensure ttl updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
@@ -178,7 +174,7 @@ func TestTTL(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 404:", "unexpected error")
 	})
 
 	t.Run("Unset_NotFound", func(t *testing.T) {
@@ -195,7 +191,7 @@ func TestTTL(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 403: Forbidden", "unexpected error")
+		require.ErrorContains(t, err, "status code 404:", "unexpected error")
 	})
 
 	t.Run("TemplateMaxTTL", func(t *testing.T) {

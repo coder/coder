@@ -13,15 +13,20 @@ export const Language = {
   suspendDialogTitle: "Suspend user",
   suspendDialogAction: "Suspend",
   suspendDialogMessagePrefix: "Do you want to suspend the user",
+  activateDialogTitle: "Activate user",
+  activateDialogAction: "Activate",
+  activateDialogMessagePrefix: "Do you want to activate the user",
 }
 
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
-  const { users, getUsersError, userIdToSuspend, userIdToResetPassword, newUserPassword } = usersState.context
+  const { users, getUsersError, userIdToSuspend, userIdToActivate, userIdToResetPassword, newUserPassword } =
+    usersState.context
   const navigate = useNavigate()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
+  const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
   const permissions = useSelector(xServices.authXService, selectPermissions)
   const canEditUsers = permissions && permissions.updateUsers
@@ -62,6 +67,9 @@ export const UsersPage: React.FC = () => {
         onSuspendUser={(user) => {
           usersSend({ type: "SUSPEND_USER", userId: user.id })
         }}
+        onActivateUser={(user) => {
+          usersSend({ type: "ACTIVATE_USER", userId: user.id })
+        }}
         onResetUserPassword={(user) => {
           usersSend({ type: "RESET_USER_PASSWORD", userId: user.id })
         }}
@@ -95,6 +103,26 @@ export const UsersPage: React.FC = () => {
         description={
           <>
             {Language.suspendDialogMessagePrefix} <strong>{userToBeSuspended?.username}</strong>?
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        type="success"
+        hideCancel={false}
+        open={usersState.matches("confirmUserActivation")}
+        confirmLoading={usersState.matches("activatingUser")}
+        title={Language.activateDialogTitle}
+        confirmText={Language.activateDialogAction}
+        onConfirm={() => {
+          usersSend("CONFIRM_USER_ACTIVATION")
+        }}
+        onClose={() => {
+          usersSend("CANCEL_USER_ACTIVATION")
+        }}
+        description={
+          <>
+            {Language.activateDialogMessagePrefix} <strong>{userToBeActivated?.username}</strong>?
           </>
         }
       />

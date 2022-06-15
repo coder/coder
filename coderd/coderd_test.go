@@ -380,9 +380,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 				// By default, all omitted routes check for just "authorize" called
 				routeAssertions = routeCheck{}
 			}
-			if routeAssertions.StatusCode == 0 {
-				routeAssertions.StatusCode = http.StatusForbidden
-			}
 
 			// Replace all url params with known values
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
@@ -413,7 +410,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
-				assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
+				if routeAssertions.StatusCode != 0 {
+					assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
+				} else {
+					// It's either a 404 or 403.
+					if resp.StatusCode != http.StatusNotFound {
+						assert.Equal(t, http.StatusForbidden, resp.StatusCode, "expect unauthorized")
+					}
+				}
 				if authorizer.Called != nil {
 					if routeAssertions.AssertAction != "" {
 						assert.Equal(t, routeAssertions.AssertAction, authorizer.Called.Action, "resource action")

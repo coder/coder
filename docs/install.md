@@ -104,8 +104,8 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 1. Start a Coder server
 
     ```sh
-    # Automatically sets up PostgreSQL and an external access URL on *.try.coder.app
-    coder server --postgres-builtin --tunnel
+    # Automatically sets up an external access URL on *.try.coder.app
+    coder server --tunnel
 
     # Requires a PostgreSQL instance and external access URL
     coder server --postgres-url <url> --access-url <url>

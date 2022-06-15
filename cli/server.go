@@ -75,7 +75,6 @@ func server() *cobra.Command {
 		inMemoryDatabase      bool
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
-		postgresBuiltin                  bool
 		postgresURL                      string
 		oauth2GithubClientID             string
 		oauth2GithubClientSecret         string
@@ -134,34 +133,18 @@ func server() *cobra.Command {
 			}
 
 			config := createConfig(cmd)
-			// For in-memory, disable embedded PostgreSQL!
-			// This is primarily for testing and development.
-			if inMemoryDatabase {
-				postgresBuiltin = false
-				postgresURL = ""
-			}
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if postgresURL == "" && postgresBuiltin {
+			if postgresURL == "" {
 				var closeFunc func() error
+				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
 				postgresURL, closeFunc, err = startBuiltinPostgres(cmd.Context(), config, logger)
 				if err != nil {
 					return err
 				}
-				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
 				defer func() {
 					// Gracefully shut PostgreSQL down!
 					_ = closeFunc()
 				}()
-			}
-			// If the built-in PostgreSQL isn't used and an external URL isn't specified,
-			// recommend usage of the built-in!
-			if !inMemoryDatabase && postgresURL == "" {
-				cmd.PrintErrln(cliui.Styles.Error.Render("PostgreSQL >=13 is required for running Coder.") + "\n")
-				cmd.PrintErrln("Automatically install and run PostgreSQL (install and runtime data goes to " + config.PostgresPath() + "):")
-				cmd.PrintErrln(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --postgres-builtin"))
-				cmd.PrintErrln("\nUse an external PostgreSQL deployment:")
-				cmd.PrintErrln(" coder server --postgres-url <url>")
-				return xerrors.New("")
 			}
 
 			listener, err := net.Listen("tcp", address)
@@ -221,9 +204,9 @@ func server() *cobra.Command {
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
-					reason = "isn't reachable externally"
+					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s. Workspaces must be able to reach Coder from this URL. Optionally, generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
 				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
 			cmd.Printf("View the Web UI: %s\n", accessURL)
@@ -491,9 +474,7 @@ func server() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
 		"Specifies whether data will be stored in an in-memory database.")
 	_ = root.Flags().MarkHidden("in-memory")
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
-	cliflag.BoolVarP(root.Flags(), &postgresBuiltin, "postgres-builtin", "", "CODER_PG_BUILTIN", false,
-		"Start and run a PostgreSQL database for the Coder deployment. This will download PostgreSQL binaries from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access this database with \"coder server postgres-builtin-url\"")
+	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
 		"Specifies a client ID to use for oauth2 with GitHub.")
@@ -831,7 +812,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	)
 	err = ep.Start()
 	if err != nil {
-		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL: %w", err)
+		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
 }

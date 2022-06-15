@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,9 +31,12 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const workspaceDefaultTTL = 12 * time.Hour
+
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -103,38 +108,19 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
-	// Empty strings mean no filter
-	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner")
-	nameFilter := r.URL.Query().Get("name")
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := workspaceSearchQuery(queryStr)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid workspace search query.",
+			Validations: errs,
+		})
+		return
+	}
 
-	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
-	if orgFilter != "" {
-		orgID, err := uuid.Parse(orgFilter)
-		if err == nil {
-			filter.OrganizationID = orgID
-		}
-	}
-	if ownerFilter == "me" {
+	if filter.OwnerUsername == "me" {
 		filter.OwnerID = apiKey.UserID
-	} else if ownerFilter != "" {
-		userID, err := uuid.Parse(ownerFilter)
-		if err != nil {
-			// Maybe it's a username
-			user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-				// Why not just accept 1 arg and use it for both in the sql?
-				Username: ownerFilter,
-				Email:    ownerFilter,
-			})
-			if err == nil {
-				filter.OwnerID = user.ID
-			}
-		} else {
-			filter.OwnerID = userID
-		}
-	}
-	if nameFilter != "" {
-		filter.Name = nameFilter
+		filter.OwnerUsername = ""
 	}
 
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
@@ -191,8 +177,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		// Do not leak information if the workspace exists or not
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
@@ -202,7 +187,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -247,8 +233,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(rw, r, rbac.ActionCreate,
+	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -276,26 +263,14 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
-		})
-		return
-	}
-	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: template.OrganizationID,
-		UserID:         apiKey.UserID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "You aren't allowed to access templates in that organization.",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error fetching organization member.",
-			Detail:  err.Error(),
 		})
 		return
 	}
@@ -319,8 +294,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	if !dbTTL.Valid {
-		// Default to template maximum when creating a new workspace
-		dbTTL = sql.NullInt64{Valid: true, Int64: template.MaxTtl}
+		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
+		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(workspaceDefaultTTL))}
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -488,8 +463,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -531,8 +506,8 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -541,30 +516,22 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Error fetching workspace template!",
-		})
-		return
-	}
+	var validErrs []httpapi.Error
 
-	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid workspace TTL.",
-			Detail:  err.Error(),
-			Validations: []httpapi.Error{
-				{
-					Field:  "ttl_ms",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
-	}
+	err := api.Database.InTx(func(s database.Store) error {
+		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Error fetching workspace template!",
+			})
+			return xerrors.Errorf("fetch workspace template: %w", err)
+		}
 
-	err = api.Database.InTx(func(s database.Store) error {
+		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
+		if err != nil {
+			validErrs = append(validErrs, httpapi.Error{Field: "ttl_ms", Detail: err.Error()})
+			return err
+		}
 		if err := s.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
 			ID:  workspace.ID,
 			Ttl: dbTTL,
@@ -572,44 +539,18 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update workspace TTL: %w", err)
 		}
 
-		// Also extend the workspace deadline if the workspace is running
-		latestBuild, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
-		if err != nil {
-			return xerrors.Errorf("get latest workspace build: %w", err)
-		}
-
-		if latestBuild.Transition != database.WorkspaceTransitionStart {
-			return nil // nothing to do
-		}
-
-		if latestBuild.UpdatedAt.IsZero() {
-			// Build in progress; provisionerd should update with the new TTL.
-			return nil
-		}
-
-		var newDeadline time.Time
-		if dbTTL.Valid {
-			newDeadline = latestBuild.UpdatedAt.Add(time.Duration(dbTTL.Int64))
-		}
-
-		if err := s.UpdateWorkspaceBuildByID(
-			r.Context(),
-			database.UpdateWorkspaceBuildByIDParams{
-				ID:               latestBuild.ID,
-				UpdatedAt:        latestBuild.UpdatedAt,
-				ProvisionerState: latestBuild.ProvisionerState,
-				Deadline:         newDeadline,
-			},
-		); err != nil {
-			return xerrors.Errorf("update workspace deadline: %w", err)
-		}
 		return nil
 	})
 
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Error updating workspace time until shutdown!",
-			Detail:  err.Error(),
+		code := http.StatusInternalServerError
+		if len(validErrs) > 0 {
+			code = http.StatusBadRequest
+		}
+		httpapi.Write(rw, code, httpapi.Response{
+			Message:     "Error updating workspace time until shutdown!",
+			Validations: validErrs,
+			Detail:      err.Error(),
 		})
 		return
 	}
@@ -620,7 +561,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -633,11 +575,25 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	resp := httpapi.Response{}
 
 	err := api.Database.InTx(func(s database.Store) error {
+		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching workspace template!"
+			return xerrors.Errorf("get workspace template: %w", err)
+		}
+
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			code = http.StatusInternalServerError
-			resp.Message = "Workspace not found."
+			resp.Message = "Error fetching workspace build."
 			return xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		job, err := s.GetProvisionerJobByID(r.Context(), build.JobID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching workspace provisioner job."
+			return xerrors.Errorf("get provisioner job: %w", err)
 		}
 
 		if build.Transition != database.WorkspaceTransitionStart {
@@ -646,8 +602,20 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
+		if !job.CompletedAt.Valid {
+			code = http.StatusConflict
+			resp.Message = "Workspace is still building!"
+			return xerrors.Errorf("workspace is still building")
+		}
+
+		if build.Deadline.IsZero() {
+			code = http.StatusConflict
+			resp.Message = "Workspace shutdown is manual."
+			return xerrors.Errorf("workspace shutdown is manual")
+		}
+
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(build.Deadline, newDeadline); err != nil {
+		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
 			code = http.StatusBadRequest
 			resp.Message = "Bad extend workspace request."
 			resp.Validations = append(resp.Validations, httpapi.Error{Field: "deadline", Detail: err.Error()})
@@ -677,7 +645,8 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -791,7 +760,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
-	templates, err := db.GetTemplatesByIDs(ctx, templateIDs)
+	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		Ids: templateIDs,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -933,23 +904,20 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 	}, nil
 }
 
-func validWorkspaceDeadline(old, new time.Time) error {
-	if old.IsZero() {
-		return xerrors.New("nothing to do: no existing deadline set")
+func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration) error {
+	soon := time.Now().Add(29 * time.Minute)
+	if newDeadline.Before(soon) {
+		return xerrors.New("new deadline must be at least 30 minutes in the future")
 	}
 
-	now := time.Now()
-	if new.Before(now) {
-		return xerrors.New("new deadline must be in the future")
+	// No idea how this could happen.
+	if newDeadline.Before(startedAt) {
+		return xerrors.Errorf("new deadline must be before workspace start time")
 	}
 
-	delta := new.Sub(old)
-	if delta < time.Minute {
-		return xerrors.New("minimum extension is one minute")
-	}
-
-	if delta > 24*time.Hour {
-		return xerrors.New("maximum extension is 24 hours")
+	delta := newDeadline.Sub(startedAt)
+	if delta > max {
+		return xerrors.New("new deadline is greater than template allows")
 	}
 
 	return nil
@@ -973,4 +941,89 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 		Valid:  true,
 		String: *s,
 	}, nil
+}
+
+// workspaceSearchQuery takes a query string and returns the workspace filter.
+// It also can return the list of validation errors to return to the api.
+func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams, []httpapi.Error) {
+	searchParams := make(url.Values)
+	if query == "" {
+		// No filter
+		return database.GetWorkspacesWithFilterParams{}, nil
+	}
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	for _, element := range elements {
+		parts := splitQueryParameterByDelimiter(element, ':', false)
+		switch len(parts) {
+		case 1:
+			// No key:value pair. It is a workspace name, and maybe includes an owner
+			parts = splitQueryParameterByDelimiter(element, '/', false)
+			switch len(parts) {
+			case 1:
+				searchParams.Set("name", parts[0])
+			case 2:
+				searchParams.Set("owner", parts[0])
+				searchParams.Set("name", parts[1])
+			default:
+				return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
+				}
+			}
+		case 2:
+			searchParams.Set(parts[0], parts[1])
+		default:
+			return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
+		}
+	}
+
+	// Using the query param parser here just returns consistent errors with
+	// other parsing.
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetWorkspacesWithFilterParams{
+		Deleted:       false,
+		OwnerUsername: parser.String(searchParams, "", "owner"),
+		TemplateName:  parser.String(searchParams, "", "template"),
+		Name:          parser.String(searchParams, "", "name"),
+	}
+
+	return filter, parser.Errors
+}
+
+// splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
+// of the query. Each element is separated by a delimiter. All quoted strings are
+// kept as a single element.
+//
+// Although all our names cannot have spaces, that is a validation error.
+// We should still parse the quoted string as a single value so that validation
+// can properly fail on the space. If we do not, a value of `template:"my name"`
+// will search `template:"my name:name"`, which produces an empty list instead of
+// an error.
+// nolint:revive
+func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes bool) []string {
+	quoted := false
+	parts := strings.FieldsFunc(query, func(r rune) bool {
+		if r == '"' {
+			quoted = !quoted
+		}
+		return !quoted && r == delimiter
+	})
+	if !maintainQuotes {
+		for i, part := range parts {
+			parts[i] = strings.Trim(part, "\"")
+		}
+	}
+
+	return parts
+}
+
+func min(x, y int64) int64 {
+	if x < y {
+		return x
+	}
+	return y
 }

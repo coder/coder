@@ -144,7 +144,7 @@ func TestOrganizationParam(t *testing.T) {
 		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("Success", func(t *testing.T) {

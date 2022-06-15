@@ -90,7 +90,7 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:34:6
+// From codersdk/workspaces.go:35:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
   readonly transition: WorkspaceTransition
@@ -211,9 +211,10 @@ export interface ProvisionerJob {
   readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
+  readonly storage_source: string
 }
 
-// From codersdk/provisionerdaemons.go:72:6
+// From codersdk/provisionerdaemons.go:73:6
 export interface ProvisionerJobLog {
   readonly id: string
   readonly created_at: string
@@ -223,7 +224,7 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
-// From codersdk/workspaces.go:201:6
+// From codersdk/workspaces.go:202:6
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
@@ -311,12 +312,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:160:6
+// From codersdk/workspaces.go:161:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
 }
 
-// From codersdk/workspaces.go:180:6
+// From codersdk/workspaces.go:181:6
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
@@ -371,7 +372,7 @@ export interface UsersRequest extends Pagination {
   readonly status?: string
 }
 
-// From codersdk/workspaces.go:18:6
+// From codersdk/workspaces.go:19:6
 export interface Workspace {
   readonly id: string
   readonly created_at: string
@@ -461,19 +462,17 @@ export interface WorkspaceBuild {
   readonly deadline: string
 }
 
-// From codersdk/workspaces.go:83:6
+// From codersdk/workspaces.go:84:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:219:6
+// From codersdk/workspaces.go:220:6
 export interface WorkspaceFilter {
-  readonly organization_id?: string
-  readonly owner?: string
-  readonly name?: string
+  readonly q?: string
 }
 
-// From codersdk/workspaces.go:41:6
+// From codersdk/workspaces.go:42:6
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }

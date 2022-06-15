@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -230,9 +231,9 @@ func login() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&email, "email", "e", "", "Specifies an email address to authenticate with.")
-	cmd.Flags().StringVarP(&username, "username", "u", "", "Specifies a username to authenticate with.")
-	cmd.Flags().StringVarP(&password, "password", "p", "", "Specifies a password to authenticate with.")
+	cliflag.StringVarP(cmd.Flags(), &email, "email", "e", "CODER_EMAIL", "", "Specifies an email address to authenticate with.")
+	cliflag.StringVarP(cmd.Flags(), &username, "username", "u", "CODER_USERNAME", "", "Specifies a username to authenticate with.")
+	cliflag.StringVarP(cmd.Flags(), &password, "password", "p", "CODER_PASSWORD", "", "Specifies a password to authenticate with.")
 	return cmd
 }
 

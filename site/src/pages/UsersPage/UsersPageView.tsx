@@ -22,6 +22,7 @@ export interface UsersPageViewProps {
   isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
+  onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
@@ -31,6 +32,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
   roles,
   openUserCreationDialog,
   onSuspendUser,
+  onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
   error,
@@ -60,6 +62,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
           users={users}
           roles={roles}
           onSuspendUser={onSuspendUser}
+          onActivateUser={onActivateUser}
           onResetUserPassword={onResetUserPassword}
           onUpdateUserRoles={onUpdateUserRoles}
           isUpdatingUserRoles={isUpdatingUserRoles}
