@@ -60,7 +60,7 @@ export const Language = {
   outdatedLabel: "Outdated",
   upToDateLabel: "Up to date",
   versionTooltipText:
-    "Looks like the version you are using for this workspace is outdated and there is a newest version that you could use.",
+    "This workspace version is outdated and a newer version is available.",
   updateVersionLabel: "Update version",
 }
 
