@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import React, { createContext, useContext, useState } from "react"
-import { Stack } from "../Stack/Stack"
+import { Stack } from "../../Stack/Stack"
 
 type Icon = typeof HelpIcon
 
