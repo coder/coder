@@ -49,7 +49,6 @@ sudo service coder restart
 
 Or run a **temporary deployment** with dev mode (all data is in-memory and destroyed on exit):
 
-
 ```sh
 coder server --dev
 ```
@@ -94,7 +93,7 @@ Coder](https://github.com/coder/coder/releases) installed.
 
 1. Follow the on-screen instructions to create your first template and workspace
 
-## Manual 
+## Manual
 
 We publish self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder/coder/releases). The archives bundle `coder` binary. 
 
@@ -123,3 +122,8 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
     CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
       coder server
     ```
+
+## Next steps
+
+Once you've installed and started Coder, see the [quickstart](./quickstart.md)
+for instructions on creating your first template and workspace.
