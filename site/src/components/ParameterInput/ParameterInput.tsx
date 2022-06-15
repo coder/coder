@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import FormControlLabel from "@material-ui/core/FormControlLabel"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
@@ -29,7 +30,7 @@ export const ParameterInput: FC<ParameterInputProps> = ({ disabled, onChange, sc
 }
 
 const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
-  if (schema.validation_contains.length > 0) {
+  if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <RadioGroup
         defaultValue={schema.default_source_value}
@@ -37,15 +38,16 @@ const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, sch
           onChange(event.target.value)
         }}
       >
-        {schema.validation_contains.map((item) => (
-          <FormControlLabel
-            disabled={disabled}
-            key={item}
-            value={item}
-            control={<Radio color="primary" size="small" disableRipple />}
-            label={item}
-          />
-        ))}
+        {schema.validation_contains &&
+          schema.validation_contains.map((item) => (
+            <FormControlLabel
+              disabled={disabled}
+              key={item}
+              value={item}
+              control={<Radio color="primary" size="small" disableRipple />}
+              label={item}
+            />
+          ))}
       </RadioGroup>
     )
   }
