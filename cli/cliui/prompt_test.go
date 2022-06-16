@@ -165,6 +165,9 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cob
 }
 
 func TestPasswordTerminalState(t *testing.T) {
+	// TODO: fix this test so that it runs reliably
+	t.Skip()
+
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		passwordHelper()
 		return
@@ -205,6 +208,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.True(t, echo, "echo is off after reading password")
 }
 
+// nolint:unused
 func passwordHelper() {
 	cmd := &cobra.Command{
 		Run: func(cmd *cobra.Command, args []string) {

@@ -209,7 +209,7 @@ jobs:
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=3m -count=$GOCOUNT -short -failfast
+          -timeout=5m -count=$GOCOUNT -short -failfast
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -316,7 +316,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     permissions:
       contents: read

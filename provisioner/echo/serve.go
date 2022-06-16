@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
+
+	"github.com/spf13/afero"
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -31,20 +32,24 @@ var (
 )
 
 // Serve starts the echo provisioner.
-func Serve(ctx context.Context, options *provisionersdk.ServeOptions) error {
-	return provisionersdk.Serve(ctx, &echo{}, options)
+func Serve(ctx context.Context, filesystem afero.Fs, options *provisionersdk.ServeOptions) error {
+	return provisionersdk.Serve(ctx, &echo{
+		filesystem: filesystem,
+	}, options)
 }
 
 // The echo provisioner serves as a dummy provisioner primarily
 // used for testing. It echos responses from JSON files in the
 // format %d.protobuf. It's used for testing.
-type echo struct{}
+type echo struct {
+	filesystem afero.Fs
+}
 
 // Parse reads requests from the provided directory to stream responses.
-func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
 	for index := 0; ; index++ {
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.parse.protobuf", index))
-		_, err := os.Stat(path)
+		_, err := e.filesystem.Stat(path)
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
@@ -52,7 +57,7 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 			}
 			break
 		}
-		data, err := os.ReadFile(path)
+		data, err := afero.ReadFile(e.filesystem, path)
 		if err != nil {
 			return xerrors.Errorf("read file %q: %w", path, err)
 		}
@@ -71,7 +76,7 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 }
 
 // Provision reads requests from the provided directory to stream responses.
-func (*echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	msg, err := stream.Recv()
 	if err != nil {
 		return err
@@ -83,7 +88,7 @@ func (*echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			extension = ".dry.protobuf"
 		}
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision"+extension, index))
-		_, err := os.Stat(path)
+		_, err := e.filesystem.Stat(path)
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
@@ -91,7 +96,7 @@ func (*echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			}
 			break
 		}
-		data, err := os.ReadFile(path)
+		data, err := afero.ReadFile(e.filesystem, path)
 		if err != nil {
 			return xerrors.Errorf("read file %q: %w", path, err)
 		}
