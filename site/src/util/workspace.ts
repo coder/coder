@@ -249,6 +249,10 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   return transition === "start" && status === "succeeded"
 }
 
+export const isWorkspaceDeleted = (workspace: TypesGen.Workspace): boolean => {
+  return getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
+}
+
 export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
   const now = __startDate ? dayjs(__startDate) : dayjs()
   const fourHoursFromNow = now.add(4, "hours").utc()
@@ -259,42 +263,9 @@ export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.P
 }
 
 export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter => {
-  const defaultFilter: TypesGen.WorkspaceFilter = {}
   const preparedQuery = query?.trim().replace(/  +/g, " ")
-
-  if (!preparedQuery) {
-    return defaultFilter
-  } else {
-    const parts = preparedQuery.split(" ")
-
-    for (const part of parts) {
-      if (part.includes(":")) {
-        const [key, val] = part.split(":")
-        if (key && val) {
-          if (key === "owner") {
-            return {
-              owner: val,
-            }
-          }
-          // skip invalid key pairs
-          continue
-        }
-      }
-
-      if (part.includes("/")) {
-        const [username, name] = part.split("/")
-        return {
-          owner: username,
-          name: name === "" ? undefined : name,
-        }
-      }
-
-      return {
-        name: part,
-      }
-    }
-
-    return defaultFilter
+  return {
+    q: preparedQuery,
   }
 }
 

@@ -51,6 +51,16 @@ export const MockUser2: TypesGen.User = {
   roles: [],
 }
 
+export const SuspendedMockUser: TypesGen.User = {
+  id: "suspended-mock-user",
+  username: "SuspendedMockUser",
+  email: "iamsuspendedsad!@coder.com",
+  created_at: "",
+  status: "suspended",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [],
+}
+
 export const MockOrganization: TypesGen.Organization = {
   id: "test-org",
   name: "Test Organization",
@@ -69,7 +79,9 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
+  storage_source: "asdf",
 }
+
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "failed",
@@ -114,6 +126,8 @@ export const MockTemplate: TypesGen.Template = {
   description: "This is a test description.",
   max_ttl_ms: 604800000,
   min_autostart_interval_ms: 3600000,
+  created_by_id: "test-creator-id",
+  created_by_name: "test_creator",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -131,6 +145,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   id: "1",
   initiator_id: "",
+  initiator_name: "",
   job: MockProvisionerJob,
   name: "a-workspace-build",
   template_version_id: "",

@@ -108,8 +108,11 @@ export const getTemplateVersionResources = async (versionId: string): Promise<Ty
   return response.data
 }
 
-export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+export const getWorkspace = async (
+  workspaceId: string,
+  params?: TypesGen.WorkspaceOptions,
+): Promise<TypesGen.Workspace> => {
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`, { params })
   return response.data
 }
 
@@ -117,14 +120,8 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.organization_id) {
-    searchParams.append("organization_id", filter.organization_id)
-  }
-  if (filter?.owner) {
-    searchParams.append("owner", filter.owner)
-  }
-  if (filter?.name) {
-    searchParams.append("name", filter.name)
+  if (filter?.q && filter.q !== "") {
+    searchParams.append("q", filter.q)
   }
 
   const searchString = searchParams.toString()
@@ -141,8 +138,11 @@ export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<
 export const getWorkspaceByOwnerAndName = async (
   username = "me",
   workspaceName: string,
+  params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`)
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/users/${username}/workspace/${workspaceName}`, {
+    params,
+  })
   return response.data
 }
 
@@ -229,6 +229,13 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
+export const postFirstUser = async (
+  req: TypesGen.CreateFirstUserRequest,
+): Promise<TypesGen.CreateFirstUserResponse> => {
+  const response = await axios.post(`/api/v2/users/first`, req)
+  return response.data
+}
+
 export const updateUserPassword = async (
   userId: TypesGen.User["id"],
   updatePassword: TypesGen.UpdateUserPasswordRequest,
@@ -262,8 +269,14 @@ export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.
   return response.data
 }
 
-export const getWorkspaceBuild = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await axios.get<TypesGen.WorkspaceBuild>(`/api/v2/workspacebuilds/${workspaceId}`)
+export const getWorkspaceBuildByNumber = async (
+  username = "me",
+  workspaceName: string,
+  buildNumber: string,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild>(
+    `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+  )
   return response.data
 }
 

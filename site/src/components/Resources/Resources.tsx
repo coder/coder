@@ -9,16 +9,11 @@ import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
-import {
-  HelpTooltip,
-  HelpTooltipLink,
-  HelpTooltipLinksGroup,
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "../HelpTooltip/HelpTooltip"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
+import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
+import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
@@ -28,44 +23,16 @@ const Language = {
   agentLabel: "Agent",
   statusLabel: "Status",
   accessLabel: "Access",
-  resourceTooltipTitle: "What is a resource?",
-  resourceTooltipText: "A resource is an infrastructure object that is create when the workspace is provisioned.",
-  resourceTooltipLink: "Persistent and ephemeral resources",
-  agentTooltipTitle: "What is an agent?",
-  agentTooltipText:
-    "The Coder agent runs inside your resource and gives you direct access to the shell via the UI or CLI.",
-}
-
-const ResourcesHelpTooltip: React.FC = () => {
-  return (
-    <HelpTooltip size="small">
-      <HelpTooltipTitle>{Language.resourceTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.resourceTooltipText}</HelpTooltipText>
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#persistent-and-ephemeral-resources">
-          {Language.resourceTooltipLink}
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
-    </HelpTooltip>
-  )
-}
-
-const AgentHelpTooltip: React.FC = () => {
-  return (
-    <HelpTooltip size="small">
-      <HelpTooltipTitle>{Language.agentTooltipTitle}</HelpTooltipTitle>
-      <HelpTooltipText>{Language.agentTooltipText}</HelpTooltipText>
-    </HelpTooltip>
-  )
 }
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
   getResourcesError?: Error
   workspace: Workspace
+  canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace }) => {
+export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace, canUpdateWorkspace }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
@@ -89,7 +56,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                   <AgentHelpTooltip />
                 </Stack>
               </TableCell>
-              <TableCell>{Language.accessLabel}</TableCell>
+              {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
               <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
@@ -130,28 +97,30 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
                     </TableCell>
-                    <TableCell>
-                      <Stack>
-                        {agent.status === "connected" && (
-                          <TerminalLink
-                            className={styles.accessLink}
-                            workspaceName={workspace.name}
-                            agentName={agent.name}
-                            userName={workspace.owner_name}
-                          />
-                        )}
-                        {agent.status === "connected" &&
-                          agent.apps.map((app) => (
-                            <AppLink
-                              key={app.name}
-                              appIcon={app.icon}
-                              appName={app.name}
-                              userName={workspace.owner_name}
+                    {canUpdateWorkspace && (
+                      <TableCell>
+                        <Stack>
+                          {agent.status === "connected" && (
+                            <TerminalLink
+                              className={styles.accessLink}
                               workspaceName={workspace.name}
+                              agentName={agent.name}
+                              userName={workspace.owner_name}
                             />
-                          ))}
-                      </Stack>
-                    </TableCell>
+                          )}
+                          {agent.status === "connected" &&
+                            agent.apps.map((app) => (
+                              <AppLink
+                                key={app.name}
+                                appIcon={app.icon}
+                                appName={app.name}
+                                userName={workspace.owner_name}
+                                workspaceName={workspace.name}
+                              />
+                            ))}
+                        </Stack>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
                         {getDisplayAgentStatus(theme, agent).status}

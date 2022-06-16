@@ -88,6 +88,7 @@ func TestDiff(t *testing.T) {
 				ActiveVersionID:      uuid.UUID{3},
 				MaxTtl:               int64(time.Hour),
 				MinAutostartInterval: int64(time.Minute),
+				CreatedBy:            uuid.UUID{4},
 			},
 			exp: audit.Map{
 				"id":                     uuid.UUID{1}.String(),
@@ -97,6 +98,7 @@ func TestDiff(t *testing.T) {
 				"active_version_id":      uuid.UUID{3}.String(),
 				"max_ttl":                int64(3600000000000),
 				"min_autostart_interval": int64(60000000000),
+				"created_by":             uuid.UUID{4}.String(),
 			},
 		},
 	})

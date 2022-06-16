@@ -66,10 +66,13 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     border: `1px solid ${theme.palette.divider}`,
+    [theme.breakpoints.down("sm")]: {
+      display: "block",
+    },
   },
 
   statItem: {
-    minWidth: theme.spacing(20),
+    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },
@@ -79,12 +82,14 @@ const useStyles = makeStyles((theme) => ({
     textTransform: "uppercase",
     display: "block",
     fontWeight: 600,
+    wordWrap: "break-word",
   },
 
   statsValue: {
     fontSize: 16,
     marginTop: theme.spacing(0.25),
-    display: "inline-block",
+    display: "block",
+    wordWrap: "break-word",
   },
 
   statsDivider: {
@@ -92,6 +97,9 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(5),
     backgroundColor: theme.palette.divider,
     marginRight: theme.spacing(2),
+    [theme.breakpoints.down("sm")]: {
+      display: "none",
+    },
   },
 
   capitalize: {

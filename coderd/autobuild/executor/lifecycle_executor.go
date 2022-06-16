@@ -85,11 +85,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		// is what we compare against when performing autostop operations, rounded down
 		// to the minute.
 		//
-		// NOTE: Currently, if a workspace build is created with a given TTL and then
-		//       the user either changes or unsets the TTL, the deadline for the workspace
-		//       build will not have changed. So, autostop will still happen at the
-		//       original TTL value from when the workspace build was created.
-		//       Whether this is expected behavior from a user's perspective is not yet known.
+		// NOTE: If a workspace build is created with a given TTL and then the user either
+		//       changes or unsets the TTL, the deadline for the workspace build will not
+		//       have changed. This behavior is as expected per #2229.
 		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)

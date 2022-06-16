@@ -15,6 +15,9 @@ license: AGPL-3.0
 suggests:
   - postgresql
 
+scripts:
+  preinstall: preinstall.sh
+
 contents:
   - src: coder
     dst: /usr/bin/coder

@@ -14,17 +14,17 @@ import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
+import { Margins } from "../../components/Margins/Margins"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip"
-import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
+} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 dayjs.extend(relativeTime)
 
@@ -49,6 +49,7 @@ export const Language = {
   templateTooltipTitle: "What is template?",
   templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
+  createdByLabel: "Created by",
 }
 
 const TemplateHelpTooltip: React.FC = () => {
@@ -84,6 +85,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
+        {props.templates && props.templates.length > 0 && (
+          <PageHeaderSubtitle>Choose a template to create a new workspace.</PageHeaderSubtitle>
+        )}
       </PageHeader>
 
       <Table>
@@ -92,6 +96,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
             <TableCell>{Language.nameLabel}</TableCell>
             <TableCell>{Language.usedByLabel}</TableCell>
             <TableCell>{Language.lastUpdatedLabel}</TableCell>
+            <TableCell>{Language.createdByLabel}</TableCell>
             <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>
@@ -134,6 +139,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
                 <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell>{template.created_by_name}</TableCell>
                 <TableCell>
                   <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />

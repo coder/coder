@@ -17,8 +17,10 @@ import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
-dayjs.extend(advancedFormat)
+// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
+//         sorted alphabetically.
 dayjs.extend(utc)
+dayjs.extend(advancedFormat)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
@@ -31,20 +33,11 @@ export const Language = {
       return "Manual"
     }
   },
-  autoStartLabel: (schedule: string | undefined): string => {
-    const prefix = "Start"
-    const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
-
-    if (schedule) {
-      return `${prefix} (${dayjs().tz(timezone).format("z")})`
-    } else {
-      return prefix
-    }
-  },
+  autoStartLabel: "START",
+  autoStopLabel: "SHUTDOWN",
   autoStopDisplay: (workspace: Workspace): string => {
-    const schedule = workspace.autostart_schedule
     const deadline = dayjs(workspace.latest_build.deadline).utc()
-    // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+    // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
     const hasDeadline = deadline.year() > 1
     const ttl = workspace.ttl_ms
@@ -59,8 +52,7 @@ export const Language = {
       if (now.isAfter(deadline)) {
         return "Workspace is shutting down"
       } else {
-        const timezone = schedule ? extractTimezone(schedule) : dayjs.tz.guess()
-        return deadline.tz(timezone).format("HH:mm A")
+        return deadline.tz(dayjs.tz.guess()).format("MMM D, YYYY h:mm A")
       }
     } else if (!ttl || ttl < 1) {
       // If the workspace is not on, and the ttl is 0 or undefined, then the
@@ -74,7 +66,10 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
-  schedule: "Schedule",
+  scheduleHeader: (workspace: Workspace): string => {
+    const tz = workspace.autostart_schedule ? extractTimezone(workspace.autostart_schedule) : dayjs.tz.guess()
+    return `Schedule (${tz})`
+  },
 }
 
 export interface WorkspaceScheduleProps {
@@ -89,15 +84,19 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
       <Stack spacing={2}>
         <Typography variant="body1" className={styles.title}>
           <ScheduleIcon className={styles.scheduleIcon} />
-          {Language.schedule}
+          {Language.scheduleHeader(workspace)}
         </Typography>
         <div>
-          <span className={styles.scheduleLabel}>{Language.autoStartLabel(workspace.autostart_schedule)}</span>
-          <span className={styles.scheduleValue}>{Language.autoStartDisplay(workspace.autostart_schedule)}</span>
+          <span className={styles.scheduleLabel}>{Language.autoStartLabel}</span>
+          <span className={styles.scheduleValue} data-chromatic="ignore">
+            {Language.autoStartDisplay(workspace.autostart_schedule)}
+          </span>
         </div>
         <div>
-          <span className={styles.scheduleLabel}>Shutdown</span>
-          <span className={styles.scheduleValue}>{Language.autoStopDisplay(workspace)}</span>
+          <span className={styles.scheduleLabel}>{Language.autoStopLabel}</span>
+          <span className={styles.scheduleValue} data-chromatic="ignore">
+            {Language.autoStopDisplay(workspace)}
+          </span>
         </div>
         <div>
           <Link

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ type CreateWorkspaceBuildRequest struct {
 }
 
 type WorkspaceOptions struct {
-	Deleted bool `json:"deleted,omitempty"`
+	IncludeDeleted bool `json:"include_deleted,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -47,8 +48,8 @@ type WorkspaceOptions struct {
 func (o WorkspaceOptions) asRequestOption() requestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
-		if o.Deleted {
-			q.Set("deleted", "true")
+		if o.IncludeDeleted {
+			q.Set("include_deleted", "true")
 		}
 		r.URL.RawQuery = q.Encode()
 	}
@@ -62,7 +63,7 @@ func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 // DeletedWorkspace returns a single workspace that was deleted.
 func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
 	o := WorkspaceOptions{
-		Deleted: true,
+		IncludeDeleted: true,
 	}
 	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
@@ -217,26 +218,39 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type WorkspaceFilter struct {
-	OrganizationID uuid.UUID `json:"organization_id,omitempty"`
-	// Owner can be a user_id (uuid), "me", or a username
-	Owner string `json:"owner,omitempty"`
-	Name  string `json:"name,omitempty"`
+	// Owner can be "me" or a username
+	Owner string `json:"owner,omitempty" typescript:"-"`
+	// Template is a template name
+	Template string `json:"template,omitempty" typescript:"-"`
+	// Name will return partial matches
+	Name string `json:"name,omitempty" typescript:"-"`
+	// FilterQuery supports a raw filter query string
+	FilterQuery string `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
 func (f WorkspaceFilter) asRequestOption() requestOption {
 	return func(r *http.Request) {
-		q := r.URL.Query()
-		if f.OrganizationID != uuid.Nil {
-			q.Set("organization_id", f.OrganizationID.String())
-		}
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
 		if f.Owner != "" {
-			q.Set("owner", f.Owner)
+			params = append(params, fmt.Sprintf("owner:%q", f.Owner))
 		}
 		if f.Name != "" {
-			q.Set("name", f.Name)
+			params = append(params, fmt.Sprintf("name:%q", f.Name))
 		}
+		if f.Template != "" {
+			params = append(params, fmt.Sprintf("template:%q", f.Template))
+		}
+		if f.FilterQuery != "" {
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
+		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
 		r.URL.RawQuery = q.Encode()
 	}
 }
@@ -258,12 +272,8 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
-type WorkspaceByOwnerAndNameParams struct {
-	IncludeDeleted bool `json:"include_deleted,omitempty"`
-}
-
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceByOwnerAndNameParams) (Workspace, error) {
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))

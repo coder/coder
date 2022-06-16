@@ -16,7 +16,7 @@ import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSec
 
 const Language = {
   createButton: "Create workspace",
-  noDescription: "No description",
+  noDescription: "",
   readmeTitle: "README",
   resourcesTitle: "Resources",
 }
@@ -39,14 +39,13 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTe
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to={`/workspaces/new?template=${template.name}`}>
+          <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
         }
       >
         <PageHeaderTitle>{template.name}</PageHeaderTitle>
         <PageHeaderSubtitle>
-          {" "}
           {template.description === "" ? Language.noDescription : template.description}
         </PageHeaderSubtitle>
       </PageHeader>

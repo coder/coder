@@ -1603,7 +1603,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1627,13 +1627,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
@@ -1665,21 +1666,53 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
-const getTemplatesByIDs = `-- name: GetTemplatesByIDs :many
+const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 FROM
 	templates
 WHERE
-	id = ANY($1 :: uuid [ ])
+	-- Optionally include deleted templates
+	templates.deleted = $1
+	-- Filter by organization_id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = $2
+		ELSE true
+	END
+	-- Filter by exact name
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			LOWER("name") = LOWER($3)
+		ELSE true
+	END
+	-- Filter by ids
+	AND CASE
+		WHEN array_length($4 :: uuid[], 1) > 0 THEN
+			id = ANY($4)
+		ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]Template, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplatesByIDs, pq.Array(ids))
+type GetTemplatesWithFilterParams struct {
+	Deleted        bool        `db:"deleted" json:"deleted"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	ExactName      string      `db:"exact_name" json:"exact_name"`
+	Ids            []uuid.UUID `db:"ids" json:"ids"`
+}
+
+func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplatesWithFilter,
+		arg.Deleted,
+		arg.OrganizationID,
+		arg.ExactName,
+		pq.Array(arg.Ids),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1699,56 +1732,7 @@ func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.Description,
 			&i.MaxTtl,
 			&i.MinAutostartInterval,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTemplatesByOrganization = `-- name: GetTemplatesByOrganization :many
-SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
-FROM
-	templates
-WHERE
-	organization_id = $1
-	AND deleted = $2
-`
-
-type GetTemplatesByOrganizationParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Deleted        bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetTemplatesByOrganization(ctx context.Context, arg GetTemplatesByOrganizationParams) ([]Template, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplatesByOrganization, arg.OrganizationID, arg.Deleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Template
-	for rows.Next() {
-		var i Template
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OrganizationID,
-			&i.Deleted,
-			&i.Name,
-			&i.Provisioner,
-			&i.ActiveVersionID,
-			&i.Description,
-			&i.MaxTtl,
-			&i.MinAutostartInterval,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -1775,10 +1759,11 @@ INSERT INTO
 		active_version_id,
 		description,
 		max_ttl,
-		min_autostart_interval
+		min_autostart_interval,
+		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 `
 
 type InsertTemplateParams struct {
@@ -1792,6 +1777,7 @@ type InsertTemplateParams struct {
 	Description          string          `db:"description" json:"description"`
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
+	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -1806,6 +1792,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Description,
 		arg.MaxTtl,
 		arg.MinAutostartInterval,
+		arg.CreatedBy,
 	)
 	var i Template
 	err := row.Scan(
@@ -1820,6 +1807,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.Description,
 		&i.MaxTtl,
 		&i.MinAutostartInterval,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -1873,7 +1861,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3212,6 +3200,41 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 	return items, nil
 }
 
+const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
+SELECT
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+FROM
+	workspace_builds
+WHERE
+	workspace_id = $1
+	AND build_number = $2
+`
+
+type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	BuildNumber int32     `db:"build_number" json:"build_number"`
+}
+
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.BuildNumber,
+		&i.Transition,
+		&i.InitiatorID,
+		&i.ProvisionerState,
+		&i.JobID,
+		&i.Deadline,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
@@ -3480,6 +3503,7 @@ WHERE
 	owner_id = $1
 	AND deleted = $2
 	AND LOWER("name") = LOWER($3)
+ORDER BY created_at DESC
 `
 
 type GetWorkspaceByOwnerIDAndNameParams struct {
@@ -3595,98 +3619,6 @@ func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, e
 	return items, nil
 }
 
-const getWorkspacesByOrganizationIDs = `-- name: GetWorkspacesByOrganizationIDs :many
-SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
-`
-
-type GetWorkspacesByOrganizationIDsParams struct {
-	Ids     []uuid.UUID `db:"ids" json:"ids"`
-	Deleted bool        `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationIDs, pq.Array(arg.Ids), arg.Deleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
-SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
-FROM
-	workspaces
-WHERE
-	template_id = $1
-	AND deleted = $2
-`
-
-type GetWorkspacesByTemplateIDParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Deleted    bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByTemplateID, arg.TemplateID, arg.Deleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspacesWithFilter = `-- name: GetWorkspacesWithFilter :many
 SELECT
     id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
@@ -3694,39 +3626,57 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	deleted = $1
-	-- Filter by organization_id
-	AND CASE
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
-			organization_id = $2
-		ELSE true
-	END
+	workspaces.deleted = $1
 	-- Filter by owner_id
 	AND CASE
-		  WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
-				owner_id = $3
-		  ELSE true
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = $2
+		ELSE true
+	END
+  	-- Filter by owner_name
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE username = $3)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+  	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE name = $4)
+		ELSE true
+	END
+	-- Filter by template_ids
+	AND CASE
+		WHEN array_length($5 :: uuid[], 1) > 0 THEN
+			template_id = ANY($5)
+		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN $4 :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER($4) || '%'
-		  ELSE true
+		WHEN $6 :: text != '' THEN
+			LOWER(name) LIKE '%' || LOWER($6) || '%'
+		ELSE true
 	END
 `
 
 type GetWorkspacesWithFilterParams struct {
-	Deleted        bool      `db:"deleted" json:"deleted"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	Name           string    `db:"name" json:"name"`
+	Deleted       bool        `db:"deleted" json:"deleted"`
+	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername string      `db:"owner_username" json:"owner_username"`
+	TemplateName  string      `db:"template_name" json:"template_name"`
+	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name          string      `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter,
 		arg.Deleted,
-		arg.OrganizationID,
 		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
+		pq.Array(arg.TemplateIds),
 		arg.Name,
 	)
 	if err != nil {

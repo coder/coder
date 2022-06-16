@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -96,6 +98,25 @@ func ttlset() *cobra.Command {
 				return xerrors.Errorf("update workspace ttl: %w", err)
 			}
 
+			if ptr.NilOrEmpty(workspace.AutostartSchedule) {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down %s after start.\n", workspace.Name, truncated)
+				return nil
+			}
+
+			sched, err := schedule.Weekly(*workspace.AutostartSchedule)
+			if err != nil {
+				return xerrors.Errorf("parse workspace schedule: %w", err)
+			}
+
+			nextShutdown := sched.Next(time.Now()).Add(truncated).In(sched.Location())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%q will shut down at %s on %s (%s after start).\n",
+				workspace.Name,
+				nextShutdown.Format(timeFormat),
+				nextShutdown.Format(dateFormat),
+				truncated,
+			)
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "NOTE: this will only take effect the next time the workspace is started.\n")
 			return nil
 		},
 	}

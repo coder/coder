@@ -25,6 +25,18 @@ func (r Root) DotfilesURL() File {
 	return File(filepath.Join(string(r), "dotfilesurl"))
 }
 
+func (r Root) PostgresPath() string {
+	return filepath.Join(string(r), "postgres")
+}
+
+func (r Root) PostgresPassword() File {
+	return File(filepath.Join(r.PostgresPath(), "password"))
+}
+
+func (r Root) PostgresPort() File {
+	return File(filepath.Join(r.PostgresPath(), "port"))
+}
+
 // File provides convenience methods for interacting with *os.File.
 type File string
 

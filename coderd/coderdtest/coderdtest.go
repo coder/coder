@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 
@@ -190,18 +192,20 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
+	fs := afero.NewMemMapFs()
 	go func() {
-		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
 		assert.NoError(t, err)
 	}()
 
 	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        50 * time.Millisecond,
-		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: 250 * time.Millisecond,
+		PollInterval:        10 * time.Millisecond,
+		UpdateInterval:      25 * time.Millisecond,
+		ForceCancelInterval: 25 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},

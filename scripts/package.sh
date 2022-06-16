@@ -66,6 +66,7 @@ temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 ln -P "$input_file" "$temp_dir/coder"
 ln -P "$(realpath coder.env)" "$temp_dir/"
 ln -P "$(realpath coder.service)" "$temp_dir/"
+ln -P "$(realpath preinstall.sh)" "$temp_dir/"
 ln -P "$(realpath scripts/nfpm.yaml)" "$temp_dir/"
 
 cd "$temp_dir"

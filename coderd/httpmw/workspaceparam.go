@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/database"
@@ -32,9 +31,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			}
 			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("Workspace %q does not exist.", workspaceID),
-				})
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {

@@ -6,14 +6,17 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
+import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
+import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
+import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
 
-const Language = {
+export const Language = {
   resourceLabel: "Resource",
   agentLabel: "Agent",
 }
 
-interface TemplateResourcesProps {
+export interface TemplateResourcesProps {
   resources: WorkspaceResource[]
 }
 
@@ -24,8 +27,18 @@ export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({ resources }
     <Table className={styles.table}>
       <TableHead>
         <TableHeaderRow>
-          <TableCell>{Language.resourceLabel}</TableCell>
-          <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
+          <TableCell>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {Language.resourceLabel}
+              <ResourcesHelpTooltip />
+            </Stack>
+          </TableCell>
+          <TableCell className={styles.agentColumn}>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {Language.agentLabel}
+              <AgentHelpTooltip />
+            </Stack>
+          </TableCell>
         </TableHeaderRow>
       </TableHead>
       <TableBody>

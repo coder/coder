@@ -1,24 +1,34 @@
-import { useMachine } from "@xstate/react"
-import React, { useEffect } from "react"
+import { useMachine, useSelector } from "@xstate/react"
+import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
-import { useNavigate, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
+import { selectUser } from "../../xServices/auth/authSelectors"
+import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
-  const navigate = useNavigate()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
 
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
-  const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
+  const xServices = useContext(XServiceContext)
+  const me = useSelector(xServices.authXService, selectUser)
+
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
+    context: {
+      userId: me?.id,
+    },
+  })
+  const { workspace, resources, getWorkspaceError, getResourcesError, builds, permissions } = workspaceState.context
+
+  const canUpdateWorkspace = !!permissions?.updateWorkspace
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
 
@@ -57,13 +67,13 @@ export const WorkspacePage: React.FC = () => {
           resources={resources}
           getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
           builds={builds}
+          canUpdateWorkspace={canUpdateWorkspace}
         />
         <DeleteWorkspaceDialog
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
           handleCancel={() => workspaceSend("CANCEL_DELETE")}
           handleConfirm={() => {
             workspaceSend("DELETE")
-            navigate("/workspaces")
           }}
         />
       </>

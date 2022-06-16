@@ -8,7 +8,7 @@ import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
@@ -29,6 +29,7 @@ export interface BuildsTableProps {
 }
 
 export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
+  const { username, workspace: workspaceName } = useParams()
   const isLoading = !builds
   const theme: Theme = useTheme()
   const navigate = useNavigate()
@@ -52,7 +53,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
             const status = getDisplayWorkspaceBuildStatus(theme, build)
 
             const navigateToBuildPage = () => {
-              navigate(`/builds/${build.id}`)
+              navigate(`/@${username}/${workspaceName}/builds/${build.build_number}`)
             }
 
             return (

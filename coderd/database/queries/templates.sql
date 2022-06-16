@@ -8,13 +8,33 @@ WHERE
 LIMIT
 	1;
 
--- name: GetTemplatesByIDs :many
+-- name: GetTemplatesWithFilter :many
 SELECT
 	*
 FROM
 	templates
 WHERE
-	id = ANY(@ids :: uuid [ ]);
+	-- Optionally include deleted templates
+	templates.deleted = @deleted
+	-- Filter by organization_id
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by exact name
+	AND CASE
+		WHEN @exact_name :: text != '' THEN
+			LOWER("name") = LOWER(@exact_name)
+		ELSE true
+	END
+	-- Filter by ids
+	AND CASE
+		WHEN array_length(@ids :: uuid[], 1) > 0 THEN
+			id = ANY(@ids)
+		ELSE true
+	END
+;
 
 -- name: GetTemplateByOrganizationAndName :one
 SELECT
@@ -28,15 +48,6 @@ WHERE
 LIMIT
 	1;
 
--- name: GetTemplatesByOrganization :many
-SELECT
-	*
-FROM
-	templates
-WHERE
-	organization_id = $1
-	AND deleted = $2;
-
 -- name: InsertTemplate :one
 INSERT INTO
 	templates (
@@ -49,10 +60,11 @@ INSERT INTO
 		active_version_id,
 		description,
 		max_ttl,
-		min_autostart_interval
+		min_autostart_interval,
+		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE

@@ -4,14 +4,13 @@ import * as API from "../../api/api"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import { Language as FormLanguage } from "../../util/formUtils"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 import { Language } from "./CreateWorkspacePageView"
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
-    route: "/workspaces/new?template=" + MockTemplate.name,
-    path: "/workspaces/new",
+    route: "/templates/" + MockTemplate.name + "/workspace",
+    path: "/templates/:template/workspace",
   })
 }
 
@@ -27,13 +26,6 @@ describe("CreateWorkspacePage", () => {
     renderCreateWorkspacePage()
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
-  })
-
-  it("shows validation error message", async () => {
-    renderCreateWorkspacePage()
-    await fillForm({ name: "$$$" })
-    const errorMessage = await screen.findByText(FormLanguage.nameInvalidChars(Language.nameLabel))
-    expect(errorMessage).toBeDefined()
   })
 
   it("succeeds", async () => {

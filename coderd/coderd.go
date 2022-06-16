@@ -4,18 +4,20 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
-
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -270,7 +272,10 @@ func New(options *Options) *API {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
-					r.Get("/workspace/{workspacename}", api.workspaceByOwnerAndName)
+					r.Route("/workspace/{workspacename}", func(r chi.Router) {
+						r.Get("/", api.workspaceByOwnerAndName)
+						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
@@ -292,6 +297,7 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
+					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
@@ -346,7 +352,8 @@ func New(options *Options) *API {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
-	r.NotFound(api.siteHandler.ServeHTTP)
+
+	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
 
@@ -376,4 +383,24 @@ func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(rw, r)
 		})
 	}
+}
+
+func compressHandler(h http.Handler) http.Handler {
+	cmp := middleware.NewCompressor(5,
+		"text/*",
+		"application/*",
+		"image/*",
+	)
+	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
+		return brotli.NewWriterLevel(w, level)
+	})
+	cmp.SetEncoder("zstd", func(w io.Writer, level int) io.Writer {
+		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			panic("invalid zstd compressor: " + err.Error())
+		}
+		return zw
+	})
+
+	return cmp.Handler(h)
 }

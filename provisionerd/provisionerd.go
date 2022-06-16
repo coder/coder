@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
@@ -45,7 +46,8 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
-	Logger slog.Logger
+	Filesystem afero.Fs
+	Logger     slog.Logger
 
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
@@ -64,6 +66,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	}
 	if opts.ForceCancelInterval == 0 {
 		opts.ForceCancelInterval = time.Minute
+	}
+	if opts.Filesystem == nil {
+		opts.Filesystem = afero.NewOsFs()
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
@@ -303,7 +308,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	defer func() {
 		// Cleanup the work directory after execution.
 		for attempt := 0; attempt < 5; attempt++ {
-			err := os.RemoveAll(p.opts.WorkDirectory)
+			err := p.opts.Filesystem.RemoveAll(p.opts.WorkDirectory)
 			if err != nil {
 				// On Windows, open files cannot be removed.
 				// When the provisioner daemon is shutting down,
@@ -326,7 +331,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
-	err := os.MkdirAll(p.opts.WorkDirectory, 0700)
+	err := p.opts.Filesystem.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
 		p.failActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
 		return
@@ -374,14 +379,14 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(headerPath, mode)
+			err = p.opts.Filesystem.MkdirAll(headerPath, mode)
 			if err != nil {
 				p.failActiveJobf("mkdir %q: %s", headerPath, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", headerPath))
 		case tar.TypeReg:
-			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
+			file, err := p.opts.Filesystem.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
 				p.failActiveJobf("create file %q (mode %s): %s", headerPath, mode, err)
 				return
@@ -470,7 +475,7 @@ func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
-	fi, err := os.ReadFile(path.Join(p.opts.WorkDirectory, ReadmeFile))
+	fi, err := afero.ReadFile(p.opts.Filesystem, path.Join(p.opts.WorkDirectory, ReadmeFile))
 	if err != nil {
 		_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.GetJobId(),
@@ -510,12 +515,14 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("client disconnected")
 		return
 	}
+
+	// Parse parameters and update the job with the parameter specs
 	_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "Parse parameters",
+			Stage:     "Parsing template parameters",
 			CreatedAt: time.Now().UTC().UnixMilli(),
 		}},
 	})
@@ -523,13 +530,11 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("write log: %s", err)
 		return
 	}
-
 	parameterSchemas, err := p.runTemplateImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
 		return
 	}
-
 	updateResponse, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId:            job.JobId,
 		ParameterSchemas: parameterSchemas,
@@ -551,6 +556,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}
 	}
 
+	// Determine persistent resources
 	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -572,6 +578,8 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("template import provision for start: %s", err)
 		return
 	}
+
+	// Determine ephemeral resources.
 	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -964,10 +972,6 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
 	if !p.isRunningJob() {
-		if p.isClosed() {
-			return
-		}
-		p.opts.Logger.Info(context.Background(), "skipping job fail; none running", slog.F("error_message", failedJob.Error))
 		return
 	}
 	if p.jobFailed.Load() {

@@ -248,7 +248,8 @@ CREATE TABLE templates (
     active_version_id uuid NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
-    min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL
+    min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
+    created_by uuid NOT NULL
 );
 
 CREATE TABLE users (
@@ -475,6 +476,9 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

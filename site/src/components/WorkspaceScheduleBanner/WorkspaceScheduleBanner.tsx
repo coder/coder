@@ -26,7 +26,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
     return false
   } else {
-    // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+    // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
     // SEE: #1834
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     const hasDeadline = deadline.year() > 1

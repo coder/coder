@@ -15,29 +15,40 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	deleted = @deleted
-	-- Filter by organization_id
-	AND CASE
-		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
-			organization_id = @organization_id
-		ELSE true
-	END
+	workspaces.deleted = @deleted
 	-- Filter by owner_id
 	AND CASE
-		  WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
-				owner_id = @owner_id
-		  ELSE true
+		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = @owner_id
+		ELSE true
+	END
+  	-- Filter by owner_name
+	AND CASE
+		WHEN @owner_username :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE username = @owner_username)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+  	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN @template_name :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE name = @template_name)
+		ELSE true
+	END
+	-- Filter by template_ids
+	AND CASE
+		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
+			template_id = ANY(@template_ids)
+		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		  WHEN @name :: text != '' THEN
-				LOWER(name) LIKE '%' || LOWER(@name) || '%'
-		  ELSE true
+		WHEN @name :: text != '' THEN
+			LOWER(name) LIKE '%' || LOWER(@name) || '%'
+		ELSE true
 	END
 ;
-
--- name: GetWorkspacesByOrganizationIDs :many
-SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
 -- name: GetWorkspacesAutostart :many
 SELECT
@@ -53,15 +64,6 @@ AND
 	(ttl IS NOT NULL AND ttl > 0)
 );
 
--- name: GetWorkspacesByTemplateID :many
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	template_id = $1
-	AND deleted = $2;
-
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*
@@ -70,7 +72,8 @@ FROM
 WHERE
 	owner_id = @owner_id
 	AND deleted = @deleted
-	AND LOWER("name") = LOWER(@name);
+	AND LOWER("name") = LOWER(@name)
+ORDER BY created_at DESC;
 
 -- name: GetWorkspaceOwnerCountsByTemplateIDs :many
 SELECT

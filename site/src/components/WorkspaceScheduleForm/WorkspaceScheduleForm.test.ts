@@ -1,4 +1,4 @@
-import { Language, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import { Language, ttlShutdownAt, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
@@ -153,5 +153,33 @@ describe("validationSchema", () => {
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError("ttl must be less than or equal to 168")
+  })
+})
+
+describe("ttlShutdownAt", () => {
+  it.each<[string, number, string]>([
+    ["Manual shutdown --> manual helper text", 0, Language.ttlCausesNoShutdownHelperText],
+    [
+      "One hour --> helper text shows shutdown after an hour",
+      1,
+      `${Language.ttlCausesShutdownHelperText} an hour ${Language.ttlCausesShutdownAfterStart}.`,
+    ],
+    [
+      "Two hours --> helper text shows shutdown after 2 hours",
+      2,
+      `${Language.ttlCausesShutdownHelperText} 2 hours ${Language.ttlCausesShutdownAfterStart}.`,
+    ],
+    [
+      "24 hours --> helper text shows shutdown after a day",
+      24,
+      `${Language.ttlCausesShutdownHelperText} a day ${Language.ttlCausesShutdownAfterStart}.`,
+    ],
+    [
+      "48 hours --> helper text shows shutdown after 2 days",
+      48,
+      `${Language.ttlCausesShutdownHelperText} 2 days ${Language.ttlCausesShutdownAfterStart}.`,
+    ],
+  ])("%p", (_, ttlHours, expected) => {
+    expect(ttlShutdownAt(ttlHours)).toEqual(expected)
   })
 })

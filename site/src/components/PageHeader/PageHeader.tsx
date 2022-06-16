@@ -50,7 +50,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   subtitle: {
-    fontSize: theme.spacing(2.5),
+    fontSize: theme.spacing(2.25),
     color: theme.palette.text.secondary,
     fontWeight: 400,
     display: "block",

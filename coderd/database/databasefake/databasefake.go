@@ -321,11 +321,25 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
-		if arg.OrganizationID != uuid.Nil && workspace.OrganizationID != arg.OrganizationID {
-			continue
-		}
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
+		}
+		if arg.OwnerUsername != "" {
+			owner, err := q.GetUserByID(context.Background(), workspace.OwnerID)
+			if err == nil && arg.OwnerUsername != owner.Username {
+				continue
+			}
+		}
+		if arg.TemplateName != "" {
+			templates, err := q.GetTemplatesWithFilter(context.Background(), database.GetTemplatesWithFilterParams{
+				ExactName: arg.TemplateName,
+			})
+			// Add to later param
+			if err == nil {
+				for _, t := range templates {
+					arg.TemplateIds = append(arg.TemplateIds, t.ID)
+				}
+			}
 		}
 		if !arg.Deleted && workspace.Deleted {
 			continue
@@ -333,29 +347,21 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 		if arg.Name != "" && !strings.Contains(workspace.Name, arg.Name) {
 			continue
 		}
-		workspaces = append(workspaces, workspace)
-	}
-
-	return workspaces, nil
-}
-
-func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		if workspace.TemplateID.String() != arg.TemplateID.String() {
-			continue
-		}
-		if workspace.Deleted != arg.Deleted {
-			continue
+		if len(arg.TemplateIds) > 0 {
+			match := false
+			for _, id := range arg.TemplateIds {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
 		}
 		workspaces = append(workspaces, workspace)
 	}
-	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
-	}
+
 	return workspaces, nil
 }
 
@@ -375,7 +381,9 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	var found *database.Workspace
 	for _, workspace := range q.workspaces {
+		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -385,7 +393,14 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 		if workspace.Deleted != arg.Deleted {
 			continue
 		}
-		return workspace, nil
+
+		// Return the most recent workspace with the given name
+		if found == nil || workspace.CreatedAt.After(found.CreatedAt) {
+			found = &workspace
+		}
+	}
+	if found != nil {
+		return *found, nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
 }
@@ -616,23 +631,20 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		for _, id := range req.Ids {
-			if workspace.OrganizationID != id {
-				continue
-			}
-			if workspace.Deleted != req.Deleted {
-				continue
-			}
-			workspaces = append(workspaces, workspace)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.WorkspaceID.String() != arg.WorkspaceID.String() {
+			continue
 		}
+		if workspaceBuild.BuildNumber != arg.BuildNumber {
+			continue
+		}
+		return workspaceBuild, nil
 	}
-	return workspaces, nil
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
@@ -759,6 +771,44 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var templates []database.Template
+	for _, template := range q.templates {
+		if template.Deleted != arg.Deleted {
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && template.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if arg.ExactName != "" && !strings.EqualFold(template.Name, arg.ExactName) {
+			continue
+		}
+
+		if len(arg.Ids) > 0 {
+			match := false
+			for _, id := range arg.Ids {
+				if template.ID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		templates = append(templates, template)
+	}
+	if len(templates) > 0 {
+		return templates, nil
+	}
+
+	return nil, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
@@ -896,45 +946,6 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 		return parameterValue, nil
 	}
 	return database.ParameterValue{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetTemplatesByOrganization(_ context.Context, arg database.GetTemplatesByOrganizationParams) ([]database.Template, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	templates := make([]database.Template, 0)
-	for _, template := range q.templates {
-		if template.Deleted != arg.Deleted {
-			continue
-		}
-		if template.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		templates = append(templates, template)
-	}
-	if len(templates) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return templates, nil
-}
-
-func (q *fakeQuerier) GetTemplatesByIDs(_ context.Context, ids []uuid.UUID) ([]database.Template, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	templates := make([]database.Template, 0)
-	for _, template := range q.templates {
-		for _, id := range ids {
-			if template.ID.String() != id.String() {
-				continue
-			}
-			templates = append(templates, template)
-		}
-	}
-	if len(templates) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return templates, nil
 }
 
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -1316,6 +1327,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Description:          arg.Description,
 		MaxTtl:               arg.MaxTtl,
 		MinAutostartInterval: arg.MinAutostartInterval,
+		CreatedBy:            arg.CreatedBy,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

@@ -57,8 +57,8 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		Example: `  Start Coder in "dev" mode. This dev-mode requires no further setup, and your local ` + cliui.Styles.Code.Render("coder") + ` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.
-  ` + cliui.Styles.Code.Render("$ coder server --dev") + `
+		Example: `  Start a Coder server.
+  ` + cliui.Styles.Code.Render("$ coder server") + `
 
   Get started by creating a template from an example.
   ` + cliui.Styles.Code.Render("$ coder templates init"),
@@ -90,6 +90,7 @@ func Root() *cobra.Command {
 		portForward(),
 		workspaceAgent(),
 		versionCmd(),
+		parameters(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
@@ -214,7 +215,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
-	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceByOwnerAndNameParams{})
+	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceOptions{})
 }
 
 // createConfig consumes the global configuration flag to produce a config root.

@@ -15,3 +15,13 @@ Example.args = {
   activeTemplateVersion: Mocks.MockTemplateVersion,
   templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
 }
+
+export const SmallViewport = Template.bind({})
+SmallViewport.args = {
+  template: Mocks.MockTemplate,
+  activeTemplateVersion: Mocks.MockTemplateVersion,
+  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+}
+SmallViewport.parameters = {
+  chromatic: { viewports: [600] },
+}

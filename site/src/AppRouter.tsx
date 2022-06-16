@@ -56,15 +56,6 @@ export const AppRouter: FC = () => (
             </AuthAndFrame>
           }
         />
-
-        <Route
-          path="new"
-          element={
-            <RequireAuth>
-              <CreateWorkspacePage />
-            </RequireAuth>
-          }
-        />
       </Route>
 
       <Route path="templates">
@@ -77,14 +68,24 @@ export const AppRouter: FC = () => (
           }
         />
 
-        <Route
-          path=":template"
-          element={
-            <AuthAndFrame>
-              <TemplatePage />
-            </AuthAndFrame>
-          }
-        />
+        <Route path=":template">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <TemplatePage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="workspace"
+            element={
+              <RequireAuth>
+                <CreateWorkspacePage />
+              </RequireAuth>
+            }
+          />
+        </Route>
       </Route>
 
       <Route path="users">
@@ -111,15 +112,6 @@ export const AppRouter: FC = () => (
         <Route path="security" element={<SecurityPage />} />
         <Route path="ssh-keys" element={<SSHKeysPage />} />
       </Route>
-
-      <Route
-        path="builds/:buildId"
-        element={
-          <AuthAndFrame>
-            <WorkspaceBuildPage />
-          </AuthAndFrame>
-        }
-      />
 
       <Route path="/@:username">
         <Route path=":workspace">
@@ -159,6 +151,15 @@ export const AppRouter: FC = () => (
               }
             />
           </Route>
+
+          <Route
+            path="builds/:buildNumber"
+            element={
+              <AuthAndFrame>
+                <WorkspaceBuildPage />
+              </AuthAndFrame>
+            }
+          />
         </Route>
       </Route>
 

@@ -8,6 +8,9 @@ import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
 import dayjs from "dayjs"
+import advancedFormat from "dayjs/plugin/advancedFormat"
+import duration from "dayjs/plugin/duration"
+import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
@@ -20,10 +23,12 @@ import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
 import { zones } from "./zones"
 
-// REMARK: timezone plugin depends on UTC
-//
-// SEE: https://day.js.org/docs/en/timezone/timezone
+// REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
+//         sorted alphabetically.
 dayjs.extend(utc)
+dayjs.extend(advancedFormat)
+dayjs.extend(duration)
+dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
@@ -43,7 +48,9 @@ export const Language = {
   startTimeHelperText: "Your workspace will automatically start at this time.",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
-  ttlHelperText: "Your workspace will automatically shut down after this amount of time has elapsed.",
+  ttlCausesShutdownHelperText: "Your workspace will shut down",
+  ttlCausesShutdownAfterStart: "after start",
+  ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
 }
 
 export interface WorkspaceScheduleFormProps {
@@ -151,21 +158,28 @@ export const validationSchema = Yup.object({
     .max(24 * 7 /* 7 days */),
 })
 
+export const defaultWorkspaceScheduleTTL = 8
+
+export const defaultWorkspaceSchedule = (
+  ttl = defaultWorkspaceScheduleTTL,
+  timezone = dayjs.tz.guess(),
+): WorkspaceScheduleFormValues => ({
+  sunday: false,
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+
+  startTime: "09:30",
+  timezone,
+  ttl,
+})
+
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   fieldErrors,
-  initialValues = {
-    sunday: false,
-    monday: true,
-    tuesday: true,
-    wednesday: true,
-    thursday: true,
-    friday: true,
-    saturday: false,
-
-    startTime: "09:30",
-    timezone: "",
-    ttl: 5,
-  },
+  initialValues = defaultWorkspaceSchedule(),
   isLoading,
   onCancel,
   onSubmit,
@@ -190,7 +204,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   ]
 
   return (
-    <FullPageForm onCancel={onCancel} title="Workspace Schedule">
+    <FullPageForm onCancel={onCancel} title="Workspace schedule">
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           <TextField
@@ -248,7 +262,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", Language.ttlHelperText)}
+            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl))}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
@@ -260,6 +274,17 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
       </form>
     </FullPageForm>
   )
+}
+
+export const ttlShutdownAt = (formTTL: number): string => {
+  if (formTTL < 1) {
+    // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
+    return Language.ttlCausesNoShutdownHelperText
+  } else {
+    return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${
+      Language.ttlCausesShutdownAfterStart
+    }.`
+  }
 }
 
 const useStyles = makeStyles({

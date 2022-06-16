@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/ptr"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -258,7 +259,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something", codersdk.WorkspaceByOwnerAndNameParams{})
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something", codersdk.WorkspaceOptions{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -271,7 +272,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 	})
 	t.Run("Deleted", func(t *testing.T) {
@@ -294,19 +295,206 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Then:
 		// When we call without includes_deleted, we don't expect to get the workspace back
-		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{})
-		require.ErrorContains(t, err, "403")
+		_, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.ErrorContains(t, err, "404")
 
 		// Then:
 		// When we call with includes_deleted, we should get the workspace back
-		workspaceNew, err := client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceByOwnerAndNameParams{IncludeDeleted: true})
+		workspaceNew, err := client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We recreate the workspace with the same name
+		workspace, err = client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID:        workspace.TemplateID,
+			Name:              workspace.Name,
+			AutostartSchedule: workspace.AutostartSchedule,
+			TTLMillis:         workspace.TTLMillis,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Then:
+		// We can fetch the most recent workspace
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Given:
+		// We delete the workspace again
+		build, err = client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Then:
+		// When we fetch the deleted workspace, we get the most recently deleted one
+		workspaceNew, err = client.WorkspaceByOwnerAndName(context.Background(), workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
 }
 
+// TestWorkspaceFilter creates a set of workspaces, users, and organizations
+// to run various filters against for testing.
 func TestWorkspaceFilter(t *testing.T) {
 	t.Parallel()
+	type coderUser struct {
+		*codersdk.Client
+		User codersdk.User
+		Org  codersdk.Organization
+	}
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	first := coderdtest.CreateFirstUser(t, client)
+
+	users := make([]coderUser, 0)
+	for i := 0; i < 10; i++ {
+		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin())
+		user, err := userClient.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+
+		org, err := userClient.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
+			Name: user.Username + "-org",
+		})
+		require.NoError(t, err, "create org")
+
+		users = append(users, coderUser{
+			Client: userClient,
+			User:   user,
+			Org:    org,
+		})
+	}
+
+	type madeWorkspace struct {
+		Owner     codersdk.User
+		Workspace codersdk.Workspace
+		Template  codersdk.Template
+	}
+
+	availTemplates := make([]codersdk.Template, 0)
+	allWorkspaces := make([]madeWorkspace, 0)
+
+	// Create some random workspaces
+	for _, user := range users {
+		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
+
+		// Create a template & workspace in the user's org
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
+		availTemplates = append(availTemplates, template)
+		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID)
+		allWorkspaces = append(allWorkspaces, madeWorkspace{
+			Workspace: workspace,
+			Template:  template,
+			Owner:     user.User,
+		})
+
+		// Make a workspace with a random template
+		idx, _ := cryptorand.Intn(len(availTemplates))
+		randTemplate := availTemplates[idx]
+		randWorkspace := coderdtest.CreateWorkspace(t, user.Client, randTemplate.OrganizationID, randTemplate.ID)
+		allWorkspaces = append(allWorkspaces, madeWorkspace{
+			Workspace: randWorkspace,
+			Template:  randTemplate,
+			Owner:     user.User,
+		})
+	}
+
+	// Make sure all workspaces are done. Do it after all are made
+	for i, w := range allWorkspaces {
+		latest := coderdtest.AwaitWorkspaceBuildJob(t, client, w.Workspace.LatestBuild.ID)
+		allWorkspaces[i].Workspace.LatestBuild = latest
+	}
+
+	// --- Setup done ---
+	testCases := []struct {
+		Name   string
+		Filter codersdk.WorkspaceFilter
+		// If FilterF is true, we include it in the expected results
+		FilterF func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool
+	}{
+		{
+			Name:   "All",
+			Filter: codersdk.WorkspaceFilter{},
+			FilterF: func(_ codersdk.WorkspaceFilter, _ madeWorkspace) bool {
+				return true
+			},
+		},
+		{
+			Name: "Owner",
+			Filter: codersdk.WorkspaceFilter{
+				Owner: users[2].User.Username,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Owner.Username == f.Owner
+			},
+		},
+		{
+			Name: "TemplateName",
+			Filter: codersdk.WorkspaceFilter{
+				Template: allWorkspaces[5].Template.Name,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Template.Name == f.Template
+			},
+		},
+		{
+			Name: "Name",
+			Filter: codersdk.WorkspaceFilter{
+				// Use a common letter... one has to have this letter in it
+				Name: "a",
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return strings.Contains(workspace.Workspace.Name, f.Name)
+			},
+		},
+		{
+			Name: "Q-Owner/Name",
+			Filter: codersdk.WorkspaceFilter{
+				FilterQuery: allWorkspaces[5].Owner.Username + "/" + allWorkspaces[5].Workspace.Name,
+			},
+			FilterF: func(_ codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Workspace.ID == allWorkspaces[5].Workspace.ID
+			},
+		},
+		{
+			Name: "Many filters",
+			Filter: codersdk.WorkspaceFilter{
+				Owner:    allWorkspaces[3].Owner.Username,
+				Template: allWorkspaces[3].Template.Name,
+				Name:     allWorkspaces[3].Workspace.Name,
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return workspace.Workspace.ID == allWorkspaces[3].Workspace.ID
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			workspaces, err := client.Workspaces(context.Background(), c.Filter)
+			require.NoError(t, err, "fetch workspaces")
+
+			exp := make([]codersdk.Workspace, 0)
+			for _, made := range allWorkspaces {
+				if c.FilterF(c.Filter, made) {
+					exp = append(exp, made.Workspace)
+				}
+			}
+			require.ElementsMatch(t, exp, workspaces, "expected workspaces returned")
+		})
+	}
+}
+
+// TestWorkspaceFilterManual runs some specific setups with basic checks.
+func TestWorkspaceFilterManual(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -338,6 +526,49 @@ func TestWorkspaceFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, ws, 0)
+	})
+	t.Run("Template", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
+
+		// empty
+		ws, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, ws, 2)
+
+		// single template
+		ws, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Template: template.Name,
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1)
+		require.Equal(t, workspace.ID, ws[0].ID)
+	})
+	t.Run("FilterQuery", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
+
+		// single workspace
+		ws, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
+		})
+		require.NoError(t, err)
+		require.Len(t, ws, 1)
+		require.Equal(t, workspace.ID, ws[0].ID)
 	})
 }
 
@@ -550,19 +781,16 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			name:          "invalid location",
 			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
 			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      ptr.Ref("asdf asdf asdf "),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 		{
 			name:          "only 3 values",
 			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
-			// expectedError: "status code 500: Invalid autostart schedule\n\tError: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
 		},
 	}
 
@@ -632,7 +860,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})
 }
 
@@ -648,6 +876,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:          "disable ttl",
 			ttlMillis:     nil,
+			expectedError: "",
+		},
+		{
+			name:          "update ttl",
+			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
 			expectedError: "",
 		},
 		{
@@ -698,6 +931,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 					cwr.AutostartSchedule = nil
 					cwr.TTLMillis = nil
 				})
+				_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			)
 
 			err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
@@ -733,29 +967,30 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
-		require.Equal(t, fmt.Sprintf("Workspace %q does not exist.", wsid), coderSDKErr.Message, "unexpected response code")
+		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})
 }
 
 func TestWorkspaceExtend(t *testing.T) {
 	t.Parallel()
 	var (
+		ttl         = 8 * time.Hour
+		newDeadline = time.Now().Add(ttl + time.Hour).UTC()
 		ctx         = context.Background()
 		client      = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user        = coderdtest.CreateFirstUser(t, client)
 		version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_           = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		project     = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		extend      = 90 * time.Minute
-		_           = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		oldDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond).UTC()
-		newDeadline = time.Now().Add(time.Duration(*workspace.TTLMillis)*time.Millisecond + extend).UTC()
+		template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace   = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
+		})
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	)
 
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch provisioned workspace")
-	require.InDelta(t, oldDeadline.Unix(), workspace.LatestBuild.Deadline.Unix(), 60)
+	oldDeadline := workspace.LatestBuild.Deadline
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -767,7 +1002,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	// Ensure deadline set correctly
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.InDelta(t, newDeadline.Unix(), updated.LatestBuild.Deadline.Unix(), 60)
+	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline, time.Minute)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
@@ -775,22 +1010,37 @@ func TestWorkspaceExtend(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "deadline: Validation failed for tag \"required\" with value: \"0001-01-01 00:00:00 +0000 UTC\"", "setting an empty deadline on a workspace should fail")
 
-	// Updating with an earlier time should also fail
+	// Updating with a deadline less than 30 minutes in the future should fail
+	deadlineTooSoon := time.Now().Add(15 * time.Minute) // XXX: time.Now
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: oldDeadline,
+		Deadline: deadlineTooSoon,
 	})
-	require.ErrorContains(t, err, "deadline: minimum extension is one minute", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
-	// Updating with a time far in the future should also fail
+	// And with a deadline greater than the template max_ttl should also fail
+	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: oldDeadline.AddDate(1, 0, 0),
+		Deadline: deadlineExceedsMaxTTL,
 	})
-	require.ErrorContains(t, err, "deadline: maximum extension is 24 hours", "setting an earlier deadline should fail")
+	require.ErrorContains(t, err, "new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
+
+	// Updating with a deadline 30 minutes in the future should succeed
+	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: deadlineJustSoonEnough,
+	})
+	require.NoError(t, err, "setting a deadline at least 30 minutes in the future should succeed")
+
+	// Updating with a deadline an hour before the previous deadline should succeed
+	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+		Deadline: oldDeadline.Add(-time.Hour),
+	})
+	require.NoError(t, err, "setting an earlier deadline should not fail")
 
 	// Ensure deadline still set correctly
 	updated, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.InDelta(t, newDeadline.Unix(), updated.LatestBuild.Deadline.Unix(), 60)
+	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline, time.Minute)
 }
 
 func TestWorkspaceWatcher(t *testing.T) {

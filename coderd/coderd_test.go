@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -153,16 +154,17 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
 		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
+			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/me/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
 		},
@@ -208,6 +210,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
 			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
+			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaces/": {
@@ -366,9 +380,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 				// By default, all omitted routes check for just "authorize" called
 				routeAssertions = routeCheck{}
 			}
-			if routeAssertions.StatusCode == 0 {
-				routeAssertions.StatusCode = http.StatusForbidden
-			}
 
 			// Replace all url params with known values
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
@@ -378,6 +389,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{workspaceagent}", workspaceResources[0].Agents[0].ID.String())
+			route = strings.ReplaceAll(route, "{buildnumber}", strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10))
 			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 			route = strings.ReplaceAll(route, "{workspaceresource}", workspaceResources[0].ID.String())
@@ -397,7 +410,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
-				assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
+				if routeAssertions.StatusCode != 0 {
+					assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
+				} else {
+					// It's either a 404 or 403.
+					if resp.StatusCode != http.StatusNotFound {
+						assert.Equal(t, http.StatusForbidden, resp.StatusCode, "expect unauthorized")
+					}
+				}
 				if authorizer.Called != nil {
 					if routeAssertions.AssertAction != "" {
 						assert.Equal(t, routeAssertions.AssertAction, authorizer.Called.Action, "resource action")
