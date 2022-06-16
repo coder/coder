@@ -70,30 +70,6 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		return xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), minimumTerraformVersion.String())
 	}
 
-	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
-	if len(start.State) > 0 {
-		err := os.WriteFile(statefilePath, start.State, 0600)
-		if err != nil {
-			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
-		}
-	}
-
-	reader, writer := io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
-	go func() {
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  proto.LogLevel_DEBUG,
-						Output: scanner.Text(),
-					},
-				},
-			})
-		}
-	}()
 	terraformEnv := map[string]string{}
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
@@ -113,15 +89,38 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	if err != nil {
 		return xerrors.Errorf("set terraform env: %w", err)
 	}
-	terraform.SetStdout(writer)
-	t.logger.Debug(shutdown, "running initialization")
+
+	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
+	if len(start.State) > 0 {
+		err := os.WriteFile(statefilePath, start.State, 0600)
+		if err != nil {
+			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
+		}
+	}
+
+	reader, writer := io.Pipe()
+	go func(reader *io.PipeReader) {
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			_ = stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_ERROR,
+						Output: scanner.Text(),
+					},
+				},
+			})
+		}
+	}(reader)
+
+	terraform.SetStderr(writer)
 	err = terraform.Init(shutdown)
+	_ = reader.Close()
+	_ = writer.Close()
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
-	t.logger.Debug(shutdown, "ran initialization")
-	_ = reader.Close()
-	terraform.SetStdout(io.Discard)
+	terraform.SetStderr(io.Discard)
 
 	env := os.Environ()
 	env = append(env,

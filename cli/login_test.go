@@ -56,6 +56,26 @@ func TestLogin(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("InitialUserFlags", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", client.URL.String(), "--username", "testuser", "--email", "user@coder.com", "--password", "password")
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := root.Execute()
+			assert.NoError(t, err)
+		}()
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())

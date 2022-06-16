@@ -53,13 +53,6 @@ AllStates.args = {
   ].map((data) => spawn(workspaceItemMachine.withContext({ data }))),
 }
 
-export const Outdated = Template.bind({})
-Outdated.args = {
-  workspaceRefs: [createWorkspaceWithStatus("running", "stop", true)].map((data) =>
-    spawn(workspaceItemMachine.withContext({ data })),
-  ),
-}
-
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
   workspaceRefs: [],
