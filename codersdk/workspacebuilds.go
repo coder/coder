@@ -22,9 +22,15 @@ const (
 type BuildReason string
 
 const (
+	// "initiator" is used when a workspace build is triggered by a user.
+	// Combined with the initiator id/username, it indicates which user initiated the build.
 	BuildReasonInitiator BuildReason = "initiator"
+	// "autostart" is used when a build to start a workspace is triggered by Autostart.
+	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonAutostart BuildReason = "autostart"
-	BuildReasonAutostop  BuildReason = "autostop"
+	// "autostop" is used when a build to stop a workspace is triggered by Autostop.
+	// The initiator id/username in this case is the workspace owner and can be ignored.
+	BuildReasonAutostop BuildReason = "autostop"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
