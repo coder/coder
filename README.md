@@ -65,7 +65,7 @@ Visit our docs [here](https://coder.com/docs/coder-oss).
 
 ## Comparison
 
-Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](https://coder.com/docs/coder-oss/latest/about#what-coder-is-not).
+Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not).
 
 | Tool                                                        | Type     | Delivery Model     | Cost                          | Environments                                                                                                                                               |
 | :---------------------------------------------------------- | :------- | :----------------- | :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
