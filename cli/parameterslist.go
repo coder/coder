@@ -52,6 +52,14 @@ func parameterList() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("%q must be a uuid for this scope type", name)
 				}
+
+				// Could be a template_version id or a job id. Check for the
+				// version id.
+				tv, err := client.TemplateVersion(cmd.Context(), scopeID)
+				if err == nil {
+					scopeID = tv.Job.ID
+				}
+
 			default:
 				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
 					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterImportJob,
