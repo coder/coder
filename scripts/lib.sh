@@ -110,3 +110,52 @@ error() {
 	log "ERROR: $*"
 	exit 1
 }
+
+libsh_bad_dependencies=0
+
+if ((BASH_VERSINFO[0] < 4)); then
+	libsh_bad_dependencies=1
+	log "ERROR: You need at least bash 4.0 to run the scripts in the Coder repo."
+	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+		log "On darwin:"
+		log "- brew install bash"
+		log "- Restart your terminal"
+	fi
+	log
+fi
+
+# BSD getopt (which is installed by default on Macs) is not supported.
+if [[ "$(getopt --version)" == *--* ]]; then
+	libsh_bad_dependencies=1
+	log "ERROR: You need GNU getopt to run the scripts in the Coder repo."
+	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+		log "On darwin:"
+		log "- brew install gnu-getopt"
+		# shellcheck disable=SC2016
+		log '- Add "$(brew --prefix)/opt/gnu-getopt/bin" to your PATH'
+		log "- Restart your terminal"
+	fi
+	log
+fi
+
+# The bash scripts don't call Make directly, but we want to make (ha ha) sure
+# that make supports the features the repo uses. Notably, Macs have an old
+# version of Make installed out of the box that doesn't support new features
+# like ONESHELL.
+make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+if [ "${make_version//.*/}" -lt 4 ]; then
+	libsh_bad_dependencies=1
+	log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
+	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+		log "On darwin:"
+		log "- brew install make"
+		# shellcheck disable=SC2016
+		log '- Add "$(brew --prefix)/opt/make/libexec/gnubin" to your PATH (you should Google this first)'
+		log "- Restart your terminal"
+	fi
+	log
+fi
+
+if [[ "$libsh_bad_dependencies" == 1 ]]; then
+	error "Invalid dependencies, see above for more details."
+fi
