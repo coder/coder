@@ -2142,7 +2142,7 @@ SELECT
 FROM
 	users
 WHERE
-    id != '11111111-1111-1111-1111-111111111111'
+    id != 'c0de2b07-0000-4000-A000-000000000000'
 `
 
 // Actual user count refers to the count of all users except the system user
@@ -2292,7 +2292,7 @@ WHERE
 	AND CASE
 		WHEN $3 :: boolean THEN true
 		ELSE (
-			id != '11111111-1111-1111-1111-111111111111'
+			id != 'c0de2b07-0000-4000-A000-000000000000'
 		)
 	END
 	-- Filter by status

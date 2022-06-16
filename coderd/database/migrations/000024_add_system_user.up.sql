@@ -9,4 +9,4 @@ INSERT INTO
         rbac_roles
     )
 VALUES
-    ('11111111-1111-1111-1111-111111111111', 'system@coder.com', 'system', '{}', NOW(), NOW(), '{}');
+    ('c0de2b07-0000-4000-A000-000000000000', 'system@coder.com', 'system', '', NOW(), NOW(), '{}');

@@ -23,6 +23,7 @@ func New() database.Store {
 		HashedPassword: make([]byte, 0),
 		CreatedAt:      database.Now(),
 		UpdatedAt:      database.Now(),
+		Status:         database.UserStatusActive,
 		RBACRoles:      make([]string, 0),
 	}
 	return &fakeQuerier{

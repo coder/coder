@@ -22,18 +22,31 @@ import (
 )
 
 func TestSystemUser(t *testing.T) {
-	if !coderdtest.UseSQL() {
-		t.Skip("This test asserts that the system user is equivalent in SQL and the fake database.")
-	}
-
 	t.Parallel()
+	t.Run("SQLMatchesFake", func(t *testing.T) {
+		if !coderdtest.UseSQL() {
+			t.Skip("This test asserts that the system user is equivalent in SQL and the fake database.")
+		}
 
-	_, opts := coderdtest.NewWithAPI(t, nil)
-	fake := databasefake.New()
+		t.Parallel()
 
-	fakeUser, _ := fake.GetUserByID(context.Background(), database.SystemUserID)
-	sqlUser, _ := opts.Database.GetUserByID(context.Background(), database.SystemUserID)
-	require.Equal(t, fakeUser, sqlUser)
+		_, opts := coderdtest.NewWithAPI(t, nil)
+		fake := databasefake.New()
+
+		fakeUser, _ := fake.GetUserByID(context.Background(), database.SystemUserID)
+		sqlUser, _ := opts.Database.GetUserByID(context.Background(), database.SystemUserID)
+
+		// These fields are different as they use the actual timestamps at creation
+		fakeUser.CreatedAt, fakeUser.UpdatedAt = time.Time{}, time.Time{}
+		sqlUser.CreatedAt, sqlUser.UpdatedAt = time.Time{}, time.Time{}
+
+		require.Equal(t, fakeUser, sqlUser)
+	})
+	t.Run("ValidUUID", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, uuid.Version(4), database.SystemUserID.Version())
+		require.Equal(t, uuid.RFC4122, database.SystemUserID.Variant())
+	})
 }
 
 func TestFirstUser(t *testing.T) {
