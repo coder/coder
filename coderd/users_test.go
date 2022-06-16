@@ -23,7 +23,7 @@ import (
 
 func TestSystemUser(t *testing.T) {
 	if !coderdtest.UseSQL() {
-		t.Skip("There is no point in running this test.")
+		t.Skip("This test asserts that the system user is equivalent in SQL and the fake database.")
 	}
 
 	t.Parallel()

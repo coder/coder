@@ -22,6 +22,7 @@ type querier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
+	// Actual user count refers to the count of all users except the system user
 	GetActualUserCount(ctx context.Context) (int64, error)
 	// GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
 	// ID.

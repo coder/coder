@@ -2145,6 +2145,7 @@ WHERE
     id != '11111111-1111-1111-1111-111111111111'
 `
 
+// Actual user count refers to the count of all users except the system user
 func (q *sqlQuerier) GetActualUserCount(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getActualUserCount)
 	var count int64

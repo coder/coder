@@ -23,6 +23,7 @@ LIMIT
 	1;
 
 -- name: GetActualUserCount :one
+-- Actual user count refers to the count of all users except the system user
 SELECT
 	COUNT(*)
 FROM

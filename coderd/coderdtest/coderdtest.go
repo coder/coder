@@ -79,6 +79,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	return client
 }
 
+// UseSQL returns true if a Postgres server is running and can be used for tests.
 func UseSQL() bool {
 	return os.Getenv("DB") != ""
 }
