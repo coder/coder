@@ -57,16 +57,14 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		Example: `  Start Coder in "dev" mode. This dev-mode requires no further setup, and your local ` + cliui.Styles.Code.Render("coder") + ` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.
-  ` + cliui.Styles.Code.Render("$ coder server --dev") + `
+		Example: `  Start a Coder server.
+  ` + cliui.Styles.Code.Render("$ coder server") + `
 
   Get started by creating a template from an example.
   ` + cliui.Styles.Code.Render("$ coder templates init"),
 	}
 
 	cmd.AddCommand(
-		autostart(),
-		bump(),
 		configSSH(),
 		create(),
 		delete(),
@@ -77,6 +75,7 @@ func Root() *cobra.Command {
 		logout(),
 		publickey(),
 		resetPassword(),
+		schedules(),
 		server(),
 		show(),
 		start(),
@@ -84,12 +83,12 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
-		ttl(),
 		update(),
 		users(),
 		portForward(),
 		workspaceAgent(),
 		versionCmd(),
+		parameters(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())

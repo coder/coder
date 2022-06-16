@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package terraform_test
 
@@ -22,24 +22,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestProvision(t *testing.T) {
-	t.Parallel()
-
-	provider := `
-terraform {
-	required_providers {
-		coder = {
-			source = "coder/coder"
-			version = "0.4.2"
-		}
-	}
-}
-
-provider "coder" {
-}
-	`
-	t.Log(provider)
-
+func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -57,71 +40,165 @@ provider "coder" {
 		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	return ctx, api
+}
 
-	for _, testCase := range []struct {
-		Name     string
-		Files    map[string]string
-		Request  *proto.Provision_Request
+func TestProvision(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := setupProvisioner(t)
+
+	testCases := []struct {
+		Name    string
+		Files   map[string]string
+		Request *proto.Provision_Request
+		// Response may be nil to not check the response.
 		Response *proto.Provision_Response
-		Error    bool
-	}{{
-		Name: "single-variable",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		// If ErrorContains is not empty, then response.Recv() should return an
+		// error containing this string before a Complete response is returned.
+		ErrorContains string
+		// If ExpectLogContains is not empty, then the logs should contain it.
+		ExpectLogContains string
+		DryRun            bool
+	}{
+		{
+			Name: "single-variable",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 				description = "Testing!"
 			}`,
-		},
-		Request: &proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					ParameterValues: []*proto.ParameterValue{{
-						DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						Name:              "A",
-						Value:             "example",
-					}},
+			},
+			Request: &proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						ParameterValues: []*proto.ParameterValue{{
+							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							Name:              "A",
+							Value:             "example",
+						}},
+					},
+				},
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
 				},
 			},
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		},
-	}, {
-		Name: "missing-variable",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		{
+			Name: "missing-variable",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 			}`,
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Error: "terraform apply: exit status 1",
+					},
+				},
+			},
+			ExpectLogContains: "No value for required variable",
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Error: "exit status 1",
+		{
+			Name: "missing-variable-dry-run",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+			}`,
+			},
+			ErrorContains:     "terraform plan:",
+			ExpectLogContains: "No value for required variable",
+			DryRun:            true,
+		},
+		{
+			Name: "single-resource-dry-run",
+			Files: map[string]string{
+				"main.tf": `resource "null_resource" "A" {}`,
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "A",
+							Type: "null_resource",
+						}},
+					},
+				},
+			},
+			DryRun: true,
+		},
+		{
+			Name: "single-resource",
+			Files: map[string]string{
+				"main.tf": `resource "null_resource" "A" {}`,
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "A",
+							Type: "null_resource",
+						}},
+					},
 				},
 			},
 		},
-	}, {
-		Name: "single-resource",
-		Files: map[string]string{
-			"main.tf": `resource "null_resource" "A" {}`,
+		{
+			Name: "bad-syntax-1",
+			Files: map[string]string{
+				"main.tf": `a`,
+			},
+			ErrorContains:     "initialize terraform",
+			ExpectLogContains: "Argument or block definition required",
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "A",
-						Type: "null_resource",
-					}},
+		{
+			Name: "bad-syntax-2",
+			Files: map[string]string{
+				"main.tf": `;asdf;`,
+			},
+			ErrorContains:     "initialize terraform",
+			ExpectLogContains: `The ";" character is not valid.`,
+		},
+		{
+			Name: "destroy-no-state",
+			Files: map[string]string{
+				"main.tf": `resource "null_resource" "A" {}`,
+			},
+			Request: &proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						State: nil,
+						Metadata: &proto.Provision_Metadata{
+							WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
+						},
+					},
 				},
 			},
+			ExpectLogContains: "nothing to do",
 		},
-	}, {
-		Name: "invalid-sourcecode",
-		Files: map[string]string{
-			"main.tf": `a`,
+		{
+			Name: "unsupported-parameter-scheme",
+			Files: map[string]string{
+				"main.tf": "",
+			},
+			Request: &proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						ParameterValues: []*proto.ParameterValue{
+							{
+								DestinationScheme: 88,
+								Name:              "UNSUPPORTED",
+								Value:             "sadface",
+							},
+						},
+					},
+				},
+			},
+			ErrorContains: "unsupported parameter type",
 		},
-		Error: true,
-	}} {
+	}
+
+	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
@@ -136,6 +213,7 @@ provider "coder" {
 				Type: &proto.Provision_Request_Start{
 					Start: &proto.Provision_Start{
 						Directory: directory,
+						DryRun:    testCase.DryRun,
 					},
 				},
 			}
@@ -148,19 +226,26 @@ provider "coder" {
 			if request.GetStart().Metadata == nil {
 				request.GetStart().Metadata = &proto.Provision_Metadata{}
 			}
+
 			response, err := api.Provision(ctx)
 			require.NoError(t, err)
 			err = response.Send(request)
 			require.NoError(t, err)
+
+			gotExpectedLog := testCase.ExpectLogContains == ""
 			for {
 				msg, err := response.Recv()
 				if msg != nil && msg.GetLog() != nil {
+					if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
+						gotExpectedLog = true
+					}
+
 					t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
 					continue
 				}
-				if testCase.Error {
-					require.Error(t, err)
-					return
+				if testCase.ErrorContains != "" {
+					require.ErrorContains(t, err, testCase.ErrorContains)
+					break
 				}
 				require.NoError(t, err)
 
@@ -185,63 +270,70 @@ provider "coder" {
 					}
 				}
 
-				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
-				require.NoError(t, err)
+				if testCase.Response != nil {
+					resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
+					require.NoError(t, err)
 
-				resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
-				require.NoError(t, err)
+					resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
+					require.NoError(t, err)
 
-				require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
+					require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
 
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+					require.Equal(t, string(resourcesWant), string(resourcesGot))
+				}
 				break
+			}
+
+			if !gotExpectedLog {
+				t.Fatalf("expected log string %q but never saw it", testCase.ExpectLogContains)
 			}
 		})
 	}
+}
 
-	t.Run("DestroyNoState", func(t *testing.T) {
-		t.Parallel()
+// nolint:paralleltest
+func TestProvision_ExtraEnv(t *testing.T) {
+	// #nosec
+	secretValue := "oinae3uinxase"
+	t.Setenv("TF_LOG", "INFO")
+	t.Setenv("TF_SUPERSECRET", secretValue)
 
-		const template = `resource "null_resource" "A" {}`
+	ctx, api := setupProvisioner(t)
 
-		directory := t.TempDir()
-		err := os.WriteFile(filepath.Join(directory, "main.tf"), []byte(template), 0600)
-		require.NoError(t, err)
+	directory := t.TempDir()
+	path := filepath.Join(directory, "main.tf")
+	err := os.WriteFile(path, []byte(`resource "null_resource" "A" {}`), 0600)
+	require.NoError(t, err)
 
-		request := &proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					State:     nil,
-					Directory: directory,
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
-					},
+	request := &proto.Provision_Request{
+		Type: &proto.Provision_Request_Start{
+			Start: &proto.Provision_Start{
+				Directory: directory,
+				Metadata: &proto.Provision_Metadata{
+					WorkspaceTransition: proto.WorkspaceTransition_START,
 				},
 			},
+		},
+	}
+	response, err := api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(request)
+	require.NoError(t, err)
+	found := false
+	for {
+		msg, err := response.Recv()
+		require.NoError(t, err)
+
+		if log := msg.GetLog(); log != nil {
+			if strings.Contains(log.Output, "TF_LOG") {
+				found = true
+			}
+			require.NotContains(t, log.Output, secretValue)
 		}
-
-		response, err := api.Provision(ctx)
-		require.NoError(t, err)
-		err = response.Send(request)
-		require.NoError(t, err)
-
-		gotLog := false
-		for {
-			msg, err := response.Recv()
-			require.NoError(t, err)
-			require.NotNil(t, msg)
-
-			if msg.GetLog() != nil && strings.Contains(msg.GetLog().Output, "nothing to do") {
-				gotLog = true
-				continue
-			}
-			if msg.GetComplete() == nil {
-				continue
-			}
-
-			require.Empty(t, msg.GetComplete().Error)
-			require.True(t, gotLog, "never received 'nothing to do' log")
+		if c := msg.GetComplete(); c != nil {
+			require.Empty(t, c.Error)
 			break
 		}
-	})
+	}
+	require.True(t, found)
 }

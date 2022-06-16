@@ -23,70 +23,26 @@ vim <template-name>/main.tf
 coder templates <create/update> <template-name>
 ```
 
-## Persistent and ephemeral resources
-
-Coder supports both ephemeral and persistent resources in workspaces. Ephemeral
-resources are destroyed when a workspace is not in use (e.g., when it is
-stopped). Persistent resources remain. See how this works for a sample front-end
-template:
-
-| Resource                     | Type       |
-| :--------------------------- | :--------- |
-| google_compute_disk.home_dir | persistent |
-| kubernetes_pod.dev           | ephemeral  |
-| └─ nodejs (linux, amd64)     |            |
-| api_token.backend            | ephemeral  |
-
-When a workspace is deleted, all resources are destroyed.
-
 ## Parameters
 
-Templates often contain *parameters*. In Coder, there are two types of parameters:
+Templates often contain _parameters_. In Coder, there are two types of parameters:
 
 - **Admin parameters** are set when a template is created/updated. These values
   are often cloud secrets, such as a `ServiceAccount` token, and are annotated
-  with `sensitive =  true` in the template code.
+  with `sensitive = true` in the template code.
+- **User parameters** are set when a user creates a workspace. They are unique
+  to each workspace, often personalization settings such as "preferred region"
+  or "workspace image".
 
-- **User parameters** are set when a user creates a workspace. They are unique to
-each workspace, often personalization settings such as "preferred
-region" or "workspace image".
+## Change Management
 
+We recommend source controlling your templates as you would other code.
 
-## Best Practices
-
-### Template Changes
-
-We recommend source controlling your templates.
-
-### Authenticating with Cloud Providers
-
-Coder's provisioner process needs to authenticate with cloud provider APIs to provision
-workspaces. We strongly advise against including credentials directly in your templates. You
-can either pass credentials to the provisioner as parameters, or execute Coder
-in an environment that is authenticated with the cloud provider.
-
-We encourage the latter where supported.  This approach simplifies the template, keeps cloud
-provider credentials out of Coder's database (making it a less valuable target for attackers),
-and is compatible with agent-based authentication schemes (that handle credential rotation
-and/or ensure the credentials are not written to disk).
-
-Cloud providers for which the Terraform provider supports authenticated environments include
-
- * [Google Cloud](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
- * [Amazon Web Services](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
- * [Microsoft Azure](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
- * [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
-
-Additional providers may be supported; check the
-[documentation of the Terraform provider](https://registry.terraform.io/browse/providers) for
-details.
-
-The way these generally work is via the credentials being available to Coder either in some
-well-known location on disk (e.g. `~/.aws/credentials` for AWS on posix systems), or via
-environment variables.  It is usually sufficient to authenticate using the CLI or SDK for the
-cloud provider before running Coder for this to work, but check the Terraform provider
-documentation for details.
+CI is as simple as running `coder templates update` with the appropriate
+credentials.
 
 ---
 
 Next: [Workspaces](./workspaces.md)
+
+Next: [Authentication & Secrets](./authentication.md)

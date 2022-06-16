@@ -14,8 +14,9 @@ import (
 type ParameterScope string
 
 const (
-	ParameterTemplate  ParameterScope = "template"
-	ParameterWorkspace ParameterScope = "workspace"
+	ParameterTemplate       ParameterScope = "template"
+	ParameterWorkspace      ParameterScope = "workspace"
+	ParameterScopeImportJob ParameterScope = "import_job"
 )
 
 type ParameterSourceScheme string

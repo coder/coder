@@ -14,6 +14,28 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
+var provisionCompleteWithAgent = []*proto.Provision_Response{
+	{
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{
+				Resources: []*proto.Resource{
+					{
+						Type: "compute",
+						Name: "main",
+						Agents: []*proto.Agent{
+							{
+								Name:            "smith",
+								OperatingSystem: "linux",
+								Architecture:    "i386",
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 func TestTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
@@ -22,7 +44,7 @@ func TestTemplateCreate(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
-			Provision: echo.ProvisionComplete,
+			Provision: provisionCompleteWithAgent,
 		})
 		args := []string{
 			"templates",
@@ -49,11 +71,15 @@ func TestTemplateCreate(t *testing.T) {
 			write string
 		}{
 			{match: "Create and upload", write: "yes"},
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
-			pty.WriteLine(m.write)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
 		}
 
 		require.NoError(t, <-execDone)

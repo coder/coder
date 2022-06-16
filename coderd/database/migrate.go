@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"errors"
@@ -17,12 +18,21 @@ import (
 var migrations embed.FS
 
 func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
+	ctx := context.Background()
 	sourceDriver, err := iofs.New(migrations, "migrations")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}
 
-	dbDriver, err := postgres.WithInstance(db, &postgres.Config{})
+	// there is a postgres.WithInstance() method that takes the DB instance,
+	// but, when you close the resulting Migrate, it closes the DB, which
+	// we don't want.  Instead, create just a connection that will get closed
+	// when migration is done.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("postgres connection: %w", err)
+	}
+	dbDriver, err := postgres.WithConnection(ctx, conn, &postgres.Config{})
 	if err != nil {
 		return nil, nil, xerrors.Errorf("wrap postgres connection: %w", err)
 	}
@@ -36,11 +46,22 @@ func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 }
 
 // MigrateUp runs SQL migrations to ensure the database schema is up-to-date.
-func MigrateUp(db *sql.DB) error {
+func MigrateUp(db *sql.DB) (retErr error) {
 	_, m, err := migrateSetup(db)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
+	defer func() {
+		srcErr, dbErr := m.Close()
+		if retErr != nil {
+			return
+		}
+		if dbErr != nil {
+			retErr = dbErr
+			return
+		}
+		retErr = srcErr
+	}()
 
 	err = m.Up()
 	if err != nil {

@@ -139,6 +139,19 @@ func (s Schedule) Min() time.Duration {
 	return durMin
 }
 
+// Time returns a humanized form of the minute and hour fields.
+func (s Schedule) Time() string {
+	minute := strings.Fields(s.cronStr)[0]
+	hour := strings.Fields(s.cronStr)[1]
+	maybeTime := fmt.Sprintf("%s:%s", hour, minute)
+	t, err := time.ParseInLocation("3:4", maybeTime, s.sched.Location)
+	if err != nil {
+		// return the original cronspec for minute and hour, who knows what's in there!
+		return fmt.Sprintf("cron(%s %s)", minute, hour)
+	}
+	return t.Format(time.Kitchen)
+}
+
 // DaysOfWeek returns a humanized form of the day-of-week field.
 func (s Schedule) DaysOfWeek() string {
 	dow := strings.Fields(s.cronStr)[4]
