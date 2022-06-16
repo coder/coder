@@ -3,9 +3,12 @@
 Coder ships with a built-in PostgreSQL database, but if you'd like to set up and
 use your own, refer to the following instructions.
 
-For in-depth information, please see the [PostgreSQL documentation](https://www.postgresql.org/docs/current/tutorial-start.html).
+For in-depth information, please see the [PostgreSQL
+documentation](https://www.postgresql.org/docs/current/tutorial-start.html).
 
-## PostgreSQL on macOS with Homebrew
+## Step 1: Install and start PostgreSQL
+
+### macOS with Homebrew
 
 1. Install with Homebrew:
 
@@ -25,31 +28,7 @@ For in-depth information, please see the [PostgreSQL documentation](https://www.
     psql postgres
     ```
 
-1. Create the `coderuser` role:
-
-    ```console
-    create role coder-user with login;
-    ```
-
-1. Create a database called `coder` and assign the owner:
-
-    ```console
-    create database coder owner coderuser;
-    ```
-
-1. Set the password for `coderuser`:
-
-    ```console
-    \password coder # enter password when prompted
-    ```
-
-1. Assign rights to the database to your user:
-
-    ```console
-    grant all privileges on database coder to coderuser;
-    ```
-
-## PostgreSQL on Debian/Ubuntu
+### Debian/Ubuntu
 
 1. Install PostgreSQL:
 
@@ -60,6 +39,7 @@ For in-depth information, please see the [PostgreSQL documentation](https://www.
 1. Start PostgreSQL:
 
     ```console
+    sudo systemctl enable postgresql
     sudo systemctl start postgresql
     ```
 
@@ -68,6 +48,8 @@ For in-depth information, please see the [PostgreSQL documentation](https://www.
     ```console
     sudo -u postgresql psql
     ```
+
+## Step 2: Create a database and user for Coder
 
 1. Create the `coderuser` role:
 
@@ -108,3 +90,6 @@ Append to `coder server` to start your deployment. For example:
 CODER_PG_CONNECTION_URL="postgres://<databaseUsername>@0.0.0.0/<databaseName>?sslmode=disable&password=<password>" \
     coder server -a 0.0.0.0:3000 --verbose
 ```
+
+> If you [installed Coder manually](install.md), you can add the `CODER_PG_CONNECTION_URL`
+variable to  `/etc/coder.d/coder.env`.
