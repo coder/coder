@@ -33,6 +33,7 @@ export interface UsersTableProps {
   canEditUsers?: boolean
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
+  onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
@@ -41,6 +42,7 @@ export const UsersTable: FC<UsersTableProps> = ({
   users,
   roles,
   onSuspendUser,
+  onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
   isUpdatingUserRoles,
@@ -115,12 +117,10 @@ export const UsersTable: FC<UsersTableProps> = ({
                               },
                             ]
                           : [
-                              // TODO: Uncomment this and add activate user functionality.
-                              // {
-                              //   label: Language.activateMenuItem,
-                              //   // eslint-disable-next-line @typescript-eslint/no-empty-function
-                              //   onClick: function () {},
-                              // },
+                              {
+                                label: Language.activateMenuItem,
+                                onClick: onActivateUser,
+                              },
                             ]
                         ).concat({
                           label: Language.resetPasswordMenuItem,

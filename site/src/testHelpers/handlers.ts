@@ -37,7 +37,7 @@ export const handlers = [
 
   // users
   rest.get("/api/v2/users", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockUser, M.MockUser2]))
+    return res(ctx.status(200), ctx.json([M.MockUser, M.MockUser2, M.SuspendedMockUser]))
   }),
   rest.post("/api/v2/users", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockUser))
