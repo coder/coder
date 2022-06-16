@@ -807,6 +807,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			ProvisionerState:  workspaceBuild.ProvisionerState,
 			JobID:             workspaceBuild.JobID,
 			Deadline:          workspaceBuild.Deadline,
+			Reason:            workspaceBuild.Reason,
 		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
