@@ -171,7 +171,7 @@ func scheduleStop() *cobra.Command {
 				return err
 			}
 
-			var durMillis *int64 = nil
+			var durMillis *int64
 			if args[1] != "manual" {
 				dur, err := parseDuration(args[1])
 				if err != nil {
@@ -299,5 +299,4 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 
 	_, _ = fmt.Fprintln(out, tw.Render())
 	return nil
-
 }
