@@ -32,6 +32,7 @@ import (
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/oauth2"
@@ -550,7 +551,7 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 	if dev {
 		echoClient, echoServer := provisionersdk.TransportPipe()
 		go func() {
-			err := echo.Serve(ctx, &provisionersdk.ServeOptions{Listener: echoServer})
+			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})
 			if err != nil {
 				errChan <- err
 			}

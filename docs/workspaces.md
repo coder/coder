@@ -10,40 +10,15 @@ templates](./templates.md):
 
 ```sh
 # create a workspace from the template; specify any variables
-coder create <workspace-name>
+create --template="<templateName>" <workspaceName>
 
 # show the resources behind the workspace and how to connect
 coder show <workspace-name>
 ```
 
-## Connect with SSH
+## IDEs
 
-Once you've added your workspaces to your SSH hosts, you can connect from any
-IDE with remote development support:
-
-```sh
-coder config-ssh
-coder ssh <workspaceName>
-```
-
-## Editors and IDEs
-
-The following desktop IDEs have been tested with Coder, though any IDE with SSH
-support should work!
-
-- VS Code (with [Remote -
-  SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
-  extension)
-- JetBrains (with
-  [Gateway](https://www.jetbrains.com/help/idea/remote-development-a.html#launch_gateway)
-  installed)
-  - IntelliJ IDEA
-  - CLion
-  - GoLand
-  - PyCharm
-  - Rider
-  - RubyMine
-  - WebStorm
+Coder [supports multiple IDEs](ides.md) for use with your workspaces.
 
 ## Workspace lifecycle
 
@@ -67,8 +42,10 @@ When a workspace is deleted, all of the workspace's resources are deleted.
 
 ## Dotfiles
 
-Users can install configuration from a personal [dotfiles repository](https://dotfiles.github.io) with the `coder dotfiles <repo>`
-command in their workspace. Templates can also prompt users for their dotfiles repo [(example)](../examples/templates/docker-with-dotfiles/README.md#how-it-works).
+Users can install configuration from a personal [dotfiles
+repository](https://dotfiles.github.io) with the `coder dotfiles <repo>` command
+in their workspace. Templates can also prompt users for their dotfiles repo
+[(example)](../examples/templates/docker-with-dotfiles/README.md#how-it-works).
 
 ## Updating workspaces
 
