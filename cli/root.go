@@ -65,8 +65,6 @@ func Root() *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		autostart(),
-		bump(),
 		configSSH(),
 		create(),
 		delete(),
@@ -77,6 +75,7 @@ func Root() *cobra.Command {
 		logout(),
 		publickey(),
 		resetPassword(),
+		schedules(),
 		server(),
 		show(),
 		start(),
@@ -84,7 +83,6 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
-		ttl(),
 		update(),
 		users(),
 		portForward(),

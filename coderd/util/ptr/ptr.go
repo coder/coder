@@ -17,6 +17,14 @@ func NilOrEmpty(s *string) bool {
 	return s == nil || *s == ""
 }
 
+// NilToEmpty coalesces a nil str to the empty string.
+func NilToEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // NilOrZero returns true if v is nil or 0.
 func NilOrZero[T number](v *T) bool {
 	return v == nil || *v == 0
