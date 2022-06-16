@@ -26,6 +26,7 @@ export const Autostop = Template.bind({})
 Autostop.args = {
   build: {
     ...MockWorkspaceBuild,
+    transition: "stop",
     reason: "autostop",
   },
 }
