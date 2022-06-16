@@ -62,7 +62,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 
 	// Job parameters come second!
 	err = compute.injectScope(ctx, database.ParameterValuesParams{
-		Scope:    database.ParameterScopeImportJob,
+		Scopes:   []database.ParameterScope{database.ParameterScopeImportJob},
 		ScopeIds: []uuid.UUID{scope.TemplateImportJobID},
 	})
 	if err != nil {
@@ -106,7 +106,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	if scope.TemplateID.Valid {
 		// Template parameters come third!
 		err = compute.injectScope(ctx, database.ParameterValuesParams{
-			Scope:    database.ParameterScopeTemplate,
+			Scopes:   []database.ParameterScope{database.ParameterScopeTemplate},
 			ScopeIds: []uuid.UUID{scope.TemplateID.UUID},
 		})
 		if err != nil {
@@ -117,7 +117,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	if scope.WorkspaceID.Valid {
 		// Workspace parameters come last!
 		err = compute.injectScope(ctx, database.ParameterValuesParams{
-			Scope:    database.ParameterScopeWorkspace,
+			Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
 			ScopeIds: []uuid.UUID{scope.WorkspaceID.UUID},
 		})
 		if err != nil {
@@ -154,7 +154,7 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.Paramete
 		err = nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scope, err)
+		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scopes, err)
 	}
 
 	for _, scopedParameter := range scopedParameters {

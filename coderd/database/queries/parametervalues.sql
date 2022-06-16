@@ -17,13 +17,10 @@ SELECT
 FROM
 	parameter_values
 WHERE
-	CASE
-	    -- We need to double cast this. First cast is for the sqlc type,
-	    -- the second case is to convert it to text as the empty string
-	    -- is not a valid parameter_scope enum.
-		WHEN (@scope :: parameter_scope) :: text != '' THEN
-			scope = @scope :: parameter_scope
-		ELSE true
+  	CASE
+		  WHEN cardinality(@scopes :: parameter_scope[]) > 0 THEN
+				  scope = ANY(@scopes :: parameter_scope[])
+		  ELSE true
 	END
     AND CASE
 		WHEN cardinality(@scope_ids :: uuid[]) > 0 THEN

@@ -1080,13 +1080,10 @@ SELECT
 FROM
 	parameter_values
 WHERE
-	CASE
-	    -- We need to double cast this. First cast is for the sqlc type,
-	    -- the second case is to convert it to text as the empty string
-	    -- is not a valid parameter_scope enum.
-		WHEN ($1 :: parameter_scope) :: text != '' THEN
-			scope = $1 :: parameter_scope
-		ELSE true
+  	CASE
+		  WHEN cardinality($1 :: parameter_scope[]) > 0 THEN
+				  scope = ANY($1 :: parameter_scope[])
+		  ELSE true
 	END
     AND CASE
 		WHEN cardinality($2 :: uuid[]) > 0 THEN
@@ -1106,15 +1103,15 @@ WHERE
 `
 
 type ParameterValuesParams struct {
-	Scope    ParameterScope `db:"scope" json:"scope"`
-	ScopeIds []uuid.UUID    `db:"scope_ids" json:"scope_ids"`
-	Ids      []uuid.UUID    `db:"ids" json:"ids"`
-	Names    []string       `db:"names" json:"names"`
+	Scopes   []ParameterScope `db:"scopes" json:"scopes"`
+	ScopeIds []uuid.UUID      `db:"scope_ids" json:"scope_ids"`
+	Ids      []uuid.UUID      `db:"ids" json:"ids"`
+	Names    []string         `db:"names" json:"names"`
 }
 
 func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error) {
 	rows, err := q.db.QueryContext(ctx, parameterValues,
-		arg.Scope,
+		pq.Array(arg.Scopes),
 		pq.Array(arg.ScopeIds),
 		pq.Array(arg.Ids),
 		pq.Array(arg.Names),

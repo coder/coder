@@ -92,7 +92,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	parameterValues, err := api.Database.ParameterValues(r.Context(), database.ParameterValuesParams{
-		Scope:    scope,
+		Scopes:   []database.ParameterScope{scope},
 		ScopeIds: []uuid.UUID{scopeID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {

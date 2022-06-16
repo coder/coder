@@ -722,10 +722,11 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 
 	parameterValues := make([]database.ParameterValue, 0)
 	for _, parameterValue := range q.parameterValues {
-		if arg.Scope != "" && parameterValue.Scope != arg.Scope {
-			continue
+		if len(arg.Scopes) > 0 {
+			if !contains(arg.Scopes, parameterValue.Scope) {
+				continue
+			}
 		}
-
 		if len(arg.ScopeIds) > 0 {
 			if !contains(arg.ScopeIds, parameterValue.ScopeID) {
 				continue
