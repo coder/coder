@@ -49,7 +49,7 @@ func list() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "ttl"}
+			header := table.Row{"workspace", "template", "status", "last built", "outdated", "starts at", "stops after"}
 			tableWriter.AppendHeader(header)
 			tableWriter.SortBy([]table.SortBy{{
 				Name: "workspace",
@@ -89,7 +89,7 @@ func list() *cobra.Command {
 				autostartDisplay := "-"
 				if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
 					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
-						autostartDisplay = sched.Cron()
+						autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
 					}
 				}
 
@@ -98,7 +98,7 @@ func list() *cobra.Command {
 					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 					autostopDisplay = durationDisplay(dur)
 					if has, ext := hasExtension(workspace); has {
-						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext))
+						autostopDisplay += fmt.Sprintf(" (%s%s)", sign(ext), durationDisplay(ext))
 					}
 				}
 

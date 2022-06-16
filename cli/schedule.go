@@ -281,13 +281,13 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 	}
 
 	if !workspace.LatestBuild.Deadline.IsZero() {
-		schedNextStop = workspace.LatestBuild.Deadline.In(loc).Format(timeFormat + " on " + dateFormat)
-		if found, dur := hasExtension(workspace); found {
-			sign := "+"
-			if dur < 0 {
-				sign = "" // negative durations get prefixed with - already
+		if workspace.LatestBuild.Transition != "start" {
+			schedNextStop = "-"
+		} else {
+			schedNextStop = workspace.LatestBuild.Deadline.In(loc).Format(timeFormat + " on " + dateFormat)
+			if found, dur := hasExtension(workspace); found {
+				schedNextStop += fmt.Sprintf(" (%s%s from schedule)", sign(dur), durationDisplay(dur))
 			}
-			schedNextStop += fmt.Sprintf(" (%s%s)", sign, durationDisplay(dur))
 		}
 	}
 

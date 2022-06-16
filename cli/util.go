@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/constraints"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
@@ -20,12 +21,27 @@ var errUnsupportedTimezone = xerrors.New("The location you provided looks like a
 
 // durationDisplay formats a duration for easier display:
 //   * Durations of 24 hours or greater are displays as Xd
+//   * Durations less than 1 minute are displayed as <1m
 //   * Duration is truncated to the nearest minute
 //   * Empty minutes and seconds are truncated
+//   * The returned string is the absolute value. Use sign()
+//     if you need to indicate if the duration is positive or
+//     negative.
 func durationDisplay(d time.Duration) string {
 	duration := d
+	sign := ""
+	if duration == 0 {
+		return "0s"
+	}
+	if duration < 0 {
+		duration *= -1
+	}
+	// duration > 0 now
 	if duration < time.Minute {
-		return "<1m"
+		return sign + "<1m"
+	}
+	if duration > 24*time.Hour {
+		duration = duration.Truncate(time.Hour)
 	}
 	if duration > time.Minute {
 		duration = duration.Truncate(time.Minute)
@@ -39,16 +55,24 @@ func durationDisplay(d time.Duration) string {
 	if days > 0 {
 		durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
 	}
-	if strings.HasSuffix(durationDisplay, "m0s") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
+	for _, suffix := range []string{"m0s", "h0m", "d0s"} {
+		if strings.HasSuffix(durationDisplay, suffix) {
+			durationDisplay = durationDisplay[:len(durationDisplay)-2]
+		}
 	}
-	if strings.HasSuffix(durationDisplay, "h0m") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
+	return sign + durationDisplay
+}
+
+// Sign returns the sign of n. 0 is considered positive.
+func sign[T constraints.Integer | constraints.Float | time.Duration](n T) string {
+	if n < 0 {
+		return "-"
 	}
-	return durationDisplay
+	return "+"
 }
 
 // hasExtension returns the deadline extension of ws, if it is present.
+// This is calculated from the time the provisioner job was completed.
 // Note that the extension may be negative.
 func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
 	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
