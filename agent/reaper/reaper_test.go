@@ -2,6 +2,7 @@ package reaper_test
 
 import (
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 
 func TestReap(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skipf("Skipping non-Linux OS %q", runtime.GOOS)
+	}
 
 	// Because we're forkexecing these tests will try to run twice...
 	if reaper.IsChild() {
