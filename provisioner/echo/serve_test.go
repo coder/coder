@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +21,7 @@ import (
 func TestEcho(t *testing.T) {
 	t.Parallel()
 
+	fs := afero.NewMemMapFs()
 	// Create an in-memory provisioner to communicate with.
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -29,7 +31,7 @@ func TestEcho(t *testing.T) {
 		cancelFunc()
 	})
 	go func() {
-		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: server,
 		})
 		assert.NoError(t, err)
@@ -59,7 +61,7 @@ func TestEcho(t *testing.T) {
 		})
 		require.NoError(t, err)
 		client, err := api.Parse(ctx, &proto.Parse_Request{
-			Directory: unpackTar(t, data),
+			Directory: unpackTar(t, fs, data),
 		})
 		require.NoError(t, err)
 		log, err := client.Recv()
@@ -98,7 +100,7 @@ func TestEcho(t *testing.T) {
 		err = client.Send(&proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					Directory: unpackTar(t, data),
+					Directory: unpackTar(t, fs, data),
 				},
 			},
 		})
@@ -113,7 +115,7 @@ func TestEcho(t *testing.T) {
 	})
 }
 
-func unpackTar(t *testing.T, data []byte) string {
+func unpackTar(t *testing.T, fs afero.Fs, data []byte) string {
 	directory := t.TempDir()
 	reader := tar.NewReader(bytes.NewReader(data))
 	for {
@@ -123,7 +125,7 @@ func unpackTar(t *testing.T, data []byte) string {
 		}
 		// #nosec
 		path := filepath.Join(directory, header.Name)
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+		file, err := fs.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 		require.NoError(t, err)
 		_, err = io.CopyN(file, reader, 1<<20)
 		require.ErrorIs(t, err, io.EOF)

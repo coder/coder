@@ -10,8 +10,9 @@ StartLimitBurst=3
 [Service]
 Type=notify
 EnvironmentFile=/etc/coder.d/coder.env
+User=coder
+Group=coder
 ProtectSystem=full
-ProtectHome=read-only
 PrivateTmp=yes
 PrivateDevices=yes
 SecureBits=keep-caps
