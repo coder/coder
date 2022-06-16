@@ -283,9 +283,7 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 			schedNextStop = "-"
 		} else {
 			schedNextStop = workspace.LatestBuild.Deadline.In(loc).Format(timeFormat + " on " + dateFormat)
-			if found, dur := hasExtension(workspace); found {
-				schedNextStop += fmt.Sprintf(" (%s%s from schedule)", sign(dur), durationDisplay(dur))
-			}
+			schedNextStop = fmt.Sprintf("%s (in %s)", schedNextStop, durationDisplay(time.Until(workspace.LatestBuild.Deadline)))
 		}
 	}
 

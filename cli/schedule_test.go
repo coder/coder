@@ -55,7 +55,7 @@ func TestScheduleShow(t *testing.T) {
 			assert.Contains(t, lines[0], "Starts at    :  7:30AM Mon-Fri (Europe/Dublin)")
 			assert.Contains(t, lines[1], "Starts next  :  7:30AM IST on ")
 			assert.Contains(t, lines[2], "Stops at     :  8h after start")
-			assert.Contains(t, lines[3], "Stops next   :  ")
+			assert.NotContains(t, lines[3], "Stops next   :  -")
 		}
 	})
 

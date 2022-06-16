@@ -56,6 +56,7 @@ func list() *cobra.Command {
 			}})
 			tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, columns))
 
+			now := time.Now()
 			for _, workspace := range workspaces {
 				status := ""
 				inProgress := false
@@ -85,7 +86,7 @@ func list() *cobra.Command {
 					status = "Failed"
 				}
 
-				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
+				lastBuilt := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"
 				if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
 					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
@@ -97,8 +98,9 @@ func list() *cobra.Command {
 				if !ptr.NilOrZero(workspace.TTLMillis) {
 					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 					autostopDisplay = durationDisplay(dur)
-					if has, ext := hasExtension(workspace); has {
-						autostopDisplay += fmt.Sprintf(" (%s%s)", sign(ext), durationDisplay(ext))
+					if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.After(now) && status == "Running" {
+						remaining := time.Until(workspace.LatestBuild.Deadline)
+						autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
 					}
 				}
 
@@ -107,7 +109,7 @@ func list() *cobra.Command {
 					user.Username + "/" + workspace.Name,
 					workspace.TemplateName,
 					status,
-					durationDisplay(duration),
+					durationDisplay(lastBuilt),
 					workspace.Outdated,
 					autostartDisplay,
 					autostopDisplay,

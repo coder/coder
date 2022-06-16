@@ -5,14 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/constraints"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
-	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/util/tz"
-
-	"github.com/coder/coder/codersdk"
 )
 
 var errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
@@ -63,41 +59,15 @@ func durationDisplay(d time.Duration) string {
 	return sign + durationDisplay
 }
 
-// Sign returns the sign of n. 0 is considered positive.
-func sign[T constraints.Integer | constraints.Float | time.Duration](n T) string {
-	if n < 0 {
-		return "-"
+// relative relativizes a duration with the prefix "ago" or "in"
+func relative(d time.Duration) string {
+	if d > 0 {
+		return "in " + durationDisplay(d)
 	}
-	return "+"
-}
-
-// hasExtension returns the deadline extension of ws, if it is present.
-// This is calculated from the time the provisioner job was completed.
-// Note that the extension may be negative.
-func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
-	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return false, 0
+	if d < 0 {
+		return durationDisplay(d) + " ago"
 	}
-	if ws.LatestBuild.Job.CompletedAt == nil || ws.LatestBuild.Job.CompletedAt.IsZero() {
-		return false, 0
-	}
-	if ws.LatestBuild.Deadline.IsZero() {
-		return false, 0
-	}
-	if ptr.NilOrZero(ws.TTLMillis) {
-		return false, 0
-	}
-	ttl := time.Duration(*ws.TTLMillis) * time.Millisecond
-	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(*ws.LatestBuild.Job.CompletedAt)
-	cutoff := time.Minute
-	if delta < -cutoff {
-		return true, delta
-	}
-	if delta > cutoff {
-		return true, delta
-	}
-
-	return false, 0
+	return "now"
 }
 
 // parseCLISchedule parses a schedule in the format HH:MM{AM|PM} [DOW] [LOCATION]
