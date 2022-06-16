@@ -70,15 +70,23 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			options.BinaryPath = absoluteBinary
 		}
 	}
-	return provisionersdk.Serve(ctx, &terraform{
+	return provisionersdk.Serve(ctx, &server{
 		binaryPath: options.BinaryPath,
 		cachePath:  options.CachePath,
 		logger:     options.Logger,
 	}, options.ServeOptions)
 }
 
-type terraform struct {
+type server struct {
 	binaryPath string
 	cachePath  string
 	logger     slog.Logger
+}
+
+func (t server) executor(workdir string) executor {
+	return executor{
+		binaryPath: t.binaryPath,
+		cachePath:  t.cachePath,
+		workdir:    workdir,
+	}
 }

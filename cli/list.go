@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,13 +49,14 @@ func list() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "ttl"}
+			header := table.Row{"workspace", "template", "status", "last built", "outdated", "starts at", "stops after"}
 			tableWriter.AppendHeader(header)
 			tableWriter.SortBy([]table.SortBy{{
 				Name: "workspace",
 			}})
 			tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, columns))
 
+			now := time.Now()
 			for _, workspace := range workspaces {
 				status := ""
 				inProgress := false
@@ -86,11 +86,11 @@ func list() *cobra.Command {
 					status = "Failed"
 				}
 
-				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
+				lastBuilt := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"
 				if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
 					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
-						autostartDisplay = sched.Cron()
+						autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
 					}
 				}
 
@@ -98,8 +98,9 @@ func list() *cobra.Command {
 				if !ptr.NilOrZero(workspace.TTLMillis) {
 					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 					autostopDisplay = durationDisplay(dur)
-					if has, ext := hasExtension(workspace); has {
-						autostopDisplay += fmt.Sprintf(" (+%s)", durationDisplay(ext.Round(time.Minute)))
+					if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.After(now) && status == "Running" {
+						remaining := time.Until(workspace.LatestBuild.Deadline)
+						autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
 					}
 				}
 
@@ -108,7 +109,7 @@ func list() *cobra.Command {
 					user.Username + "/" + workspace.Name,
 					workspace.TemplateName,
 					status,
-					durationDisplay(duration),
+					durationDisplay(lastBuilt),
 					workspace.Outdated,
 					autostartDisplay,
 					autostopDisplay,
@@ -121,52 +122,4 @@ func list() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		"Specify a column to filter in the table.")
 	return cmd
-}
-
-func hasExtension(ws codersdk.Workspace) (bool, time.Duration) {
-	if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return false, 0
-	}
-	if ws.LatestBuild.Job.CompletedAt == nil {
-		return false, 0
-	}
-	if ws.LatestBuild.Deadline.IsZero() {
-		return false, 0
-	}
-	if ws.TTLMillis == nil {
-		return false, 0
-	}
-	ttl := time.Duration(*ws.TTLMillis) * time.Millisecond
-	delta := ws.LatestBuild.Deadline.Add(-ttl).Sub(*ws.LatestBuild.Job.CompletedAt)
-	if delta < time.Minute {
-		return false, 0
-	}
-
-	return true, delta
-}
-
-func durationDisplay(d time.Duration) string {
-	duration := d
-	if duration > time.Hour {
-		duration = duration.Truncate(time.Hour)
-	}
-	if duration > time.Minute {
-		duration = duration.Truncate(time.Minute)
-	}
-	days := 0
-	for duration.Hours() > 24 {
-		days++
-		duration -= 24 * time.Hour
-	}
-	durationDisplay := duration.String()
-	if days > 0 {
-		durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
-	}
-	if strings.HasSuffix(durationDisplay, "m0s") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
-	}
-	if strings.HasSuffix(durationDisplay, "h0m") {
-		durationDisplay = durationDisplay[:len(durationDisplay)-2]
-	}
-	return durationDisplay
 }
