@@ -14,17 +14,17 @@ import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
+import { Margins } from "../../components/Margins/Margins"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip"
-import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
+} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 dayjs.extend(relativeTime)
 

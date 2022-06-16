@@ -1,6 +1,10 @@
 # Quickstart
 
-This guide will walk you through creating your first template and workspace. If you haven't already installed `coder`, do that first [here](./install.md).
+This guide will walk you through creating your first template and workspace.
+
+## Prerequisites
+
+Please [install Coder](./install.md) before proceeding with the steps outlined in this article.
 
 ## Creating your first template and workspace
 
@@ -10,8 +14,13 @@ In a new terminal window, run the following to copy a sample template:
 coder templates init
 ```
 
-Follow the CLI instructions to modify and create the template specific for your
-usage (e.g., a template to **Develop in Linux on Google Cloud**).
+Follow the CLI instructions to select an example that you can modify for your
+specific usage (e.g., a template to **Develop code-server in Docker**):
+
+1. Navigate into your new templates folder and create your first template using
+   the provided command (e.g., `cd ./docker-code-server && coder templates create`)
+
+1. Answer the CLI prompts; when done, confirm that you want to create your template.
 
 Create a workspace using your template:
 
@@ -25,13 +34,20 @@ Connect to your workspace via SSH:
 coder ssh <workspaceName>
 ```
 
+You can also access your workspace using the **access URL** you provided when
+deploying Coder (if you're using a temporary deployment and you opted to use
+Coder's tunnel, use the access URL you were provided). Log in with the admin
+credentials provided to you by Coder.
+
+![Coder Web UI with code-server](images/code-server.png)
+
 ## Modifying templates
 
-If needed, you can edit the Terraform template using a sample template:
+You can edit the Terraform template as follows:
 
 ```sh
 coder templates init
-cd gcp-linux/
+cd gcp-linux # modify this line as needed to access the template
 vim main.tf
-coder templates update gcp-linux
+coder templates update gcp-linux # updates the template
 ```

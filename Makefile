@@ -115,7 +115,7 @@ test: test-clean
 .PHONY: test-postgres
 test-postgres: test-clean
 	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=5m \
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=10m \
           -coverpkg=./...,github.com/coder/coder/codersdk \
           -count=1 -parallel=1 -race -failfast
 
