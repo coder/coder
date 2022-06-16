@@ -112,11 +112,15 @@ $1 package has been installed.
 To run Coder as a system service:
 
   # Set up an external access URL or enable CODER_TUNNEL
-  sudo vim /etc/coder.d/coder.env
+  $ sudo vim /etc/coder.d/coder.env
   # Use systemd to start Coder now and on reboot
-  sudo systemctl enable --now coder
+  $ sudo systemctl enable --now coder
   # View the logs to ensure a successful start
-  journalctl -u coder.service -b
+  $ journalctl -u coder.service -b
+
+Or, just run the server directly:
+
+  $ coder server
 
 EOF
 }
@@ -329,7 +333,7 @@ install_deb() {
 
 	fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.deb" \
 		"$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
-	sudo_sh_c dpkg -i "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
+	sudo_sh_c dpkg --force-confdef --force-confold -i "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
 
 	echo_systemd_postinstall deb
 }
