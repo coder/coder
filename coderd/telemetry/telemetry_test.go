@@ -31,7 +31,12 @@ func TestTelemetry(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		ctx := context.Background()
-		_, err := db.InsertParameterSchema(ctx, database.InsertParameterSchemaParams{
+		_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+			ID:       uuid.NewString(),
+			LastUsed: database.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertParameterSchema(ctx, database.InsertParameterSchemaParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
 		})

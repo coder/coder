@@ -275,6 +275,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	)
 
 	eg.Go(func() error {
+		apiKeys, err := r.options.Database.GetAPIKeysLastUsedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get api keys last used: %w", err)
+		}
+		snapshot.APIKeys = make([]APIKey, 0, len(apiKeys))
+		for _, apiKey := range apiKeys {
+			snapshot.APIKeys = append(snapshot.APIKeys, ConvertAPIKey(apiKey))
+		}
+		return nil
+	})
+	eg.Go(func() error {
 		schemas, err := r.options.Database.GetParameterSchemasCreatedAfter(ctx, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("get parameter schemas: %w", err)
@@ -414,6 +425,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	return snapshot, nil
 }
 
+// ConvertAPIKey anonymizes an API key.
+func ConvertAPIKey(apiKey database.APIKey) APIKey {
+	return APIKey{
+		ID:        apiKey.ID,
+		UserID:    apiKey.UserID,
+		CreatedAt: apiKey.CreatedAt,
+		LastUsed:  apiKey.LastUsed,
+		LoginType: apiKey.LoginType,
+	}
+}
+
 // ConvertWorkspace anonymizes a workspace.
 func ConvertWorkspace(workspace database.Workspace) Workspace {
 	return Workspace{
@@ -551,6 +573,7 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
+	APIKeys            []APIKey            `json:"api_keys"`
 	ParameterSchemas   []ParameterSchema   `json:"parameter_schemas"`
 	ProvisionerJobs    []ProvisionerJob    `json:"provisioner_jobs"`
 	Templates          []Template          `json:"templates"`
@@ -583,6 +606,14 @@ type Deployment struct {
 	MachineID       string     `json:"machine_id"`
 	StartedAt       time.Time  `json:"started_at"`
 	ShutdownAt      *time.Time `json:"shutdown_at"`
+}
+
+type APIKey struct {
+	ID        string             `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	CreatedAt time.Time          `json:"created_at"`
+	LastUsed  time.Time          `json:"last_used"`
+	LoginType database.LoginType `json:"login_type"`
 }
 
 type User struct {

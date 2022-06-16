@@ -60,6 +60,47 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds FROM api_keys WHERE last_used > $1
+`
+
+func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysLastUsedAfter, lastUsed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthIDToken,
+			&i.OAuthExpiry,
+			&i.LifetimeSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
