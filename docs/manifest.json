@@ -43,7 +43,7 @@
           "path": "./CODE_OF_CONDUCT.md"
         },
         {
-          "title": "Security policy",
+          "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./SECURITY.md"
         }
