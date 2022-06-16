@@ -21,6 +21,21 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+func TestSystemUser(t *testing.T) {
+	if !coderdtest.UseSQL() {
+		t.Skip("There is no point in running this test.")
+	}
+
+	t.Parallel()
+
+	_, opts := coderdtest.NewWithAPI(t, nil)
+	fake := databasefake.New()
+
+	fakeUser, _ := fake.GetUserByID(context.Background(), database.SystemUserID)
+	sqlUser, _ := opts.Database.GetUserByID(context.Background(), database.SystemUserID)
+	require.Equal(t, fakeUser, sqlUser)
+}
+
 func TestFirstUser(t *testing.T) {
 	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {

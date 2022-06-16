@@ -13,8 +13,11 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
+
+var SystemUserID uuid.UUID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 
 // Store contains all queryable database functions.
 // It extends the generated interface to add transaction support.

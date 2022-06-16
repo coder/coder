@@ -22,11 +22,13 @@ WHERE
 LIMIT
 	1;
 
--- name: GetUserCount :one
+-- name: GetActualUserCount :one
 SELECT
 	COUNT(*)
 FROM
-	users;
+	users
+WHERE
+    id != '11111111-1111-1111-1111-111111111111';
 
 -- name: InsertUser :one
 INSERT INTO
@@ -103,6 +105,13 @@ WHERE
 			OR username LIKE concat('%', @search, '%')
 		)
 		ELSE true
+	END
+	-- Filter out system user
+	AND CASE
+		WHEN @include_system_user :: boolean THEN true
+		ELSE (
+			id != '11111111-1111-1111-1111-111111111111'
+		)
 	END
 	-- Filter by status
 	AND CASE

@@ -27,7 +27,7 @@ import (
 
 // Returns whether the initial user has been created or not.
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	userCount, err := api.Database.GetUserCount(r.Context())
+	userCount, err := api.Database.GetActualUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching user count.",
@@ -56,7 +56,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This should only function for the first user.
-	userCount, err := api.Database.GetUserCount(r.Context())
+	userCount, err := api.Database.GetActualUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching user count.",

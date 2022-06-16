@@ -16,11 +16,20 @@ import (
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
+	systemUser := database.User{
+		ID:             database.SystemUserID,
+		Email:          "system@coder.com",
+		Username:       "system",
+		HashedPassword: make([]byte, 0),
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		RBACRoles:      make([]string, 0),
+	}
 	return &fakeQuerier{
 		apiKeys:             make([]database.APIKey, 0),
 		organizationMembers: make([]database.OrganizationMember, 0),
 		organizations:       make([]database.Organization, 0),
-		users:               make([]database.User, 0),
+		users:               []database.User{systemUser},
 
 		auditLogs:               make([]database.AuditLog, 0),
 		files:                   make([]database.File, 0),
@@ -179,11 +188,18 @@ func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
+func (q *fakeQuerier) GetActualUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return int64(len(q.users)), nil
+	var count int64
+	for _, user := range q.users {
+		if user.ID != database.SystemUserID {
+			count++
+		}
+	}
+
+	return count, nil
 }
 
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
@@ -227,6 +243,16 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			if strings.Contains(user.Email, params.Search) {
 				tmp = append(tmp, users[i])
 			} else if strings.Contains(user.Username, params.Search) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if !params.IncludeSystemUser {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.ID != database.SystemUserID {
 				tmp = append(tmp, users[i])
 			}
 		}

@@ -209,11 +209,17 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	}
 	provisionerJobID := uuid.New()
 	now := database.Now()
+
+	systemUser, err := store.GetUserByID(ctx, database.SystemUserID)
+	if err != nil {
+		return xerrors.Errorf("get system user: %w", err)
+	}
+
 	newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 		ID:             provisionerJobID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-		InitiatorID:    workspace.OwnerID,
+		InitiatorID:    systemUser.ID,
 		OrganizationID: template.OrganizationID,
 		Provisioner:    template.Provisioner,
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
@@ -233,7 +239,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		BuildNumber:       priorBuildNumber + 1,
 		Name:              namesgenerator.GetRandomName(1),
 		ProvisionerState:  priorHistory.ProvisionerState,
-		InitiatorID:       workspace.OwnerID,
+		InitiatorID:       systemUser.ID,
 		Transition:        trans,
 		JobID:             newProvisionerJob.ID,
 	})

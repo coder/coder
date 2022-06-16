@@ -79,6 +79,10 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	return client
 }
 
+func UseSQL() bool {
+	return os.Getenv("DB") != ""
+}
+
 // NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
 func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
 	if options == nil {
@@ -105,7 +109,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
+	if UseSQL() {
 		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
 		t.Cleanup(closePg)

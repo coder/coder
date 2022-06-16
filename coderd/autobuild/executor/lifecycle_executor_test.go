@@ -2,7 +2,6 @@ package executor_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -483,7 +482,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if os.Getenv("DB") == "" {
+	if !coderdtest.UseSQL() {
 		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
 	}
 

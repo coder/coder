@@ -2136,6 +2136,22 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
+const getActualUserCount = `-- name: GetActualUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+    id != '11111111-1111-1111-1111-111111111111'
+`
+
+func (q *sqlQuerier) GetActualUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActualUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username is returned just to help for logging purposes
@@ -2237,20 +2253,6 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	return i, err
 }
 
-const getUserCount = `-- name: GetUserCount :one
-SELECT
-	COUNT(*)
-FROM
-	users
-`
-
-func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserCount)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getUsers = `-- name: GetUsers :many
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
@@ -2285,12 +2287,19 @@ WHERE
 		)
 		ELSE true
 	END
+	-- Filter out system user
+	AND CASE
+		WHEN $3 :: boolean THEN true
+		ELSE (
+			id != '11111111-1111-1111-1111-111111111111'
+		)
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN (
-			status = ANY($3 :: user_status[])
+		WHEN cardinality($4 :: user_status[]) > 0 THEN (
+			status = ANY($4 :: user_status[])
 		)
 		ELSE
 		    -- Only show active by default
@@ -2300,24 +2309,26 @@ WHERE
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $4
+	(created_at, id) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
-	NULLIF($5 :: int, -1)
+	NULLIF($6 :: int, -1)
 `
 
 type GetUsersParams struct {
-	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
-	Search    string       `db:"search" json:"search"`
-	Status    []UserStatus `db:"status" json:"status"`
-	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID           uuid.UUID    `db:"after_id" json:"after_id"`
+	Search            string       `db:"search" json:"search"`
+	IncludeSystemUser bool         `db:"include_system_user" json:"include_system_user"`
+	Status            []UserStatus `db:"status" json:"status"`
+	OffsetOpt         int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt          int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
+		arg.IncludeSystemUser,
 		pq.Array(arg.Status),
 		arg.OffsetOpt,
 		arg.LimitOpt,
