@@ -443,7 +443,7 @@ export interface WorkspaceApp {
   readonly icon?: string
 }
 
-// From codersdk/workspacebuilds.go:32:6
+// From codersdk/workspacebuilds.go:38:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
