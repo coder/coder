@@ -19,6 +19,14 @@ const (
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
 )
 
+type BuildReason string
+
+const (
+	BuildReasonMember    BuildReason = "member"
+	BuildReasonAutostart BuildReason = "autostart"
+	BuildReasonAutostop  BuildReason = "autostop"
+)
+
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
@@ -37,6 +45,7 @@ type WorkspaceBuild struct {
 	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
 	Deadline           time.Time           `json:"deadline"`
+	Reason             BuildReason         `db:"reason" json:"reason"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.

@@ -443,7 +443,7 @@ export interface WorkspaceApp {
   readonly icon?: string
 }
 
-// From codersdk/workspacebuilds.go:24:6
+// From codersdk/workspacebuilds.go:32:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
@@ -460,6 +460,7 @@ export interface WorkspaceBuild {
   readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly deadline: string
+  readonly reason: BuildReason
 }
 
 // From codersdk/workspaces.go:84:6
@@ -487,6 +488,9 @@ export interface WorkspaceResource {
   readonly name: string
   readonly agents?: WorkspaceAgent[]
 }
+
+// From codersdk/workspacebuilds.go:22:6
+export type BuildReason = "autostart" | "autostop" | "member"
 
 // From codersdk/provisionerdaemons.go:23:6
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"

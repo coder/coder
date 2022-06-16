@@ -144,8 +144,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   build_number: 1,
   created_at: "2022-05-17T17:39:01.382927298Z",
   id: "1",
-  initiator_id: "",
-  initiator_name: "",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
   job: MockProvisionerJob,
   name: "a-workspace-build",
   template_version_id: "",
@@ -156,6 +156,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_owner_name: MockUser.username,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
+  reason: "member",
 }
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
