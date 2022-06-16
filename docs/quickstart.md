@@ -1,7 +1,5 @@
 # Quickstart
 
-This guide will walk you through creating your first template and workspace.
-
 ## Prerequisites
 
 Please [install Coder](./install.md) before proceeding with the steps outlined in this article.
