@@ -329,7 +329,7 @@ install_deb() {
 
 	fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.deb" \
 		"$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
-	sudo_sh_c dpkg -i "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
+	sudo_sh_c dpkg --force-confdef --force-confold -i "$CACHE_DIR/coder_${VERSION}_$ARCH.deb"
 
 	echo_systemd_postinstall deb
 }
