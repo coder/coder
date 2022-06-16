@@ -1231,8 +1231,8 @@ github.com/nakagami/firebirdsql v0.0.0-20190310045651-3c02a58cfed8/go.mod h1:86w
 github.com/ncw/swift v1.0.47/go.mod h1:23YIA4yWVnGwv2dQlN4bB7egfYX6YLn0Yo/S6zZO/ZM=
 github.com/neo4j/neo4j-go-driver v1.8.1-0.20200803113522-b626aa943eba/go.mod h1:ncO5VaFWh0Nrt+4KT4mOZboaczBZcLuHrG+/sUeP8gI=
 github.com/networkplumbing/go-nft v0.2.0/go.mod h1:HnnM+tYvlGAsMU7yoYwXEVLLiDW9gdMmb5HoGcwpuQs=
-github.com/nhatthm/otelsql v0.3.0 h1:BvqFgk6FkkmlY2KrtSyxILkPJL5oI2Bzny/s7d134N8=
-github.com/nhatthm/otelsql v0.3.0/go.mod h1:6OmgQmHfKwLqNQp+nNh5xHOrMl19y8n4v44FLRZWYlQ=
+github.com/nhatthm/otelsql v0.3.3 h1:9X1xTglmzSW8T3HBKC81MfYpEYk5crSffmLjLF+cGTY=
+github.com/nhatthm/otelsql v0.3.3/go.mod h1:LF0C9FwbE/w2XaZQer9kiaRtVfXEVVibkPAQ4LsJ3fE=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/niklasfasching/go-org v1.6.2 h1:kQBIZlfL4oRNApJCrBgaeNBfzxWzP6XlC7/b744Polk=
 github.com/niklasfasching/go-org v1.6.2/go.mod h1:wn76Xgu4/KRe43WZhsgZjxYMaloSrl3BSweGV74SwHs=
@@ -1539,7 +1539,7 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.2 h1:4jaiDzPyXQvSd7D0EjG45355tLlV3VOECpq10pLC+8s=
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
-github.com/swaggest/assertjson v1.6.8 h1:1O/9UI5M+2OJI7BeEWKGj0wTvpRXZt5FkOJ4nRkY4rA=
+github.com/swaggest/assertjson v1.7.0 h1:SKw5Rn0LQs6UvmGrIdaKQbMR1R3ncXm5KNon+QJ7jtw=
 github.com/syndtr/gocapability v0.0.0-20170704070218-db04d3cc01c8/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
