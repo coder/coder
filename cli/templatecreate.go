@@ -146,10 +146,10 @@ type createValidTemplateVersionArgs struct {
 	ParameterFile string
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
-	// ReuseParams will attempt to reuse params from the Template field
+	// ReuseParameters will attempt to reuse params from the Template field
 	// before prompting the user. Set to false to always prompt for param
 	// values.
-	ReuseParams bool
+	ReuseParameters bool
 }
 
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
@@ -204,7 +204,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	// templateID is provided. This allows pulling params from the last
 	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
-	if args.ReuseParams && args.Template != nil {
+	if args.ReuseParameters && args.Template != nil {
 		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)

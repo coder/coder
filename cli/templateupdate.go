@@ -67,13 +67,13 @@ func templateUpdate() *cobra.Command {
 			spin.Stop()
 
 			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
-				Client:        client,
-				Organization:  organization,
-				Provisioner:   database.ProvisionerType(provisioner),
-				FileHash:      resp.Hash,
-				ParameterFile: parameterFile,
-				Template:      &template,
-				ReuseParams:   true,
+				Client:          client,
+				Organization:    organization,
+				Provisioner:     database.ProvisionerType(provisioner),
+				FileHash:        resp.Hash,
+				ParameterFile:   parameterFile,
+				Template:        &template,
+				ReuseParameters: true,
 			})
 			if err != nil {
 				return err
