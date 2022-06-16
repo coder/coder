@@ -55,3 +55,7 @@ The workspace will be stopped and started:
 ```sh
 coder update <workspace-name>
 ```
+
+---
+
+Next: [IDEs](./ides.md)
