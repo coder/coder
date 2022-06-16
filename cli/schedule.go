@@ -20,6 +20,10 @@ import (
 const (
 	scheduleDescriptionLong = `
 Modify scheduled stop and start times for your workspace:
+  * schedule show: show workspace schedule
+  * schedule start: edit workspace start schedule
+  * schedule stop: edit workspace stop schedule
+  * schedule override: edit stop time of active workspace
 `
 	scheduleShowDescriptionLong = `
 Shows the following information for the given workspace:
@@ -115,6 +119,11 @@ func scheduleStart() *cobra.Command {
 				return err
 			}
 
+			workspace, err := namedWorkspace(cmd, client, args[0])
+			if err != nil {
+				return err
+			}
+
 			var schedStr *string
 			if args[1] != "manual" {
 				sched, err := parseCLISchedule(args[1:]...)
@@ -123,11 +132,6 @@ func scheduleStart() *cobra.Command {
 				}
 
 				schedStr = ptr.Ref(sched.String())
-			}
-
-			workspace, err := namedWorkspace(cmd, client, args[0])
-			if err != nil {
-				return err
 			}
 
 			err = client.UpdateWorkspaceAutostart(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
