@@ -58,70 +58,108 @@ provider "coder" {
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
-	for _, testCase := range []struct {
-		Name     string
-		Files    map[string]string
-		Request  *proto.Provision_Request
+	testCases := []struct {
+		Name    string
+		Files   map[string]string
+		Request *proto.Provision_Request
+		// Response may be nil to not check the response.
 		Response *proto.Provision_Response
-		Error    bool
-	}{{
-		Name: "single-variable",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		// If ErrorContains is not empty, then response.Recv() should return an
+		// error containing this string before a Complete response is returned.
+		ErrorContains string
+		// If ExpectLogContains is not empty, then the logs should contain it.
+		ExpectLogContains string
+	}{
+		{
+			Name: "single-variable",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 				description = "Testing!"
 			}`,
-		},
-		Request: &proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					ParameterValues: []*proto.ParameterValue{{
-						DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						Name:              "A",
-						Value:             "example",
-					}},
+			},
+			Request: &proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						ParameterValues: []*proto.ParameterValue{{
+							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							Name:              "A",
+							Value:             "example",
+						}},
+					},
+				},
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
 				},
 			},
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		},
-	}, {
-		Name: "missing-variable",
-		Files: map[string]string{
-			"main.tf": `variable "A" {
+		{
+			Name: "missing-variable",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
 			}`,
-		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Error: "exit status 1",
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Error: "exit status 1",
+					},
 				},
 			},
 		},
-	}, {
-		Name: "single-resource",
-		Files: map[string]string{
-			"main.tf": `resource "null_resource" "A" {}`,
-		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "A",
-						Type: "null_resource",
-					}},
+		{
+			Name: "single-resource",
+			Files: map[string]string{
+				"main.tf": `resource "null_resource" "A" {}`,
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "A",
+							Type: "null_resource",
+						}},
+					},
 				},
 			},
 		},
-	}, {
-		Name: "invalid-sourcecode",
-		Files: map[string]string{
-			"main.tf": `a`,
+		{
+			Name: "bad-syntax-1",
+			Files: map[string]string{
+				"main.tf": `a`,
+			},
+			ErrorContains:     "configuration is invalid",
+			ExpectLogContains: "Argument or block definition required",
 		},
-		Error: true,
-	}} {
+		{
+			Name: "bad-syntax-2",
+			Files: map[string]string{
+				"main.tf": `;asdf;`,
+			},
+			ErrorContains:     "configuration is invalid",
+			ExpectLogContains: `The ";" character is not valid.`,
+		},
+		{
+			Name: "destroy-no-state",
+			Files: map[string]string{
+				"main.tf": `resource "null_resource" "A" {}`,
+			},
+			Request: &proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						State: nil,
+						Metadata: &proto.Provision_Metadata{
+							WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
+						},
+					},
+				},
+			},
+			ExpectLogContains: "nothing to do",
+		},
+	}
+
+	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
@@ -148,19 +186,26 @@ provider "coder" {
 			if request.GetStart().Metadata == nil {
 				request.GetStart().Metadata = &proto.Provision_Metadata{}
 			}
+
 			response, err := api.Provision(ctx)
 			require.NoError(t, err)
 			err = response.Send(request)
 			require.NoError(t, err)
+
+			gotExpectedLog := testCase.ExpectLogContains == ""
 			for {
 				msg, err := response.Recv()
 				if msg != nil && msg.GetLog() != nil {
+					if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
+						gotExpectedLog = true
+					}
+
 					t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
 					continue
 				}
-				if testCase.Error {
-					require.Error(t, err)
-					return
+				if testCase.ErrorContains != "" {
+					require.ErrorContains(t, err, testCase.ErrorContains)
+					break
 				}
 				require.NoError(t, err)
 
@@ -185,63 +230,23 @@ provider "coder" {
 					}
 				}
 
-				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
-				require.NoError(t, err)
+				if testCase.Response != nil {
+					resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
+					require.NoError(t, err)
 
-				resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
-				require.NoError(t, err)
+					resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
+					require.NoError(t, err)
 
-				require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
+					require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
 
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+					require.Equal(t, string(resourcesWant), string(resourcesGot))
+				}
 				break
+			}
+
+			if !gotExpectedLog {
+				t.Fatalf("expected log string %q but never saw it", testCase.ExpectLogContains)
 			}
 		})
 	}
-
-	t.Run("DestroyNoState", func(t *testing.T) {
-		t.Parallel()
-
-		const template = `resource "null_resource" "A" {}`
-
-		directory := t.TempDir()
-		err := os.WriteFile(filepath.Join(directory, "main.tf"), []byte(template), 0600)
-		require.NoError(t, err)
-
-		request := &proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					State:     nil,
-					Directory: directory,
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
-					},
-				},
-			},
-		}
-
-		response, err := api.Provision(ctx)
-		require.NoError(t, err)
-		err = response.Send(request)
-		require.NoError(t, err)
-
-		gotLog := false
-		for {
-			msg, err := response.Recv()
-			require.NoError(t, err)
-			require.NotNil(t, msg)
-
-			if msg.GetLog() != nil && strings.Contains(msg.GetLog().Output, "nothing to do") {
-				gotLog = true
-				continue
-			}
-			if msg.GetComplete() == nil {
-				continue
-			}
-
-			require.Empty(t, msg.GetComplete().Error)
-			require.True(t, gotLog, "never received 'nothing to do' log")
-			break
-		}
-	})
 }
