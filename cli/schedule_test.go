@@ -8,14 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
-
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -52,10 +50,10 @@ func TestScheduleShow(t *testing.T) {
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
-			assert.Contains(t, lines[0], "Starts at    :  7:30AM Mon-Fri (Europe/Dublin)")
-			assert.Contains(t, lines[1], "Starts next  :  7:30AM IST on ")
-			assert.Contains(t, lines[2], "Stops at     :  8h after start")
-			assert.NotContains(t, lines[3], "Stops next   :  -")
+			assert.Contains(t, lines[0], "Starts at    7:30AM Mon-Fri (Europe/Dublin)")
+			assert.Contains(t, lines[1], "Starts next  7:30AM IST on ")
+			assert.Contains(t, lines[2], "Stops at     8h after start")
+			assert.NotContains(t, lines[3], "Stops next   -")
 		}
 	})
 
@@ -87,10 +85,10 @@ func TestScheduleShow(t *testing.T) {
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
-			assert.Contains(t, lines[0], "Starts at    :  manual")
-			assert.Contains(t, lines[1], "Starts next  :  -")
-			assert.Contains(t, lines[2], "Stops at     :  manual")
-			assert.Contains(t, lines[3], "Stops next   :  -")
+			assert.Contains(t, lines[0], "Starts at    manual")
+			assert.Contains(t, lines[1], "Starts next  -")
+			assert.Contains(t, lines[2], "Stops at     manual")
+			assert.Contains(t, lines[3], "Stops next   -")
 		}
 	})
 
@@ -140,8 +138,8 @@ func TestScheduleStart(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    :  9:30AM Mon-Fri (Europe/Dublin)")
-		assert.Contains(t, lines[1], "Starts next  :  9:30AM IST on")
+		assert.Contains(t, lines[0], "Starts at    9:30AM Mon-Fri (Europe/Dublin)")
+		assert.Contains(t, lines[1], "Starts next  9:30AM IST on")
 	}
 
 	// Ensure autostart schedule updated
@@ -161,8 +159,8 @@ func TestScheduleStart(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    :  manual")
-		assert.Contains(t, lines[1], "Starts next  :  -")
+		assert.Contains(t, lines[0], "Starts at    manual")
+		assert.Contains(t, lines[1], "Starts next  -")
 	}
 }
 
@@ -190,9 +188,9 @@ func TestScheduleStop(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[2], "Stops at     :  8h30m after start")
+		assert.Contains(t, lines[2], "Stops at     8h30m after start")
 		// Should not be manual
-		assert.NotContains(t, lines[3], "Stops next   -:")
+		assert.NotContains(t, lines[3], "Stops next   -")
 	}
 
 	// Reset stdout
@@ -207,9 +205,9 @@ func TestScheduleStop(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[2], "Stops at     :  manual")
+		assert.Contains(t, lines[2], "Stops at     manual")
 		// Deadline of a running workspace is not updated.
-		assert.NotContains(t, lines[3], "Stops next   :  -")
+		assert.NotContains(t, lines[3], "Stops next   -")
 	}
 }
 
@@ -229,7 +227,7 @@ func TestScheduleOverride(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"schedule", "override", workspace.Name, "10h"}
+			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "10h"}
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -270,7 +268,7 @@ func TestScheduleOverride(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"schedule", "override", workspace.Name, "kwyjibo"}
+			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "kwyjibo"}
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -308,7 +306,7 @@ func TestScheduleOverride(t *testing.T) {
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.TTLMillis = nil
 			})
-			cmdArgs   = []string{"schedule", "override", workspace.Name, "1h"}
+			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "1h"}
 			stdoutBuf = &bytes.Buffer{}
 		)
 		// Unset the workspace TTL
@@ -371,8 +369,8 @@ func TestScheduleStartDefaults(t *testing.T) {
 	require.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    :  9:30AM daily (UTC)")
-		assert.Contains(t, lines[1], "Starts next  :  9:30AM UTC on")
-		assert.Contains(t, lines[2], "Stops at     :  8h after start")
+		assert.Contains(t, lines[0], "Starts at    9:30AM daily (UTC)")
+		assert.Contains(t, lines[1], "Starts next  9:30AM UTC on")
+		assert.Contains(t, lines[2], "Stops at     8h after start")
 	}
 }

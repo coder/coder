@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -13,27 +14,22 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/util/tz"
 	"github.com/coder/coder/codersdk"
-
-	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 const (
-	scheduleDescriptionLong = `
-Modify scheduled stop and start times for your workspace:
+	scheduleDescriptionLong = `Modify scheduled stop and start times for your workspace:
   * schedule show: show workspace schedule
   * schedule start: edit workspace start schedule
   * schedule stop: edit workspace stop schedule
-  * schedule override: edit stop time of active workspace
+  * schedule override-stop: edit stop time of active workspace
 `
-	scheduleShowDescriptionLong = `
-Shows the following information for the given workspace:
-  * The workspace's automatic start schedule
+	scheduleShowDescriptionLong = `Shows the following information for the given workspace:
+  * The automatic start schedule
   * The next scheduled start time
-  * The duration after which the workspace will stop
-  * The next scheduled stop time of the workspace.
+  * The duration after which it will stop
+  * The next scheduled stop time
 `
-	scheduleStartDescriptionLong = `
-Schedules a workspace to regularly start at a specific time.
+	scheduleStartDescriptionLong = `Schedules a workspace to regularly start at a specific time.
 Schedule format: <start-time> [day-of-week] [location].
   * Start-time (required) is accepted either in 12-hour (hh:mm{am|pm}) format, or 24-hour format hh:mm.
   * Day-of-week (optional) allows specifying in the cron format, e.g. 1,3,5 or Mon-Fri.
@@ -43,8 +39,7 @@ Schedule format: <start-time> [day-of-week] [location].
     If omitted, we will fall back to either the TZ environment variable or /etc/localtime.
     You can check your corresponding location by visiting https://ipinfo.io - it shows in the demo widget on the right.
 `
-	scheduleStopDescriptionLong = `
-Schedules a workspace to stop after a given duration has elapsed.
+	scheduleStopDescriptionLong = `Schedules a workspace to stop after a given duration has elapsed.
   * Workspace runtime is measured from the time that the workspace build completed.
   * The minimum scheduled stop time is 1 minute.
   * The workspace template may place restrictions on the maximum shutdown time.
@@ -57,8 +52,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleOverrideDescriptionLong = `
-Override the stop time of a currently active workspace instance.
+	scheduleOverrideDescriptionLong = `Override the stop time of a currently running workspace instance.
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
@@ -69,7 +63,7 @@ func schedules() *cobra.Command {
 	scheduleCmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
-		Short:       "Modify scheduled stop and start times for your workspace.",
+		Short:       "Modify scheduled stop and start times for your workspace",
 		Long:        scheduleDescriptionLong,
 	}
 
@@ -84,7 +78,7 @@ func schedules() *cobra.Command {
 func scheduleShow() *cobra.Command {
 	showCmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "show <workspace_name>",
+		Use:         "show <workspace-name>",
 		Short:       "Show workspace schedule",
 		Long:        scheduleShowDescriptionLong,
 		Args:        cobra.ExactArgs(1),
@@ -108,7 +102,7 @@ func scheduleShow() *cobra.Command {
 func scheduleStart() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "start <workspace_name> { <start-time> [day-of-week] [location] | manual }",
+		Use:         "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Example:     `start my-workspace 9:30AM Mon-Fri Europe/Dublin`,
 		Short:       "Edit workspace start schedule",
 		Long:        scheduleStartDescriptionLong,
@@ -156,7 +150,7 @@ func scheduleStop() *cobra.Command {
 	return &cobra.Command{
 		Annotations: workspaceCommand,
 		Args:        cobra.ExactArgs(2),
-		Use:         "stop <workspace_name> { <duration> | manual }",
+		Use:         "stop <workspace-name> { <duration> | manual }",
 		Example:     `stop my-workspace 2h30m`,
 		Short:       "Edit workspace stop schedule",
 		Long:        scheduleStopDescriptionLong,
@@ -199,12 +193,12 @@ func scheduleOverride() *cobra.Command {
 	overrideCmd := &cobra.Command{
 		Args:        cobra.ExactArgs(2),
 		Annotations: workspaceCommand,
-		Use:         "override <workspace-name> <duration from now>",
-		Example:     "override my-workspace 90m",
+		Use:         "override-stop <workspace-name> <duration from now>",
+		Example:     "override-stop my-workspace 90m",
 		Short:       "Edit stop time of active workspace",
 		Long:        scheduleOverrideDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			bumpDuration, err := parseDuration(args[1])
+			overrideDuration, err := parseDuration(args[1])
 			if err != nil {
 				return err
 			}
@@ -224,7 +218,7 @@ func scheduleOverride() *cobra.Command {
 				loc = time.UTC // best effort
 			}
 
-			if bumpDuration < 29*time.Minute {
+			if overrideDuration < 29*time.Minute {
 				_, _ = fmt.Fprintf(
 					cmd.OutOrStdout(),
 					"Please specify a duration of at least 30 minutes.\n",
@@ -232,7 +226,7 @@ func scheduleOverride() *cobra.Command {
 				return nil
 			}
 
-			newDeadline := time.Now().In(loc).Add(bumpDuration)
+			newDeadline := time.Now().In(loc).Add(overrideDuration)
 			if err := client.PutExtendWorkspace(cmd.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
 				Deadline: newDeadline,
 			}); err != nil {
@@ -288,10 +282,10 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 	}
 
 	tw := cliui.Table()
-	tw.AppendRow(table.Row{"Starts at", ":", schedStart})
-	tw.AppendRow(table.Row{"Starts next", ":", schedNextStart})
-	tw.AppendRow(table.Row{"Stops at", ":", schedStop})
-	tw.AppendRow(table.Row{"Stops next", ":", schedNextStop})
+	tw.AppendRow(table.Row{"Starts at", schedStart})
+	tw.AppendRow(table.Row{"Starts next", schedNextStart})
+	tw.AppendRow(table.Row{"Stops at", schedStop})
+	tw.AppendRow(table.Row{"Stops next", schedNextStop})
 
 	_, _ = fmt.Fprintln(out, tw.Render())
 	return nil

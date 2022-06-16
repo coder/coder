@@ -110,14 +110,14 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 
 .PHONY: test
 test: test-clean
-	gotestsum -- -v -short ./... -- -timeout=5m
+	gotestsum -- -v -short ./...
 
 .PHONY: test-postgres
 test-postgres: test-clean
 	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=10m \
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=5m \
           -coverpkg=./...,github.com/coder/coder/codersdk \
-          -count=1 -parallel=2 -race -failfast
+          -count=1 -parallel=1 -race -failfast
 
 
 .PHONY: test-postgres-docker
