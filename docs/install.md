@@ -1,17 +1,8 @@
 # Install
 
-This article walks you through the various ways of installing and deploying Coder.
-
 ## install.sh
 
-The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS. The install script
-attempts to use the system package manager detection-reference if possible.
-
-You can preview what occurs during the install process:
-
-```bash
-curl -L https://coder.com/install.sh | sh -s -- --dry-run
-```
+The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS.
 
 To install, run:
 
@@ -19,10 +10,11 @@ To install, run:
 curl -L https://coder.com/install.sh | sh
 ```
 
-> If you're concerned about the install script's use of `curl | sh` and the
-> security implications, please see [this blog
-> post](https://sandstorm.io/news/2015-09-24-is-curl-bash-insecure-pgp-verified-install)
-> by [sandstorm.io](https://sandstorm.io).
+You can preview what occurs during the install process:
+
+```bash
+curl -L https://coder.com/install.sh | sh -s -- --dry-run
+```
 
 You can modify the installation process by including flags. Run the help command for reference:
 
