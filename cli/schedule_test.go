@@ -347,7 +347,7 @@ func TestScheduleOverride(t *testing.T) {
 
 //nolint:paralleltest // t.Setenv
 func TestScheduleStartDefaults(t *testing.T) {
-	t.Setenv("TZ", "UTC")
+	t.Setenv("TZ", "Pacific/Tongatapu")
 	var (
 		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user      = coderdtest.CreateFirstUser(t, client)
@@ -369,8 +369,8 @@ func TestScheduleStartDefaults(t *testing.T) {
 	require.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
-		assert.Contains(t, lines[0], "Starts at    9:30AM daily (UTC)")
-		assert.Contains(t, lines[1], "Starts next  9:30AM UTC on")
+		assert.Contains(t, lines[0], "Starts at    9:30AM daily (Pacific/Tongatapu)")
+		assert.Contains(t, lines[1], "Starts next  9:30AM +13 on")
 		assert.Contains(t, lines[2], "Stops at     8h after start")
 	}
 }

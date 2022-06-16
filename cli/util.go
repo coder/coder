@@ -51,7 +51,7 @@ func durationDisplay(d time.Duration) string {
 	if days > 0 {
 		durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
 	}
-	for _, suffix := range []string{"m0s", "h0m", "d0s"} {
+	for _, suffix := range []string{"m0s", "h0m", "d0s", "d0h"} {
 		if strings.HasSuffix(durationDisplay, suffix) {
 			durationDisplay = durationDisplay[:len(durationDisplay)-2]
 		}
