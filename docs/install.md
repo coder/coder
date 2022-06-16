@@ -49,7 +49,7 @@ Coder](https://github.com/coder/coder/releases) installed.
 1. Clone the `coder` repository:
 
    ```console
-   git clone git@github.com:coder/coder.git
+   git clone https://github.com/coder/coder.git
    ```
 
 1. Navigate into the `coder` folder. Coder requires a non-`localhost` access URL
