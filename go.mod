@@ -134,7 +134,10 @@ require (
 	storj.io/drpc v0.0.30
 )
 
-require github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
+require (
+	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
+)
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

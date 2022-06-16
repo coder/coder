@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -35,6 +36,16 @@ func workspaceAgent() *cobra.Command {
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Spawn a reaper so that we don't accumulate a ton
+			// of zombie processes.
+			if !reaper.IsChild() {
+				err := reaper.ForkReap(nil)
+				if err != nil {
+					return xerrors.Errorf("fork reap: %w", err)
+				}
+				return nil
+			}
+
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
