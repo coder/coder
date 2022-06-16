@@ -15,16 +15,17 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-version="$(git describe --tags --abbrev=0)"
+last_tag="$(git describe --tags --abbrev=0)"
+version="$last_tag"
 
 # If the HEAD has extra commits since the last tag then we are in a dev version.
 #
 # Dev versions are denoted by the "-devel+" suffix with a trailing commit short
 # SHA.
 if [[ "${CODER_RELEASE:-}" == *t* ]]; then
-	# $version will equal `git describe --always` if we currently have the tag
+	# $last_tag will equal `git describe --always` if we currently have the tag
 	# checked out.
-	if [[ "$version" != "$(git describe --always)" ]]; then
+	if [[ "$last_tag" != "$(git describe --always)" ]]; then
 		# make won't exit on $(shell cmd) failures, so we have to kill it :(
 		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
 			log "ERROR: version.sh attemped to generate a dev version string when CODER_RELEASE was set"

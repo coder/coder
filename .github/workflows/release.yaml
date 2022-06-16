@@ -78,7 +78,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          # build and push Docker images for each architecture
+          # build and (maybe) push Docker images for each architecture
           images=()
           for arch in amd64 armv7 arm64; do
             img="$(
@@ -90,9 +90,16 @@ jobs:
             images+=("$img")
           done
 
+          # we can't build multi-arch if the images aren't pushed, so quit now
+          # if dry-running
+          if [[ "$CODER_RELEASE" != *t* ]]; then
+            echo Skipping multi-arch docker builds due to dry-run.
+            exit 0
+          fi
+
           # build and push multi-arch manifest
           ./scripts/build_docker_multiarch.sh \
-            ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
+            --push \
             "${images[@]}"
 
           # if the current version is equal to the highest (according to semver)
@@ -100,8 +107,8 @@ jobs:
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
             ./scripts/build_docker_multiarch.sh \
+              --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
-              ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
               "${images[@]}"
           fi
 

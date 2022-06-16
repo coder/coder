@@ -71,6 +71,10 @@ if [[ "${#files[@]}" == 0 ]]; then
 	error "No files supplied"
 fi
 
+if [[ "$dry_run" == 0 ]] && [[ "$version" == *dev* ]]; then
+	error "Cannot publish a dev version to GitHub"
+fi
+
 # The git commands need to be executed from within the repository.
 cdroot
 
