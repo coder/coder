@@ -1,7 +1,6 @@
 package reaper_test
 
 import (
-	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -28,11 +27,11 @@ func TestReap(t *testing.T) {
 		err := reaper.ForkReap(pids)
 		require.NoError(t, err)
 
-		cmd := exec.Command("sleep", "5")
+		cmd := exec.Command("tail", "-f", "/dev/null")
 		err = cmd.Start()
 		require.NoError(t, err)
 
-		cmd2 := exec.Command("sleep", "5")
+		cmd2 := exec.Command("tail", "-f", "/dev/null")
 		err = cmd2.Start()
 		require.NoError(t, err)
 
@@ -50,7 +49,6 @@ func TestReap(t *testing.T) {
 			case <-deadline.C:
 				t.Fatalf("Timed out waiting for process")
 			case pid := <-pids:
-				fmt.Println("pid: ", pid)
 				require.Contains(t, expectedPIDs, pid)
 			}
 		}
