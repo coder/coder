@@ -220,8 +220,8 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		return xerrors.Errorf("Unsupported transition: %q", trans)
 	}
 
-	err = store.InTx(func(store database.Store) error {
-		newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+	err = store.InTx(func(db database.Store) error {
+		newProvisionerJob, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             provisionerJobID,
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -236,7 +236,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
-		_, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
