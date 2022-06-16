@@ -2,7 +2,10 @@ package httpmw
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
+
+	"golang.org/x/xerrors"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -47,6 +50,10 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 
 			if userQuery == "me" {
 				user, err = db.GetUserByID(r.Context(), APIKey(r).UserID)
+				if xerrors.Is(err, sql.ErrNoRows) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 						Message: "Internal error fetching user.",

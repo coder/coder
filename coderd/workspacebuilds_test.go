@@ -92,7 +92,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
-		require.ErrorContains(t, apiError, "Workspace \"workspaceName\" does not exist.")
+		require.ErrorContains(t, apiError, "Resource not found")
 	})
 
 	t.Run("WorkspaceBuildNotFound", func(t *testing.T) {

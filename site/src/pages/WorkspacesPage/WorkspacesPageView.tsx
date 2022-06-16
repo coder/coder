@@ -13,30 +13,33 @@ import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import RefreshIcon from "@material-ui/icons/Refresh"
 import SearchIcon from "@material-ui/icons/Search"
 import useTheme from "@material-ui/styles/useTheme"
+import { useActor } from "@xstate/react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FormikErrors, useFormik } from "formik"
 import { FC, useState } from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
-import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
-import {
-  HelpTooltip,
-  HelpTooltipLink,
-  HelpTooltipLinksGroup,
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip"
 import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
+import {
+  HelpTooltip,
+  HelpTooltipAction,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
+import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 
 dayjs.extend(relativeTime)
 
@@ -48,12 +51,16 @@ export const Language = {
   filterName: "Filters",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
-  workspaceTooltipTitle: "What is workspace?",
+  workspaceTooltipTitle: "What is a workspace?",
   workspaceTooltipText:
-    "It is your workstation. It is a workspace that will provide you the necessary compute and access to your development environment.",
+    "A workspace is your development environment in the cloud. It includes the infrastructure and tools you need to work on your project.",
   workspaceTooltipLink1: "Create workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",
+  outdatedLabel: "Outdated",
+  upToDateLabel: "Up to date",
+  versionTooltipText: "This workspace version is outdated and a newer version is available.",
+  updateVersionLabel: "Update version",
 }
 
 const WorkspaceHelpTooltip: React.FC = () => {
@@ -76,6 +83,78 @@ const WorkspaceHelpTooltip: React.FC = () => {
   )
 }
 
+const OutdatedHelpTooltip: React.FC<{ onUpdateVersion: () => void }> = ({ onUpdateVersion }) => {
+  return (
+    <HelpTooltip size="small">
+      <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
+      <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
+      <HelpTooltipLinksGroup>
+        <HelpTooltipAction icon={RefreshIcon} onClick={onUpdateVersion}>
+          {Language.updateVersionLabel}
+        </HelpTooltipAction>
+      </HelpTooltipLinksGroup>
+    </HelpTooltip>
+  )
+}
+
+const WorkspaceRow: React.FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ workspaceRef }) => {
+  const styles = useStyles()
+  const navigate = useNavigate()
+  const theme: Theme = useTheme()
+  const [workspaceState, send] = useActor(workspaceRef)
+  const { data: workspace } = workspaceState.context
+  const status = getDisplayStatus(theme, workspace.latest_build)
+  const navigateToWorkspacePage = () => {
+    navigate(`/@${workspace.owner_name}/${workspace.name}`)
+  }
+  return (
+    <TableRow
+      hover
+      data-testid={`workspace-${workspace.id}`}
+      tabIndex={0}
+      onClick={navigateToWorkspacePage}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          navigateToWorkspacePage()
+        }
+      }}
+      className={styles.clickableTableRow}
+    >
+      <TableCell>
+        <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
+      </TableCell>
+      <TableCell>{workspace.template_name}</TableCell>
+      <TableCell>
+        {workspace.outdated ? (
+          <span className={styles.outdatedLabel}>
+            {Language.outdatedLabel}
+            <OutdatedHelpTooltip
+              onUpdateVersion={() => {
+                send("UPDATE_VERSION")
+              }}
+            />
+          </span>
+        ) : (
+          <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
+          {dayjs().to(dayjs(workspace.latest_build.created_at))}
+        </span>
+      </TableCell>
+      <TableCell>
+        <span style={{ color: status.color }}>{status.status}</span>
+      </TableCell>
+      <TableCell>
+        <div className={styles.arrowCell}>
+          <KeyboardArrowRight className={styles.arrowRight} />
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
 interface FilterFormValues {
   query: string
 }
@@ -84,15 +163,13 @@ export type FilterFormErrors = FormikErrors<FilterFormValues>
 
 export interface WorkspacesPageViewProps {
   loading?: boolean
-  workspaces?: TypesGen.Workspace[]
+  workspaceRefs?: WorkspaceItemMachineRef[]
   filter?: string
   onFilter: (query: string) => void
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaces, filter, onFilter }) => {
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaceRefs, filter, onFilter }) => {
   const styles = useStyles()
-  const navigate = useNavigate()
-  const theme: Theme = useTheme()
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -193,17 +270,17 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Template</TableCell>
-            <TableCell>Version</TableCell>
-            <TableCell>Last Built</TableCell>
-            <TableCell>Status</TableCell>
+            <TableCell width="35%">Name</TableCell>
+            <TableCell width="15%">Template</TableCell>
+            <TableCell width="15%">Version</TableCell>
+            <TableCell width="20%">Last Built</TableCell>
+            <TableCell width="15%">Status</TableCell>
             <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {!workspaces && loading && <TableLoader />}
-          {workspaces && workspaces.length === 0 && (
+          {!workspaceRefs && loading && <TableLoader />}
+          {workspaceRefs && workspaceRefs.length === 0 && (
             <>
               {filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all ? (
                 <TableRow>
@@ -228,53 +305,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
               )}
             </>
           )}
-          {workspaces &&
-            workspaces.map((workspace) => {
-              const status = getDisplayStatus(theme, workspace.latest_build)
-              const navigateToWorkspacePage = () => {
-                navigate(`/@${workspace.owner_name}/${workspace.name}`)
-              }
-              return (
-                <TableRow
-                  key={workspace.id}
-                  hover
-                  data-testid={`workspace-${workspace.id}`}
-                  tabIndex={0}
-                  onClick={navigateToWorkspacePage}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      navigateToWorkspacePage()
-                    }
-                  }}
-                  className={styles.clickableTableRow}
-                >
-                  <TableCell>
-                    <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
-                  </TableCell>
-                  <TableCell>{workspace.template_name}</TableCell>
-                  <TableCell>
-                    {workspace.outdated ? (
-                      <span style={{ color: theme.palette.error.main }}>outdated</span>
-                    ) : (
-                      <span style={{ color: theme.palette.text.secondary }}>up to date</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
-                      {dayjs().to(dayjs(workspace.latest_build.created_at))}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span style={{ color: status.color }}>{status.status}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className={styles.arrowCell}>
-                      <KeyboardArrowRight className={styles.arrowRight} />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+          {workspaceRefs &&
+            workspaceRefs.map((workspaceRef) => <WorkspaceRow workspaceRef={workspaceRef} key={workspaceRef.id} />)}
         </TableBody>
       </Table>
     </Margins>
@@ -338,5 +370,11 @@ const useStyles = makeStyles((theme) => ({
   },
   arrowCell: {
     display: "flex",
+  },
+  outdatedLabel: {
+    color: theme.palette.error.main,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
   },
 }))

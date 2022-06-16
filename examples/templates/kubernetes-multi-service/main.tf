@@ -21,9 +21,7 @@ variable "use_kubeconfig" {
   Kubernetes cluster as you are deploying workspaces to.
 
   Set this to true if the Coder host is running outside the Kubernetes cluster
-  for workspaces.  A valid "~/.kube/config" must be present on the Coder host. This
-  is likely not your local machine unless you are using `coder server --dev.`
-
+  for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
   EOF
 }
 

@@ -39,25 +39,24 @@ func (e executor) basicEnv() []string {
 	return env
 }
 
-func (e executor) execWriteOutput(ctx context.Context, args, env []string, writer io.WriteCloser) (err error) {
+func (e executor) execWriteOutput(ctx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	defer func() {
-		closeErr := writer.Close()
+		closeErr := stdOutWriter.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+		closeErr = stdErrWriter.Close()
 		if err == nil && closeErr != nil {
 			err = closeErr
 		}
 	}()
-	stdErr := &bytes.Buffer{}
 	// #nosec
 	cmd := exec.CommandContext(ctx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
-	cmd.Stdout = writer
-	cmd.Stderr = stdErr
+	cmd.Stdout = stdOutWriter
+	cmd.Stderr = stdErrWriter
 	cmd.Env = env
-	if err = cmd.Run(); err != nil {
-		errString, _ := io.ReadAll(stdErr)
-		return xerrors.Errorf("%s: %w", errString, err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 func (e executor) execParseJSON(ctx context.Context, args, env []string, v interface{}) error {
@@ -114,9 +113,14 @@ func (e executor) version(ctx context.Context) (*version.Version, error) {
 }
 
 func (e executor) init(ctx context.Context, logr logger) error {
-	writer, doneLogging := logWriter(logr, proto.LogLevel_DEBUG)
-	defer func() { <-doneLogging }()
-	return e.execWriteOutput(ctx, []string{"init"}, e.basicEnv(), writer)
+	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
+	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
+
+	defer func() {
+		<-doneOut
+		<-doneErr
+	}()
+	return e.execWriteOutput(ctx, []string{"init"}, e.basicEnv(), outWriter, errWriter)
 }
 
 // revive:disable-next-line:flag-parameter
@@ -137,10 +141,14 @@ func (e executor) plan(ctx context.Context, env, vars []string, logr logger, des
 		args = append(args, "-var", variable)
 	}
 
-	writer, doneLogging := provisionLogWriter(logr)
-	defer func() { <-doneLogging }()
+	outWriter, doneOut := provisionLogWriter(logr)
+	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
+	defer func() {
+		<-doneOut
+		<-doneErr
+	}()
 
-	err := e.execWriteOutput(ctx, args, env, writer)
+	err := e.execWriteOutput(ctx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
@@ -207,10 +215,14 @@ func (e executor) apply(ctx context.Context, env, vars []string, logr logger, de
 		args = append(args, "-var", variable)
 	}
 
-	writer, doneLogging := provisionLogWriter(logr)
-	defer func() { <-doneLogging }()
+	outWriter, doneOut := provisionLogWriter(logr)
+	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
+	defer func() {
+		<-doneOut
+		<-doneErr
+	}()
 
-	err := e.execWriteOutput(ctx, args, env, writer)
+	err := e.execWriteOutput(ctx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
