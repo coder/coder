@@ -949,8 +949,9 @@ func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search: parser.String(searchParams, "", "search"),
-		Status: httpapi.ParseCustom(parser, searchParams, []database.UserStatus{database.UserStatusActive}, "status", parseUserStatus),
+		Search:   parser.String(searchParams, "", "search"),
+		Status:   httpapi.ParseCustom(parser, searchParams, []database.UserStatus{database.UserStatusActive}, "status", parseUserStatus),
+		RbacRole: parser.Strings(searchParams, []string{}, "rbac_role"),
 	}
 
 	return filter, parser.Errors

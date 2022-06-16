@@ -84,15 +84,19 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 }
 
 func (p *QueryParamParser) String(vals url.Values, def string, queryParam string) string {
-	v, err := parseQueryParam(vals, func(v string) (string, error) {
+	v, _ := parseQueryParam(vals, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
-	if err != nil {
-		p.Errors = append(p.Errors, Error{
-			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid string", queryParam),
-		})
-	}
+	return v
+}
+
+func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam string) []string {
+	v, _ := parseQueryParam(vals, func(v string) ([]string, error) {
+		if v == "" {
+			return []string{}, nil
+		}
+		return strings.Split(v, ","), nil
+	}, def, queryParam)
 	return v
 }
 
