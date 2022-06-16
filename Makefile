@@ -110,7 +110,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 
 .PHONY: test
 test: test-clean
-	gotestsum -- -v -short ./...
+	gotestsum -- -v -short ./... -- -timeout=5m
 
 .PHONY: test-postgres
 test-postgres: test-clean
