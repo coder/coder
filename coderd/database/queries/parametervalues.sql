@@ -18,8 +18,11 @@ FROM
 	parameter_values
 WHERE
 	CASE
-		WHEN @scope :: parameter_scope != '' THEN
-			scope = @scope
+	    -- We need to double cast this. First cast is for the sqlc type,
+	    -- the second case is to convert it to text as the empty string
+	    -- is not a valid parameter_scope enum.
+		WHEN (@scope :: parameter_scope) :: text != '' THEN
+			scope = @scope :: parameter_scope
 		ELSE true
 	END
     AND CASE

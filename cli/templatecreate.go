@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -83,7 +82,7 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			job, parameters, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
 				Client:        client,
 				Organization:  organization,
 				Provisioner:   database.ProvisionerType(provisioner),
@@ -105,7 +104,6 @@ func templateCreate() *cobra.Command {
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                       templateName,
 				VersionID:                  job.ID,
-				ParameterValues:            parameters,
 				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				MinAutostartIntervalMillis: ptr.Ref(minAutostartInterval.Milliseconds()),
 			}
@@ -146,21 +144,28 @@ type createValidTemplateVersionArgs struct {
 	Provisioner   database.ProvisionerType
 	FileHash      string
 	ParameterFile string
-	// TemplateID is only required if updating a template's active version.
-	TemplateID uuid.UUID
+	// Template is only required if updating a template's active version.
+	Template *codersdk.Template
+	// ReuseParams will attempt to reuse params from the Template field
+	// before prompting the user. Set to false to always prompt for param
+	// values.
+	ReuseParams bool
 }
 
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	before := time.Now()
 	client := args.Client
 
-	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, codersdk.CreateTemplateVersionRequest{
+	req := codersdk.CreateTemplateVersionRequest{
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
 		StorageSource:   args.FileHash,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
-		TemplateID:      args.TemplateID,
-	})
+	}
+	if args.Template != nil {
+		req.TemplateID = args.Template.ID
+	}
+	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -197,15 +202,10 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 
 	// lastParameterValues are pulled from the current active template version if
 	// templateID is provided. This allows pulling params from the last
-	// version if we are updating template versions.
+	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
-	if args.TemplateID != uuid.Nil {
-		template, err := client.Template(cmd.Context(), args.TemplateID)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("Fetch template: %w", err)
-		}
-
-		activeVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
+	if args.ReuseParams && args.Template != nil {
+		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
 		}
@@ -249,7 +249,9 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			}
 		}
 		for _, parameterSchema := range missingSchemas {
-			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok {
+			// If the value is in the file, skip trying to reuse the param
+			_, fileOk := parameterMapFromFile[parameterSchema.Name]
+			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok && !fileOk {
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					CopyFromParameter: inherit.ID,
 				})

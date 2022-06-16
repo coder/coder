@@ -72,7 +72,8 @@ func templateUpdate() *cobra.Command {
 				Provisioner:   database.ProvisionerType(provisioner),
 				FileHash:      resp.Hash,
 				ParameterFile: parameterFile,
-				TemplateID:    template.ID,
+				Template:      &template,
+				ReuseParams:   true,
 			})
 			if err != nil {
 				return err
@@ -97,41 +98,6 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			// templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
-			//	TemplateID:    template.ID,
-			//	StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			//	StorageSource: resp.Hash,
-			//	Provisioner:   codersdk.ProvisionerType(provisioner),
-			//})
-			//if err != nil {
-			//	return xerrors.Errorf("create template: %w", err)
-			//}
-			//logs, err := client.TemplateVersionLogsAfter(cmd.Context(), templateVersion.ID, before)
-			//if err != nil {
-			//	return err
-			//}
-			//for {
-			//	log, ok := <-logs
-			//	if !ok {
-			//		break
-			//	}
-			//	_, _ = fmt.Printf("%s (%s): %s\n", provisioner, log.Level, log.Output)
-			//}
-			//templateVersion, err = client.TemplateVersion(cmd.Context(), templateVersion.ID)
-			//if err != nil {
-			//	return err
-			//}
-			//
-			//if templateVersion.Job.Status != codersdk.ProvisionerJobSucceeded {
-			//	return xerrors.Errorf("job failed: %s", templateVersion.Job.Error)
-			//}
-			//
-			//err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-			//	ID: templateVersion.ID,
-			//})
-			//if err != nil {
-			//	return err
-			//}
 			_, _ = fmt.Printf("Updated version!\n")
 			return nil
 		},
