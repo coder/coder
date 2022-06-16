@@ -42,17 +42,17 @@ codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$out
 # Notarize the signed zip file.
 #
 # The notarization process is very fragile and heavily dependent on Apple's
-# notarization server not returning server errors, so we retry this step 5
-# times with a delay of 30 seconds between each attempt.
+# notarization server not returning server errors, so we retry this step twice
+# with a delay of a minute between attempts.
 rc=0
-for i in $(seq 1 5); do
+for i in $(seq 1 2); do
 	gon "$config" && rc=0 && break || rc=$?
 	log "gon exit code: $rc"
 	if [ "$i" -lt 5 ]; then
 		log
-		log "Retrying notarization in 30 seconds"
+		log "Retrying notarization in 60 seconds"
 		log
-		sleep 30
+		sleep 60
 	else
 		log
 		log "Giving up :("
