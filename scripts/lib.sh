@@ -111,12 +111,17 @@ error() {
 	exit 1
 }
 
+# isdarwin returns an error if the current platform is not darwin.
+isdarwin() {
+	[[ "${OSTYPE:-darwin}" == *darwin* ]]
+}
+
 libsh_bad_dependencies=0
 
 if ((BASH_VERSINFO[0] < 4)); then
 	libsh_bad_dependencies=1
 	log "ERROR: You need at least bash 4.0 to run the scripts in the Coder repo."
-	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+	if isdarwin; then
 		log "On darwin:"
 		log "- brew install bash"
 		log "- Restart your terminal"
@@ -128,7 +133,7 @@ fi
 if [[ "$(getopt --version)" == *--* ]]; then
 	libsh_bad_dependencies=1
 	log "ERROR: You need GNU getopt to run the scripts in the Coder repo."
-	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+	if isdarwin; then
 		log "On darwin:"
 		log "- brew install gnu-getopt"
 		# shellcheck disable=SC2016
@@ -146,7 +151,7 @@ make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\
 if [ "${make_version//.*/}" -lt 4 ]; then
 	libsh_bad_dependencies=1
 	log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
-	if [[ "${OSTYPE:-darwin}" == "darwin" ]]; then
+	if isdarwin; then
 		log "On darwin:"
 		log "- brew install make"
 		# shellcheck disable=SC2016
