@@ -68,21 +68,6 @@ func TestAgent(t *testing.T) {
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
-	t.Run("PATHHasCoder", func(t *testing.T) {
-		t.Parallel()
-		session := setupSSHSession(t, agent.Metadata{})
-		command := "sh -c 'echo $PATH'"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo %PATH%"
-		}
-		output, err := session.Output(command)
-		require.NoError(t, err)
-		ex, err := os.Executable()
-		t.Log(ex)
-		require.NoError(t, err)
-		require.True(t, strings.Contains(strings.TrimSpace(string(output)), filepath.Dir(ex)))
-	})
-
 	t.Run("SessionTTY", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
@@ -180,6 +165,24 @@ func TestAgent(t *testing.T) {
 		output, err := session.Output(command)
 		require.NoError(t, err)
 		require.Equal(t, value, strings.TrimSpace(string(output)))
+	})
+
+	t.Run("EnvironmentVariableExpansion", func(t *testing.T) {
+		t.Parallel()
+		key := "EXAMPLE"
+		session := setupSSHSession(t, agent.Metadata{
+			EnvironmentVariables: map[string]string{
+				key: "$SOMETHINGNOTSET",
+			},
+		})
+		command := "sh -c 'echo $" + key + "'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %" + key + "%"
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		// Output should be empty, because the variable is not set!
+		require.Equal(t, "", strings.TrimSpace(string(output)))
 	})
 
 	t.Run("StartupScript", func(t *testing.T) {

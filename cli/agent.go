@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec
 	"net/url"
@@ -136,6 +137,15 @@ func workspaceAgent() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("agent failed to authenticate in time: %w", err)
 				}
+			}
+
+			executablePath, err := os.Executable()
+			if err != nil {
+				return xerrors.Errorf("getting os executable: %w", err)
+			}
+			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
+			if err != nil {
+				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
 			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
