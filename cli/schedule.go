@@ -239,13 +239,11 @@ func scheduleOverride() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"Workspace %q will now stop at %s on %s\n", workspace.Name,
-				newDeadline.Format(timeFormat),
-				newDeadline.Format(dateFormat),
-			)
-			return nil
+			updated, err := namedWorkspace(cmd, client, args[0])
+			if err != nil {
+				return err
+			}
+			return displaySchedule(updated, cmd.OutOrStdout())
 		},
 	}
 	return overrideCmd
