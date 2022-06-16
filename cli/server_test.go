@@ -10,7 +10,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net"
 	"net/http"
@@ -28,7 +27,6 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
@@ -38,8 +36,6 @@ import (
 // nolint:paralleltest
 func TestServer(t *testing.T) {
 	t.Run("Production", func(t *testing.T) {
-		// postgres.Open() seems to be creating race conditions when run in parallel.
-		// t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
@@ -75,99 +71,32 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
-
-	t.Run("Development", func(t *testing.T) {
+	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
-
-		wantEmail := "admin@coder.com"
-
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
-		var buf strings.Builder
-		errC := make(chan error)
-		root.SetOutput(&buf)
-		go func() {
-			errC <- root.ExecuteContext(ctx)
-		}()
-
-		var token string
-		require.Eventually(t, func() bool {
-			var err error
-			token, err = cfg.Session().Read()
-			return err == nil && token != ""
-		}, 15*time.Second, 25*time.Millisecond)
-
-		// Verify that authentication was properly set in dev-mode.
-		accessURL, err := cfg.URL().Read()
-		require.NoError(t, err)
-		parsed, err := url.Parse(accessURL)
-		require.NoError(t, err)
-
-		client := codersdk.New(parsed)
-		client.SessionToken = token
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err, "token:", token)
-
-		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
-
-		// Verify that credentials were output to the terminal.
-		assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
-		// Check that the password line is output and that it's non-empty.
-		if _, after, found := strings.Cut(buf.String(), "password: "); found {
-			before, _, _ := strings.Cut(after, "\n")
-			before = strings.Trim(before, "\r") // Ensure no control character is left.
-			assert.NotEmpty(t, before, "expected non-empty password; got empty")
-		} else {
-			t.Error("expected password line output; got no match")
+		if testing.Short() {
+			t.SkipNow()
 		}
-
-		// Verify that we warned the user about the default access URL possibly not being what they want.
-		assert.Contains(t, buf.String(), "coder/coder/issues/1528")
-	})
-
-	// Duplicated test from "Development" above to test setting email/password via env.
-	// Cannot run parallel due to os.Setenv.
-	//nolint:paralleltest
-	t.Run("Development with email and password from env", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
-
-		wantEmail := "myadmin@coder.com"
-		wantPassword := "testpass42"
-		t.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
-		t.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
-
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
-		var buf strings.Builder
-		root.SetOutput(&buf)
+		root, cfg := clitest.New(t, "server", "--address", ":0")
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-
-		var token string
 		require.Eventually(t, func() bool {
-			var err error
-			token, err = cfg.Session().Read()
+			_, err := cfg.URL().Read()
 			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
-		// Verify that authentication was properly set in dev-mode.
-		accessURL, err := cfg.URL().Read()
-		require.NoError(t, err)
-		parsed, err := url.Parse(accessURL)
-		require.NoError(t, err)
-		client := codersdk.New(parsed)
-		client.SessionToken = token
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-
+		}, time.Minute, 25*time.Millisecond)
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
-		// Verify that credentials were output to the terminal.
-		assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
-		assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
+	})
+	t.Run("BuiltinPostgresURL", func(t *testing.T) {
+		t.Parallel()
+		root, _ := clitest.New(t, "server", "postgres-builtin-url")
+		var buf strings.Builder
+		root.SetOutput(&buf)
+		err := root.Execute()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "psql")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -175,7 +104,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--access-url", "http://1.2.3.4:3000/")
+		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--access-url", "http://1.2.3.4:3000/")
 		var buf strings.Builder
 		errC := make(chan error)
 		root.SetOutput(&buf)
@@ -193,14 +122,14 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 
-		assert.NotContains(t, buf.String(), "coder/coder/issues/1528")
+		assert.NotContains(t, buf.String(), "Workspaces must be able to reach Coder from this URL")
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
 			"--tls-enable", "--tls-min-version", "tls9")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -209,7 +138,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
 			"--tls-enable", "--tls-client-auth", "something")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -218,7 +147,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
 			"--tls-enable")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -229,7 +158,7 @@ func TestServer(t *testing.T) {
 		defer cancelFunc()
 
 		certPath, keyPath := generateTLSCertificate(t)
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
+		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0",
 			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
 		errC := make(chan error)
 		go func() {
@@ -270,36 +199,18 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "1")
+		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--provisioner-daemons", "1")
 		serverErr := make(chan error)
 		go func() {
 			err := root.ExecuteContext(ctx)
 			serverErr <- err
 		}()
-		var token string
 		require.Eventually(t, func() bool {
 			var err error
-			token, err = cfg.Session().Read()
+			_, err = cfg.URL().Read()
 			return err == nil
 		}, 15*time.Second, 25*time.Millisecond)
-		// Verify that authentication was properly set in dev-mode.
-		accessURL, err := cfg.URL().Read()
-		require.NoError(t, err)
-		parsed, err := url.Parse(accessURL)
-		require.NoError(t, err)
-		client := codersdk.New(parsed)
-		client.SessionToken = token
-		orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
-		require.NoError(t, err)
 
-		// Create a workspace so the cleanup occurs!
-		version := coderdtest.CreateTemplateVersion(t, client, orgs[0].ID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, orgs[0].ID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, orgs[0].ID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		require.NoError(t, err)
 		currentProcess, err := os.FindProcess(os.Getpid())
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
@@ -317,7 +228,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace=true")
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--trace=true")
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)

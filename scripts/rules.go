@@ -150,3 +150,14 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 		At(m["m"]).
 		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
 }
+
+// ProperRBACReturn ensures we always write to the response writer after a
+// call to Authorize. If we just do a return, the client will get a status code
+// 200, which is incorrect.
+func ProperRBACReturn(m dsl.Matcher) {
+	m.Match(`
+	if !$_.Authorize($*_) {
+		return
+	}
+	`).Report("Must write to 'ResponseWriter' before returning'")
+}

@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 	_ "time/tzdata"
 
 	"github.com/coder/coder/cli"
@@ -11,6 +13,8 @@ import (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixMicro())
+
 	cmd, err := cli.Root().ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {

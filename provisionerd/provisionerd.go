@@ -510,12 +510,14 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("client disconnected")
 		return
 	}
+
+	// Parse parameters and update the job with the parameter specs
 	_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "Parse parameters",
+			Stage:     "Parsing template parameters",
 			CreatedAt: time.Now().UTC().UnixMilli(),
 		}},
 	})
@@ -523,13 +525,11 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("write log: %s", err)
 		return
 	}
-
 	parameterSchemas, err := p.runTemplateImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
 		return
 	}
-
 	updateResponse, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId:            job.JobId,
 		ParameterSchemas: parameterSchemas,
@@ -551,6 +551,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}
 	}
 
+	// Determine persistent resources
 	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -572,6 +573,8 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("template import provision for start: %s", err)
 		return
 	}
+
+	// Determine ephemeral resources.
 	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -964,10 +967,6 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
 	if !p.isRunningJob() {
-		if p.isClosed() {
-			return
-		}
-		p.opts.Logger.Info(context.Background(), "skipping job fail; none running", slog.F("error_message", failedJob.Error))
 		return
 	}
 	if p.jobFailed.Load() {

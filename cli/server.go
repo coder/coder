@@ -16,14 +16,18 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 
-	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/pion/turn/v2"
@@ -31,7 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
@@ -54,7 +57,6 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -72,12 +74,10 @@ func server() *cobra.Command {
 		pprofEnabled          bool
 		pprofAddress          string
 		cacheDir              string
-		dev                   bool
-		devUserEmail          string
-		devUserPassword       string
-		postgresURL           string
+		inMemoryDatabase      bool
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
+		postgresURL                      string
 		oauth2GithubClientID             string
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
@@ -104,9 +104,9 @@ func server() *cobra.Command {
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			printLogo(cmd, spooky)
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
-			buildModeDev := semver.Prerelease(buildinfo.Version()) == "-devel"
-			if verbose || buildModeDev {
+			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -136,7 +136,23 @@ func server() *cobra.Command {
 				}
 			}
 
-			printLogo(cmd, spooky)
+			config := createConfig(cmd)
+			builtinPostgres := false
+			// Only use built-in if PostgreSQL URL isn't specified!
+			if !inMemoryDatabase && postgresURL == "" {
+				var closeFunc func() error
+				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
+				postgresURL, closeFunc, err = startBuiltinPostgres(cmd.Context(), config, logger)
+				if err != nil {
+					return err
+				}
+				builtinPostgres = true
+				defer func() {
+					// Gracefully shut PostgreSQL down!
+					_ = closeFunc()
+				}()
+			}
+
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
 				return xerrors.Errorf("listen %q: %w", address, err)
@@ -158,7 +174,8 @@ func server() *cobra.Command {
 			if tcpAddr.IP.IsUnspecified() {
 				tcpAddr.IP = net.IPv4(127, 0, 0, 1)
 			}
-
+			// If no access URL is specified, fallback to the
+			// bounds URL.
 			localURL := &url.URL{
 				Scheme: "http",
 				Host:   tcpAddr.String(),
@@ -168,9 +185,6 @@ func server() *cobra.Command {
 			}
 			if accessURL == "" {
 				accessURL = localURL.String()
-			} else {
-				// If an access URL is specified, always skip tunneling.
-				tunnel = false
 			}
 
 			var (
@@ -182,64 +196,36 @@ func server() *cobra.Command {
 
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
-			if dev && tunnel {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
-					"Coder requires a URL accessible by workspaces you provision. "+
-						"A free tunnel can be created for simple setup. This will "+
-						"expose your Coder deployment to a publicly accessible URL. "+
-						cliui.Styles.Field.Render("--access-url")+" can be specified instead.\n",
-				))
-
-				// This skips the prompt if the flag is explicitly specified.
-				if !cmd.Flags().Changed("tunnel") {
-					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-						Text:      "Would you like to start a tunnel for simple setup?",
-						IsConfirm: true,
-					})
-					if errors.Is(err, cliui.Canceled) {
-						return err
-					}
+			if tunnel {
+				cmd.Printf("Opening tunnel so workspaces can connect to your deployment\n")
+				devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+				if err != nil {
+					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				if err == nil {
-					devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
-					if err != nil {
-						return xerrors.Errorf("create tunnel: %w", err)
-					}
-					accessURL = devTunnel.URL
-				}
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+				accessURL = devTunnel.URL
 			}
 
 			// Warn the user if the access URL appears to be a loopback address.
 			isLocal, err := isLocalURL(cmd.Context(), accessURL)
 			if isLocal || err != nil {
-				var reason string
+				reason := "could not be resolved"
 				if isLocal {
-					reason = "appears to be a loopback address"
-				} else {
-					reason = "could not be resolved"
+					reason = "isn't externally reachable"
 				}
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
-					cliui.Styles.Warn.Render("Warning:")+" The current access URL:")+"\n\n")
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  "+cliui.Styles.Field.Render(accessURL)+"\n\n")
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
-					reason+". Provisioned workspaces are unlikely to be able to "+
-						"connect to Coder. Please consider changing your "+
-						"access URL using the --access-url option, or directly "+
-						"specifying access URLs on templates.",
-				)+"\n\n")
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "For more information, see "+
-					"https://github.com/coder/coder/issues/1528\n\n")
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
+				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
-
-			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
-			if err != nil {
-				return err
-			}
+			cmd.Printf("View the Web UI: %s\n", accessURL)
 
 			accessURLParsed, err := url.Parse(accessURL)
 			if err != nil {
 				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
+			}
+
+			// Used for zero-trust instance identity with Google Cloud.
+			googleTokenValidator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
+			if err != nil {
+				return err
 			}
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(sshKeygenAlgorithmRaw)
@@ -267,7 +253,7 @@ func server() *cobra.Command {
 				Logger:               logger.Named("coderd"),
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
-				GoogleTokenValidator: validator,
+				GoogleTokenValidator: googleTokenValidator,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
@@ -281,11 +267,10 @@ func server() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "provisioner-daemons: %d\n", provisionerDaemonCount)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-
-			if !dev {
+			if inMemoryDatabase {
+				options.Database = databasefake.New()
+				options.Pubsub = database.NewPubsubInMemory()
+			} else {
 				sqlDB, err := sql.Open(sqlDriver, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
@@ -327,20 +312,20 @@ func server() *cobra.Command {
 			}
 			// Disable telemetry if in dev-mode. If the telemetry flag
 			// is manually specified, override this behavior!
-			if buildModeDev && !cmd.Flags().Changed("telemetry-enable") {
+			if !cmd.Flags().Changed("telemetry-enable") {
 				telemetryEnable = false
 			}
 			reporter, err := telemetry.New(telemetry.Options{
-				DeploymentID: deploymentID,
-				Database:     options.Database,
-				Logger:       logger.Named("telemetry"),
-				URL:          telemetryURL,
-				DevMode:      dev,
-				Disabled:     !telemetryEnable,
-				GitHubOAuth:  oauth2GithubClientID != "",
-				Prometheus:   promEnabled,
-				STUN:         len(stunServers) != 0,
-				Tunnel:       tunnel,
+				BuiltinPostgres: builtinPostgres,
+				DeploymentID:    deploymentID,
+				Database:        options.Database,
+				Logger:          logger.Named("telemetry"),
+				URL:             telemetryURL,
+				Disabled:        !telemetryEnable,
+				GitHubOAuth:     oauth2GithubClientID != "",
+				Prometheus:      promEnabled,
+				STUN:            len(stunServers) != 0,
+				Tunnel:          tunnel,
 			})
 			if err != nil {
 				return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -374,7 +359,7 @@ func server() *cobra.Command {
 			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), coderAPI, logger, cacheDir, errCh, dev)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), coderAPI, logger, cacheDir, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -404,14 +389,14 @@ func server() *cobra.Command {
 				wg.Go(func() error {
 					// Make sure to close the tunnel listener if we exit so the
 					// errgroup doesn't wait forever!
-					if dev && tunnel {
+					if tunnel {
 						defer devTunnel.Listener.Close()
 					}
 
 					return server.Serve(listener)
 				})
 
-				if dev && tunnel {
+				if tunnel {
 					wg.Go(func() error {
 						defer listener.Close()
 
@@ -422,44 +407,19 @@ func server() *cobra.Command {
 				errCh <- wg.Wait()
 			}()
 
-			config := createConfig(cmd)
+			// This is helpful for tests, but can be silently ignored.
+			// Coder may be ran as users that don't have permission to write in the homedir,
+			// such as via the systemd service.
+			_ = config.URL().Write(client.URL.String())
 
-			if dev {
-				if devUserPassword == "" {
-					devUserPassword, err = cryptorand.String(10)
-					if err != nil {
-						return xerrors.Errorf("generate random admin password for dev: %w", err)
-					}
-				}
-				restorePreviousSession, err := createFirstUser(logger, cmd, client, config, devUserEmail, devUserPassword)
-				if err != nil {
-					return xerrors.Errorf("create first user: %w", err)
-				}
-				defer restorePreviousSession()
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
-					cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`)+"\n\n")
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Run `+cliui.Styles.Code.Render("coder templates init")+
-					" in a new terminal to start creating workspaces.")+"\n")
-			} else {
-				// This is helpful for tests, but can be silently ignored.
-				// Coder may be ran as users that don't have permission to write in the homedir,
-				// such as via the systemd service.
-				_ = config.URL().Write(client.URL.String())
-
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
-					cliui.Styles.Field.Render("production")+` mode. All data is stored in the PostgreSQL provided! Press `+cliui.Styles.Field.Render("ctrl+c")+` to gracefully shutdown.`))+"\n")
-
-				hasFirstUser, err := client.HasFirstUser(cmd.Context())
-				if !hasFirstUser && err == nil {
-					// This could fail for a variety of TLS-related reasons.
-					// This is a helpful starter message, and not critical for user interaction.
-					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+accessURL)+" in a new terminal to get started.\n")))
-				}
+			hasFirstUser, err := client.HasFirstUser(cmd.Context())
+			if !hasFirstUser && err == nil {
+				cmd.Println()
+				cmd.Println("Get started by creating the first user (in a new terminal):")
+				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURL))
 			}
+
+			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -499,64 +459,53 @@ func server() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+
-				cliui.Styles.Bold.Render(
-					"Interrupt caught, gracefully exiting.  Use ctrl+\\ to force quit"))
-
-			if dev {
-				workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
-					Owner: codersdk.Me,
-				})
-				if err != nil {
-					return xerrors.Errorf("get workspaces: %w", err)
-				}
-				for _, workspace := range workspaces {
-					before := time.Now()
-					build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-						Transition: codersdk.WorkspaceTransitionDelete,
-					})
-					if err != nil {
-						return xerrors.Errorf("delete workspace: %w", err)
-					}
-
-					err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
-					if err != nil {
-						return xerrors.Errorf("delete workspace %s: %w", workspace.Name, err)
-					}
-				}
-			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
+				"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 
 			for _, provisionerDaemon := range provisionerDaemons {
-				spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-				spin.Writer = cmd.OutOrStdout()
-				spin.Suffix = cliui.Styles.Keyword.Render(" Shutting down provisioner daemon...")
-				spin.Start()
+				if verbose {
+					cmd.Println("Shutting down provisioner daemon...")
+				}
 				err = provisionerDaemon.Shutdown(cmd.Context())
 				if err != nil {
-					spin.FinalMSG = cliui.Styles.Prompt.String() + "Failed to shutdown provisioner daemon: " + err.Error()
-					spin.Stop()
+					cmd.PrintErrf("Failed to shutdown provisioner daemon: %s\n", err)
+					continue
 				}
 				err = provisionerDaemon.Close()
 				if err != nil {
-					spin.Stop()
 					return xerrors.Errorf("close provisioner daemon: %w", err)
 				}
-				spin.FinalMSG = cliui.Styles.Prompt.String() + "Gracefully shut down provisioner daemon!\n"
-				spin.Stop()
+				if verbose {
+					cmd.Println("Gracefully shut down provisioner daemon!")
+				}
 			}
 
-			if dev && tunnel {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
+			if tunnel {
+				cmd.Println("Waiting for tunnel to close...")
 				closeTunnel()
 				<-devTunnelErrChan
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
+			cmd.Println("Waiting for WebSocket connections to close...")
 			shutdownConns()
 			coderAPI.Close()
 			return nil
 		},
 	}
+
+	root.AddCommand(&cobra.Command{
+		Use:   "postgres-builtin-url",
+		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := createConfig(cmd)
+			url, err := embeddedPostgresURL(cfg)
+			if err != nil {
+				return err
+			}
+			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			return nil
+		},
+	})
 
 	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
@@ -571,10 +520,10 @@ func server() *cobra.Command {
 		defaultCacheDir = dir
 	}
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir, "Specifies a directory to cache binaries for provision operations. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
-	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflag.StringVarP(root.Flags(), &devUserEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
-	cliflag.StringVarP(root.Flags(), &devUserPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
+		"Specifies whether data will be stored in an in-memory database.")
+	_ = root.Flags().MarkHidden("in-memory")
+	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
 		"Specifies a client ID to use for oauth2 with GitHub.")
@@ -601,8 +550,8 @@ func server() *cobra.Command {
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_DEV_TUNNEL", true,
-		"Specifies whether the dev tunnel will be enabled or not. If specified, the interactive prompt will not display.")
+	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
+		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
@@ -617,81 +566,6 @@ func server() *cobra.Command {
 	_ = root.Flags().MarkHidden("spooky")
 
 	return root
-}
-
-// createFirstUser creates the first user and sets a valid session.
-// Caller must call restorePreviousSession on server exit.
-func createFirstUser(logger slog.Logger, cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) (func(), error) {
-	if email == "" {
-		return nil, xerrors.New("email is empty")
-	}
-	if password == "" {
-		return nil, xerrors.New("password is empty")
-	}
-	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:            email,
-		Username:         "developer",
-		Password:         password,
-		OrganizationName: "acme-corp",
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create first user: %w", err)
-	}
-	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
-		Email:    email,
-		Password: password,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("login with first user: %w", err)
-	}
-	client.SessionToken = token.SessionToken
-
-	// capture the current session and if exists recover session on server exit
-	restorePreviousSession := func() {}
-	oldURL, _ := cfg.URL().Read()
-	oldSession, _ := cfg.Session().Read()
-	if oldURL != "" && oldSession != "" {
-		restorePreviousSession = func() {
-			currentURL, err := cfg.URL().Read()
-			if err != nil {
-				logger.Error(cmd.Context(), "failed to read current session url", slog.Error(err))
-				return
-			}
-			currentSession, err := cfg.Session().Read()
-			if err != nil {
-				logger.Error(cmd.Context(), "failed to read current session token", slog.Error(err))
-				return
-			}
-
-			// if it's changed since we wrote to it don't restore session
-			if currentURL != client.URL.String() ||
-				currentSession != token.SessionToken {
-				return
-			}
-
-			err = cfg.URL().Write(oldURL)
-			if err != nil {
-				logger.Error(cmd.Context(), "failed to recover previous session url", slog.Error(err))
-				return
-			}
-			err = cfg.Session().Write(oldSession)
-			if err != nil {
-				logger.Error(cmd.Context(), "failed to recover previous session token", slog.Error(err))
-				return
-			}
-		}
-	}
-
-	err = cfg.URL().Write(client.URL.String())
-	if err != nil {
-		return nil, xerrors.Errorf("write local url: %w", err)
-	}
-	err = cfg.Session().Write(token.SessionToken)
-	if err != nil {
-		return nil, xerrors.Errorf("write session token: %w", err)
-	}
-
-	return restorePreviousSession, nil
 }
 
 // nolint:revive
@@ -747,28 +621,20 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 // nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `
-		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
-		▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
-		▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
-		▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
-		░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
-		  ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-		░ ░          ░ ░     ░       ░  ░   ░     
-		░                  ░                      		
-
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
+▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
+▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
+░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
+  ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
+░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
+░ ░          ░ ░     ░       ░  ░   ░     
+░                  ░                      		
 `)
 		return
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
-     ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
- ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
-█▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
-     ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
-
-`)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Remote development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile string) (net.Listener, error) {
@@ -918,4 +784,88 @@ func isLocalURL(ctx context.Context, urlString string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.
+func embeddedPostgresURL(cfg config.Root) (string, error) {
+	pgPassword, err := cfg.PostgresPassword().Read()
+	if errors.Is(err, os.ErrNotExist) {
+		pgPassword, err = cryptorand.String(16)
+		if err != nil {
+			return "", xerrors.Errorf("generate password: %w", err)
+		}
+		err = cfg.PostgresPassword().Write(pgPassword)
+		if err != nil {
+			return "", xerrors.Errorf("write password: %w", err)
+		}
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	pgPort, err := cfg.PostgresPort().Read()
+	if errors.Is(err, os.ErrNotExist) {
+		listener, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			return "", xerrors.Errorf("listen for random port: %w", err)
+		}
+		_ = listener.Close()
+		tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+		if !valid {
+			return "", xerrors.Errorf("listener returned non TCP addr: %T", tcpAddr)
+		}
+		pgPort = strconv.Itoa(tcpAddr.Port)
+		err = cfg.PostgresPort().Write(pgPort)
+		if err != nil {
+			return "", xerrors.Errorf("write postgres port: %w", err)
+		}
+	}
+	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
+}
+
+func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger) (string, func() error, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return "", nil, err
+	}
+	if usr.Uid == "0" {
+		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
+	}
+
+	// Ensure a password and port have been generated!
+	connectionURL, err := embeddedPostgresURL(cfg)
+	if err != nil {
+		return "", nil, err
+	}
+	pgPassword, err := cfg.PostgresPassword().Read()
+	if err != nil {
+		return "", nil, xerrors.Errorf("read postgres password: %w", err)
+	}
+	pgPortRaw, err := cfg.PostgresPort().Read()
+	if err != nil {
+		return "", nil, xerrors.Errorf("read postgres port: %w", err)
+	}
+	pgPort, err := strconv.Atoi(pgPortRaw)
+	if err != nil {
+		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
+	}
+
+	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
+	ep := embeddedpostgres.NewDatabase(
+		embeddedpostgres.DefaultConfig().
+			Version(embeddedpostgres.V13).
+			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
+			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
+			CachePath(filepath.Join(cfg.PostgresPath(), "cache")).
+			Username("coder").
+			Password(pgPassword).
+			Database("coder").
+			Port(uint32(pgPort)).
+			Logger(stdlibLogger.Writer()),
+	)
+	err = ep.Start()
+	if err != nil {
+		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
+	}
+	return connectionURL, ep.Stop, nil
 }

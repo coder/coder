@@ -6,7 +6,7 @@ import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
-import { MockAuditorRole, MockUser, MockUser2, render } from "../../testHelpers/renderHelpers"
+import { MockAuditorRole, MockUser, MockUser2, render, SuspendedMockUser } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
@@ -37,6 +37,35 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Click on the "Confirm" button
   const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.suspendDialogAction)
+  fireEvent.click(confirmButton)
+}
+
+const activateUser = async (setupActionSpies: () => void) => {
+  // Get the first user in the table
+  const users = await screen.findAllByText(/.*@coder.com/)
+  const firstUserRow = users[2].closest("tr")
+  if (!firstUserRow) {
+    throw new Error("Error on get the first user row")
+  }
+
+  // Click on the "more" button to display the "Activate" option
+  const moreButton = within(firstUserRow).getByLabelText("more")
+  fireEvent.click(moreButton)
+  const menu = screen.getByRole("menu")
+  const activateButton = within(menu).getByText(UsersTableLanguage.activateMenuItem)
+  fireEvent.click(activateButton)
+
+  // Check if the confirm message is displayed
+  const confirmDialog = screen.getByRole("dialog")
+  expect(confirmDialog).toHaveTextContent(
+    `${UsersPageLanguage.activateDialogMessagePrefix} ${SuspendedMockUser.username}?`,
+  )
+
+  // Setup spies to check the actions after
+  setupActionSpies()
+
+  // Click on the "Confirm" button
+  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.activateDialogAction)
   fireEvent.click(confirmButton)
 }
 
@@ -99,7 +128,7 @@ describe("Users Page", () => {
   it("shows users", async () => {
     render(<UsersPage />)
     const users = await screen.findAllByText(/.*@coder.com/)
-    expect(users.length).toEqual(2)
+    expect(users.length).toEqual(3)
   })
 
   it("shows 'Create user' button to an authorized user", () => {
@@ -174,6 +203,54 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
         expect(API.suspendUser).toBeCalledWith(MockUser.id)
+      })
+    })
+  })
+
+  describe("activate user", () => {
+    describe("when user is successfully activated", () => {
+      it("shows a success message and refreshes the page", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await activateUser(() => {
+          jest.spyOn(API, "activateUser").mockResolvedValueOnce(SuspendedMockUser)
+          jest
+            .spyOn(API, "getUsers")
+            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2, SuspendedMockUser]))
+        })
+
+        // Check if the success message is displayed
+        await screen.findByText(usersXServiceLanguage.activateUserSuccess)
+
+        // Check if the API was called correctly
+        expect(API.activateUser).toBeCalledTimes(1)
+        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
+      })
+    })
+    describe("when activation fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await activateUser(() => {
+          jest.spyOn(API, "activateUser").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        await screen.findByText(usersXServiceLanguage.activateUserError)
+
+        // Check if the API was called correctly
+        expect(API.activateUser).toBeCalledTimes(1)
+        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
       })
     })
   })

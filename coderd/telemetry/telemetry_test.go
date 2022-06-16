@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/telemetry"
@@ -113,10 +114,12 @@ func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
 	snapshot := make(chan *telemetry.Snapshot, 64)
 	r := chi.NewRouter()
 	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
 		w.WriteHeader(http.StatusAccepted)
 		deployment <- struct{}{}
 	})
 	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
 		w.WriteHeader(http.StatusAccepted)
 		ss := &telemetry.Snapshot{}
 		err := json.NewDecoder(r.Body).Decode(ss)
@@ -132,7 +135,6 @@ func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
 		Logger:       slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
-		DevMode:      false,
 	})
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)

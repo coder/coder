@@ -21,7 +21,14 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
+)
+
+const (
+	// VersionHeader is sent in every telemetry request to
+	// report the semantic version of Coder.
+	VersionHeader = "X-Coder-Version"
 )
 
 type Options struct {
@@ -30,8 +37,8 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	DeploymentID string
-	DevMode      bool
+	BuiltinPostgres bool
+	DeploymentID    string
 	// Disabled determines whether telemetry will be collected
 	// and sent. This allows callers to still execute the API
 	// without having to check whether it's enabled.
@@ -53,8 +60,8 @@ func New(options Options) (*Reporter, error) {
 		}, nil
 	}
 	if options.SnapshotFrequency == 0 {
-		// Report six times a day by default!
-		options.SnapshotFrequency = 4 * time.Hour
+		// Report once every 30mins by default!
+		options.SnapshotFrequency = 30 * time.Minute
 	}
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
@@ -117,6 +124,7 @@ func (r *Reporter) Report(snapshot *Snapshot) {
 			r.options.Logger.Error(r.ctx, "create request", slog.Error(err))
 			return
 		}
+		req.Header.Set(VersionHeader, buildinfo.Version())
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			// If the request fails it's not necessarily an error.
@@ -222,24 +230,24 @@ func (r *Reporter) deployment() error {
 		containerized = *sysInfo.Containerized
 	}
 	data, err := json.Marshal(&Deployment{
-		ID:            r.options.DeploymentID,
-		Architecture:  sysInfo.Architecture,
-		Containerized: containerized,
-		DevMode:       r.options.DevMode,
-		GitHubOAuth:   r.options.GitHubOAuth,
-		Prometheus:    r.options.Prometheus,
-		STUN:          r.options.STUN,
-		Tunnel:        r.options.Tunnel,
-		OSType:        sysInfo.OS.Type,
-		OSFamily:      sysInfo.OS.Family,
-		OSPlatform:    sysInfo.OS.Platform,
-		OSName:        sysInfo.OS.Name,
-		OSVersion:     sysInfo.OS.Version,
-		CPUCores:      runtime.NumCPU(),
-		MemoryTotal:   mem.Total,
-		MachineID:     sysInfo.UniqueID,
-		StartedAt:     r.startedAt,
-		ShutdownAt:    r.shutdownAt,
+		ID:              r.options.DeploymentID,
+		Architecture:    sysInfo.Architecture,
+		BuiltinPostgres: r.options.BuiltinPostgres,
+		Containerized:   containerized,
+		GitHubOAuth:     r.options.GitHubOAuth,
+		Prometheus:      r.options.Prometheus,
+		STUN:            r.options.STUN,
+		Tunnel:          r.options.Tunnel,
+		OSType:          sysInfo.OS.Type,
+		OSFamily:        sysInfo.OS.Family,
+		OSPlatform:      sysInfo.OS.Platform,
+		OSName:          sysInfo.OS.Name,
+		OSVersion:       sysInfo.OS.Version,
+		CPUCores:        runtime.NumCPU(),
+		MemoryTotal:     mem.Total,
+		MachineID:       sysInfo.UniqueID,
+		StartedAt:       r.startedAt,
+		ShutdownAt:      r.shutdownAt,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -248,6 +256,7 @@ func (r *Reporter) deployment() error {
 	if err != nil {
 		return xerrors.Errorf("create deployment request: %w", err)
 	}
+	req.Header.Set(VersionHeader, buildinfo.Version())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
@@ -262,8 +271,10 @@ func (r *Reporter) deployment() error {
 // createSnapshot collects a full snapshot from the database.
 func (r *Reporter) createSnapshot() (*Snapshot, error) {
 	var (
-		ctx          = r.ctx
-		createdAfter = database.Now().AddDate(0, 0, -1)
+		ctx = r.ctx
+		// For resources that grow in size very quickly (like workspace builds),
+		// we only report events that occurred within the past hour.
+		createdAfter = database.Now().Add(-1 * time.Hour)
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -306,7 +317,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		for _, dbTemplate := range templates {
 			snapshot.Templates = append(snapshot.Templates, Template{
 				ID:              dbTemplate.ID,
-				CreatedBy:       dbTemplate.CreatedBy.UUID,
+				CreatedBy:       dbTemplate.CreatedBy,
 				CreatedAt:       dbTemplate.CreatedAt,
 				UpdatedAt:       dbTemplate.UpdatedAt,
 				OrganizationID:  dbTemplate.OrganizationID,
@@ -542,24 +553,24 @@ type Snapshot struct {
 
 // Deployment contains information about the host running Coder.
 type Deployment struct {
-	ID            string     `json:"id"`
-	Architecture  string     `json:"architecture"`
-	Containerized bool       `json:"containerized"`
-	DevMode       bool       `json:"dev_mode"`
-	Tunnel        bool       `json:"tunnel"`
-	GitHubOAuth   bool       `json:"github_oauth"`
-	Prometheus    bool       `json:"prometheus"`
-	STUN          bool       `json:"stun"`
-	OSType        string     `json:"os_type"`
-	OSFamily      string     `json:"os_family"`
-	OSPlatform    string     `json:"os_platform"`
-	OSName        string     `json:"os_name"`
-	OSVersion     string     `json:"os_version"`
-	CPUCores      int        `json:"cpu_cores"`
-	MemoryTotal   uint64     `json:"memory_total"`
-	MachineID     string     `json:"machine_id"`
-	StartedAt     time.Time  `json:"started_at"`
-	ShutdownAt    *time.Time `json:"shutdown_at"`
+	ID              string     `json:"id"`
+	Architecture    string     `json:"architecture"`
+	BuiltinPostgres bool       `json:"builtin_postgres"`
+	Containerized   bool       `json:"containerized"`
+	Tunnel          bool       `json:"tunnel"`
+	GitHubOAuth     bool       `json:"github_oauth"`
+	Prometheus      bool       `json:"prometheus"`
+	STUN            bool       `json:"stun"`
+	OSType          string     `json:"os_type"`
+	OSFamily        string     `json:"os_family"`
+	OSPlatform      string     `json:"os_platform"`
+	OSName          string     `json:"os_name"`
+	OSVersion       string     `json:"os_version"`
+	CPUCores        int        `json:"cpu_cores"`
+	MemoryTotal     uint64     `json:"memory_total"`
+	MachineID       string     `json:"machine_id"`
+	StartedAt       time.Time  `json:"started_at"`
+	ShutdownAt      *time.Time `json:"shutdown_at"`
 }
 
 type User struct {

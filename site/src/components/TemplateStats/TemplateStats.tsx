@@ -14,7 +14,6 @@ const Language = {
   userPlural: "users",
   userSingular: "user",
   createdByLabel: "Created by",
-  defaultTemplateCreator: "<unknown>",
 }
 
 export interface TemplateStatsProps {
@@ -50,7 +49,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.createdByLabel}</span>
-        <span className={styles.statsValue}>{template.created_by_name || Language.defaultTemplateCreator}</span>
+        <span className={styles.statsValue}>{template.created_by_name}</span>
       </div>
     </div>
   )
@@ -67,6 +66,9 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     border: `1px solid ${theme.palette.divider}`,
+    [theme.breakpoints.down("sm")]: {
+      display: "block",
+    },
   },
 
   statItem: {
@@ -80,12 +82,14 @@ const useStyles = makeStyles((theme) => ({
     textTransform: "uppercase",
     display: "block",
     fontWeight: 600,
+    wordWrap: "break-word",
   },
 
   statsValue: {
     fontSize: 16,
     marginTop: theme.spacing(0.25),
-    display: "inline-block",
+    display: "block",
+    wordWrap: "break-word",
   },
 
   statsDivider: {
@@ -93,5 +97,8 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(5),
     backgroundColor: theme.palette.divider,
     marginRight: theme.spacing(2),
+    [theme.breakpoints.down("sm")]: {
+      display: "none",
+    },
   },
 }))

@@ -13,7 +13,7 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { stripTimezone } from "../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 
@@ -66,7 +66,10 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
-  schedule: `Schedule (${dayjs.tz.guess()})`,
+  scheduleHeader: (workspace: Workspace): string => {
+    const tz = workspace.autostart_schedule ? extractTimezone(workspace.autostart_schedule) : dayjs.tz.guess()
+    return `Schedule (${tz})`
+  },
 }
 
 export interface WorkspaceScheduleProps {
@@ -81,7 +84,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
       <Stack spacing={2}>
         <Typography variant="body1" className={styles.title}>
           <ScheduleIcon className={styles.scheduleIcon} />
-          {Language.schedule}
+          {Language.scheduleHeader(workspace)}
         </Typography>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStartLabel}</span>

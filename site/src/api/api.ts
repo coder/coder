@@ -120,14 +120,8 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   const basePath = "/api/v2/workspaces"
   const searchParams = new URLSearchParams()
 
-  if (filter?.organization_id) {
-    searchParams.append("organization_id", filter.organization_id)
-  }
-  if (filter?.owner) {
-    searchParams.append("owner", filter.owner)
-  }
-  if (filter?.name) {
-    searchParams.append("name", filter.name)
+  if (filter?.q && filter.q !== "") {
+    searchParams.append("q", filter.q)
   }
 
   const searchString = searchParams.toString()
@@ -232,6 +226,13 @@ export const activateUser = async (userId: TypesGen.User["id"]): Promise<TypesGe
 
 export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
   const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/suspend`)
+  return response.data
+}
+
+export const postFirstUser = async (
+  req: TypesGen.CreateFirstUserRequest,
+): Promise<TypesGen.CreateFirstUserResponse> => {
+  const response = await axios.post(`/api/v2/users/first`, req)
   return response.data
 }
 

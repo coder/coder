@@ -22,7 +22,8 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	// This requires the site wide action to create files.
 	// Once created, a user can read their own files uploaded
-	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceFile) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -86,7 +87,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
@@ -97,8 +98,10 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead,
+	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceFile.WithOwner(file.CreatedBy.String()).WithID(file.Hash)) {
+		// Return 404 to not leak the file exists
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
