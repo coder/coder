@@ -640,6 +640,7 @@ func convertWorkspaceBuild(
 		InitiatorUsername:  initiatorName,
 		Job:                convertProvisionerJob(job),
 		Deadline:           workspaceBuild.Deadline,
+		Reason:             codersdk.BuildReason(workspaceBuild.Reason),
 	}
 }
 
