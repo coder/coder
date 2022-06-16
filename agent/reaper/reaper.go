@@ -20,6 +20,11 @@ func IsChild() bool {
 	return os.Getenv(agentEnvMark) != ""
 }
 
+// IsInitProcess returns true if the current process's PID is 1.
+func IsInitProcess() bool {
+	return os.Getpid() == 1
+}
+
 // ForkReap spawns a goroutine that reaps children. In order to avoid
 // complications with spawning `exec.Commands` in the same process that
 // is reaping, we forkexec a child process. This prevents a race between

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -36,16 +37,6 @@ func workspaceAgent() *cobra.Command {
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Spawn a reaper so that we don't accumulate a ton
-			// of zombie processes.
-			if !reaper.IsChild() {
-				err := reaper.ForkReap(nil)
-				if err != nil {
-					return xerrors.Errorf("fork reap: %w", err)
-				}
-				return nil
-			}
-
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
@@ -61,6 +52,23 @@ func workspaceAgent() *cobra.Command {
 			}
 			defer logWriter.Close()
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+			isLinux := runtime.GOOS == "linux"
+
+			// Spawn a reaper so that we don't accumulate a ton
+			// of zombie processes.
+			if reaper.IsInitProcess() && !reaper.IsChild() && isLinux {
+				logger.Info(cmd.Context(), "spawning reaper process")
+				err := reaper.ForkReap(nil)
+				if err != nil {
+					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					return xerrors.Errorf("fork reap: %w", err)
+				}
+
+				logger.Info(cmd.Context(), "reaper process exiting")
+				return nil
+			}
+
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
