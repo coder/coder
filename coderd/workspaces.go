@@ -436,7 +436,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			JobID:             provisionerJob.ID,
 			BuildNumber:       1,           // First build!
 			Deadline:          time.Time{}, // provisionerd will set this upon success
-			Reason:            database.BuildReasonMember,
+			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)

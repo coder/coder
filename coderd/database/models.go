@@ -37,7 +37,7 @@ func (e *AuditAction) Scan(src interface{}) error {
 type BuildReason string
 
 const (
-	BuildReasonMember    BuildReason = "member"
+	BuildReasonInitiator BuildReason = "initiator"
 	BuildReasonAutostart BuildReason = "autostart"
 	BuildReasonAutostop  BuildReason = "autostop"
 )

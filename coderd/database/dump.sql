@@ -7,7 +7,7 @@ CREATE TYPE audit_action AS ENUM (
 );
 
 CREATE TYPE build_reason AS ENUM (
-    'member',
+    'initiator',
     'autostart',
     'autostop'
 );
@@ -318,7 +318,7 @@ CREATE TABLE workspace_builds (
     provisioner_state bytea,
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'member'::public.build_reason NOT NULL
+    reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
 CREATE TABLE workspace_resources (

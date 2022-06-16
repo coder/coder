@@ -490,7 +490,7 @@ export interface WorkspaceResource {
 }
 
 // From codersdk/workspacebuilds.go:22:6
-export type BuildReason = "autostart" | "autostop" | "member"
+export type BuildReason = "autostart" | "autostop" | "initiator"
 
 // From codersdk/provisionerdaemons.go:23:6
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
