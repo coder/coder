@@ -79,7 +79,7 @@ type ParameterSchema struct {
 // CreateParameterRequest is used to create a new parameter value for a scope.
 type CreateParameterRequest struct {
 	// CopyFromParameter allows copying the value of another parameter.
-	// The other param must share the same scope and scopeID for this to
+	// The other param must be related to the same template_id for this to
 	// succeed.
 	// No other fields are required if using this, as all fields will be copied
 	// from the other parameter.
