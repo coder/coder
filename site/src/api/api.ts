@@ -64,7 +64,7 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 }
 
 export const getUsers = async (): Promise<TypesGen.User[]> => {
-  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active,suspended")
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?q=status:active,suspended")
   return response.data
 }
 

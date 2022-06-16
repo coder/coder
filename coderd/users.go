@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -109,35 +110,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
-	var (
-		searchName    = r.URL.Query().Get("search")
-		statusFilters = r.URL.Query().Get("status")
-	)
-
-	statuses := make([]database.UserStatus, 0)
-
-	if statusFilters != "" {
-		// Split on commas if present to account for it being a list
-		for _, filter := range strings.Split(statusFilters, ",") {
-			switch database.UserStatus(filter) {
-			case database.UserStatusSuspended, database.UserStatusActive:
-				statuses = append(statuses, database.UserStatus(filter))
-			default:
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("%q is not a valid user status.", filter),
-					Validations: []httpapi.Error{
-						{Field: "status", Detail: "invalid status"},
-					},
-				})
-				return
-			}
-		}
-	}
-
-	// Reading all users across the site.
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
-		httpapi.Forbidden(rw)
-		return
+	query := r.URL.Query().Get("q")
+	params, errs := userSearchQuery(query)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid user search query.",
+			Validations: errs,
+		})
 	}
 
 	paginationParams, ok := parsePagination(rw, r)
@@ -149,8 +128,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		AfterID:   paginationParams.AfterID,
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
-		Search:    searchName,
-		Status:    statuses,
+		Search:    params.Search,
+		Status:    params.Status,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
@@ -164,6 +143,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	users = AuthorizeFilter(api, r, rbac.ActionRead, users)
 	userIDs := make([]uuid.UUID, 0, len(users))
 	for _, user := range users {
 		userIDs = append(userIDs, user.ID)
@@ -940,4 +920,56 @@ func findUser(id uuid.UUID, users []database.User) *database.User {
 		}
 	}
 	return nil
+}
+
+func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
+	searchParams := make(url.Values)
+	if query == "" {
+		// No filter
+		return database.GetUsersParams{}, nil
+	}
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	for _, element := range elements {
+		parts := splitQueryParameterByDelimiter(element, ':', false)
+		switch len(parts) {
+		case 1:
+			// No key:value pair.
+			searchParams.Set("search", parts[0])
+		case 2:
+			searchParams.Set(parts[0], parts[1])
+		default:
+			return database.GetUsersParams{}, []httpapi.Error{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
+		}
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetUsersParams{
+		Search: parser.String(searchParams, "", "search"),
+		Status: httpapi.ParseCustom(parser, searchParams, []database.UserStatus{database.UserStatusActive}, "status", parseUserStatus),
+	}
+
+	return filter, parser.Errors
+}
+
+// parseUserStatus ensures proper enums are used for user statuses
+func parseUserStatus(v string) ([]database.UserStatus, error) {
+	var statuses []database.UserStatus
+	if v == "" {
+		return statuses, nil
+	}
+	parts := strings.Split(v, ",")
+	for _, part := range parts {
+		switch database.UserStatus(part) {
+		case database.UserStatusActive, database.UserStatusSuspended:
+			statuses = append(statuses, database.UserStatus(part))
+		default:
+			return []database.UserStatus{}, xerrors.Errorf("%q is not a valid user status", part)
+		}
+	}
+	return statuses, nil
 }
