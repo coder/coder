@@ -1,1 +1,1 @@
-DROP TABLE site_config;
+DROP TABLE site_configs;

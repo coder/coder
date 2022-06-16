@@ -25,6 +25,10 @@ import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CloseDropdown, OpenDropdown } from "../../components/DropdownArrows/DropdownArrows"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
+import { Margins } from "../../components/Margins/Margins"
+import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipAction,
@@ -32,11 +36,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip"
-import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
+} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
@@ -51,9 +51,9 @@ export const Language = {
   filterName: "Filters",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
-  workspaceTooltipTitle: "What is workspace?",
+  workspaceTooltipTitle: "What is a workspace?",
   workspaceTooltipText:
-    "It is your workstation. It is a workspace that will provide you the necessary compute and access to your development environment.",
+    "A workspace is your development environment in the cloud. It includes the infrastructure and tools you need to work on your project.",
   workspaceTooltipLink1: "Create workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",

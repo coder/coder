@@ -356,7 +356,8 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			user := ConvertUser(dbUser)
 			// If it's the first user, we'll send the email!
 			if firstUser.ID == dbUser.ID {
-				user.Email = dbUser.Email
+				email := dbUser.Email
+				user.Email = &email
 			}
 			snapshot.Users = append(snapshot.Users, user)
 		}
@@ -505,7 +506,7 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 		ID:           app.ID,
 		CreatedAt:    app.CreatedAt,
 		AgentID:      app.AgentID,
-		Icon:         app.Icon != "",
+		Icon:         app.Icon,
 		RelativePath: app.RelativePath,
 	}
 }
@@ -617,10 +618,10 @@ type APIKey struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"uuid"`
+	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	// Email is only filled in for the first/admin user!
-	Email       string              `json:"email"`
+	Email       *string             `json:"email"`
 	EmailHashed string              `json:"email_hashed"`
 	RBACRoles   []string            `json:"rbac_roles"`
 	Status      database.UserStatus `json:"status"`
@@ -649,7 +650,7 @@ type WorkspaceApp struct {
 	ID           uuid.UUID `json:"id"`
 	CreatedAt    time.Time `json:"created_at"`
 	AgentID      uuid.UUID `json:"agent_id"`
-	Icon         bool      `json:"icon"`
+	Icon         string    `json:"icon"`
 	RelativePath bool      `json:"relative_path"`
 }
 
@@ -714,5 +715,5 @@ type ParameterSchema struct {
 
 type noopReporter struct{}
 
-func (n *noopReporter) Report(_ *Snapshot) {}
-func (n *noopReporter) Close()             {}
+func (*noopReporter) Report(_ *Snapshot) {}
+func (*noopReporter) Close()             {}

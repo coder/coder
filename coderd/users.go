@@ -89,7 +89,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	telemetryUser := telemetry.ConvertUser(user)
 	// Send the initial users email address!
-	telemetryUser.Email = user.Email
+	telemetryUser.Email = &user.Email
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetryUser},
 	})

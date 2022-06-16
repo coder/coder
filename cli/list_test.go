@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -30,13 +30,15 @@ func TestList(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		errC := make(chan error)
+		done := make(chan any)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC := cmd.ExecuteContext(ctx)
+			assert.NoError(t, errC)
+			close(done)
 		}()
 		pty.ExpectMatch(workspace.Name)
 		pty.ExpectMatch("Running")
 		cancelFunc()
-		require.NoError(t, <-errC)
+		<-done
 	})
 }

@@ -81,7 +81,7 @@ require (
 	github.com/hashicorp/terraform-exec v0.15.0
 	github.com/hashicorp/terraform-json v0.14.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
-	github.com/jedib0t/go-pretty/v6 v6.3.1
+	github.com/jedib0t/go-pretty/v6 v6.3.2
 	github.com/justinas/nosurf v1.1.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/lib/pq v1.10.6
@@ -99,7 +99,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.41
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
-	github.com/pkg/sftp v1.13.4
+	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.12.2
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
@@ -208,7 +208,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
-	github.com/nhatthm/otelsql v0.3.0
+	github.com/nhatthm/otelsql v0.3.3
 	github.com/niklasfasching/go-org v1.6.2 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -234,7 +234,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/spf13/afero v1.8.2 // indirect
+	github.com/spf13/afero v1.8.2
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
