@@ -1720,6 +1720,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
 		Deadline:          arg.Deadline,
+		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil

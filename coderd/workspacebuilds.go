@@ -439,6 +439,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransition(createBuild.Transition),
 			JobID:             provisionerJob.ID,
+			Reason:            database.BuildReasonMember,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)

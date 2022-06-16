@@ -224,6 +224,14 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job: %w", err)
 	}
+
+	var buildReason database.BuildReason
+	switch trans {
+	case database.WorkspaceTransitionStart:
+		buildReason = database.BuildReasonAutostart
+	case database.WorkspaceTransitionStop:
+		buildReason = database.BuildReasonAutostop
+	}
 	_, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 		ID:                workspaceBuildID,
 		CreatedAt:         now,
@@ -236,6 +244,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		InitiatorID:       workspace.OwnerID,
 		Transition:        trans,
 		JobID:             newProvisionerJob.ID,
+		Reason:            buildReason,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert workspace build: %w", err)

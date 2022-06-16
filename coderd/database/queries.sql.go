@@ -3278,7 +3278,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3305,12 +3305,13 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -3348,6 +3349,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
+			&i.Reason,
 		); err != nil {
 			return nil, err
 		}
@@ -3364,7 +3366,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3389,13 +3391,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3420,13 +3423,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3491,6 +3495,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
+			&i.Reason,
 		); err != nil {
 			return nil, err
 		}
@@ -3507,7 +3512,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3536,13 +3541,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
@@ -3571,6 +3577,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, 
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
@@ -3629,10 +3636,11 @@ INSERT INTO
 		initiator_id,
 		job_id,
 		provisioner_state,
-		deadline
+		deadline,
+		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -3648,6 +3656,7 @@ type InsertWorkspaceBuildParams struct {
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
+	Reason            BuildReason         `db:"reason" json:"reason"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
@@ -3664,6 +3673,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.JobID,
 		arg.ProvisionerState,
 		arg.Deadline,
+		arg.Reason,
 	)
 	var i WorkspaceBuild
 	err := row.Scan(
@@ -3679,6 +3689,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
+		&i.Reason,
 	)
 	return i, err
 }
