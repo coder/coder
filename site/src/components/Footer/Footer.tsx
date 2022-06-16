@@ -10,7 +10,7 @@ export const Language = {
     return `Coder ${buildInfo.version}`
   },
   copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`,
-  reportBugLink: "Report an issue ->",
+  reportBugLink: "Report an issue",
 }
 
 export const Footer: React.FC = ({ children }) => {
