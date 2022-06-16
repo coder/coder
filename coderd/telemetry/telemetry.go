@@ -37,12 +37,8 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	BuiltinPostgres bool
-	DeploymentID    string
-	// Disabled determines whether telemetry will be collected
-	// and sent. This allows callers to still execute the API
-	// without having to check whether it's enabled.
-	Disabled          bool
+	BuiltinPostgres   bool
+	DeploymentID      string
 	GitHubOAuth       bool
 	Prometheus        bool
 	STUN              bool
@@ -53,12 +49,7 @@ type Options struct {
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
-func New(options Options) (*Reporter, error) {
-	if options.Disabled {
-		return &Reporter{
-			options: options,
-		}, nil
-	}
+func New(options Options) (Reporter, error) {
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
 		options.SnapshotFrequency = 30 * time.Minute
@@ -73,7 +64,7 @@ func New(options Options) (*Reporter, error) {
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	reporter := &Reporter{
+	reporter := &remoteReporter{
 		ctx:           ctx,
 		closed:        make(chan struct{}),
 		closeFunc:     cancelFunc,
@@ -82,14 +73,26 @@ func New(options Options) (*Reporter, error) {
 		snapshotURL:   snapshotURL,
 		startedAt:     database.Now(),
 	}
-	if !options.Disabled {
-		go reporter.runSnapshotter()
-	}
+	go reporter.runSnapshotter()
 	return reporter, nil
 }
 
+// NewNoop creates a new telemetry reporter that entirely discards all requests.
+func NewNoop() Reporter {
+	return &noopReporter{}
+}
+
 // Reporter sends data to the telemetry server.
-type Reporter struct {
+type Reporter interface {
+	// Report sends a snapshot to the telemetry server.
+	// The contents of the snapshot can be a partial representation of the
+	// database. For example, if a new user is added, a snapshot can
+	// contain just that user entry.
+	Report(snapshot *Snapshot)
+	Close()
+}
+
+type remoteReporter struct {
 	ctx        context.Context
 	closed     chan struct{}
 	closeMutex sync.Mutex
@@ -102,14 +105,7 @@ type Reporter struct {
 	shutdownAt *time.Time
 }
 
-// Report sends a snapshot to the telemetry server.
-// The contents of the snapshot can be a partial representation of the
-// database. For example, if a new user is added, a snapshot can
-// contain just that user entry.
-func (r *Reporter) Report(snapshot *Snapshot) {
-	if r.options.Disabled {
-		return
-	}
+func (r *remoteReporter) Report(snapshot *Snapshot) {
 	snapshot.DeploymentID = r.options.DeploymentID
 
 	// Runs in a goroutine so it's non-blocking to callers!
@@ -140,10 +136,7 @@ func (r *Reporter) Report(snapshot *Snapshot) {
 	}()
 }
 
-func (r *Reporter) Close() {
-	if r.options.Disabled {
-		return
-	}
+func (r *remoteReporter) Close() {
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 	if r.isClosed() {
@@ -159,7 +152,7 @@ func (r *Reporter) Close() {
 	r.closeFunc()
 }
 
-func (r *Reporter) isClosed() bool {
+func (r *remoteReporter) isClosed() bool {
 	select {
 	case <-r.closed:
 		return true
@@ -168,7 +161,7 @@ func (r *Reporter) isClosed() bool {
 	}
 }
 
-func (r *Reporter) runSnapshotter() {
+func (r *remoteReporter) runSnapshotter() {
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
 	defer ticker.Stop()
@@ -192,7 +185,7 @@ func (r *Reporter) runSnapshotter() {
 	}
 }
 
-func (r *Reporter) reportWithDeployment() {
+func (r *remoteReporter) reportWithDeployment() {
 	// Submit deployment information before creating a snapshot!
 	// This is separated from the snapshot API call to reduce
 	// duplicate data from being inserted. Snapshot may be called
@@ -214,7 +207,7 @@ func (r *Reporter) reportWithDeployment() {
 }
 
 // deployment collects host information and reports it to the telemetry server.
-func (r *Reporter) deployment() error {
+func (r *remoteReporter) deployment() error {
 	sysInfoHost, err := sysinfo.Host()
 	if err != nil {
 		return xerrors.Errorf("get host info: %w", err)
@@ -269,7 +262,7 @@ func (r *Reporter) deployment() error {
 }
 
 // createSnapshot collects a full snapshot from the database.
-func (r *Reporter) createSnapshot() (*Snapshot, error) {
+func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
 		ctx = r.ctx
 		// For resources that grow in size very quickly (like workspace builds),
@@ -315,17 +308,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Templates = make([]Template, 0, len(templates))
 		for _, dbTemplate := range templates {
-			snapshot.Templates = append(snapshot.Templates, Template{
-				ID:              dbTemplate.ID,
-				CreatedBy:       dbTemplate.CreatedBy,
-				CreatedAt:       dbTemplate.CreatedAt,
-				UpdatedAt:       dbTemplate.UpdatedAt,
-				OrganizationID:  dbTemplate.OrganizationID,
-				Deleted:         dbTemplate.Deleted,
-				ActiveVersionID: dbTemplate.ActiveVersionID,
-				Name:            dbTemplate.Name,
-				Description:     dbTemplate.Description != "",
-			})
+			snapshot.Templates = append(snapshot.Templates, ConvertTemplate(dbTemplate))
 		}
 		return nil
 	})
@@ -336,16 +319,7 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.TemplateVersions = make([]TemplateVersion, 0, len(templateVersions))
 		for _, version := range templateVersions {
-			snapVersion := TemplateVersion{
-				ID:             version.ID,
-				CreatedAt:      version.CreatedAt,
-				OrganizationID: version.OrganizationID,
-				JobID:          version.JobID,
-			}
-			if version.TemplateID.Valid {
-				snapVersion.TemplateID = &version.TemplateID.UUID
-			}
-			snapshot.TemplateVersions = append(snapshot.TemplateVersions, snapVersion)
+			snapshot.TemplateVersions = append(snapshot.TemplateVersions, ConvertTemplateVersion(version))
 		}
 		return nil
 	})
@@ -356,6 +330,9 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		var firstUser database.User
 		for _, dbUser := range users {
+			if dbUser.Status != database.UserStatusActive {
+				continue
+			}
 			if firstUser.CreatedAt.IsZero() {
 				firstUser = dbUser
 			}
@@ -365,20 +342,8 @@ func (r *Reporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Users = make([]User, 0, len(users))
 		for _, dbUser := range users {
-			emailHashed := ""
-			atSymbol := strings.LastIndex(dbUser.Email, "@")
-			if atSymbol >= 0 {
-				// We hash the beginning of the user to allow for indexing users
-				// by email between deployments.
-				hash := sha256.Sum256([]byte(dbUser.Email[:atSymbol]))
-				emailHashed = fmt.Sprintf("%x%s", hash[:], dbUser.Email[atSymbol:])
-			}
-			user := User{
-				ID:          dbUser.ID,
-				EmailHashed: emailHashed,
-				RBACRoles:   dbUser.RBACRoles,
-				CreatedAt:   dbUser.CreatedAt,
-			}
+			user := ConvertUser(dbUser)
+			// If it's the first user, we'll send the email!
 			if firstUser.ID == dbUser.ID {
 				user.Email = dbUser.Email
 			}
@@ -533,6 +498,53 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 	}
 }
 
+// ConvertUser anonymizes a user.
+func ConvertUser(dbUser database.User) User {
+	emailHashed := ""
+	atSymbol := strings.LastIndex(dbUser.Email, "@")
+	if atSymbol >= 0 {
+		// We hash the beginning of the user to allow for indexing users
+		// by email between deployments.
+		hash := sha256.Sum256([]byte(dbUser.Email[:atSymbol]))
+		emailHashed = fmt.Sprintf("%x%s", hash[:], dbUser.Email[atSymbol:])
+	}
+	return User{
+		ID:          dbUser.ID,
+		EmailHashed: emailHashed,
+		RBACRoles:   dbUser.RBACRoles,
+		CreatedAt:   dbUser.CreatedAt,
+	}
+}
+
+// ConvertTemplate anonymizes a template.
+func ConvertTemplate(dbTemplate database.Template) Template {
+	return Template{
+		ID:              dbTemplate.ID,
+		CreatedBy:       dbTemplate.CreatedBy,
+		CreatedAt:       dbTemplate.CreatedAt,
+		UpdatedAt:       dbTemplate.UpdatedAt,
+		OrganizationID:  dbTemplate.OrganizationID,
+		Deleted:         dbTemplate.Deleted,
+		ActiveVersionID: dbTemplate.ActiveVersionID,
+		Name:            dbTemplate.Name,
+		Description:     dbTemplate.Description != "",
+	}
+}
+
+// ConvertTemplateVersion anonymizes a template version.
+func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
+	snapVersion := TemplateVersion{
+		ID:             version.ID,
+		CreatedAt:      version.CreatedAt,
+		OrganizationID: version.OrganizationID,
+		JobID:          version.JobID,
+	}
+	if version.TemplateID.Valid {
+		snapVersion.TemplateID = &version.TemplateID.UUID
+	}
+	return snapVersion
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -668,3 +680,8 @@ type ParameterSchema struct {
 	Name                string    `json:"name"`
 	ValidationCondition string    `json:"validation_condition"`
 }
+
+type noopReporter struct{}
+
+func (n *noopReporter) Report(_ *Snapshot) {}
+func (n *noopReporter) Close()             {}

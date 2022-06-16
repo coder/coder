@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -456,6 +457,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
+	})
 
 	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace, workspaceBuild, templateVersionJob, template,
 		findUser(apiKey.UserID, users), findUser(workspaceBuild.InitiatorID, users)))

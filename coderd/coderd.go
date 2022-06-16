@@ -55,7 +55,7 @@ type Options struct {
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	Telemetry            *telemetry.Reporter
+	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 }
