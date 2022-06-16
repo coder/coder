@@ -9,4 +9,4 @@ maintained, please submit a pull request to improve this list. Thank you!
 
 ## Contents
 
-- [[Example cloud provider]](https://github.com/...) (by @ user)
+- [ntimo/coder-hetzner-cloud-template](https://github.com/ntimo/coder-hetzner-cloud-template) - Setup a Hetzner Cloud instance as dev environment with or without vscode.
