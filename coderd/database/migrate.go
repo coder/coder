@@ -48,6 +48,9 @@ func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 // MigrateUp runs SQL migrations to ensure the database schema is up-to-date.
 func MigrateUp(db *sql.DB) (retErr error) {
 	_, m, err := migrateSetup(db)
+	if err != nil {
+		return xerrors.Errorf("migrate setup: %w", err)
+	}
 	defer func() {
 		srcErr, dbErr := m.Close()
 		if retErr != nil {
@@ -59,9 +62,6 @@ func MigrateUp(db *sql.DB) (retErr error) {
 		}
 		retErr = srcErr
 	}()
-	if err != nil {
-		return xerrors.Errorf("migrate setup: %w", err)
-	}
 
 	err = m.Up()
 	if err != nil {
