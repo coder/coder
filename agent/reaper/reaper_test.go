@@ -1,6 +1,7 @@
 package reaper_test
 
 import (
+	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -19,6 +20,9 @@ func TestReap(t *testing.T) {
 		t.Skip("I'm a child!")
 	}
 
+	// OK checks that's the reaper is successfully reaping
+	// exited processes and passing the PIDs through the shared
+	// channel.
 	t.Run("OK", func(t *testing.T) {
 		pids := make(reap.PidCh, 1)
 		err := reaper.ForkReap(pids)
@@ -41,11 +45,14 @@ func TestReap(t *testing.T) {
 		expectedPIDs := []int{cmd.Process.Pid, cmd2.Process.Pid}
 
 		deadline := time.NewTimer(time.Second * 5)
-		select {
-		case <-deadline.C:
-			t.Fatalf("Timed out waiting for process")
-		case pid := <-pids:
-			require.Contains(t, expectedPIDs, pid)
+		for i := 0; i < len(expectedPIDs); i++ {
+			select {
+			case <-deadline.C:
+				t.Fatalf("Timed out waiting for process")
+			case pid := <-pids:
+				fmt.Println("pid: ", pid)
+				require.Contains(t, expectedPIDs, pid)
+			}
 		}
 	})
 }

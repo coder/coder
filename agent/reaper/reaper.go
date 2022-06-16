@@ -13,7 +13,7 @@ import (
 // to indicated that the process is a child as opposed to the reaper.
 // Since we are forkexec'ing we need to be able to differentiate between
 // the two to avoid fork bombing ourselves.
-const agentEnvMark = "CODER_AGENT"
+const agentEnvMark = "CODER_REAPER_AGENT"
 
 // IsChild returns true if we're the forked process.
 func IsChild() bool {
@@ -29,6 +29,8 @@ func IsInitProcess() bool {
 // complications with spawning `exec.Commands` in the same process that
 // is reaping, we forkexec a child process. This prevents a race between
 // the reaper and an exec.Command waiting for its process to complete.
+// The provided 'pids' channel may be nil if the caller does not care about the
+// reaped children PIDs.
 func ForkReap(pids reap.PidCh) error {
 	// Check if the process is the parent or the child.
 	// If it's the child we want to skip attempting to reap.
