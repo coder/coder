@@ -56,7 +56,7 @@ func TestServer(t *testing.T) {
 			assert.NoError(t, err)
 			client = codersdk.New(accessURL)
 			return true
-		}, 15*time.Second, 25*time.Millisecond)
+		}, time.Minute, 50*time.Millisecond)
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 			Email:            "some@one.com",
 			Username:         "example",
