@@ -221,7 +221,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	}
 
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
-		valuesBySchemaID := map[string]codersdk.TemplateVersionParameter{}
+		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
