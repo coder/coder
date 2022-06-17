@@ -120,9 +120,6 @@ As a starting point, see the [jetbrains-container](https://github.com/bpmct/code
 - WebStorm
 - ➕ code-server (just in case!)
 
-## JupyterHub
-
-
 ## Custom IDEs and applications
 
 As long as the process is running on the specified port inside your resource, you support any application.
