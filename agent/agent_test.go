@@ -181,8 +181,12 @@ func TestAgent(t *testing.T) {
 		}
 		output, err := session.Output(command)
 		require.NoError(t, err)
+		expect := ""
+		if runtime.GOOS == "windows" {
+			expect = "%EXAMPLE%"
+		}
 		// Output should be empty, because the variable is not set!
-		require.Equal(t, "", strings.TrimSpace(string(output)))
+		require.Equal(t, expect, strings.TrimSpace(string(output)))
 	})
 
 	t.Run("StartupScript", func(t *testing.T) {
