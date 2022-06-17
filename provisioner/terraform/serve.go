@@ -48,6 +48,7 @@ func getAbsoluteBinaryPath(ctx context.Context) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+
 	// If the "coder" binary is in the same directory as
 	// the "terraform" binary, "terraform" is returned.
 	//
@@ -57,13 +58,17 @@ func getAbsoluteBinaryPath(ctx context.Context) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+
 	// Checking the installed version of Terraform.
 	version, err := versionFromBinaryPath(ctx, absoluteBinary)
 	if err != nil {
 		return "", false
-	} else if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
+	}
+
+	if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
 		return "", false
 	}
+
 	return absoluteBinary, true
 }
 

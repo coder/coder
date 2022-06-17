@@ -12,45 +12,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint:paralleltest
 func Test_getAbsoluteBinaryPath(t *testing.T) {
-	t.Parallel()
 	type args struct {
 		ctx context.Context
 	}
 	tests := []struct {
-		name                   string
-		args                   args
-		terraformVersion       string
-		expectedAbsoluteBinary string
-		expectedOk             bool
+		name             string
+		args             args
+		terraformVersion string
+		expectedOk       bool
 	}{
 		{
-			name:                   "TestCorrectVersion",
-			args:                   args{ctx: context.Background()},
-			terraformVersion:       "1.1.9",
-			expectedAbsoluteBinary: "",
-			expectedOk:             true,
+			name:             "TestCorrectVersion",
+			args:             args{ctx: context.Background()},
+			terraformVersion: "1.1.9",
+			expectedOk:       true,
 		},
 		{
-			name:                   "TestOldVersion",
-			args:                   args{ctx: context.Background()},
-			terraformVersion:       "1.0.9",
-			expectedAbsoluteBinary: "",
-			expectedOk:             false,
+			name:             "TestOldVersion",
+			args:             args{ctx: context.Background()},
+			terraformVersion: "1.0.9",
+			expectedOk:       false,
 		},
 		{
-			name:                   "TestNewVersion",
-			args:                   args{ctx: context.Background()},
-			terraformVersion:       "1.2.9",
-			expectedAbsoluteBinary: "",
-			expectedOk:             false,
+			name:             "TestNewVersion",
+			args:             args{ctx: context.Background()},
+			terraformVersion: "1.2.9",
+			expectedOk:       false,
 		},
 		{
-			name:                   "TestMalformedVersion",
-			args:                   args{ctx: context.Background()},
-			terraformVersion:       "version",
-			expectedAbsoluteBinary: "",
-			expectedOk:             false,
+			name:             "TestMalformedVersion",
+			args:             args{ctx: context.Background()},
+			terraformVersion: "version",
+			expectedOk:       false,
 		},
 	}
 	// nolint:paralleltest
@@ -84,21 +79,18 @@ func Test_getAbsoluteBinaryPath(t *testing.T) {
 			pathVariable := os.Getenv("PATH")
 			t.Setenv("PATH", strings.Join([]string{tempDir, pathVariable}, ":"))
 
+			var expectedAbsoluteBinary string
 			if tt.expectedOk {
-				tt.expectedAbsoluteBinary = filepath.Join(tempDir, "terraform")
+				expectedAbsoluteBinary = filepath.Join(tempDir, "terraform")
 			}
 
 			actualAbsoluteBinary, actualOk := getAbsoluteBinaryPath(tt.args.ctx)
-			if actualAbsoluteBinary != tt.expectedAbsoluteBinary {
-				t.Errorf("getAbsoluteBinaryPath() absoluteBinaryPath, actual = %v, expected %v", actualAbsoluteBinary, tt.expectedAbsoluteBinary)
+			if actualAbsoluteBinary != expectedAbsoluteBinary {
+				t.Errorf("getAbsoluteBinaryPath() absoluteBinaryPath, actual = %v, expected %v", actualAbsoluteBinary, expectedAbsoluteBinary)
 			}
 			if actualOk != tt.expectedOk {
 				t.Errorf("getAbsoluteBinaryPath() ok, actual = %v, expected %v", actualOk, tt.expectedOk)
 			}
-
-			t.Cleanup(func() {
-				t.Setenv("PATH", pathVariable)
-			})
 		})
 	}
 }
