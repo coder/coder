@@ -138,6 +138,7 @@ func configSSH() *cobra.Command {
 	var (
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
+		usePreviousOpts  bool
 		coderConfigFile  string
 		showDiff         bool
 		skipProxyCommand bool
@@ -218,7 +219,9 @@ func configSSH() *cobra.Command {
 
 			// Avoid prompting in diff mode (unexpected behavior)
 			// or when a previous config does not exist.
-			if !showDiff && lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
+			if usePreviousOpts && lastConfig != nil {
+				sshConfigOpts = *lastConfig
+			} else if !showDiff && lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
@@ -394,10 +397,13 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&showDiff, "diff", "D", false, "Show diff of changes that will be made.")
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
+	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
 
 	// Deprecated: Remove after migration period.
 	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("test.ssh-coder-config-file")
+
+	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
 }

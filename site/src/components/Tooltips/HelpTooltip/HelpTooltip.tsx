@@ -3,7 +3,7 @@ import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
-import React, { createContext, useContext, useState } from "react"
+import React, { createContext, useContext, useRef, useState } from "react"
 import { Stack } from "../../Stack/Stack"
 
 type Icon = typeof HelpIcon
@@ -29,31 +29,36 @@ const useHelpTooltip = () => {
 
 export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size = "medium" }) => {
   const styles = useStyles({ size })
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
-  open = open ?? Boolean(anchorEl)
-  const id = open ? "help-popover" : undefined
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(!!open)
+  const id = isOpen ? "help-popover" : undefined
 
   const onClose = () => {
-    setAnchorEl(null)
+    setIsOpen(false)
   }
 
   return (
     <>
       <button
+        ref={anchorRef}
         aria-describedby={id}
         className={styles.button}
         onClick={(event) => {
           event.stopPropagation()
-          setAnchorEl(event.currentTarget)
+          setIsOpen(true)
+        }}
+        onMouseEnter={() => {
+          setIsOpen(true)
         }}
       >
         <HelpIcon className={styles.icon} />
       </button>
       <Popover
+        className={styles.popover}
         classes={{ paper: styles.popoverPaper }}
         id={id}
-        open={open}
-        anchorEl={anchorEl}
+        open={isOpen}
+        anchorEl={anchorRef.current}
         onClose={onClose}
         anchorOrigin={{
           vertical: "bottom",
@@ -63,8 +68,16 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
           vertical: "top",
           horizontal: "left",
         }}
+        PaperProps={{
+          onMouseEnter: () => {
+            setIsOpen(true)
+          },
+          onMouseLeave: () => {
+            setIsOpen(false)
+          },
+        }}
       >
-        <HelpTooltipContext.Provider value={{ open, onClose }}>{children}</HelpTooltipContext.Provider>
+        <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>{children}</HelpTooltipContext.Provider>
       </Popover>
     </>
   )
@@ -166,11 +179,16 @@ const useStyles = makeStyles((theme) => ({
     height: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
   },
 
+  popover: {
+    pointerEvents: "none",
+  },
+
   popoverPaper: {
     marginTop: theme.spacing(0.5),
     width: theme.spacing(38),
     padding: theme.spacing(2.5),
     color: theme.palette.text.secondary,
+    pointerEvents: "auto",
   },
 
   title: {
