@@ -13,6 +13,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -39,9 +40,21 @@ func Open() (string, func(), error) {
 		}
 
 		dbName = "ci" + dbName
-		_, err = db.Exec("CREATE DATABASE " + dbName)
-		if err != nil {
-			return "", nil, xerrors.Errorf("create db: %w", err)
+		if os.Getenv("DB_FROM") == "" {
+			_, err = db.Exec("CREATE DATABASE " + dbName)
+			if err != nil {
+				return "", nil, xerrors.Errorf("create db: %w", err)
+			}
+
+			err = database.MigrateUp(db)
+			if err != nil {
+				return "", nil, xerrors.Errorf("migrate db: %w", err)
+			}
+		} else {
+			_, err = db.Exec("CREATE DATABASE " + dbName + " WITH TEMPLATE " + os.Getenv("DB_FROM"))
+			if err != nil {
+				return "", nil, xerrors.Errorf("create db with template: %w", err)
+			}
 		}
 
 		deleteDB := func() {
@@ -74,7 +87,7 @@ func Open() (string, func(), error) {
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
-		Tag:        "11",
+		Tag:        "13",
 		Env: []string{
 			"POSTGRES_PASSWORD=postgres",
 			"POSTGRES_USER=postgres",

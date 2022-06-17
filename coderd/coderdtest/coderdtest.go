@@ -115,8 +115,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
-		err = database.MigrateUp(sqlDB)
-		require.NoError(t, err)
 		db = database.New(sqlDB)
 
 		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)

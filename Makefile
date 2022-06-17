@@ -112,14 +112,6 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 test: test-clean
 	gotestsum -- -v -short ./...
 
-.PHONY: test-postgres
-test-postgres: test-clean
-	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
-          -coverpkg=./...,github.com/coder/coder/codersdk \
-          -count=1 -race -failfast
-
-
 .PHONY: test-postgres-docker
 test-postgres-docker:
 	docker run \
@@ -131,7 +123,7 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart unless-stopped \
 		--detach \
-		postgres:11 \
+		postgres:13 \
 		-c shared_buffers=1GB \
 		-c max_connections=1000
 
