@@ -60,6 +60,47 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry, lifetime_seconds FROM api_keys WHERE last_used > $1
+`
+
+func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysLastUsedAfter, lastUsed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthIDToken,
+			&i.OAuthExpiry,
+			&i.LifetimeSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
@@ -845,6 +886,50 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const getParameterSchemasCreatedAfter = `-- name: GetParameterSchemasCreatedAfter :many
+SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type FROM parameter_schemas WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error) {
+	rows, err := q.db.QueryContext(ctx, getParameterSchemasCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ParameterSchema
+	for rows.Next() {
+		var i ParameterSchema
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Name,
+			&i.Description,
+			&i.DefaultSourceScheme,
+			&i.DefaultSourceValue,
+			&i.AllowOverrideSource,
+			&i.DefaultDestinationScheme,
+			&i.AllowOverrideDestination,
+			&i.DefaultRefresh,
+			&i.RedisplayValue,
+			&i.ValidationError,
+			&i.ValidationCondition,
+			&i.ValidationTypeSystem,
+			&i.ValidationValueType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertParameterSchema = `-- name: InsertParameterSchema :one
 INSERT INTO
 	parameter_schemas (
@@ -1470,6 +1555,49 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 	return items, nil
 }
 
+const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id FROM provisioner_jobs WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.StorageSource,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
 INSERT INTO
 	provisioner_jobs (
@@ -1601,6 +1729,26 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
+const getDeploymentID = `-- name: GetDeploymentID :one
+SELECT value FROM site_configs WHERE key = 'deployment_id'
+`
+
+func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentID)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const insertDeploymentID = `-- name: InsertDeploymentID :exec
+INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
+`
+
+func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by
@@ -1669,6 +1817,46 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.CreatedBy,
 	)
 	return i, err
+}
+
+const getTemplates = `-- name: GetTemplates :many
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by FROM templates
+`
+
+func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Template
+	for rows.Next() {
+		var i Template
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
+			&i.Description,
+			&i.MaxTtl,
+			&i.MinAutostartInterval,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
@@ -2013,6 +2201,42 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersion
+	for rows.Next() {
+		var i TemplateVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Readme,
+			&i.JobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id FROM template_versions WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionsCreatedAfter, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -2715,6 +2939,51 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 	return items, nil
 }
 
+const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory FROM workspace_agents WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.StartupScript,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
 INSERT INTO
 	workspace_agents (
@@ -2889,6 +3158,42 @@ SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM wo
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Url,
+			&i.RelativePath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsCreatedAfter, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -3270,6 +3575,46 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, 
 	return i, err
 }
 
+const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
+SELECT id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, deadline FROM workspace_builds WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuild
+	for rows.Next() {
+		var i WorkspaceBuild
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.BuildNumber,
+			&i.Transition,
+			&i.InitiatorID,
+			&i.ProvisionerState,
+			&i.JobID,
+			&i.Deadline,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :one
 INSERT INTO
 	workspace_builds (
@@ -3400,6 +3745,40 @@ WHERE
 
 func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResource
+	for rows.Next() {
+		var i WorkspaceResource
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Transition,
+			&i.Type,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
+SELECT id, created_at, job_id, transition, type, name FROM workspace_resources WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesCreatedAfter, createdAt)
 	if err != nil {
 		return nil, err
 	}
@@ -3570,56 +3949,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 	return items, nil
 }
 
-const getWorkspacesAutostart = `-- name: GetWorkspacesAutostart :many
-SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
-FROM
-	workspaces
-WHERE
-	deleted = false
-AND
-(
-	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
-	OR
-	(ttl IS NOT NULL AND ttl > 0)
-)
-`
-
-func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesAutostart)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspacesWithFilter = `-- name: GetWorkspacesWithFilter :many
+const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
     id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
@@ -3661,7 +3991,7 @@ WHERE
 	END
 `
 
-type GetWorkspacesWithFilterParams struct {
+type GetWorkspacesParams struct {
 	Deleted       bool        `db:"deleted" json:"deleted"`
 	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
 	OwnerUsername string      `db:"owner_username" json:"owner_username"`
@@ -3670,8 +4000,8 @@ type GetWorkspacesWithFilterParams struct {
 	Name          string      `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter,
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaces,
 		arg.Deleted,
 		arg.OwnerID,
 		arg.OwnerUsername,
@@ -3679,6 +4009,55 @@ func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspa
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.Ttl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesAutostart = `-- name: GetWorkspacesAutostart :many
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+(
+	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
+	OR
+	(ttl IS NOT NULL AND ttl > 0)
+)
+`
+
+func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesAutostart)
 	if err != nil {
 		return nil, err
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/wsconncache"
@@ -54,6 +55,7 @@ type Options struct {
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 }

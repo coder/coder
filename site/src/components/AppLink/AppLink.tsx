@@ -16,7 +16,15 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
   const href = `/@${userName}/${workspaceName}/apps/${appName}`
 
   return (
-    <Link href={href} target="_blank" className={styles.link}>
+    <Link
+      href={href}
+      target="_blank"
+      className={styles.link}
+      onClick={(event) => {
+        event.preventDefault()
+        window.open(href, appName, "width=900,height=600")
+      }}
+    >
       <img
         className={combineClasses([styles.icon, appIcon === "" ? "empty" : ""])}
         alt={`${appName} Icon`}

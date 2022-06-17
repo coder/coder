@@ -40,13 +40,6 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 
 When a workspace is deleted, all of the workspace's resources are deleted.
 
-## Dotfiles
-
-Users can install configuration from a personal [dotfiles
-repository](https://dotfiles.github.io) with the `coder dotfiles <repo>` command
-in their workspace. Templates can also prompt users for their dotfiles repo
-[(example)](../examples/templates/docker-with-dotfiles/README.md#how-it-works).
-
 ## Updating workspaces
 
 Use the following command to update a workspace to the latest template version.
@@ -58,4 +51,7 @@ coder update <workspace-name>
 
 ---
 
-Next: [IDEs](./ides.md)
+## Up next
+
+- Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
+- Learn about using [IDEs](./ides.md)
