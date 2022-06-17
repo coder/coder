@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -85,6 +86,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	telemetryUser := telemetry.ConvertUser(user)
+	// Send the initial users email address!
+	telemetryUser.Email = &user.Email
+	api.Telemetry.Report(&telemetry.Snapshot{
+		Users: []telemetry.User{telemetryUser},
+	})
 
 	// TODO: @emyrk this currently happens outside the database tx used to create
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
@@ -251,6 +259,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Report when users are added!
+	api.Telemetry.Report(&telemetry.Snapshot{
+		Users: []telemetry.User{telemetry.ConvertUser(user)},
+	})
 
 	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
 }

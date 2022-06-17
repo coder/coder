@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
 
 	"cloud.google.com/go/compute/metadata"
@@ -166,6 +167,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
+		Telemetry:            telemetry.NewNoop(),
 	})
 	srv.Config.Handler = coderAPI.Handler
 	if options.IncludeProvisionerD {

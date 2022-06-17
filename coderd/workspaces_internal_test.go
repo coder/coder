@@ -15,18 +15,18 @@ func TestSearchWorkspace(t *testing.T) {
 	testCases := []struct {
 		Name                  string
 		Query                 string
-		Expected              database.GetWorkspacesWithFilterParams
+		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
 	}{
 		{
 			Name:     "Empty",
 			Query:    "",
-			Expected: database.GetWorkspacesWithFilterParams{},
+			Expected: database.GetWorkspacesParams{},
 		},
 		{
 			Name:  "Owner/Name",
 			Query: "Foo/Bar",
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				OwnerUsername: "Foo",
 				Name:          "Bar",
 			},
@@ -34,14 +34,14 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:  "Name",
 			Query: "workspace-name",
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name: "workspace-name",
 			},
 		},
 		{
 			Name:  "Name+Param",
 			Query: "workspace-name template:docker",
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name:         "workspace-name",
 				TemplateName: "docker",
 			},
@@ -49,7 +49,7 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:  "OnlyParams",
 			Query: "name:workspace-name template:docker owner:alice",
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name:          "workspace-name",
 				TemplateName:  "docker",
 				OwnerUsername: "alice",
@@ -58,7 +58,7 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:  "QuotedParam",
 			Query: `name:workspace-name template:"docker template" owner:alice`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name:          "workspace-name",
 				TemplateName:  "docker template",
 				OwnerUsername: "alice",
@@ -67,7 +67,7 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:  "QuotedKey",
 			Query: `"name":baz "template":foo "owner":bar`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name:          "baz",
 				TemplateName:  "foo",
 				OwnerUsername: "bar",
@@ -77,34 +77,34 @@ func TestSearchWorkspace(t *testing.T) {
 			// This will not return an error
 			Name:     "ExtraKeys",
 			Query:    `foo:bar`,
-			Expected: database.GetWorkspacesWithFilterParams{},
+			Expected: database.GetWorkspacesParams{},
 		},
 		{
 			// Quotes keep elements together
 			Name:  "QuotedSpecial",
 			Query: `name:"workspace:name"`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name: "workspace:name",
 			},
 		},
 		{
 			Name:  "QuotedMadness",
 			Query: `"name":"foo:bar:baz/baz/zoo:zonk"`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name: "foo:bar:baz/baz/zoo:zonk",
 			},
 		},
 		{
 			Name:  "QuotedName",
 			Query: `"foo/bar"`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name: "foo/bar",
 			},
 		},
 		{
 			Name:  "QuotedOwner/Name",
 			Query: `"foo"/"bar"`,
-			Expected: database.GetWorkspacesWithFilterParams{
+			Expected: database.GetWorkspacesParams{
 				Name:          "bar",
 				OwnerUsername: "foo",
 			},
