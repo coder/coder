@@ -34,6 +34,9 @@ FROM
 WHERE
 	resource_id = ANY(@ids :: uuid [ ]);
 
+-- name: GetWorkspaceAgentsCreatedAfter :many
+SELECT * FROM workspace_agents WHERE created_at > $1;
+
 -- name: InsertWorkspaceAgent :one
 INSERT INTO
 	workspace_agents (

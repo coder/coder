@@ -54,6 +54,7 @@ require (
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
+	github.com/elastic/go-sysinfo v1.8.0
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
 	github.com/fergusstrange/embedded-postgres v1.16.0
@@ -134,8 +135,11 @@ require github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 
 require (
 	github.com/agnivade/levenshtein v1.0.1 // indirect
+	github.com/elastic/go-windows v1.0.0 // indirect
+	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.4 // indirect
 	github.com/yuin/goldmark v1.4.12 // indirect
+	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
 
 require (

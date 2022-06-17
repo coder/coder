@@ -18,6 +18,9 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceBuildsCreatedAfter :many
+SELECT * FROM workspace_builds WHERE created_at > $1;
+
 -- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
 	*

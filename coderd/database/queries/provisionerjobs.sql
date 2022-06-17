@@ -46,6 +46,9 @@ FROM
 WHERE
 	id = ANY(@ids :: uuid [ ]);
 
+-- name: GetProvisionerJobsCreatedAfter :many
+SELECT * FROM provisioner_jobs WHERE created_at > $1;
+
 -- name: InsertProvisionerJob :one
 INSERT INTO
 	provisioner_jobs (

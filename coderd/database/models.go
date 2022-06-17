@@ -426,6 +426,11 @@ type ProvisionerJobLog struct {
 	Output    string    `db:"output" json:"output"`
 }
 
+type SiteConfig struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
 type Template struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
 	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
