@@ -1,9 +1,6 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import { useActor } from "@xstate/react"
-import React, { useContext } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { XServiceContext } from "../../xServices/StateContext"
 
 export const Language = {
   buildInfoText: (buildInfo: TypesGen.BuildInfoResponse): string => {
@@ -13,28 +10,25 @@ export const Language = {
   reportBugLink: "Report an issue",
 }
 
-export const Footer: React.FC = ({ children }) => {
+export interface FooterProps {
+  buildInfo?: TypesGen.BuildInfoResponse
+}
+
+export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
   const styles = useFooterStyles()
-  const xServices = useContext(XServiceContext)
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
-  const githubUrl = `https://github.com/coder/coder/issues/new?labels=bug,needs+grooming&title=Bug+in+${buildInfoState.context.buildInfo?.version}:&template=external_bug_report.md`
+
+  const githubUrl = `https://github.com/coder/coder/issues/new?labels=bug,needs+grooming&title=Bug+in+${buildInfo?.version}:&template=external_bug_report.md`
 
   return (
     <div className={styles.root}>
-      {children}
       <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
         &#129714;&nbsp;{Language.reportBugLink}
       </Link>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
-      {buildInfoState.context.buildInfo && (
+      {buildInfo && (
         <div className={styles.buildInfo}>
-          <Link
-            className={styles.link}
-            variant="caption"
-            target="_blank"
-            href={buildInfoState.context.buildInfo.external_url}
-          >
-            {Language.buildInfoText(buildInfoState.context.buildInfo)}
+          <Link className={styles.link} variant="caption" target="_blank" href={buildInfo.external_url}>
+            {Language.buildInfoText(buildInfo)}
           </Link>
         </div>
       )}

@@ -1,5 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { useActor } from "@xstate/react"
+import { FC, useContext } from "react"
+import { XServiceContext } from "../../xServices/StateContext"
 import { Footer } from "../Footer/Footer"
 import { Navbar } from "../Navbar/Navbar"
 import { RequireAuth } from "../RequireAuth/RequireAuth"
@@ -13,13 +15,16 @@ interface AuthAndFrameProps {
  */
 export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   const styles = useStyles()
+  const xServices = useContext(XServiceContext)
+
+  const [buildInfoState] = useActor(xServices.buildInfoXService)
 
   return (
     <RequireAuth>
       <div className={styles.site}>
         <Navbar />
         <div className={styles.siteContent}>{children}</div>
-        <Footer />
+        <Footer buildInfo={buildInfoState.context.buildInfo} />
       </div>
     </RequireAuth>
   )
