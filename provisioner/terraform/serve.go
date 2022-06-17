@@ -2,10 +2,7 @@ package terraform
 
 import (
 	"context"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
@@ -19,8 +16,9 @@ import (
 
 // This is the exact version of Terraform used internally
 // when Terraform is missing on the system.
-const terraformVersion = "1.1.9"
-const versionDelimiter = "."
+var terraformVersion = version.Must(version.NewVersion("1.1.9"))
+var minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
+var maxTerraformVersion = version.Must(version.NewVersion("1.2.0"))
 
 var (
 	// The minimum version of Terraform supported by the provisioner.
@@ -63,25 +61,10 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("absolute: %w", err)
 			}
 			// Checking the installed version of Terraform.
-			output, err := exec.Command(absoluteBinary, "version").Output()
+			version, err := versionFromBinaryPath(ctx, absoluteBinary)
 			if err != nil {
-				return xerrors.Errorf("terraform version: %w", err)
-			}
-			// The output for `terraform version` is:
-			// Terraform v1.2.1
-			// on linux_amd64
-			versionRegex := regexp.MustCompile("Terraform v(.+)\n?.*")
-			match := versionRegex.FindStringSubmatch(string(output))
-			if match != nil {
-				// match[0] is the entire string.
-				// match[1] is the matched substring.
-				version := match[1]
-				terraformMinorVersion := strings.Join(strings.Split(terraformVersion, versionDelimiter)[:2], versionDelimiter)
-				if !strings.HasPrefix(version, terraformMinorVersion) {
-					downloadTerraform = true
-				}
-			} else {
-				// Download the required Terraform version when unable to determine the existing one.
+				downloadTerraform = true
+			} else if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
 				downloadTerraform = true
 			}
 			if !downloadTerraform {
@@ -92,7 +75,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
-				Version:    version.Must(version.NewVersion(terraformVersion)),
+				Version:    terraformVersion,
 			}
 
 			execPath, err := installer.Install(ctx)

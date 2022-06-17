@@ -118,6 +118,21 @@ func (e executor) version(ctx context.Context) (*version.Version, error) {
 	return version.NewVersion(vj.Version)
 }
 
+func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
+	// #nosec
+	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	vj := tfjson.VersionOutput{}
+	err = json.Unmarshal(out, &vj)
+	if err != nil {
+		return nil, err
+	}
+	return version.NewVersion(vj.Version)
+}
+
 func (e executor) init(ctx context.Context, logr logger) error {
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
