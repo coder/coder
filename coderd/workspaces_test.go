@@ -33,8 +33,10 @@ func TestWorkspace(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		_, err := client.Workspace(context.Background(), workspace.ID)
+		ws, err := client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
+		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
+		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
 	})
 
 	t.Run("Deleted", func(t *testing.T) {
