@@ -59,7 +59,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	tun, tnet, err := netstack.CreateNetTUN(
 		[]netip.Addr{netip.AddrFrom16(cfg.ID)},
 		[]netip.Addr{netip.AddrFrom4([4]byte{1, 1, 1, 1})},
-		1420,
+		1280,
 	)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create net TUN: %w", err)

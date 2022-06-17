@@ -1,6 +1,6 @@
-# Examples
+# Templates
 
-List examples in our CLI with `coder templates init`.
+List template examples in our CLI with `coder templates init`.
 
 > [Submit an issue](https://github.com/coder/coder/issues/new) if you encounter any issues!
 
@@ -13,3 +13,7 @@ git clone https://github.com/coder/coder
 cd examples/templates/aws-macos
 coder templates create
 ```
+
+## Community Templates
+
+See the list of [Community Templates](./community-templates.md).

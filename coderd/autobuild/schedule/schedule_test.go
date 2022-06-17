@@ -22,6 +22,7 @@ func Test_Weekly(t *testing.T) {
 		expectedCron       string
 		expectedLocation   *time.Location
 		expectedString     string
+		expectedTime       string
 	}{
 		{
 			name:               "with timezone",
@@ -34,6 +35,7 @@ func Test_Weekly(t *testing.T) {
 			expectedCron:       "30 9 * * 1-5",
 			expectedLocation:   mustLocation(t, "US/Central"),
 			expectedString:     "CRON_TZ=US/Central 30 9 * * 1-5",
+			expectedTime:       "9:30AM",
 		},
 		{
 			name:               "without timezone",
@@ -46,6 +48,7 @@ func Test_Weekly(t *testing.T) {
 			expectedCron:       "30 9 * * 1-5",
 			expectedLocation:   time.UTC,
 			expectedString:     "CRON_TZ=UTC 30 9 * * 1-5",
+			expectedTime:       "9:30AM",
 		},
 		{
 			name:               "convoluted with timezone",
@@ -58,6 +61,7 @@ func Test_Weekly(t *testing.T) {
 			expectedCron:       "*/5 12-18 * * 1,3,6",
 			expectedLocation:   mustLocation(t, "US/Central"),
 			expectedString:     "CRON_TZ=US/Central */5 12-18 * * 1,3,6",
+			expectedTime:       "cron(*/5 12-18)",
 		},
 		{
 			name:               "another convoluted example",
@@ -70,6 +74,7 @@ func Test_Weekly(t *testing.T) {
 			expectedCron:       "10,20,40-50 * * * *",
 			expectedLocation:   mustLocation(t, "US/Central"),
 			expectedString:     "CRON_TZ=US/Central 10,20,40-50 * * * *",
+			expectedTime:       "cron(10,20,40-50 *)",
 		},
 		{
 			name:          "time.Local will bite you",
