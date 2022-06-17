@@ -4,9 +4,9 @@ description: Quickly stand up Coder using Lima
 tags: [local, docker, vm, lima]
 ---
 
-# Lima VM Template
+# Run Coder in Lima
 
-This provides a [Lima](https://github.com/lima-vm/lima) template for Coder.
+This provides a sample [Lima](https://github.com/lima-vm/lima) configuration for Coder.
 This lets you quickly test out Coder in a self-contained environment.
 
 > Prerequisite: You must have `lima` installed and available to use this.
@@ -18,7 +18,7 @@ This lets you quickly test out Coder in a self-contained environment.
 
 This will:
 - Start an Ubuntu 22.04 VM
-- Install Docker from the official repos
+- Install Docker and Terraform from the official repos
 - Install Coder using the [installation script](https://coder.com/docs/coder-oss/latest/install#installsh)
 - Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
 - Initializes a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker-code-server) for creating workspaces

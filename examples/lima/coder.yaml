@@ -112,7 +112,7 @@ probes:
       exit 1
     fi
   hint: |
-    See "/var/log/cloud-init-output.log". in the guest
+    See "/var/log/cloud-init-output.log" in the guest.
 - description: "coder to be installed"
   script: |
     #!/bin/bash
@@ -122,12 +122,12 @@ probes:
       exit 1
     fi
   hint: |
-    See "/var/log/cloud-init-output.log". in the guest
+    See "/var/log/cloud-init-output.log" in the guest.
 message: |
   All Done! Your Coder instance is accessible at http://localhost:3000
   
   Username: "admin@coder.com"
-  Password: `LIMA_INSTANCE=coder lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
+  Password: Run `LIMA_INSTANCE=coder lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
 
   Get started creating your own template now:
   ------
