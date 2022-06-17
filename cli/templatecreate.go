@@ -229,15 +229,6 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
-		missingSchemas := make([]codersdk.ParameterSchema, 0)
-		for _, parameterSchema := range parameterSchemas {
-			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
-			if ok {
-				continue
-			}
-			missingSchemas = append(missingSchemas, parameterSchema)
-		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
@@ -248,15 +239,39 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 				return nil, nil, err
 			}
 		}
-		for _, parameterSchema := range missingSchemas {
-			// If the value is in the file, skip trying to reuse the param
+
+		// pulled params come from the last template version
+		pulled := make([]string, 0)
+		missingSchemas := make([]codersdk.ParameterSchema, 0)
+		for _, parameterSchema := range parameterSchemas {
+			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
+			if ok {
+				continue
+			}
+
+			// The file values are handled below. So don't handle them here,
+			// just check if a value is present in the file.
 			_, fileOk := parameterMapFromFile[parameterSchema.Name]
 			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok && !fileOk {
+				// If the value is not in the param file, and can be pulled from the last template version,
+				// then don't mark it as missing.
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					CopyFromParameter: inherit.ID,
 				})
+				pulled = append(pulled, fmt.Sprintf("%q", parameterSchema.Name))
 				continue
 			}
+
+			missingSchemas = append(missingSchemas, parameterSchema)
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
+		if len(pulled) > 0 {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
+		}
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\r\n")
+
+		for _, parameterSchema := range missingSchemas {
 			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err

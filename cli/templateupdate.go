@@ -20,6 +20,7 @@ func templateUpdate() *cobra.Command {
 		directory     string
 		provisioner   string
 		parameterFile string
+		alwaysPrompt  bool
 	)
 
 	cmd := &cobra.Command{
@@ -73,7 +74,7 @@ func templateUpdate() *cobra.Command {
 				FileHash:        resp.Hash,
 				ParameterFile:   parameterFile,
 				Template:        &template,
-				ReuseParameters: true,
+				ReuseParameters: !alwaysPrompt,
 			})
 			if err != nil {
 				return err
@@ -107,6 +108,7 @@ func templateUpdate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
+	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
 	cliui.AllowSkipPrompt(cmd)
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
