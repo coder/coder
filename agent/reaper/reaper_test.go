@@ -3,6 +3,7 @@
 package reaper_test
 
 import (
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -15,6 +16,13 @@ import (
 
 func TestReap(t *testing.T) {
 	t.Parallel()
+
+	// Don't run the reaper test in CI. It does weird
+	// things like forkexecing which may have unintended
+	// consequences in CI.
+	if _, ok := os.LookupEnv("CI"); ok {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
 
 	// Because we're forkexecing these tests will try to run twice...
 	if reaper.IsChild() {
