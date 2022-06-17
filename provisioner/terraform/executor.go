@@ -104,18 +104,7 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 }
 
 func (e executor) version(ctx context.Context) (*version.Version, error) {
-	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, "version", "-json")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	vj := tfjson.VersionOutput{}
-	err = json.Unmarshal(out, &vj)
-	if err != nil {
-		return nil, err
-	}
-	return version.NewVersion(vj.Version)
+	return versionFromBinaryPath(ctx, e.binaryPath)
 }
 
 func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {

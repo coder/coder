@@ -43,35 +43,38 @@ type ServeOptions struct {
 	Logger     slog.Logger
 }
 
+func getAbsoluteBinaryPath(ctx context.Context) (string, bool) {
+	binaryPath, err := safeexec.LookPath("terraform")
+	if err != nil {
+		return "", false
+	}
+	// If the "coder" binary is in the same directory as
+	// the "terraform" binary, "terraform" is returned.
+	//
+	// We must resolve the absolute path for other processes
+	// to execute this properly!
+	absoluteBinary, err := filepath.Abs(binaryPath)
+	if err != nil {
+		return "", false
+	}
+	// Checking the installed version of Terraform.
+	version, err := versionFromBinaryPath(ctx, absoluteBinary)
+	if err != nil {
+		return "", false
+	} else if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
+		return "", false
+	}
+	return absoluteBinary, true
+}
+
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
-		binaryPath, err := safeexec.LookPath("terraform")
-		var downloadTerraform bool
-		if err != nil {
-			downloadTerraform = true
+		absoluteBinary, ok := getAbsoluteBinaryPath(ctx)
+
+		if ok {
+			options.BinaryPath = absoluteBinary
 		} else {
-			// If the "coder" binary is in the same directory as
-			// the "terraform" binary, "terraform" is returned.
-			//
-			// We must resolve the absolute path for other processes
-			// to execute this properly!
-			absoluteBinary, err := filepath.Abs(binaryPath)
-			if err != nil {
-				return xerrors.Errorf("absolute: %w", err)
-			}
-			// Checking the installed version of Terraform.
-			version, err := versionFromBinaryPath(ctx, absoluteBinary)
-			if err != nil {
-				downloadTerraform = true
-			} else if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
-				downloadTerraform = true
-			}
-			if !downloadTerraform {
-				options.BinaryPath = absoluteBinary
-			}
-		}
-		if downloadTerraform {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
