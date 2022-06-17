@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 
@@ -66,6 +68,8 @@ type fakeQuerier struct {
 	workspaceBuilds         []database.WorkspaceBuild
 	workspaceApps           []database.WorkspaceApp
 	workspaces              []database.Workspace
+
+	deploymentID string
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -762,18 +766,18 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 	parameterValues := make([]database.ParameterValue, 0)
 	for _, parameterValue := range q.parameterValues {
 		if len(arg.Scopes) > 0 {
-			if !contains(arg.Scopes, parameterValue.Scope) {
+			if !slice.Contains(arg.Scopes, parameterValue.Scope) {
 				continue
 			}
 		}
 		if len(arg.ScopeIds) > 0 {
-			if !contains(arg.ScopeIds, parameterValue.ScopeID) {
+			if !slice.Contains(arg.ScopeIds, parameterValue.ScopeID) {
 				continue
 			}
 		}
 
 		if len(arg.Ids) > 0 {
-			if !contains(arg.Ids, parameterValue.ID) {
+			if !slice.Contains(arg.Ids, parameterValue.ID) {
 				continue
 			}
 		}
@@ -2114,14 +2118,4 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
-}
-
-
-func contains[T comparable](haystack []T, needle T) bool {
-	for _, hay := range haystack {
-		if needle == hay {
-			return true
-		}
-	}
-	return false
 }

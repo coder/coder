@@ -45,7 +45,6 @@ func parameterList() *cobra.Command {
 					return xerrors.Errorf("get workspace template: %w", err)
 				}
 				scopeID = template.ID
-
 			case codersdk.ParameterImportJob, "template_version":
 				scope = string(codersdk.ParameterImportJob)
 				scopeID, err = uuid.Parse(name)
