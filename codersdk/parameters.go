@@ -83,7 +83,7 @@ type CreateParameterRequest struct {
 	// succeed.
 	// No other fields are required if using this, as all fields will be copied
 	// from the other parameter.
-	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:"uuid4"`
+	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:""`
 
 	Name              string                     `json:"name" validate:"required"`
 	SourceValue       string                     `json:"source_value" validate:"required"`
