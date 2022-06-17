@@ -84,14 +84,16 @@ provision:
     # Ensure coder starts on boot
     systemctl enable coder
     systemctl start coder
+    # Wait for Coder to have downloaded Terraform
+    timeout 60s bash -c 'until /var/cache/coder/terraform version >/dev/null 2>&1; do sleep 1; done'
+    # Coder restarts after downloading Terraform, wait for it to become available
+    timeout 60s bash -c 'until nc -z localhost 3000 > /dev/null 2>&1; do sleep 1; done'
 - mode: user
   script: |
     #!/bin/bash
     set -eux -o pipefail
     # If we are already logged in, nothing to do
     coder templates list >/dev/null 2>&1 && exit 0
-    # Wait for Coder to become available
-    timeout 30s bash -c 'until nc -z localhost 3000; do sleep 1; done'
     # Set up initial user
     [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --username admin --email admin@coder.com --password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c8 | tee ${HOME}/.config/coderv2/password)
     # Create an initial template
