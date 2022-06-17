@@ -17,6 +17,9 @@ support should work:
   - RubyMine
   - WebStorm
 
+> See [Congifuring IDEs](./templates/configuring-ides.md) to learn how to 
+> add any web IDE (e.g. code-server, JetBrains projector) to your templates.
+
 ## SSH configuration
 
 > Before proceeding, run `coder login <accessURL>` if you haven't already to
@@ -142,3 +145,7 @@ Please note that:
 
 1. When your IDE download is complete, JetBrains will prompt you for your
    license. When done, you'll be able to use your IDE.
+
+## Web IDEs
+
+Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./templates/configuring-ides.md).
