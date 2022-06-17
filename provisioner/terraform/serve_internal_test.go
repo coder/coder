@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -55,6 +56,10 @@ func Test_getAbsoluteBinaryPath(t *testing.T) {
 	// nolint:paralleltest
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
+			}
+
 			// Create a temp dir with the binary
 			tempDir := t.TempDir()
 			terraformBinaryOutput := fmt.Sprintf(`#!/bin/sh
