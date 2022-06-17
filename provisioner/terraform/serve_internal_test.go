@@ -90,6 +90,10 @@ func Test_getAbsoluteBinaryPath(t *testing.T) {
 			if actualOk != tt.expectedOk {
 				t.Errorf("getAbsoluteBinaryPath() ok, actual = %v, expected %v", actualOk, tt.expectedOk)
 			}
+
+			t.Cleanup(func() {
+				t.Setenv("PATH", pathVariable)
+			})
 		})
 	}
 }
