@@ -84,14 +84,6 @@ func templateUpdate() *cobra.Command {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "Confirm create?",
-				IsConfirm: true,
-			})
-			if err != nil {
-				return err
-			}
-
 			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 				ID: job.ID,
 			})
