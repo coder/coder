@@ -14,6 +14,6 @@ func IsInitProcess() bool {
 	return false
 }
 
-func ForkReap(pids reap.PidCh) error {
+func ForkReap(_ reap.PidCh) error {
 	return nil
 }

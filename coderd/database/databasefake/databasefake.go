@@ -18,33 +18,54 @@ import (
 // New returns an in-memory fake of the database.
 func New() database.Store {
 	return &fakeQuerier{
-		apiKeys:             make([]database.APIKey, 0),
-		organizationMembers: make([]database.OrganizationMember, 0),
-		organizations:       make([]database.Organization, 0),
-		users:               make([]database.User, 0),
+		mutex: &sync.RWMutex{},
+		data: &data{
+			apiKeys:             make([]database.APIKey, 0),
+			organizationMembers: make([]database.OrganizationMember, 0),
+			organizations:       make([]database.Organization, 0),
+			users:               make([]database.User, 0),
 
-		auditLogs:               make([]database.AuditLog, 0),
-		files:                   make([]database.File, 0),
-		gitSSHKey:               make([]database.GitSSHKey, 0),
-		parameterSchemas:        make([]database.ParameterSchema, 0),
-		parameterValues:         make([]database.ParameterValue, 0),
-		provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
-		provisionerJobAgents:    make([]database.WorkspaceAgent, 0),
-		provisionerJobLogs:      make([]database.ProvisionerJobLog, 0),
-		provisionerJobResources: make([]database.WorkspaceResource, 0),
-		provisionerJobs:         make([]database.ProvisionerJob, 0),
-		templateVersions:        make([]database.TemplateVersion, 0),
-		templates:               make([]database.Template, 0),
-		workspaceBuilds:         make([]database.WorkspaceBuild, 0),
-		workspaceApps:           make([]database.WorkspaceApp, 0),
-		workspaces:              make([]database.Workspace, 0),
+			auditLogs:               make([]database.AuditLog, 0),
+			files:                   make([]database.File, 0),
+			gitSSHKey:               make([]database.GitSSHKey, 0),
+			parameterSchemas:        make([]database.ParameterSchema, 0),
+			parameterValues:         make([]database.ParameterValue, 0),
+			provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
+			provisionerJobAgents:    make([]database.WorkspaceAgent, 0),
+			provisionerJobLogs:      make([]database.ProvisionerJobLog, 0),
+			provisionerJobResources: make([]database.WorkspaceResource, 0),
+			provisionerJobs:         make([]database.ProvisionerJob, 0),
+			templateVersions:        make([]database.TemplateVersion, 0),
+			templates:               make([]database.Template, 0),
+			workspaceBuilds:         make([]database.WorkspaceBuild, 0),
+			workspaceApps:           make([]database.WorkspaceApp, 0),
+			workspaces:              make([]database.Workspace, 0),
+		},
 	}
 }
 
+type rwMutex interface {
+	Lock()
+	RLock()
+	Unlock()
+	RUnlock()
+}
+
+// inTxMutex is a no op, since inside a transaction we are already locked.
+type inTxMutex struct{}
+
+func (inTxMutex) Lock()    {}
+func (inTxMutex) RLock()   {}
+func (inTxMutex) Unlock()  {}
+func (inTxMutex) RUnlock() {}
+
 // fakeQuerier replicates database functionality to enable quick testing.
 type fakeQuerier struct {
-	mutex sync.RWMutex
+	mutex rwMutex
+	*data
+}
 
+type data struct {
 	// Legacy tables
 	apiKeys             []database.APIKey
 	organizations       []database.Organization
@@ -73,7 +94,9 @@ type fakeQuerier struct {
 
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
-	return fn(q)
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
 }
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
