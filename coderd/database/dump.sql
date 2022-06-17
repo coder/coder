@@ -393,9 +393,6 @@ ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
 
 ALTER TABLE ONLY templates
-    ADD CONSTRAINT templates_organization_id_name_key UNIQUE (organization_id, name);
-
-ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
@@ -446,7 +443,7 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text));
+CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
