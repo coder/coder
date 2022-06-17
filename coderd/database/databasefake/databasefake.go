@@ -54,10 +54,10 @@ type rwMutex interface {
 // inTxMutex is a no op, since inside a transaction we are already locked.
 type inTxMutex struct{}
 
-func (_ *inTxMutex) Lock()    {}
-func (_ *inTxMutex) RLock()   {}
-func (_ *inTxMutex) Unlock()  {}
-func (_ *inTxMutex) RUnlock() {}
+func (inTxMutex) Lock()    {}
+func (inTxMutex) RLock()   {}
+func (inTxMutex) Unlock()  {}
+func (inTxMutex) RUnlock() {}
 
 // fakeQuerier replicates database functionality to enable quick testing.
 type fakeQuerier struct {
@@ -96,7 +96,7 @@ type data struct {
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	return fn(&fakeQuerier{mutex: &inTxMutex{}, data: q.data})
+	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
 }
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
