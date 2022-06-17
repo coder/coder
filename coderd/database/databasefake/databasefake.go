@@ -8,12 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/util/slice"
-
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // New returns an in-memory fake of the database.

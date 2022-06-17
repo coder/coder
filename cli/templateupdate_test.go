@@ -29,6 +29,7 @@ func TestTemplateUpdate(t *testing.T) {
 	//	6. Creates a new version with 0 params
 	//	7. Asset 0 params in new version
 	t.Run("NewParameter", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		// Create initial template version to update
@@ -107,6 +108,7 @@ func TestTemplateUpdate(t *testing.T) {
 	})
 
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

@@ -640,8 +640,8 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		jobID := uuid.New()
 		inherits := make([]uuid.UUID, 0)
 		for _, parameterValue := range req.ParameterValues {
-			if parameterValue.CopyFromParameter != uuid.Nil {
-				inherits = append(inherits, parameterValue.CopyFromParameter)
+			if parameterValue.CloneID != uuid.Nil {
+				inherits = append(inherits, parameterValue.CloneID)
 			}
 		}
 
@@ -681,7 +681,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		for _, parameterValue := range req.ParameterValues {
-			if parameterValue.CopyFromParameter != uuid.Nil {
+			if parameterValue.CloneID != uuid.Nil {
 				continue
 			}
 

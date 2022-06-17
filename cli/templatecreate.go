@@ -256,7 +256,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 				// If the value is not in the param file, and can be pulled from the last template version,
 				// then don't mark it as missing.
 				parameters = append(parameters, codersdk.CreateParameterRequest{
-					CopyFromParameter: inherit.ID,
+					CloneID: inherit.ID,
 				})
 				pulled = append(pulled, fmt.Sprintf("%q", parameterSchema.Name))
 				continue
