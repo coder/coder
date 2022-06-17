@@ -446,6 +446,54 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				{match: "Continue?", write: "no"},
 			},
 		},
+		{
+			name: "Do not prompt when using --yes",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-option=ForwardAgent=yes",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					// Last options overwritten.
+					baseHeader,
+					"",
+				}, "\n"),
+			},
+			args: []string{"--yes"},
+		},
+		{
+			name: "Do not prompt for new options when prev opts flag is set",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-option=ForwardAgent=yes",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-option=ForwardAgent=yes",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--use-previous-options",
+				"--yes",
+			},
+		},
 
 		// Tests for deprecated split coder config.
 		{
