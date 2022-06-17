@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"io"
 	"os"
 	"testing"
 
@@ -196,6 +197,53 @@ func TestTemplateCreate(t *testing.T) {
 
 		require.EqualError(t, <-execDone, "Parameter value absent in parameter file for \"region\"!")
 		removeTmpDirUntilSuccess(t, tempDir)
+	})
+
+	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		coderdtest.CreateFirstUser(t, client)
+
+		create := func() error {
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:     echo.ParseComplete,
+				Provision: provisionCompleteWithAgent,
+			})
+			args := []string{
+				"templates",
+				"create",
+				"my-template",
+				"--yes",
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+			}
+			cmd, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+
+			return cmd.Execute()
+		}
+		del := func() error {
+			args := []string{
+				"templates",
+				"delete",
+				"my-template",
+			}
+			cmd, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+
+			return cmd.Execute()
+		}
+
+		err := create()
+		require.NoError(t, err, "Template must be created without error")
+		err = del()
+		require.NoError(t, err, "Template must be deleted without error")
+		err = create()
+		require.NoError(t, err, "Template must be recreated without error")
 	})
 }
 
