@@ -127,13 +127,17 @@ test-postgres-docker:
 		--env POSTGRES_USER=postgres \
 		--env POSTGRES_DB=postgres \
 		--env PGDATA=/tmp \
+		--tmpfs /tmp \
 		--publish 5432:5432 \
 		--name test-postgres-docker \
-		--restart unless-stopped \
+		--restart no \
 		--detach \
 		postgres:11 \
 		-c shared_buffers=1GB \
-		-c max_connections=1000
+		-c max_connections=1000 \
+		-c fsync=off \
+		-c synchronous_commit=off \
+		-c full_page_writes=off
 
 .PHONY: test-clean
 test-clean:
