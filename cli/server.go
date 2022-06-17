@@ -403,11 +403,6 @@ func server() *cobra.Command {
 				errCh <- wg.Wait()
 			}()
 
-			// This is helpful for tests, but can be silently ignored.
-			// Coder may be ran as users that don't have permission to write in the homedir,
-			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
-
 			hasFirstUser, err := client.HasFirstUser(cmd.Context())
 			if !hasFirstUser && err == nil {
 				cmd.Println()
@@ -437,6 +432,12 @@ func server() *cobra.Command {
 			stopChan := make(chan os.Signal, 1)
 			defer signal.Stop(stopChan)
 			signal.Notify(stopChan, os.Interrupt)
+
+			// This is helpful for tests, but can be silently ignored.
+			// Coder may be ran as users that don't have permission to write in the homedir,
+			// such as via the systemd service.
+			_ = config.URL().Write(client.URL.String())
+
 			select {
 			case <-cmd.Context().Done():
 				coderAPI.Close()
