@@ -23,7 +23,7 @@ export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
   return (
     <div className={styles.root}>
       <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
-        <AssistantIcon className={styles.visibilityIcon} /> {Language.reportBugLink}
+        <AssistantIcon className={styles.assistantIcon} /> {Language.reportBugLink}
       </Link>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
@@ -59,7 +59,7 @@ const useFooterStyles = makeStyles((theme) => ({
     alignItems: "center",
     justifyContent: "center",
   },
-  visibilityIcon: {
+  assistantIcon: {
     fontSize: 12,
     color: theme.palette.secondary.dark,
     marginRight: theme.spacing(0.5),
