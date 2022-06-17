@@ -96,7 +96,7 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCP
 		},
 	})
 	go func() {
-		err = server.Serve(ctx, serverSession)
+		err := server.Serve(ctx, serverSession)
 		if err != nil && !xerrors.Is(err, io.EOF) {
 			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		}

@@ -559,9 +559,16 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	err = api.Database.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
-		ID:              template.ID,
-		ActiveVersionID: req.ID,
+
+	err = api.Database.InTx(func(store database.Store) error {
+		err = store.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
+			ID:              template.ID,
+			ActiveVersionID: req.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("update active version: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -631,7 +638,53 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var provisionerJob database.ProvisionerJob
 	err = api.Database.InTx(func(db database.Store) error {
 		jobID := uuid.New()
+		inherits := make([]uuid.UUID, 0)
 		for _, parameterValue := range req.ParameterValues {
+			if parameterValue.CloneID != uuid.Nil {
+				inherits = append(inherits, parameterValue.CloneID)
+			}
+		}
+
+		// Expand inherited params
+		if len(inherits) > 0 {
+			if req.TemplateID == uuid.Nil {
+				return xerrors.Errorf("cannot inherit parameters if template_id is not set")
+			}
+
+			inheritedParams, err := db.ParameterValues(r.Context(), database.ParameterValuesParams{
+				Ids: inherits,
+			})
+			if err != nil {
+				return xerrors.Errorf("fetch inherited params: %w", err)
+			}
+			for _, copy := range inheritedParams {
+				// This is a bit inefficient, as we make a new db call for each
+				// param.
+				version, err := db.GetTemplateVersionByJobID(r.Context(), copy.ScopeID)
+				if err != nil {
+					return xerrors.Errorf("fetch template version for param %q: %w", copy.Name, err)
+				}
+				if !version.TemplateID.Valid || version.TemplateID.UUID != req.TemplateID {
+					return xerrors.Errorf("cannot inherit parameters from other templates")
+				}
+				if copy.Scope != database.ParameterScopeImportJob {
+					return xerrors.Errorf("copy parameter scope is %q, must be %q", copy.Scope, database.ParameterScopeImportJob)
+				}
+				// Add the copied param to the list to process
+				req.ParameterValues = append(req.ParameterValues, codersdk.CreateParameterRequest{
+					Name:              copy.Name,
+					SourceValue:       copy.SourceValue,
+					SourceScheme:      codersdk.ParameterSourceScheme(copy.SourceScheme),
+					DestinationScheme: codersdk.ParameterDestinationScheme(copy.DestinationScheme),
+				})
+			}
+		}
+
+		for _, parameterValue := range req.ParameterValues {
+			if parameterValue.CloneID != uuid.Nil {
+				continue
+			}
+
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
