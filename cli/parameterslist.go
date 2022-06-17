@@ -45,16 +45,23 @@ func parameterList() *cobra.Command {
 					return xerrors.Errorf("get workspace template: %w", err)
 				}
 				scopeID = template.ID
-
-			case codersdk.ParameterScopeImportJob, "template_version":
-				scope = string(codersdk.ParameterScopeImportJob)
+			case codersdk.ParameterImportJob, "template_version":
+				scope = string(codersdk.ParameterImportJob)
 				scopeID, err = uuid.Parse(name)
 				if err != nil {
 					return xerrors.Errorf("%q must be a uuid for this scope type", name)
 				}
+
+				// Could be a template_version id or a job id. Check for the
+				// version id.
+				tv, err := client.TemplateVersion(cmd.Context(), scopeID)
+				if err == nil {
+					scopeID = tv.Job.ID
+				}
+
 			default:
 				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
-					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterScopeImportJob,
+					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterImportJob,
 				})
 			}
 

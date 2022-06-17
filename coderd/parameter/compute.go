@@ -61,9 +61,9 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	}
 
 	// Job parameters come second!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeImportJob,
-		ScopeID: scope.TemplateImportJobID,
+	err = compute.injectScope(ctx, database.ParameterValuesParams{
+		Scopes:   []database.ParameterScope{database.ParameterScopeImportJob},
+		ScopeIds: []uuid.UUID{scope.TemplateImportJobID},
 	})
 	if err != nil {
 		return nil, err
@@ -105,9 +105,9 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 
 	if scope.TemplateID.Valid {
 		// Template parameters come third!
-		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-			Scope:   database.ParameterScopeTemplate,
-			ScopeID: scope.TemplateID.UUID,
+		err = compute.injectScope(ctx, database.ParameterValuesParams{
+			Scopes:   []database.ParameterScope{database.ParameterScopeTemplate},
+			ScopeIds: []uuid.UUID{scope.TemplateID.UUID},
 		})
 		if err != nil {
 			return nil, err
@@ -116,9 +116,9 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 
 	if scope.WorkspaceID.Valid {
 		// Workspace parameters come last!
-		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-			Scope:   database.ParameterScopeWorkspace,
-			ScopeID: scope.WorkspaceID.UUID,
+		err = compute.injectScope(ctx, database.ParameterValuesParams{
+			Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+			ScopeIds: []uuid.UUID{scope.WorkspaceID.UUID},
 		})
 		if err != nil {
 			return nil, err
@@ -148,13 +148,13 @@ type compute struct {
 }
 
 // Validates and computes the value for parameters; setting the value on "parameterByName".
-func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParameterValuesByScopeParams) error {
-	scopedParameters, err := c.db.GetParameterValuesByScope(ctx, scopeParams)
+func (c *compute) injectScope(ctx context.Context, scopeParams database.ParameterValuesParams) error {
+	scopedParameters, err := c.db.ParameterValues(ctx, scopeParams)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scope, err)
+		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scopes, err)
 	}
 
 	for _, scopedParameter := range scopedParameters {

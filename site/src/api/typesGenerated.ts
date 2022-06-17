@@ -51,6 +51,7 @@ export interface CreateOrganizationRequest {
 
 // From codersdk/parameters.go:80:6
 export interface CreateParameterRequest {
+  readonly copy_from_parameter?: string
   readonly name: string
   readonly source_value: string
   readonly source_scheme: ParameterSourceScheme

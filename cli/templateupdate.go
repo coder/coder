@@ -10,14 +10,17 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
 
 func templateUpdate() *cobra.Command {
 	var (
-		directory   string
-		provisioner string
+		directory     string
+		provisioner   string
+		parameterFile string
+		alwaysPrompt  bool
 	)
 
 	cmd := &cobra.Command{
@@ -64,42 +67,30 @@ func templateUpdate() *cobra.Command {
 			}
 			spin.Stop()
 
-			before := time.Now()
-			templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
-				TemplateID:    template.ID,
-				StorageMethod: codersdk.ProvisionerStorageMethodFile,
-				StorageSource: resp.Hash,
-				Provisioner:   codersdk.ProvisionerType(provisioner),
+			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+				Client:          client,
+				Organization:    organization,
+				Provisioner:     database.ProvisionerType(provisioner),
+				FileHash:        resp.Hash,
+				ParameterFile:   parameterFile,
+				Template:        &template,
+				ReuseParameters: !alwaysPrompt,
 			})
 			if err != nil {
 				return err
 			}
-			logs, err := client.TemplateVersionLogsAfter(cmd.Context(), templateVersion.ID, before)
-			if err != nil {
-				return err
-			}
-			for {
-				log, ok := <-logs
-				if !ok {
-					break
-				}
-				_, _ = fmt.Printf("%s (%s): %s\n", provisioner, log.Level, log.Output)
-			}
-			templateVersion, err = client.TemplateVersion(cmd.Context(), templateVersion.ID)
-			if err != nil {
-				return err
-			}
 
-			if templateVersion.Job.Status != codersdk.ProvisionerJobSucceeded {
-				return xerrors.Errorf("job failed: %s", templateVersion.Job.Error)
+			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
+				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
 			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-				ID: templateVersion.ID,
+				ID: job.ID,
 			})
 			if err != nil {
 				return err
 			}
+
 			_, _ = fmt.Printf("Updated version!\n")
 			return nil
 		},
@@ -108,6 +99,8 @@ func templateUpdate() *cobra.Command {
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
+	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
+	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
 	cliui.AllowSkipPrompt(cmd)
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
