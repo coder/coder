@@ -259,7 +259,7 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		t.Cleanup(server.Close)
 
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--telemetry-url", server.URL)
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--telemetry", "--telemetry-url", server.URL)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
