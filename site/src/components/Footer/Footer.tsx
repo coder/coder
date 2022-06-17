@@ -1,5 +1,6 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import AssistantIcon from "@material-ui/icons/Assistant"
 import * as TypesGen from "../../api/typesGenerated"
 
 export const Language = {
@@ -7,7 +8,7 @@ export const Language = {
     return `Coder ${buildInfo.version}`
   },
   copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`,
-  reportBugLink: "Report an issue",
+  reportBugLink: "Report an issue or share feedback",
 }
 
 export interface FooterProps {
@@ -22,7 +23,7 @@ export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
   return (
     <div className={styles.root}>
       <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
-        &#129714;&nbsp;{Language.reportBugLink}
+        <AssistantIcon className={styles.visibilityIcon} /> {Language.reportBugLink}
       </Link>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
@@ -54,5 +55,13 @@ const useFooterStyles = makeStyles((theme) => ({
   link: {
     color: theme.palette.text.secondary,
     fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  visibilityIcon: {
+    fontSize: 12,
+    color: theme.palette.secondary.dark,
+    marginRight: theme.spacing(0.5),
   },
 }))
