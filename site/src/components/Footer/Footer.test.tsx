@@ -5,7 +5,7 @@ import { Footer, Language } from "./Footer"
 describe("Footer", () => {
   it("renders content", async () => {
     // When
-    render(<Footer />)
+    render(<Footer buildInfo={MockBuildInfo} />)
 
     // Then
     await screen.findByText("Copyright", { exact: false })
