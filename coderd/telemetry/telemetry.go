@@ -106,34 +106,34 @@ type remoteReporter struct {
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
-	snapshot.DeploymentID = r.options.DeploymentID
+	go r.reportSync(snapshot)
+}
 
-	// Runs in a goroutine so it's non-blocking to callers!
-	go func() {
-		data, err := json.Marshal(snapshot)
-		if err != nil {
-			r.options.Logger.Error(r.ctx, "marshal snapshot: %w", slog.Error(err))
-			return
-		}
-		req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
-		if err != nil {
-			r.options.Logger.Error(r.ctx, "create request", slog.Error(err))
-			return
-		}
-		req.Header.Set(VersionHeader, buildinfo.Version())
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			// If the request fails it's not necessarily an error.
-			// In an airgapped environment, it's fine if this fails!
-			r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
-			return
-		}
-		if resp.StatusCode != http.StatusAccepted {
-			r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
-			return
-		}
-		r.options.Logger.Debug(r.ctx, "submitted snapshot")
-	}()
+func (r *remoteReporter) reportSync(snapshot *Snapshot) {
+	snapshot.DeploymentID = r.options.DeploymentID
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		r.options.Logger.Error(r.ctx, "marshal snapshot: %w", slog.Error(err))
+		return
+	}
+	req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
+	if err != nil {
+		r.options.Logger.Error(r.ctx, "create request", slog.Error(err))
+		return
+	}
+	req.Header.Set(VersionHeader, buildinfo.Version())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// If the request fails it's not necessarily an error.
+		// In an airgapped environment, it's fine if this fails!
+		r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
+		return
+	}
+	if resp.StatusCode != http.StatusAccepted {
+		r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
+		return
+	}
+	r.options.Logger.Debug(r.ctx, "submitted snapshot")
 }
 
 func (r *remoteReporter) Close() {
@@ -203,7 +203,7 @@ func (r *remoteReporter) reportWithDeployment() {
 		r.options.Logger.Error(r.ctx, "create snapshot", slog.Error(err))
 		return
 	}
-	r.Report(snapshot)
+	r.reportSync(snapshot)
 }
 
 // deployment collects host information and reports it to the telemetry server.
@@ -446,6 +446,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 		TemplateID:        workspace.TemplateID,
 		CreatedAt:         workspace.CreatedAt,
 		Deleted:           workspace.Deleted,
+		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
 	}
 }
@@ -670,6 +671,7 @@ type Workspace struct {
 	TemplateID        uuid.UUID `json:"template_id"`
 	CreatedAt         time.Time `json:"created_at"`
 	Deleted           bool      `json:"deleted"`
+	Name              string    `json:"name"`
 	AutostartSchedule string    `json:"autostart_schedule"`
 }
 

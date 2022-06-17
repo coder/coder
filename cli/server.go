@@ -83,7 +83,6 @@ func server() *cobra.Command {
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowSignups         bool
-		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
@@ -312,11 +311,7 @@ func server() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
-			// Disable telemetry if the in-memory database is used unless explicitly defined!
-			if inMemoryDatabase && !cmd.Flags().Changed("telemetry") {
-				telemetryEnable = false
-			}
-			if telemetryEnable {
+			if !inMemoryDatabase || cmd.Flags().Changed("telemetry-url") {
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
@@ -487,6 +482,8 @@ func server() *cobra.Command {
 				<-devTunnelErrChan
 			}
 
+			// Ensures a last report can be sent before exit!
+			options.Telemetry.Close()
 			cmd.Println("Waiting for WebSocket connections to close...")
 			shutdownConns()
 			coderAPI.Close()
@@ -534,7 +531,6 @@ func server() *cobra.Command {
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
-	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product!")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
 	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")

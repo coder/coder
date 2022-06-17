@@ -493,21 +493,28 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 	if job.CompletedAt.Valid {
 		return nil, xerrors.Errorf("job already completed")
 	}
+	job.CompletedAt = sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	job.Error = sql.NullString{
+		String: failJob.Error,
+		Valid:  failJob.Error != "",
+	}
+
 	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID: jobID,
-		CompletedAt: sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		},
-		UpdatedAt: database.Now(),
-		Error: sql.NullString{
-			String: failJob.Error,
-			Valid:  failJob.Error != "",
-		},
+		ID:          jobID,
+		CompletedAt: job.CompletedAt,
+		UpdatedAt:   database.Now(),
+		Error:       job.Error,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
 	}
+	server.Telemetry.Report(&telemetry.Snapshot{
+		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
+	})
+
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
 		if jobType.WorkspaceBuild.State == nil {
