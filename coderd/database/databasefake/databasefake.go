@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // New returns an in-memory fake of the database.
@@ -101,6 +102,19 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, parameterValue := range q.parameterValues {
+		if parameterValue.ID.String() != id.String() {
+			continue
+		}
+		return parameterValue, nil
+	}
+	return database.ParameterValue{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
@@ -744,17 +758,27 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 	return organizations, nil
 }
 
-func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.GetParameterValuesByScopeParams) ([]database.ParameterValue, error) {
+func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	parameterValues := make([]database.ParameterValue, 0)
 	for _, parameterValue := range q.parameterValues {
-		if parameterValue.Scope != arg.Scope {
-			continue
+		if len(arg.Scopes) > 0 {
+			if !slice.Contains(arg.Scopes, parameterValue.Scope) {
+				continue
+			}
 		}
-		if parameterValue.ScopeID != arg.ScopeID {
-			continue
+		if len(arg.ScopeIds) > 0 {
+			if !slice.Contains(arg.ScopeIds, parameterValue.ScopeID) {
+				continue
+			}
+		}
+
+		if len(arg.Ids) > 0 {
+			if !slice.Contains(arg.Ids, parameterValue.ID) {
+				continue
+			}
 		}
 		parameterValues = append(parameterValues, parameterValue)
 	}
@@ -1720,6 +1744,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
 		Deadline:          arg.Deadline,
+		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil

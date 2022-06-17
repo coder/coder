@@ -45,7 +45,6 @@ type querier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error)
 	GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error)
-	GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
@@ -109,6 +108,8 @@ type querier interface {
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
+	ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error)
+	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
