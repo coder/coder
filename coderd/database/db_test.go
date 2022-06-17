@@ -11,6 +11,8 @@ import (
 )
 
 func TestNestedInTx(t *testing.T) {
+	t.Parallel()
+
 	uid := uuid.New()
 	sqlDB := testSQLDB(t)
 	err := database.MigrateUp(sqlDB)
@@ -19,6 +21,7 @@ func TestNestedInTx(t *testing.T) {
 	db := database.New(sqlDB)
 	err = db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(inner database.Store) error {
+			//nolint:gocritic
 			require.Equal(t, outer, inner, "should be same transaction")
 
 			_, err := inner.InsertUser(context.Background(), database.InsertUserParams{
