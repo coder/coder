@@ -230,7 +230,14 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		return nil, nil, err
 	}
 
-	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+	// Only display the resources on the start transition, to avoid listing them more than once.
+	var startResources []codersdk.WorkspaceResource
+	for _, r := range resources {
+		if r.Transition == codersdk.WorkspaceTransitionStart {
+			startResources = append(startResources, r)
+		}
+	}
+	err = cliui.WorkspaceResources(cmd.OutOrStdout(), startResources, cliui.WorkspaceResourcesOptions{
 		HideAgentState: true,
 		HideAccess:     true,
 		Title:          "Template Preview",
