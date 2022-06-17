@@ -6,6 +6,12 @@ CREATE TYPE audit_action AS ENUM (
     'delete'
 );
 
+CREATE TYPE build_reason AS ENUM (
+    'initiator',
+    'autostart',
+    'autostop'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -311,7 +317,8 @@ CREATE TABLE workspace_builds (
     initiator_id uuid NOT NULL,
     provisioner_state bytea,
     job_id uuid NOT NULL,
-    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
 CREATE TABLE workspace_resources (

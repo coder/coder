@@ -439,6 +439,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransition(createBuild.Transition),
 			JobID:             provisionerJob.ID,
+			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -639,6 +640,7 @@ func convertWorkspaceBuild(
 		InitiatorUsername:  initiatorName,
 		Job:                convertProvisionerJob(job),
 		Deadline:           workspaceBuild.Deadline,
+		Reason:             codersdk.BuildReason(workspaceBuild.Reason),
 	}
 }
 
