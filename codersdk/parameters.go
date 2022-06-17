@@ -43,6 +43,7 @@ const (
 
 type ComputedParameter struct {
 	Parameter
+	SourceValue        string    `json:"source_value"`
 	SchemaID           uuid.UUID `json:"schema_id"`
 	DefaultSourceValue bool      `json:"default_source_value"`
 }
