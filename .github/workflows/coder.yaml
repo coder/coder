@@ -372,7 +372,23 @@ jobs:
         run: make -B site/out/index.html
 
       - name: Build Release
-        run: make build
+        run: |
+          set -euo pipefail
+          go mod download
+
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build linux amd64 packages
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --package-linux \
+            linux:amd64
 
       - name: Install Release
         run: |
