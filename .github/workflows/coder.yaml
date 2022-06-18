@@ -111,9 +111,8 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
-      - run: curl -sSL
-          https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz
-          | sudo tar -C /usr/bin -xz sqlc
+      - run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
 
       - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
@@ -188,7 +187,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -226,7 +225,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   test-go-postgres:
@@ -258,7 +257,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -310,7 +309,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
   deploy:
@@ -366,18 +365,14 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
       - name: Build site
         run: make -B site/out/index.html
 
       - name: Build Release
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --snapshot --rm-dist --skip-sign
+        run: make build
 
       - name: Install Release
         run: |
@@ -394,8 +389,11 @@ jobs:
         with:
           name: coder
           path: |
-            ./dist/coder_*_linux_amd64.tar.gz
-            ./dist/coder_*_windows_amd64.zip
+            ./dist/*.zip
+            ./dist/*.tar.gz
+            ./dist/*.apk
+            ./dist/*.deb
+            ./dist/*.rpm
           retention-days: 7
 
   test-js:
@@ -437,7 +435,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          # this flakes and sometimes fails the build 
+          # this flakes and sometimes fails the build
           fail_ci_if_error: false
 
       - name: Upload DataDog Trace
@@ -483,10 +481,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: "14"
-
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
 
       - name: Echo Go Cache Paths
         id: go-cache-paths

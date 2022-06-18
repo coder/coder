@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   coder:
-    image: ghcr.io/coder/coder:v${CODER_VERSION:-0.5.10}-${ARCH:-amd64}
+    image: ghcr.io/coder/coder:v${CODER_VERSION:-latest}
     ports:
       - "7080:7080"
     environment:
