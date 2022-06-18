@@ -35,13 +35,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")
 
 # pushd is a silent alternative to the real pushd shell command.
 pushd() {
-	command pushd "$@" >/dev/null
+	command pushd "$@" >/dev/null || error "Could not pushd to '$*'"
 }
 
 # popd is a silent alternative to the real popd shell command.
 # shellcheck disable=SC2120
 popd() {
-	command popd "$@" >/dev/null
+	command popd >/dev/null || error "Could not restore directory with popd"
 }
 
 # cdself changes directory to the directory of the current script. This should
@@ -116,51 +116,62 @@ isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
 }
 
-libsh_bad_dependencies=0
+# We don't need to check dependencies more than once per script, but some
+# scripts call other scripts that also `source lib.sh`, so we set an environment
+# variable after successfully checking dependencies once.
+if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
+	libsh_bad_dependencies=0
 
-if ((BASH_VERSINFO[0] < 4)); then
-	libsh_bad_dependencies=1
-	log "ERROR: You need at least bash 4.0 to run the scripts in the Coder repo."
-	if isdarwin; then
-		log "On darwin:"
-		log "- brew install bash"
-		log "- Restart your terminal"
+	if ((BASH_VERSINFO[0] < 4)); then
+		libsh_bad_dependencies=1
+		log "ERROR: You need at least bash 4.0 to run the scripts in the Coder repo."
+		if isdarwin; then
+			log "On darwin:"
+			log "- brew install bash"
+			log "- Restart your terminal"
+		fi
+		log
 	fi
-	log
-fi
 
-# BSD getopt (which is installed by default on Macs) is not supported.
-if [[ "$(getopt --version)" == *--* ]]; then
-	libsh_bad_dependencies=1
-	log "ERROR: You need GNU getopt to run the scripts in the Coder repo."
-	if isdarwin; then
-		log "On darwin:"
-		log "- brew install gnu-getopt"
-		# shellcheck disable=SC2016
-		log '- Add "$(brew --prefix)/opt/gnu-getopt/bin" to your PATH'
-		log "- Restart your terminal"
+	# BSD getopt (which is installed by default on Macs) is not supported.
+	if [[ "$(getopt --version)" == *--* ]]; then
+		libsh_bad_dependencies=1
+		log "ERROR: You need GNU getopt to run the scripts in the Coder repo."
+		if isdarwin; then
+			log "On darwin:"
+			log "- brew install gnu-getopt"
+			# shellcheck disable=SC2016
+			log '- Add "$(brew --prefix)/opt/gnu-getopt/bin" to your PATH'
+			log "- Restart your terminal"
+		fi
+		log
 	fi
-	log
-fi
 
-# The bash scripts don't call Make directly, but we want to make (ha ha) sure
-# that make supports the features the repo uses. Notably, Macs have an old
-# version of Make installed out of the box that doesn't support new features
-# like ONESHELL.
-make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
-if [ "${make_version//.*/}" -lt 4 ]; then
-	libsh_bad_dependencies=1
-	log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
-	if isdarwin; then
-		log "On darwin:"
-		log "- brew install make"
-		# shellcheck disable=SC2016
-		log '- Add "$(brew --prefix)/opt/make/libexec/gnubin" to your PATH (you should Google this first)'
-		log "- Restart your terminal"
+	# The bash scripts don't call Make directly, but we want to make (ha ha)
+	# sure that make supports the features the repo uses. Notably, Macs have an
+	# old version of Make installed out of the box that doesn't support new
+	# features like ONESHELL.
+	#
+	# Piping commands directly into `head -n1` may result in ERRPIPE errors, so
+	# we capture the version output first before
+	make_version_raw="$(make --version 2>/dev/null)"
+	make_version="$(echo "$make_version_raw" | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	if [ "${make_version//.*/}" -lt 4 ]; then
+		libsh_bad_dependencies=1
+		log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
+		if isdarwin; then
+			log "On darwin:"
+			log "- brew install make"
+			# shellcheck disable=SC2016
+			log '- Add "$(brew --prefix)/opt/make/libexec/gnubin" to your PATH (you should Google this first)'
+			log "- Restart your terminal"
+		fi
+		log
 	fi
-	log
-fi
 
-if [[ "$libsh_bad_dependencies" == 1 ]]; then
-	error "Invalid dependencies, see above for more details."
+	if [[ "$libsh_bad_dependencies" == 1 ]]; then
+		error "Invalid dependencies, see above for more details."
+	fi
+
+	export CODER_LIBSH_NO_CHECK_DEPENDENCIES=true
 fi
