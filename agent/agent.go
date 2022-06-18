@@ -328,6 +328,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	command := rawCommand
 	if len(command) == 0 {
 		command = shell
+		if runtime.GOOS != "windows" {
+			// On Linux and macOS, we should start a login
+			// shell to consume juicy environment variables!
+			command += " -l"
+		}
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -348,7 +353,6 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`PATH=%s%c%s`, os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
@@ -363,7 +367,10 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
 	for key, value := range metadata.EnvironmentVariables {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+		// Expanding environment variables allows for customization
+		// of the $PATH, among other variables. Customers can prepand
+		// or append to the $PATH, so allowing expand is required!
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, os.ExpandEnv(value)))
 	}
 
 	// Agent-level environment variables should take over all!

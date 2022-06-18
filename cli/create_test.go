@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -27,18 +26,19 @@ func TestCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           echo.ParseComplete,
+			Provision:       provisionCompleteWithAgent,
+			ProvisionDryRun: provisionCompleteWithAgent,
+		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		args := []string{
 			"create",
 			"my-workspace",
 			"--template", template.Name,
-			"--tz", "US/Central",
-			"--autostart-minute", "0",
-			"--autostart-hour", "*/2",
-			"--autostart-day-of-week", "MON-FRI",
-			"--ttl", "8h",
+			"--start-at", "9:30AM Mon-Fri US/Central",
+			"--stop-after", "8h",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
@@ -51,113 +51,32 @@ func TestCreate(t *testing.T) {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		}()
-		matches := []string{
-			"Confirm create", "yes",
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
+			{match: "Confirm create", write: "yes"},
 		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
 		}
 		<-doneChan
-	})
 
-	t.Run("AboveTemplateMaxTTL", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref((12 * time.Hour).Milliseconds())
-		})
-		args := []string{
-			"create",
-			"my-workspace",
-			"--template", template.Name,
-			"--ttl", "12h1m",
-			"-y", // don't bother with waiting
+		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, template.Name)
+			if assert.NotNil(t, ws.AutostartSchedule) {
+				assert.Equal(t, *ws.AutostartSchedule, "CRON_TZ=US/Central 30 9 * * Mon-Fri")
+			}
+			if assert.NotNil(t, ws.TTLMillis) {
+				assert.Equal(t, *ws.TTLMillis, 8*time.Hour.Milliseconds())
+			}
 		}
-		cmd, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		err := cmd.Execute()
-		assert.ErrorContains(t, err, "TTL must be below template maximum 12h0m0s")
-	})
-
-	t.Run("BelowTemplateMinAutostartInterval", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
-		})
-		args := []string{
-			"create",
-			"my-workspace",
-			"--template", template.Name,
-			"--autostart-minute", "*", // Every minute
-			"--autostart-hour", "*", // Every hour
-			"-y", // don't bother with waiting
-		}
-		cmd, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		err := cmd.Execute()
-		assert.ErrorContains(t, err, "minimum autostart interval 1m0s is above template constraint 1h0m0s")
-	})
-
-	t.Run("CreateErrInvalidTz", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		args := []string{
-			"create",
-			"my-workspace",
-			"--template", template.Name,
-			"--tz", "invalid",
-			"-y",
-		}
-		cmd, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		err := cmd.Execute()
-		assert.ErrorContains(t, err, "Invalid autostart schedule: Invalid workspace autostart timezone: unknown time zone invalid")
-	})
-
-	t.Run("CreateErrInvalidTTL", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		args := []string{
-			"create",
-			"my-workspace",
-			"--template", template.Name,
-			"--ttl", "0s",
-			"-y",
-		}
-		cmd, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		err := cmd.Execute()
-		assert.EqualError(t, err, "TTL must be at least 1 minute")
 	})
 
 	t.Run("CreateFromListWithSkip", func(t *testing.T) {
@@ -188,7 +107,7 @@ func TestCreate(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		cmd, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
@@ -211,6 +130,12 @@ func TestCreate(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		<-doneChan
+
+		ws, err := client.WorkspaceByOwnerAndName(cmd.Context(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, template.Name)
+			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
+		}
 	})
 
 	t.Run("WithParameter", func(t *testing.T) {

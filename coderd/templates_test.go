@@ -166,6 +166,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
 		}
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)

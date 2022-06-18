@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -123,7 +124,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error fetching workspaces.",
@@ -435,6 +436,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			JobID:             provisionerJob.ID,
 			BuildNumber:       1,           // First build!
 			Deadline:          time.Time{}, // provisionerd will set this upon success
+			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -456,6 +458,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
+	})
 
 	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace, workspaceBuild, templateVersionJob, template,
 		findUser(apiKey.UserID, users), findUser(workspaceBuild.InitiatorID, users)))
@@ -800,6 +807,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			ProvisionerState:  workspaceBuild.ProvisionerState,
 			JobID:             workspaceBuild.JobID,
 			Deadline:          workspaceBuild.Deadline,
+			Reason:            workspaceBuild.Reason,
 		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
@@ -945,11 +953,11 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams, []httpapi.Error) {
+func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []httpapi.Error) {
 	searchParams := make(url.Values)
 	if query == "" {
 		// No filter
-		return database.GetWorkspacesWithFilterParams{}, nil
+		return database.GetWorkspacesParams{}, nil
 	}
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
@@ -968,14 +976,14 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams,
 				searchParams.Set("owner", parts[0])
 				searchParams.Set("name", parts[1])
 			default:
-				return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+				return database.GetWorkspacesParams{}, []httpapi.Error{
 					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
 				}
 			}
 		case 2:
 			searchParams.Set(parts[0], parts[1])
 		default:
-			return database.GetWorkspacesWithFilterParams{}, []httpapi.Error{
+			return database.GetWorkspacesParams{}, []httpapi.Error{
 				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
 			}
 		}
@@ -984,7 +992,7 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesWithFilterParams,
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
-	filter := database.GetWorkspacesWithFilterParams{
+	filter := database.GetWorkspacesParams{
 		Deleted:       false,
 		OwnerUsername: parser.String(searchParams, "", "owner"),
 		TemplateName:  parser.String(searchParams, "", "template"),

@@ -51,6 +51,9 @@ func TestExecutorAutostartOK(t *testing.T) {
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
@@ -200,6 +203,9 @@ func TestExecutorAutostopOK(t *testing.T) {
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
+
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
 }
 
 func TestExecutorAutostopExtend(t *testing.T) {

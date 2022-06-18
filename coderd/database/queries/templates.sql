@@ -48,6 +48,9 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetTemplates :many
+SELECT * FROM templates;
+
 -- name: InsertTemplate :one
 INSERT INTO
 	templates (

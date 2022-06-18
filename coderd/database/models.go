@@ -34,6 +34,26 @@ func (e *AuditAction) Scan(src interface{}) error {
 	return nil
 }
 
+type BuildReason string
+
+const (
+	BuildReasonInitiator BuildReason = "initiator"
+	BuildReasonAutostart BuildReason = "autostart"
+	BuildReasonAutostop  BuildReason = "autostop"
+)
+
+func (e *BuildReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BuildReason(s)
+	case string:
+		*e = BuildReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BuildReason: %T", src)
+	}
+	return nil
+}
+
 type LogLevel string
 
 const (
@@ -426,6 +446,11 @@ type ProvisionerJobLog struct {
 	Output    string    `db:"output" json:"output"`
 }
 
+type SiteConfig struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
 type Template struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
 	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
@@ -520,6 +545,7 @@ type WorkspaceBuild struct {
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
+	Reason            BuildReason         `db:"reason" json:"reason"`
 }
 
 type WorkspaceResource struct {

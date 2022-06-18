@@ -2,11 +2,13 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -17,6 +19,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -50,6 +53,23 @@ func workspaceAgent() *cobra.Command {
 			}
 			defer logWriter.Close()
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+			isLinux := runtime.GOOS == "linux"
+
+			// Spawn a reaper so that we don't accumulate a ton
+			// of zombie processes.
+			if reaper.IsInitProcess() && !reaper.IsChild() && isLinux {
+				logger.Info(cmd.Context(), "spawning reaper process")
+				err := reaper.ForkReap(nil)
+				if err != nil {
+					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					return xerrors.Errorf("fork reap: %w", err)
+				}
+
+				logger.Info(cmd.Context(), "reaper process exiting")
+				return nil
+			}
+
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -136,6 +156,15 @@ func workspaceAgent() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("agent failed to authenticate in time: %w", err)
 				}
+			}
+
+			executablePath, err := os.Executable()
+			if err != nil {
+				return xerrors.Errorf("getting os executable: %w", err)
+			}
+			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
+			if err != nil {
+				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
 			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{

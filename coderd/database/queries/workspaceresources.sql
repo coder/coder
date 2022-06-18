@@ -14,6 +14,9 @@ FROM
 WHERE
 	job_id = $1;
 
+-- name: GetWorkspaceResourcesCreatedAfter :many
+SELECT * FROM workspace_resources WHERE created_at > $1;
+
 -- name: InsertWorkspaceResource :one
 INSERT INTO
 	workspace_resources (id, created_at, job_id, transition, type, name)
