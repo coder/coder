@@ -109,7 +109,7 @@ rm -rf "$temp_dir"
 
 if [[ "$push" == 1 ]]; then
 	log "--- Pushing Docker image for $arch ($image_tag)"
-	docker push "$image_tag"
+	docker push "$image_tag" 1>&2
 fi
 
 echo "$image_tag"
