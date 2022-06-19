@@ -80,7 +80,7 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh
 USER coder
 ```
 
-Here is an example of installing `code-server` in the `coder_agent` resource of a template's `main.tf` and defining the `coder-app` resource. If you install `code-server` in the image, you can eliminate the install step below.
+Here is an example of installing `code-server` in the `coder_agent` resource of a template's `main.tf` and defining the `coder_app` resource. If you install `code-server` in the image, you can eliminate the install step below.
 
 ```console
 resource "coder_agent" "coder" {
