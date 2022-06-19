@@ -83,7 +83,12 @@ dest_dir="$(realpath "$dest_dir")"
 # Copy the binaries to the site directory.
 cd "$(dirname "$output_path")"
 for f in ./coder-slim_*; do
+	# Remove ./ prefix
 	f="${f#./}"
-	dest="$dest_dir/${f//-slim_$version/}"
+	# Remove "-slim_$version"
+	f="${f//-slim_$version/}"
+	# Replace underscores with hyphens
+	f="${string//_/-}"
+	dest="$dest_dir/$f"
 	cp "$f" "$dest"
 done
