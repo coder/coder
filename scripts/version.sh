@@ -10,7 +10,7 @@
 # If $CODER_RELEASE is not set, the returned version will always be a dev
 # version.
 
-set -euxo pipefail
+set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot

@@ -43,27 +43,6 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: git tag
-        run: git tag
-
-      - name: git rev-parse --short HEAD
-        run: git rev-parse --short HEAD
-
-      - name: git describe --tags --abbrev=0
-        run: git describe --tags --abbrev=0
-
-      - name: git describe --always
-        run: git describe --always
-
-      - name: git log
-        run: "git log | head -n100"
-
-      - name: ./scripts/version.sh
-        run: ./scripts/version.sh
-
-      - name: exit early
-        run: exit 1
-
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
