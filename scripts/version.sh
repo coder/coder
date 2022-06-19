@@ -28,12 +28,12 @@ if [[ "${CODER_RELEASE:-}" == *t* ]]; then
 	if [[ "$last_tag" != "$(git describe --always)" ]]; then
 		# make won't exit on $(shell cmd) failures, so we have to kill it :(
 		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
-			log "ERROR: version.sh: the current commit is not tagged"
+			log "ERROR: version.sh: the current commit is not tagged with an annotated tag"
 			kill "$PPID" || true
 			exit 1
 		fi
 
-		error "version.sh: the current commit is not tagged"
+		error "version.sh: the current commit is not tagged with an annotated tag"
 	fi
 else
 	version+="-devel+$(git rev-parse --short HEAD)"
