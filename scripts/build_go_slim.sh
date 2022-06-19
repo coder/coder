@@ -88,7 +88,7 @@ for f in ./coder-slim_*; do
 	# Remove "-slim_$version"
 	f="${f//-slim_$version/}"
 	# Replace underscores with hyphens
-	f="${string//_/-}"
+	f="${f//_/-}"
 	dest="$dest_dir/$f"
 	cp "$f" "$dest"
 done
