@@ -75,7 +75,8 @@ formats=(apk deb rpm)
 for format in "${formats[@]}"; do
 	output_path="$input_file.$format"
 	log "--- Building $format package ($output_path)"
-	nfpm package \
+
+	GOARCH="$arch" CODER_VERSION="$version" nfpm package \
 		-f nfpm.yaml \
 		-p "$format" \
 		-t "$output_path"
