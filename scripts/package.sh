@@ -59,6 +59,11 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
+# armv7 isn't a real architecture, so we need to remap it to armhf.
+if [[ "$arch" == "arm" ]] || [[ "$arch" == "armv7" ]]; then
+	arch="armhf"
+fi
+
 # Make temporary dir where all source files intended to be in the package will
 # be hardlinked from.
 cdroot
