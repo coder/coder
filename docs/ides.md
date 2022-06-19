@@ -57,20 +57,65 @@ Code, connected to your Coder workspace for compute, etc.
 1. In VS Code's left-hand nav bar, click **Remote Explorer** and right-click on
    a workspace to connect.
 
-## VS Code in the browser
+## VS Code in the browser (code-server)
 
-> You must have Docker Desktop running for this template to work.
+There a few ways to add `code-server` to a workspace. You can install it in the Dockerfile and subsequent container image or VM image, or install it dynamically as part of coder_agent resource in a template.
+
+You start `code-server` in the `coder_agent` resource of a template, and add a `coder_app` resource to define the icon and url for code-server to appear in the workspace web UI.
+
+<p align="center">
+  <img src="./images/code-server-in-ui.png">
+</p>
+
+Here is an example of installing `code-server` in a Dockerfile
+
+```console
+FROM codercom/enterprise-base:ubuntu
+
+USER root
+
+# Install code-server
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+
+USER coder
+```
+
+Here is an example of installing `code-server` in the `coder_agent` resource of a template's `main.tf` and defining the `coder-app` resource. If you install `code-server` in the image, you can eliminate the install step below.
+
+```console
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install code-server
+curl -fsSL https://code-server.dev/install.sh | sh
+
+# start code-server
+code-server --auth none --port 13337
+
+  EOT  
+}
+
+# code-server
+resource "coder_app" "code-server" {
+  agent_id      = coder_agent.coder.id
+  name          = "code-server"
+  icon          = "https://cdn.icon-icons.com/icons2/2107/PNG/512/file_type_vscode_icon_130084.png"
+  url           = "http://localhost:13337?folder=/home/coder"
+  relative_path = true  
+}
+```
+
+Coder also provides an example template that uses the `code-server` container image with `code-server` already installed.
+
+> You must have Docker Desktop or a Docker engine running for this template to work.
 
 Coder offers a [sample template that includes
 code-server](../examples/templates/docker-code-server/README.md).
 
-To use:
-
-1. Start Coder:
-
-  ```console
-  coder server --dev
-  ```
+To use, start Coder the follow these steps:
 
 1. Open a new terminal and run:
 
