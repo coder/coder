@@ -39,22 +39,16 @@ resource "coder_agent" "dev" {
 }
 ```
 
-> Alternatively, you can build your own VM/container images that install and run code-server.
+For advanced use, we recommend installing code-server in your VM snapshot or container image. Here's a Dockerfile which leverages some special [code-server features](https://coder.com/docs/code-server/):
 
-Optionally customize code-server:
+```Dockerfile
+FROM codercom/enterprise-base:ubuntu
 
-```sh
-# Refer to the code-server docs for more options:
-# https://coder.com/docs/code-server
+# install a specific code-server version
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
 
-# install a specific version
-curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
-
-# pre-install extensions
-code-server --install-extension eamodio.gitlens 
-
-# start with custom flags (code-server --help)
-code-server --auth none --port 13337 --ignore-last-opened
+# pre-install versions
+RUN code-server --install-extension eamodio.gitlens 
 ```
 
 You'll also need to specify a `coder_app` resource related to the agent. This is how code-server is displayed on the workspace page.
@@ -62,7 +56,7 @@ You'll also need to specify a `coder_app` resource related to the agent. This is
 ```hcl
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
-  nane     = "VS Code"
+  name     = "VS Code"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/code.svg"
 }
