@@ -27,10 +27,21 @@ env:
 jobs:
   linux-windows:
     runs-on: ubuntu-latest
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
 
       - uses: actions/setup-go@v3
         with:
@@ -133,6 +144,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
@@ -210,13 +229,18 @@ jobs:
     needs:
       - linux-windows
       - darwin
-    env:
-      # Necessary for Docker manifest
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
 
       - name: Docker Login
         uses: docker/login-action@v2
