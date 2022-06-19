@@ -35,8 +35,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: git tags
-        run: git tags
+      - name: git tag
+        run: git tag
 
       - name: git rev-parse --short HEAD
         run: git rev-parse --short HEAD
