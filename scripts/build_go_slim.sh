@@ -84,11 +84,11 @@ dest_dir="$(realpath "$dest_dir")"
 cd "$(dirname "$output_path")"
 for f in ./coder-slim_*; do
 	# Remove ./ prefix
-	f="${f#./}"
+	name="${f#./}"
 	# Remove "-slim_$version"
-	f="${f//-slim_$version/}"
+	truncated="${name//-slim_$version/}"
 	# Replace underscores with hyphens
-	f="${f//_/-}"
-	dest="$dest_dir/$f"
+	hyphenated="${truncated//_/-}"
+	dest="$dest_dir/$hyphenated"
 	cp "$f" "$dest"
 done
