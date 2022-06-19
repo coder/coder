@@ -10,7 +10,7 @@
 # If $CODER_RELEASE is not set, the returned version will always be a dev
 # version.
 
-set -euo pipefail
+set -euxo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
@@ -28,12 +28,12 @@ if [[ "${CODER_RELEASE:-}" == *t* ]]; then
 	if [[ "$last_tag" != "$(git describe --always)" ]]; then
 		# make won't exit on $(shell cmd) failures, so we have to kill it :(
 		if [[ "$(ps -o comm= "$PPID" || true)" == *make* ]]; then
-			log "ERROR: version.sh attemped to generate a dev version string when CODER_RELEASE was set"
+			log "ERROR: version.sh: the current commit is not tagged"
 			kill "$PPID" || true
 			exit 1
 		fi
 
-		error "version.sh attemped to generate a dev version string when CODER_RELEASE was set"
+		error "version.sh: the current commit is not tagged"
 	fi
 else
 	version+="-devel+$(git rev-parse --short HEAD)"

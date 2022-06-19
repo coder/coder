@@ -27,10 +27,34 @@ env:
 jobs:
   linux-windows:
     runs-on: ubuntu-latest
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      - name: git tags
+        run: git tags
+
+      - name: git rev-parse --short HEAD
+        run: git rev-parse --short HEAD
+
+      - name: git describe --tags --abbrev=0
+        run: git describe --tags --abbrev=0
+
+      - name: git describe --always
+        run: git describe --always
+
+      - name: git log
+        run: "git log | head -n100"
+
+      - name: ./scripts/version.sh
+        run: ./scripts/version.sh
+
+      - name: exit early
+        run: exit 1
 
       - uses: actions/setup-go@v3
         with:
@@ -210,9 +234,6 @@ jobs:
     needs:
       - linux-windows
       - darwin
-    env:
-      # Necessary for Docker manifest
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - uses: actions/checkout@v3
         with:
