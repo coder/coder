@@ -106,6 +106,7 @@ for f in ./coder-slim_*; do
 done
 
 if [[ -n $compress ]]; then
+	log "--- Compressing coder-slim binaries using zstd level $compress ($dest_dir/coder.tar.zst)"
 	(
 		cd "$dest_dir"
 		tar cf coder.tar coder-*
