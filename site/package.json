@@ -106,7 +106,7 @@
     "prettier": "2.6.2",
     "prettier-plugin-organize-imports": "2.3.4",
     "react-hot-loader": "4.13.0",
-    "sql-formatter": "6.1.1",
+    "sql-formatter": "7.0.1",
     "style-loader": "3.3.1",
     "ts-jest": "27.1.4",
     "ts-loader": "9.3.0",
