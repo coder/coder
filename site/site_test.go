@@ -322,11 +322,12 @@ func TestServingBin(t *testing.T) {
 					defer resp.Body.Close()
 
 					gotStatus := resp.StatusCode
+					gotBody, _ := io.ReadAll(resp.Body)
+
 					if tr.wantStatus > 0 {
 						assert.Equal(t, tr.wantStatus, gotStatus, "status did not match")
 					}
 					if tr.wantBody != nil {
-						gotBody, _ := io.ReadAll(resp.Body)
 						assert.Equal(t, string(tr.wantBody), string(gotBody), "body did not match")
 					}
 				})
