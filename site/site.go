@@ -386,10 +386,10 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 // ${CODER_CACHE_DIRECTORY}/site/bin).
 func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
 	if dest == "" {
-		// No destionation on fs, embedd fs is the only option.
+		// No destination on fs, embedded fs is the only option.
 		binFS, err := fs.Sub(siteFS, "bin")
 		if err != nil {
-			return nil, xerrors.Errorf("cache path is empty and embedd fs does not have /bin: %w", err)
+			return nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
 		}
 		return http.FS(binFS), nil
 	}
