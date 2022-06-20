@@ -35,7 +35,7 @@ build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name 
 	# build slim artifacts and copy them to the site output directory
 	./scripts/build_go_slim.sh \
 		--version "$(VERSION)" \
-		--compress 22 \
+		--compress 6 \
 		--output ./dist/ \
 		linux:amd64,armv7,arm64 \
 		windows:amd64,arm64 \
