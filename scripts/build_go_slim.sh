@@ -23,8 +23,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
 output_path=""
+compress=""
 
-args="$(getopt -o "" -l version:,output: -- "$@")"
+args="$(getopt -o "" -l version:,output:,compress: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -34,6 +35,10 @@ while true; do
 		;;
 	--output)
 		output_path="$2"
+		shift 2
+		;;
+	--compress)
+		compress="$2"
 		shift 2
 		;;
 	--)
@@ -48,6 +53,13 @@ done
 
 # Check dependencies
 dependencies go
+if [[ -n $compress ]]; then
+	dependencies tar zstd
+
+	if [[ ! $compress == [0-9]* ]] || ((compress > 22)) || ((compress < 1)); then
+		error "Invalid value for compress, must in in the range of [1, 22]"
+	fi
+fi
 
 # Remove the "v" prefix.
 version="${version#v}"
@@ -92,3 +104,12 @@ for f in ./coder-slim_*; do
 	dest="$dest_dir/$hyphenated"
 	cp "$f" "$dest"
 done
+
+if [[ -n $compress ]]; then
+	(
+		cd "$dest_dir"
+		tar cf coder.tar coder-*
+		rm coder-*
+		zstd --ultra --long -"${compress}" --rm --no-progress coder.tar -o coder.tar.zst
+	)
+fi
