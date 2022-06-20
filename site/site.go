@@ -461,14 +461,14 @@ func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 	return filtered
 }
 
-func extractBin(dest string, r io.Reader) (n int, err error) {
+func extractBin(dest string, r io.Reader) (numExtraced int, err error) {
 	opts := []zstd.DOption{
 		// Concurrency doesn't help us when decoding the tar and
 		// can actually slow us down.
 		zstd.WithDecoderConcurrency(1),
-		// Ignoring checksums give us a slight performance
-		// increase, we assume no corruption due to embedding.
-		zstd.IgnoreChecksum(true),
+		// Ignoring checksums can give a slight performance
+		// boost but it's probalby not worth the reduced safety.
+		zstd.IgnoreChecksum(false),
 		// Allow the decoder to use more memory giving us a 2-3x
 		// performance boost.
 		zstd.WithDecoderLowmem(false),
@@ -480,6 +480,7 @@ func extractBin(dest string, r io.Reader) (n int, err error) {
 	defer zr.Close()
 
 	tr := tar.NewReader(zr)
+	n := 0
 	for {
 		h, err := tr.Next()
 		if err != nil {
