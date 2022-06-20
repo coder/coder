@@ -107,10 +107,9 @@ done
 
 if [[ $compress != 0 ]]; then
 	log "--- Compressing coder-slim binaries using zstd level $compress ($dest_dir/coder.tar.zst)"
-	(
-		cd "$dest_dir"
-		tar cf coder.tar coder-*
-		rm coder-*
-		zstd --ultra --long -"${compress}" --rm --no-progress coder.tar -o coder.tar.zst
-	)
+	pushd "$dest_dir"
+	tar cf coder.tar coder-*
+	rm coder-*
+	zstd --ultra --long -"${compress}" --rm --no-progress coder.tar -o coder.tar.zst
+	popd
 fi
