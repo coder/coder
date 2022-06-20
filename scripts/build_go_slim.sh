@@ -56,7 +56,7 @@ dependencies go
 if [[ $compress != 0 ]]; then
 	dependencies tar zstd
 
-	if [[ $compress != [0-9]* ]] || ((compress > 22)) || ((compress < 1)); then
+	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
 		error "Invalid value for compress, must in in the range of [1, 22]"
 	fi
 fi
