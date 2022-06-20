@@ -15,6 +15,10 @@
 #
 # The built binaries are additionally copied to the site output directory so
 # they can be packaged into non-slim binaries correctly.
+#
+# When the --compress <level> parameter is provided, the binaries in site/bin
+# will be compressed using zstd into site/bin/coder.tar.zst, this helps reduce
+# final binary size significantly.
 
 set -euo pipefail
 shopt -s nullglob
