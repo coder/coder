@@ -61,10 +61,12 @@ export const getOverrides = (palette: PaletteOptions) => {
         background: palette.background?.paper,
         borderBottom: `1px solid ${palette.divider}`,
         padding: 8,
-        "&:first-child": {
+        // This targets the first+last td elements, and also the first+last elements
+        // of a TableCellLink.
+        "&:not(:only-child):first-child, &:not(:only-child):first-child > a": {
           paddingLeft: 32,
         },
-        "&:last-child": {
+        "&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
           paddingRight: 32,
         },
       },
