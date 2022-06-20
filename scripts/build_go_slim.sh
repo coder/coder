@@ -23,7 +23,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
 output_path=""
-compress=""
+compress=0
 
 args="$(getopt -o "" -l version:,output:,compress: -- "$@")"
 eval set -- "$args"
@@ -53,10 +53,10 @@ done
 
 # Check dependencies
 dependencies go
-if [[ -n $compress ]]; then
+if [[ $compress != 0 ]]; then
 	dependencies tar zstd
 
-	if [[ ! $compress == [0-9]* ]] || ((compress > 22)) || ((compress < 1)); then
+	if [[ $compress != [0-9]* ]] || ((compress > 22)) || ((compress < 1)); then
 		error "Invalid value for compress, must in in the range of [1, 22]"
 	fi
 fi
