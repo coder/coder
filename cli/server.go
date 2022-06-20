@@ -254,6 +254,7 @@ func server() *cobra.Command {
 				Logger:               logger.Named("coderd"),
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
+				CacheDir:             cacheDir,
 				GoogleTokenValidator: googleTokenValidator,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,

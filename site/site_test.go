@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/site"
@@ -36,8 +39,9 @@ func TestCaching(t *testing.T) {
 			Data: []byte("folderFile"),
 		},
 	}
+	binFS := http.FS(fstest.MapFS{})
 
-	srv := httptest.NewServer(site.Handler(rootFS))
+	srv := httptest.NewServer(site.Handler(rootFS, binFS))
 	defer srv.Close()
 
 	// Create a context
@@ -95,15 +99,16 @@ func TestServingFiles(t *testing.T) {
 			Data: []byte("dashboard-css-bytes"),
 		},
 	}
+	binFS := http.FS(fstest.MapFS{})
 
-	srv := httptest.NewServer(site.Handler(rootFS))
+	srv := httptest.NewServer(site.Handler(rootFS, binFS))
 	defer srv.Close()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancelFunc()
 
-	var testCases = []struct {
+	testCases := []struct {
 		path     string
 		expected string
 	}{
@@ -150,7 +155,7 @@ func TestServingFiles(t *testing.T) {
 func TestShouldCacheFile(t *testing.T) {
 	t.Parallel()
 
-	var testCases = []struct {
+	testCases := []struct {
 		reqFile  string
 		expected bool
 	}{
@@ -171,6 +176,175 @@ func TestShouldCacheFile(t *testing.T) {
 	}
 }
 
+func readFile(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestServingBin(t *testing.T) {
+	t.Parallel()
+
+	// Create a misc rootfs for realistic test.
+	rootFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("index-bytes"),
+		},
+		"favicon.ico": &fstest.MapFile{
+			Data: []byte("favicon-bytes"),
+		},
+		"dashboard.js": &fstest.MapFile{
+			Data: []byte("dashboard-js-bytes"),
+		},
+		"dashboard.css": &fstest.MapFile{
+			Data: []byte("dashboard-css-bytes"),
+		},
+	}
+
+	type req struct {
+		url        string
+		wantStatus int
+		wantBody   []byte
+	}
+	tests := []struct {
+		name    string
+		fs      fstest.MapFS
+		reqs    []req
+		wantErr bool
+	}{
+		{
+			name: "Extract and serve bin",
+			fs: fstest.MapFS{
+				"bin/coder.tar.zst": &fstest.MapFile{
+					// echo iamcoder >coder-linux-amd64
+					// tar cf coder.tar coder-linux-amd64
+					// zstd --long --ultra -22 coder.tar
+					Data: []byte{
+						0x28, 0xb5, 0x2f, 0xfd, 0x64, 0x00, 0x27, 0xf5, 0x02, 0x00, 0x12, 0xc4,
+						0x0e, 0x16, 0xa0, 0xb5, 0x39, 0x00, 0xe8, 0x67, 0x59, 0xaf, 0xe3, 0xdd,
+						0x8d, 0xfe, 0x47, 0xe8, 0x9d, 0x9c, 0x44, 0x0b, 0x75, 0x70, 0x61, 0x52,
+						0x0d, 0x56, 0xaa, 0x16, 0xb9, 0x5a, 0x0a, 0x4b, 0x40, 0xd2, 0x7a, 0x05,
+						0xd1, 0xd7, 0xe3, 0xf9, 0xf9, 0x07, 0xef, 0xda, 0x77, 0x04, 0xff, 0xe8,
+						0x7a, 0x94, 0x56, 0x9a, 0x40, 0x3b, 0x94, 0x61, 0x18, 0x91, 0x90, 0x21,
+						0x0c, 0x00, 0xf3, 0xc5, 0xe5, 0xd8, 0x80, 0x10, 0x06, 0x0a, 0x08, 0x86,
+						0xb2, 0x00, 0x60, 0x12, 0x70, 0xd3, 0x51, 0x05, 0x04, 0x20, 0x16, 0x2c,
+						0x79, 0xad, 0x01, 0xc0, 0xf5, 0x28, 0x08, 0x03, 0x1c, 0x4c, 0x84, 0xf4,
+					},
+				},
+			},
+			reqs: []req{
+				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("iamcoder\n")},
+				{url: "/bin/GITKEEP", wantStatus: http.StatusNotFound},
+			},
+		},
+		{
+			name: "Error on invalid archive",
+			fs: fstest.MapFS{
+				"bin/coder.tar.zst": &fstest.MapFile{
+					Data: []byte{
+						0x28, 0xb5, 0x2f, 0xfd, 0x64, 0x00, 0x27, 0xf5, 0x02, 0x00, 0x12, 0xc4,
+						0x0e, 0x16, 0xa0, 0xb5, 0x39, 0x00, 0xe8, 0x67, 0x59, 0xaf, 0xe3, 0xdd,
+						0x8d, 0xfe, 0x47, 0xe8, 0x9d, 0x9c, 0x44, 0x0b, 0x75, 0x70, 0x61, 0x52,
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Zeroed from above test.
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Zeroed from above test.
+						0x7a, 0x94, 0x56, 0x9a, 0x40, 0x3b, 0x94, 0x61, 0x18, 0x91, 0x90, 0x21,
+						0x0c, 0x00, 0xf3, 0xc5, 0xe5, 0xd8, 0x80, 0x10, 0x06, 0x0a, 0x08, 0x86,
+						0xb2, 0x00, 0x60, 0x12, 0x70, 0xd3, 0x51, 0x05, 0x04, 0x20, 0x16, 0x2c,
+						0x79, 0xad, 0x01, 0xc0, 0xf5, 0x28, 0x08, 0x03, 0x1c, 0x4c, 0x84, 0xf4,
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Error on empty archive",
+			fs: fstest.MapFS{
+				"bin/coder.tar.zst": &fstest.MapFile{Data: []byte{}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Serve local fs",
+			fs: fstest.MapFS{
+				// Only GITKEEP file on embedded fs, won't be served.
+				"bin/GITKEEP": &fstest.MapFile{},
+			},
+			reqs: []req{
+				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusNotFound},
+				{url: "/bin/GITKEEP", wantStatus: http.StatusNotFound},
+			},
+		},
+		{
+			name: "Serve local fs when embedd fs empty",
+			fs:   fstest.MapFS{},
+			reqs: []req{
+				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusNotFound},
+				{url: "/bin/GITKEEP", wantStatus: http.StatusNotFound},
+			},
+		},
+		{
+			name: "Serve embedd fs",
+			fs: fstest.MapFS{
+				"bin/GITKEEP": &fstest.MapFile{
+					Data: []byte(""),
+				},
+				"bin/coder-linux-amd64": &fstest.MapFile{
+					Data: []byte("embedd"),
+				},
+			},
+			reqs: []req{
+				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("embedd")},
+				{url: "/bin/GITKEEP", wantStatus: http.StatusOK, wantBody: []byte("")},
+			},
+		},
+	}
+	//nolint // Parallel test detection issue.
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := t.TempDir()
+			binFS, err := site.ExtractOrReadBinFS(dest, tt.fs)
+			if !tt.wantErr && err != nil {
+				require.NoError(t, err, "extract or read failed")
+			} else if tt.wantErr {
+				require.Error(t, err, "extraction or read did not fail")
+			}
+
+			srv := httptest.NewServer(site.Handler(rootFS, binFS))
+			defer srv.Close()
+
+			// Create a context
+			ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancelFunc()
+
+			for _, tr := range tt.reqs {
+				t.Run(strings.TrimPrefix(tr.url, "/"), func(t *testing.T) {
+					req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+tr.url, nil)
+					require.NoError(t, err, "http request failed")
+
+					resp, err := http.DefaultClient.Do(req)
+					require.NoError(t, err, "http do failed")
+					defer resp.Body.Close()
+
+					gotStatus := resp.StatusCode
+					if tr.wantStatus > 0 {
+						assert.Equal(t, tr.wantStatus, gotStatus, "status did not match")
+					}
+					if tr.wantBody != nil {
+						gotBody, _ := io.ReadAll(resp.Body)
+						assert.Equal(t, string(tr.wantBody), string(gotBody), "body did not match")
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestServeAPIResponse(t *testing.T) {
 	t.Parallel()
 
@@ -180,6 +354,7 @@ func TestServeAPIResponse(t *testing.T) {
 			Data: []byte(`{"code":{{ .APIResponse.StatusCode }},"message":"{{ .APIResponse.Message }}"}`),
 		},
 	}
+	binFS := http.FS(fstest.MapFS{})
 
 	apiResponse := site.APIResponse{
 		StatusCode: http.StatusBadGateway,
@@ -187,7 +362,7 @@ func TestServeAPIResponse(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(site.WithAPIResponse(r.Context(), apiResponse))
-		site.Handler(rootFS).ServeHTTP(w, r)
+		site.Handler(rootFS, binFS).ServeHTTP(w, r)
 	}))
 	defer srv.Close()
 
