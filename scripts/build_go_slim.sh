@@ -105,7 +105,7 @@ for f in ./coder-slim_*; do
 	cp "$f" "$dest"
 done
 
-if [[ -n $compress ]]; then
+if [[ $compress != 0 ]]; then
 	log "--- Compressing coder-slim binaries using zstd level $compress ($dest_dir/coder.tar.zst)"
 	(
 		cd "$dest_dir"
