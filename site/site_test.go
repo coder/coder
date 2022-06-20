@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -174,15 +173,6 @@ func TestShouldCacheFile(t *testing.T) {
 		got := site.ShouldCacheFile(testCase.reqFile)
 		require.Equal(t, testCase.expected, got, fmt.Sprintf("Expected ShouldCacheFile(%s) to be %t", testCase.reqFile, testCase.expected))
 	}
-}
-
-func readFile(t *testing.T, name string) []byte {
-	t.Helper()
-	b, err := os.ReadFile(name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
 }
 
 func TestServingBin(t *testing.T) {
