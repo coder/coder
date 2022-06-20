@@ -46,7 +46,7 @@ export const Language = {
       or use a built-in template using the following Coder CLI command:
     </>
   ),
-  templateTooltipTitle: "What is template?",
+  templateTooltipTitle: "What is a template?",
   templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
   createdByLabel: "Created by",
