@@ -103,7 +103,7 @@ Terraform. There are two types of parameters:
   or "workspace image".
 
 The template sample below uses *admin and user parameters* to allow developers to
-create workspaces from any image as long as it in the proper registry:
+create workspaces from any image as long as it is in the proper registry:
 
 ```hcl
 variable "image_registry_url" {
