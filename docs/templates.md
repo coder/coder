@@ -8,7 +8,7 @@ other users provision their development workspaces from templates.
 
 ## Add a template
 
-Before users can create workspaces, you'll need at least 1 template in Coder.
+Before users can create workspaces, you'll need at least one template in Coder.
 
 ```sh
 # create a local directory to store templates
