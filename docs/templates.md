@@ -203,7 +203,7 @@ practices:
 
 - Ensure the resource has `curl` installed
 - Ensure the resource can reach your Coder URL
-- Manually connect to the resource (e.g `docker exec` or AWS console)
+- Manually connect to the resource (e.g., `docker exec` or AWS console)
   - The Coder agent logs are typically stored in (`/var/log/coder-agent.log`)
 
 
