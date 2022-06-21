@@ -752,7 +752,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
-			Status: string(codersdk.UserStatusActive),
+			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, active, users)

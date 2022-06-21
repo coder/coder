@@ -130,6 +130,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt:  int32(paginationParams.Limit),
 		Search:    params.Search,
 		Status:    params.Status,
+		RbacRole:  params.RbacRole,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
@@ -951,7 +952,7 @@ func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
 	filter := database.GetUsersParams{
 		Search:   parser.String(searchParams, "", "search"),
 		Status:   httpapi.ParseCustom(parser, searchParams, []database.UserStatus{database.UserStatusActive}, "status", parseUserStatus),
-		RbacRole: parser.Strings(searchParams, []string{}, "rbac_role"),
+		RbacRole: parser.Strings(searchParams, []string{}, "role"),
 	}
 
 	return filter, parser.Errors
