@@ -124,7 +124,7 @@ resource "docker_image" "workspace" {
 }
 ```
 
-### Persistent vs ephemeral resources
+### Persistent vs. ephemeral resources
 
 You can use the workspace state to ensure some resources in Coder can are
 persistent, while others are ephemeral.
