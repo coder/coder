@@ -267,6 +267,8 @@ func TestServer(t *testing.T) {
 
 		<-deployment
 		<-snapshot
+		cancelFunc()
+		<-errC
 	})
 }
 
