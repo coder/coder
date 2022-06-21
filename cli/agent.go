@@ -32,6 +32,7 @@ func workspaceAgent() *cobra.Command {
 		auth         string
 		pprofEnabled bool
 		pprofAddress string
+		noReap       bool
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -58,9 +59,12 @@ func workspaceAgent() *cobra.Command {
 
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
-			if reaper.IsInitProcess() && !reaper.IsChild() && isLinux {
+			if reaper.IsInitProcess() && !noReap && isLinux {
 				logger.Info(cmd.Context(), "spawning reaper process")
-				err := reaper.ForkReap(nil)
+				// Do not start a reaper on the child process. It's important
+				// to do this else we fork bomb ourselves.
+				args := append(os.Args, "--no-reap")
+				err := reaper.ForkReap(reaper.WithExecArgs(args...))
 				if err != nil {
 					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
@@ -182,6 +186,7 @@ func workspaceAgent() *cobra.Command {
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
 	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
+	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
 }
