@@ -4,8 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"net/http"
@@ -439,12 +442,18 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
 		return nil, err
 	}
 
-	n, err := extractBin(dest, archive)
+	ok, err := verifyBinSha265IsCurrent(dest, siteFS)
 	if err != nil {
-		return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		return nil, xerrors.Errorf("verify coder binaries sha256 failed: %w", err)
 	}
-	if n == 0 {
-		return nil, xerrors.New("no files were extracted from coder binaries archive")
+	if !ok {
+		n, err := extractBin(dest, archive)
+		if err != nil {
+			return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		}
+		if n == 0 {
+			return nil, xerrors.New("no files were extracted from coder binaries archive")
+		}
 	}
 
 	return dir, nil
@@ -459,6 +468,66 @@ func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 		filtered = append(filtered, f)
 	}
 	return filtered
+}
+
+func verifyBinSha265IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
+	b1, err := fs.ReadFile(siteFS, "bin/coder.sha256")
+	if err != nil {
+		return false, xerrors.Errorf("read coder sha256 from embedded fs failed: %w", err)
+	}
+	// Parse sha256 file.
+	shaFiles := make(map[string][]byte)
+	for _, line := range bytes.Split(bytes.TrimSpace(b1), []byte{'\n'}) {
+		parts := bytes.Split(line, []byte{' ', '*'})
+		if len(parts) != 2 {
+			return false, xerrors.Errorf("malformed sha256 file: %w", err)
+		}
+		shaFiles[string(parts[1])] = parts[0]
+	}
+	if len(shaFiles) == 0 {
+		return false, xerrors.Errorf("empty sha256 file: %w", err)
+	}
+
+	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha256"))
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("read coder sha256 failed: %w", err)
+	}
+
+	// Verify the hash of each on-disk binary.
+	sha := sha256.New()
+	for file, hash1 := range shaFiles {
+		sha.Reset()
+		hash2, err := hashFile(sha, filepath.Join(dest, file))
+		if err != nil {
+			return false, xerrors.Errorf("hash file failed: %w", err)
+		}
+		if !bytes.Equal(hash1, hash2) {
+			return false, nil
+		}
+	}
+
+	return bytes.Equal(b1, b2), nil
+}
+
+func hashFile(sum hash.Hash, name string) ([]byte, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(sum, f)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, sum.Size())
+	sum.Sum(b[:0])
+
+	return []byte(hex.EncodeToString(b)), nil
 }
 
 func extractBin(dest string, r io.Reader) (numExtraced int, err error) {
