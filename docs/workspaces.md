@@ -33,19 +33,12 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default
-> templates are documented in [../examples/templates](../examples/templates/).
+> templates are documented in [../examples/templates](../examples/templates/README.md).
 >
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
 When a workspace is deleted, all of the workspace's resources are deleted.
-
-## Dotfiles
-
-Users can install configuration from a personal [dotfiles
-repository](https://dotfiles.github.io) with the `coder dotfiles <repo>` command
-in their workspace. Templates can also prompt users for their dotfiles repo
-[(example)](../examples/templates/docker-with-dotfiles/README.md#how-it-works).
 
 ## Updating workspaces
 
@@ -55,3 +48,10 @@ The workspace will be stopped and started:
 ```sh
 coder update <workspace-name>
 ```
+
+---
+
+## Up next
+
+- Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
+- Learn about using [IDEs](./ides.md)

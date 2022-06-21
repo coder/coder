@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -80,6 +81,7 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCP
 		Database:     api.Database,
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
+		Telemetry:    api.Telemetry,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
@@ -94,7 +96,7 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCP
 		},
 	})
 	go func() {
-		err = server.Serve(ctx, serverSession)
+		err := server.Serve(ctx, serverSession)
 		if err != nil && !xerrors.Is(err, io.EOF) {
 			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		}
@@ -127,6 +129,7 @@ type provisionerdServer struct {
 	Provisioners []database.ProvisionerType
 	Database     database.Store
 	Pubsub       database.Pubsub
+	Telemetry    telemetry.Reporter
 }
 
 // AcquireJob queries the database to lock a job.
@@ -490,21 +493,28 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 	if job.CompletedAt.Valid {
 		return nil, xerrors.Errorf("job already completed")
 	}
+	job.CompletedAt = sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	job.Error = sql.NullString{
+		String: failJob.Error,
+		Valid:  failJob.Error != "",
+	}
+
 	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID: jobID,
-		CompletedAt: sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		},
-		UpdatedAt: database.Now(),
-		Error: sql.NullString{
-			String: failJob.Error,
-			Valid:  failJob.Error != "",
-		},
+		ID:          jobID,
+		CompletedAt: job.CompletedAt,
+		UpdatedAt:   database.Now(),
+		Error:       job.Error,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
 	}
+	server.Telemetry.Report(&telemetry.Snapshot{
+		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
+	})
+
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
 		if jobType.WorkspaceBuild.State == nil {
@@ -543,6 +553,10 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		return nil, xerrors.Errorf("you don't have permission to update this job")
 	}
 
+	telemetrySnapshot := &telemetry.Snapshot{}
+	// Items are added to this snapshot as they complete!
+	defer server.Telemetry.Report(telemetrySnapshot)
+
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_TemplateImport_:
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
@@ -556,7 +570,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource)
+				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource, telemetrySnapshot)
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -625,7 +639,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceBuild.Resources {
-				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource)
+				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
@@ -656,7 +670,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				slog.F("resource_name", resource.Name),
 				slog.F("resource_type", resource.Type))
 
-			err = insertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource)
+			err = insertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
 				return nil, xerrors.Errorf("insert resource: %w", err)
 			}
@@ -686,7 +700,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	return &proto.Empty{}, nil
 }
 
-func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource) error {
+func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  database.Now(),
@@ -698,6 +712,8 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
 	}
+	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
+
 	for _, agent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if agent.GetInstanceId() != "" {
@@ -745,9 +761,10 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
 		}
+		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range agent.Apps {
-			_, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
 				AgentID:   dbAgent.ID,
@@ -766,6 +783,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
 			}
+			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
 	}
 	return nil

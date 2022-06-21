@@ -33,19 +33,27 @@ Coder creates remote development machines so your team can develop from anywhere
 > **Note**:
 > Coder is in an alpha state. [Report issues here](https://github.com/coder/coder/issues/new).
 
-There are a few ways to install Coder: [install script](https://coder.com/docs/coder-oss/latest/install#installsh) (macOS, Linux), [docker-compose](https://coder.com/docs/coder-oss/latest/install#docker-compose), or [manually](https://coder.com/docs/coder-oss/latest/install#manual) via the latest release (macOS, Windows, and Linux).
-
-If you use the install script, you can preview what occurs during the install process:
-
-```sh
-curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
-```
+The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS.
 
 To install, run:
 
-```sh
-curl -fsSL https://coder.com/install.sh | sh
+```bash
+curl -L https://coder.com/install.sh | sh
 ```
+
+You can preview what occurs during the install process:
+
+```bash
+curl -L https://coder.com/install.sh | sh -s -- --dry-run
+```
+
+You can modify the installation process by including flags. Run the help command for reference:
+
+```bash
+curl -L https://coder.com/install.sh | sh -s -- --help
+```
+
+> See [install](docs/install.md) for additional methods.
 
 Once installed, you can start a production deployment with a single command:
 

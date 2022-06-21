@@ -1,26 +1,47 @@
+# GitHub release workflow.
+#
+# This workflow is a bit complicated because we have to build darwin binaries on
+# a mac runner, but the mac runners are extremely slow. So instead of running
+# the entire release on a mac (which will take an hour to run), we run only the
+# mac build on a mac, and the rest on a linux runner. The final release is then
+# published using a final linux runner.
 name: release
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Force a dev version to be generated, implies dry_run.
+        type: boolean
+        required: true
+      dry_run:
+        description: Perform a dry-run release.
+        type: boolean
+        required: true
+
+env:
+  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
 jobs:
-  goreleaser:
-    runs-on: macos-latest
+  linux-windows:
+    runs-on: ubuntu-latest
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
-      # Docker is not included on macos-latest
-      - uses: docker-practice/actions-setup-docker@1.0.10
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
 
       - name: Docker Login
         uses: docker/login-action@v2
@@ -33,34 +54,120 @@ jobs:
         with:
           go-version: "~1.18"
 
-      - name: Install Gon
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
+      - name: Build Site
+        run: make site/out/index.html
+
+      - name: Build Linux and Windows Binaries
         run: |
-          brew tap mitchellh/gon
-          brew install mitchellh/gon/gon
+          set -euo pipefail
+          go mod download
+
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build linux and windows binaries
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --package-linux \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64
+
+      - name: Build Linux Docker images
+        run: |
+          set -euxo pipefail
+
+          # build and (maybe) push Docker images for each architecture
+          images=()
+          for arch in amd64 armv7 arm64; do
+            img="$(
+              ./scripts/build_docker.sh \
+                ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
+                --arch "$arch" \
+                ./dist/coder_*_linux_"$arch"
+            )"
+            images+=("$img")
+          done
+
+          # we can't build multi-arch if the images aren't pushed, so quit now
+          # if dry-running
+          if [[ "$CODER_RELEASE" != *t* ]]; then
+            echo Skipping multi-arch docker builds due to dry-run.
+            exit 0
+          fi
+
+          # build and push multi-arch manifest
+          ./scripts/build_docker_multiarch.sh \
+            --push \
+            "${images[@]}"
+
+          # if the current version is equal to the highest (according to semver)
+          # version in the repo, also create a multi-arch image as ":latest" and
+          # push it
+          if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            ./scripts/build_docker_multiarch.sh \
+              --push \
+              --target "$(./scripts/image_tag.sh --version latest)" \
+              "${images[@]}"
+          fi
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.apk
+            dist/*.deb
+            dist/*.rpm
+
+  # The mac binaries get built on mac runners because they need to be signed,
+  # and the signing tool only runs on mac. This darwin job only builds the Mac
+  # binaries and uploads them as job artifacts used by the publish step.
+  darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.18"
 
       - name: Import Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v1
         with:
           p12-file-base64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           p12-password: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
-
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
         id: cache-node
@@ -73,18 +180,101 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: Install make
-        run: brew install make
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          # The version of bash that MacOS ships with is too old
+          brew install bash
+
+          # The version of make that MacOS ships with is too old
+          brew install make
+          echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+
+          # BSD getopt is incompatible with the build scripts
+          brew install gnu-getopt
+          echo "$(brew --prefix)/opt/gnu-getopt/bin" >> $GITHUB_PATH
+
+          # Used for notarizing the binaries
+          brew tap mitchellh/gon
+          brew install mitchellh/gon/gon
 
       - name: Build Site
         run: make site/out/index.html
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --rm-dist --timeout 60m
+      - name: Build darwin Binaries (with signatures)
+        run: |
+          set -euo pipefail
+          go mod download
+
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build darwin binaries
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --sign-darwin \
+            darwin:amd64,arm64
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
+          AC_APPLICATION_IDENTITY: BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
+
+      - name: Upload Binary Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: darwin
+          path: ./dist/coder_*.zip
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - linux-windows
+      - darwin
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: mkdir artifacts
+        run: mkdir artifacts
+
+      - name: Download darwin Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: darwin
+          path: artifacts
+
+      - name: Download Linux and Windows Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: linux
+          path: artifacts
+
+      - name: ls artifacts
+        run: ls artifacts
+
+      - name: Publish Release
+        run: |
+          ./scripts/publish_release.sh \
+            ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            ./artifacts/*.zip \
+            ./artifacts/*.tar.gz \
+            ./artifacts/*.apk \
+            ./artifacts/*.deb \
+            ./artifacts/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

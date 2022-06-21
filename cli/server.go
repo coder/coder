@@ -29,6 +29,7 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
+	"github.com/google/uuid"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
@@ -81,6 +83,8 @@ func server() *cobra.Command {
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowSignups         bool
+		telemetryEnable                  bool
+		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
 		tlsClientAuth                    string
@@ -134,6 +138,7 @@ func server() *cobra.Command {
 			}
 
 			config := createConfig(cmd)
+			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !inMemoryDatabase && postgresURL == "" {
 				var closeFunc func() error
@@ -142,6 +147,7 @@ func server() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				builtinPostgres = true
 				defer func() {
 					// Gracefully shut PostgreSQL down!
 					_ = closeFunc()
@@ -253,6 +259,7 @@ func server() *cobra.Command {
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
+				Telemetry:            telemetry.NewNoop(),
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -283,6 +290,48 @@ func server() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
+			}
+
+			deploymentID, err := options.Database.GetDeploymentID(cmd.Context())
+			if errors.Is(err, sql.ErrNoRows) {
+				err = nil
+			}
+			if err != nil {
+				return xerrors.Errorf("get deployment id: %w", err)
+			}
+			if deploymentID == "" {
+				deploymentID = uuid.NewString()
+				err = options.Database.InsertDeploymentID(cmd.Context(), deploymentID)
+				if err != nil {
+					return xerrors.Errorf("set deployment id: %w", err)
+				}
+			}
+
+			// Parse the raw telemetry URL!
+			telemetryURL, err := url.Parse(telemetryURL)
+			if err != nil {
+				return xerrors.Errorf("parse telemetry url: %w", err)
+			}
+			// Disable telemetry if the in-memory database is used unless explicitly defined!
+			if inMemoryDatabase && !cmd.Flags().Changed("telemetry") {
+				telemetryEnable = false
+			}
+			if telemetryEnable {
+				options.Telemetry, err = telemetry.New(telemetry.Options{
+					BuiltinPostgres: builtinPostgres,
+					DeploymentID:    deploymentID,
+					Database:        options.Database,
+					Logger:          logger.Named("telemetry"),
+					URL:             telemetryURL,
+					GitHubOAuth:     oauth2GithubClientID != "",
+					Prometheus:      promEnabled,
+					STUN:            len(stunServers) != 0,
+					Tunnel:          tunnel,
+				})
+				if err != nil {
+					return xerrors.Errorf("create telemetry reporter: %w", err)
+				}
+				defer options.Telemetry.Close()
 			}
 
 			coderAPI := coderd.New(options)
@@ -359,11 +408,6 @@ func server() *cobra.Command {
 				errCh <- wg.Wait()
 			}()
 
-			// This is helpful for tests, but can be silently ignored.
-			// Coder may be ran as users that don't have permission to write in the homedir,
-			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
-
 			hasFirstUser, err := client.HasFirstUser(cmd.Context())
 			if !hasFirstUser && err == nil {
 				cmd.Println()
@@ -393,6 +437,12 @@ func server() *cobra.Command {
 			stopChan := make(chan os.Signal, 1)
 			defer signal.Stop(stopChan)
 			signal.Notify(stopChan, os.Interrupt)
+
+			// This is helpful for tests, but can be silently ignored.
+			// Coder may be ran as users that don't have permission to write in the homedir,
+			// such as via the systemd service.
+			_ = config.URL().Write(client.URL.String())
+
 			select {
 			case <-cmd.Context().Done():
 				coderAPI.Close()
@@ -438,6 +488,8 @@ func server() *cobra.Command {
 				<-devTunnelErrChan
 			}
 
+			// Ensures a last report can be sent before exit!
+			options.Telemetry.Close()
 			cmd.Println("Waiting for WebSocket connections to close...")
 			shutdownConns()
 			coderAPI.Close()
@@ -485,6 +537,9 @@ func server() *cobra.Command {
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
+	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
+	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+

@@ -8,10 +8,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"runtime"
@@ -19,12 +21,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -232,6 +236,37 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 		require.Error(t, goleak.Find())
+	})
+	t.Run("Telemetry", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		deployment := make(chan struct{}, 64)
+		snapshot := make(chan *telemetry.Snapshot, 64)
+		r := chi.NewRouter()
+		r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			deployment <- struct{}{}
+		})
+		r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			ss := &telemetry.Snapshot{}
+			err := json.NewDecoder(r.Body).Decode(ss)
+			require.NoError(t, err)
+			snapshot <- ss
+		})
+		server := httptest.NewServer(r)
+		t.Cleanup(server.Close)
+
+		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--telemetry", "--telemetry-url", server.URL)
+		errC := make(chan error)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		<-deployment
+		<-snapshot
 	})
 }
 

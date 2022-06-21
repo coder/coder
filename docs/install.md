@@ -46,13 +46,16 @@ journalctl -u coder.service -b
 Before proceeding, please ensure that you have both Docker and the [latest version of
 Coder](https://github.com/coder/coder/releases) installed.
 
+> See our [docker-compose](https://github.com/coder/coder/blob/93b78755a6d48191cc53c82654e249f25fc00ce9/docker-compose.yaml) file
+> for additional information.
+
 1. Clone the `coder` repository:
 
    ```console
-   git clone git@github.com:coder/coder.git
+   git clone https://github.com/coder/coder.git
    ```
 
-1. Navigate into the `coder` folder. Coder requires a non-`localhost` access URL
+2. Navigate into the `coder` folder. Coder requires a non-`localhost` access URL
    for non-Docker-based examples; if you have a public IP or a domain/reverse
    proxy, you can provide this value before running `docker-compose up` to
    start the service:
@@ -79,7 +82,7 @@ Coder](https://github.com/coder/coder/releases) installed.
    ghcr.io/coder/coder:v0.5.10
    ```
 
-1. Follow the on-screen instructions to create your first template and workspace
+3. Follow the on-screen instructions to create your first template and workspace
 
 ## Manual
 

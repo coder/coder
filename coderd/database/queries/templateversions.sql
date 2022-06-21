@@ -40,6 +40,9 @@ FROM
 WHERE
 	job_id = $1;
 
+-- name: GetTemplateVersionsCreatedAfter :many
+SELECT * FROM template_versions WHERE created_at > $1;
+
 -- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
 	*

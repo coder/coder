@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -75,7 +76,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
 		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -180,10 +181,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		minAutostartInterval = time.Duration(*createTemplate.MinAutostartIntervalMillis) * time.Millisecond
 	}
 
+	var dbTemplate database.Template
 	var template codersdk.Template
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
-		dbTemplate, err := db.InsertTemplate(r.Context(), database.InsertTemplateParams{
+		dbTemplate, err = db.InsertTemplate(r.Context(), database.InsertTemplateParams{
 			ID:                   uuid.New(),
 			CreatedAt:            now,
 			UpdatedAt:            now,
@@ -218,7 +220,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeTemplate,
-				ScopeID:           dbTemplate.ID,
+				ScopeID:           template.ID,
 				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
@@ -243,6 +245,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		Templates:        []telemetry.Template{telemetry.ConvertTemplate(dbTemplate)},
+		TemplateVersions: []telemetry.TemplateVersion{telemetry.ConvertTemplateVersion(templateVersion)},
+	})
 
 	httpapi.Write(rw, http.StatusCreated, template)
 }
