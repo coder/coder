@@ -384,6 +384,9 @@ func TestExtractOrReadBinFS(t *testing.T) {
 				if err != nil {
 					return err
 				}
+				if d.IsDir() {
+					return nil // Only check the files.
+				}
 				stat, err := d.Info()
 				if err != nil {
 					return err
