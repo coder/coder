@@ -132,7 +132,7 @@ persistent, while others are ephemeral.
 #### Start/stop
 
 Coder workspaces can be started/stopped. This is often used to save on cloud costs or enforce
-ephemeral worflows. When a workspace is started or stopped, the Coder server
+ephemeral workflows. When a workspace is started or stopped, the Coder server
 runs an additional
 [terraform apply](https://www.terraform.io/cli/commands/apply), informing the
 Coder provider that the workspace has a new transition state.
