@@ -137,7 +137,7 @@ runs an additional
 [terraform apply](https://www.terraform.io/cli/commands/apply), informing the
 Coder provider that the workspace has a new transition state.
 
-This template sample has 1 persistent resource (docker image) and 1 ephemeral resource
+This template sample has one persistent resource (docker image) and one ephemeral resource
 (docker volume).
 
 ```sh
