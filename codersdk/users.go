@@ -375,7 +375,10 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 				params = append(params, "status:"+string(req.Status))
 			}
 			if req.Role != "" {
-				params = append(params, "role:"+string(req.Role))
+				params = append(params, "role:"+req.Role)
+			}
+			if req.SearchQuery != "" {
+				params = append(params, req.SearchQuery)
 			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()

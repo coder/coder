@@ -291,13 +291,19 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	usersFilteredByStatus := make([]database.User, 0, len(users))
 	for i, user := range users {
-		for _, status := range params.Status {
-			if user.Status == status {
-				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
-			}
+		if slice.Contains(params.Status, user.Status) {
+			usersFilteredByStatus = append(usersFilteredByStatus, users[i])
 		}
 	}
 	users = usersFilteredByStatus
+
+	usersFilteredByRole := make([]database.User, 0, len(users))
+	for i, user := range users {
+		if slice.Overlap(params.RbacRole, user.RBACRoles) {
+			usersFilteredByRole = append(usersFilteredByRole, users[i])
+		}
+	}
+	users = usersFilteredByRole
 
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
