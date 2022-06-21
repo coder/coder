@@ -47,9 +47,17 @@ type sqlQuerier struct {
 
 // InTx performs database operations inside a transaction.
 func (q *sqlQuerier) InTx(function func(Store) error) error {
-	if q.sdb == nil {
+	if _, ok := q.db.(*sql.Tx); ok {
+		// If the current inner "db" is already a transaction, we just reuse it.
+		// We do not need to handle commit/rollback as the outer tx will handle
+		// that.
+		err := function(q)
+		if err != nil {
+			return xerrors.Errorf("execute transaction: %w", err)
+		}
 		return nil
 	}
+
 	transaction, err := q.sdb.Begin()
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)

@@ -220,7 +220,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeTemplate,
-				ScopeID:           dbTemplate.ID,
+				ScopeID:           template.ID,
 				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),

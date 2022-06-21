@@ -6,6 +6,12 @@ CREATE TYPE audit_action AS ENUM (
     'delete'
 );
 
+CREATE TYPE build_reason AS ENUM (
+    'initiator',
+    'autostart',
+    'autostop'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -311,7 +317,8 @@ CREATE TABLE workspace_builds (
     initiator_id uuid NOT NULL,
     provisioner_state bytea,
     job_id uuid NOT NULL,
-    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
 CREATE TABLE workspace_resources (
@@ -393,9 +400,6 @@ ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
 
 ALTER TABLE ONLY templates
-    ADD CONSTRAINT templates_organization_id_name_key UNIQUE (organization_id, name);
-
-ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
@@ -446,13 +450,11 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text));
-
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
-CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 

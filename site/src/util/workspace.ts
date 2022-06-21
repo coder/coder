@@ -186,6 +186,37 @@ export const getDisplayWorkspaceBuildStatus = (
   }
 }
 
+export const DisplayWorkspaceBuildInitiatedByLanguage = {
+  autostart: "system/autostart",
+  autostop: "system/autostop",
+}
+
+export const getDisplayWorkspaceBuildInitiatedBy = (
+  theme: Theme,
+  build: TypesGen.WorkspaceBuild,
+): {
+  color: string
+  initiatedBy: string
+} => {
+  switch (build.reason) {
+    case "initiator":
+      return {
+        color: theme.palette.text.secondary,
+        initiatedBy: build.initiator_name,
+      }
+    case "autostart":
+      return {
+        color: theme.palette.secondary.dark,
+        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostart,
+      }
+    case "autostop":
+      return {
+        color: theme.palette.secondary.dark,
+        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostop,
+      }
+  }
+}
+
 export const getWorkspaceBuildDurationInSeconds = (build: TypesGen.WorkspaceBuild): number | undefined => {
   const isCompleted = build.job.started_at && build.job.completed_at
 

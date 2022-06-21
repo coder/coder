@@ -82,7 +82,13 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			job, parameters, err := createValidTemplateVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash, parameterFile)
+			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+				Client:        client,
+				Organization:  organization,
+				Provisioner:   database.ProvisionerType(provisioner),
+				FileHash:      resp.Hash,
+				ParameterFile: parameterFile,
+			})
 			if err != nil {
 				return err
 			}
@@ -98,7 +104,6 @@ func templateCreate() *cobra.Command {
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                       templateName,
 				VersionID:                  job.ID,
-				ParameterValues:            parameters,
 				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				MinAutostartIntervalMillis: ptr.Ref(minAutostartInterval.Milliseconds()),
 			}
@@ -133,14 +138,34 @@ func templateCreate() *cobra.Command {
 	return cmd
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, hash string, parameterFile string, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+type createValidTemplateVersionArgs struct {
+	Client        *codersdk.Client
+	Organization  codersdk.Organization
+	Provisioner   database.ProvisionerType
+	FileHash      string
+	ParameterFile string
+	// Template is only required if updating a template's active version.
+	Template *codersdk.Template
+	// ReuseParameters will attempt to reuse params from the Template field
+	// before prompting the user. Set to false to always prompt for param
+	// values.
+	ReuseParameters bool
+}
+
+func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	before := time.Now()
-	version, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
+	client := args.Client
+
+	req := codersdk.CreateTemplateVersionRequest{
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-		StorageSource:   hash,
-		Provisioner:     codersdk.ProvisionerType(provisioner),
+		StorageSource:   args.FileHash,
+		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
-	})
+	}
+	if args.Template != nil {
+		req.TemplateID = args.Template.ID
+	}
+	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -175,33 +200,77 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		return nil, nil, err
 	}
 
+	// lastParameterValues are pulled from the current active template version if
+	// templateID is provided. This allows pulling params from the last
+	// version instead of prompting if we are updating template versions.
+	lastParameterValues := make(map[string]codersdk.Parameter)
+	if args.ReuseParameters && args.Template != nil {
+		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
+		}
+
+		// We don't want to compute the params, we only want to copy from this scope
+		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
+		}
+		for _, value := range values {
+			lastParameterValues[value.Name] = value
+		}
+	}
+
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
-		valuesBySchemaID := map[string]codersdk.TemplateVersionParameter{}
+		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
+
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
+
+		// parameterMapFromFile can be nil if parameter file is not specified
+		var parameterMapFromFile map[string]string
+		if args.ParameterFile != "" {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		// pulled params come from the last template version
+		pulled := make([]string, 0)
 		missingSchemas := make([]codersdk.ParameterSchema, 0)
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
 				continue
 			}
+
+			// The file values are handled below. So don't handle them here,
+			// just check if a value is present in the file.
+			_, fileOk := parameterMapFromFile[parameterSchema.Name]
+			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok && !fileOk {
+				// If the value is not in the param file, and can be pulled from the last template version,
+				// then don't mark it as missing.
+				parameters = append(parameters, codersdk.CreateParameterRequest{
+					CloneID: inherit.ID,
+				})
+				pulled = append(pulled, fmt.Sprintf("%q", parameterSchema.Name))
+				continue
+			}
+
 			missingSchemas = append(missingSchemas, parameterSchema)
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
-
-		// parameterMapFromFile can be nil if parameter file is not specified
-		var parameterMapFromFile map[string]string
-		if parameterFile != "" {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
-			if err != nil {
-				return nil, nil, err
-			}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
+		if len(pulled) > 0 {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
 		}
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\r\n")
+
 		for _, parameterSchema := range missingSchemas {
 			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 			if err != nil {
@@ -218,7 +287,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 
 		// This recursion is only 1 level deep in practice.
 		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(cmd, client, organization, provisioner, hash, parameterFile, parameters...)
+		return createValidTemplateVersion(cmd, args, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {

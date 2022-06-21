@@ -325,6 +325,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 		require.NoError(t, err)
 
 		if log := msg.GetLog(); log != nil {
+			t.Log(log.Level.String(), log.Output)
 			if strings.Contains(log.Output, "TF_LOG") {
 				found = true
 			}

@@ -30,6 +30,13 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
+// From codersdk/parameters.go:44:6
+export interface ComputedParameter extends Parameter {
+  readonly source_value: string
+  readonly schema_id: string
+  readonly default_source_value: boolean
+}
+
 // From codersdk/users.go:42:6
 export interface CreateFirstUserRequest {
   readonly email: string
@@ -49,8 +56,9 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:80:6
+// From codersdk/parameters.go:87:6
 export interface CreateParameterRequest {
+  readonly copy_from_parameter?: string
   readonly name: string
   readonly source_value: string
   readonly source_scheme: ParameterSourceScheme
@@ -67,7 +75,7 @@ export interface CreateTemplateRequest {
   readonly min_autostart_interval_ms?: number
 }
 
-// From codersdk/templateversions.go:121:6
+// From codersdk/templateversions.go:106:6
 export interface CreateTemplateVersionDryRunRequest {
   readonly WorkspaceName: string
   readonly ParameterValues: CreateParameterRequest[]
@@ -160,7 +168,7 @@ export interface Pagination {
   readonly offset?: number
 }
 
-// From codersdk/parameters.go:45:6
+// From codersdk/parameters.go:52:6
 export interface Parameter {
   readonly id: string
   readonly created_at: string
@@ -172,7 +180,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/parameters.go:56:6
+// From codersdk/parameters.go:63:6
 export interface ParameterSchema {
   readonly id: string
   readonly created_at: string
@@ -262,21 +270,6 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-}
-
-// From codersdk/templateversions.go:26:6
-export interface TemplateVersionParameter {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly scope: ParameterScope
-  readonly scope_id: string
-  readonly name: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly source_value: string
-  readonly destination_scheme: ParameterDestinationScheme
-  readonly schema_id: string
-  readonly default_source_value: boolean
 }
 
 // From codersdk/templates.go:100:6
@@ -443,7 +436,7 @@ export interface WorkspaceApp {
   readonly icon?: string
 }
 
-// From codersdk/workspacebuilds.go:24:6
+// From codersdk/workspacebuilds.go:38:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
@@ -460,6 +453,7 @@ export interface WorkspaceBuild {
   readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly deadline: string
+  readonly reason: BuildReason
 }
 
 // From codersdk/workspaces.go:84:6
@@ -487,6 +481,9 @@ export interface WorkspaceResource {
   readonly name: string
   readonly agents?: WorkspaceAgent[]
 }
+
+// From codersdk/workspacebuilds.go:22:6
+export type BuildReason = "autostart" | "autostop" | "initiator"
 
 // From codersdk/provisionerdaemons.go:23:6
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"

@@ -209,6 +209,17 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	}
 	provisionerJobID := uuid.New()
 	now := database.Now()
+
+	var buildReason database.BuildReason
+	switch trans {
+	case database.WorkspaceTransitionStart:
+		buildReason = database.BuildReasonAutostart
+	case database.WorkspaceTransitionStop:
+		buildReason = database.BuildReasonAutostop
+	default:
+		return xerrors.Errorf("Unsupported transition: %q", trans)
+	}
+
 	newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 		ID:             provisionerJobID,
 		CreatedAt:      now,
@@ -236,6 +247,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		InitiatorID:       workspace.OwnerID,
 		Transition:        trans,
 		JobID:             newProvisionerJob.ID,
+		Reason:            buildReason,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert workspace build: %w", err)

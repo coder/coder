@@ -12,38 +12,60 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
 	return &fakeQuerier{
-		apiKeys:             make([]database.APIKey, 0),
-		organizationMembers: make([]database.OrganizationMember, 0),
-		organizations:       make([]database.Organization, 0),
-		users:               make([]database.User, 0),
+		mutex: &sync.RWMutex{},
+		data: &data{
+			apiKeys:             make([]database.APIKey, 0),
+			organizationMembers: make([]database.OrganizationMember, 0),
+			organizations:       make([]database.Organization, 0),
+			users:               make([]database.User, 0),
 
-		auditLogs:               make([]database.AuditLog, 0),
-		files:                   make([]database.File, 0),
-		gitSSHKey:               make([]database.GitSSHKey, 0),
-		parameterSchemas:        make([]database.ParameterSchema, 0),
-		parameterValues:         make([]database.ParameterValue, 0),
-		provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
-		provisionerJobAgents:    make([]database.WorkspaceAgent, 0),
-		provisionerJobLogs:      make([]database.ProvisionerJobLog, 0),
-		provisionerJobResources: make([]database.WorkspaceResource, 0),
-		provisionerJobs:         make([]database.ProvisionerJob, 0),
-		templateVersions:        make([]database.TemplateVersion, 0),
-		templates:               make([]database.Template, 0),
-		workspaceBuilds:         make([]database.WorkspaceBuild, 0),
-		workspaceApps:           make([]database.WorkspaceApp, 0),
-		workspaces:              make([]database.Workspace, 0),
+			auditLogs:               make([]database.AuditLog, 0),
+			files:                   make([]database.File, 0),
+			gitSSHKey:               make([]database.GitSSHKey, 0),
+			parameterSchemas:        make([]database.ParameterSchema, 0),
+			parameterValues:         make([]database.ParameterValue, 0),
+			provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
+			provisionerJobAgents:    make([]database.WorkspaceAgent, 0),
+			provisionerJobLogs:      make([]database.ProvisionerJobLog, 0),
+			provisionerJobResources: make([]database.WorkspaceResource, 0),
+			provisionerJobs:         make([]database.ProvisionerJob, 0),
+			templateVersions:        make([]database.TemplateVersion, 0),
+			templates:               make([]database.Template, 0),
+			workspaceBuilds:         make([]database.WorkspaceBuild, 0),
+			workspaceApps:           make([]database.WorkspaceApp, 0),
+			workspaces:              make([]database.Workspace, 0),
+		},
 	}
 }
 
+type rwMutex interface {
+	Lock()
+	RLock()
+	Unlock()
+	RUnlock()
+}
+
+// inTxMutex is a no op, since inside a transaction we are already locked.
+type inTxMutex struct{}
+
+func (inTxMutex) Lock()    {}
+func (inTxMutex) RLock()   {}
+func (inTxMutex) Unlock()  {}
+func (inTxMutex) RUnlock() {}
+
 // fakeQuerier replicates database functionality to enable quick testing.
 type fakeQuerier struct {
-	mutex sync.RWMutex
+	mutex rwMutex
+	*data
+}
 
+type data struct {
 	// Legacy tables
 	apiKeys             []database.APIKey
 	organizations       []database.Organization
@@ -72,7 +94,9 @@ type fakeQuerier struct {
 
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
-	return fn(q)
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
 }
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -101,6 +125,19 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, parameterValue := range q.parameterValues {
+		if parameterValue.ID.String() != id.String() {
+			continue
+		}
+		return parameterValue, nil
+	}
+	return database.ParameterValue{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
@@ -744,17 +781,27 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 	return organizations, nil
 }
 
-func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.GetParameterValuesByScopeParams) ([]database.ParameterValue, error) {
+func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	parameterValues := make([]database.ParameterValue, 0)
 	for _, parameterValue := range q.parameterValues {
-		if parameterValue.Scope != arg.Scope {
-			continue
+		if len(arg.Scopes) > 0 {
+			if !slice.Contains(arg.Scopes, parameterValue.Scope) {
+				continue
+			}
 		}
-		if parameterValue.ScopeID != arg.ScopeID {
-			continue
+		if len(arg.ScopeIds) > 0 {
+			if !slice.Contains(arg.ScopeIds, parameterValue.ScopeID) {
+				continue
+			}
+		}
+
+		if len(arg.Ids) > 0 {
+			if !slice.Contains(arg.Ids, parameterValue.ID) {
+				continue
+			}
 		}
 		parameterValues = append(parameterValues, parameterValue)
 	}
@@ -1720,6 +1767,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
 		Deadline:          arg.Deadline,
+		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil

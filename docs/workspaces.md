@@ -33,7 +33,7 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default
-> templates are documented in [../examples/templates](../examples/templates/).
+> templates are documented in [../examples/templates](../examples/templates/README.md).
 >
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -18,6 +19,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -51,6 +53,23 @@ func workspaceAgent() *cobra.Command {
 			}
 			defer logWriter.Close()
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+			isLinux := runtime.GOOS == "linux"
+
+			// Spawn a reaper so that we don't accumulate a ton
+			// of zombie processes.
+			if reaper.IsInitProcess() && !reaper.IsChild() && isLinux {
+				logger.Info(cmd.Context(), "spawning reaper process")
+				err := reaper.ForkReap(nil)
+				if err != nil {
+					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					return xerrors.Errorf("fork reap: %w", err)
+				}
+
+				logger.Info(cmd.Context(), "reaper process exiting")
+				return nil
+			}
+
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {

@@ -14,9 +14,9 @@ import (
 type ParameterScope string
 
 const (
-	ParameterTemplate       ParameterScope = "template"
-	ParameterWorkspace      ParameterScope = "workspace"
-	ParameterScopeImportJob ParameterScope = "import_job"
+	ParameterTemplate  ParameterScope = "template"
+	ParameterWorkspace ParameterScope = "workspace"
+	ParameterImportJob ParameterScope = "import_job"
 )
 
 type ParameterSourceScheme string
@@ -40,6 +40,13 @@ const (
 	ParameterTypeSystemNone ParameterTypeSystem = "none"
 	ParameterTypeSystemHCL  ParameterTypeSystem = "hcl"
 )
+
+type ComputedParameter struct {
+	Parameter
+	SourceValue        string    `json:"source_value"`
+	SchemaID           uuid.UUID `json:"schema_id"`
+	DefaultSourceValue bool      `json:"default_source_value"`
+}
 
 // Parameter represents a set value for the scope.
 type Parameter struct {
@@ -78,6 +85,13 @@ type ParameterSchema struct {
 
 // CreateParameterRequest is used to create a new parameter value for a scope.
 type CreateParameterRequest struct {
+	// CloneID allows copying the value of another parameter.
+	// The other param must be related to the same template_id for this to
+	// succeed.
+	// No other fields are required if using this, as all fields will be copied
+	// from the other parameter.
+	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:""`
+
 	Name              string                     `json:"name" validate:"required"`
 	SourceValue       string                     `json:"source_value" validate:"required"`
 	SourceScheme      ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`

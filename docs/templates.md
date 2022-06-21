@@ -43,6 +43,4 @@ credentials.
 
 ---
 
-Next: [Workspaces](./workspaces.md)
-
-Next: [Authentication & Secrets](./authentication.md)
+Next: [Authentication & Secrets](templates/authentication.md) and [Workspaces](./workspaces.md)
