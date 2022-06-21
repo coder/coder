@@ -48,7 +48,7 @@ rc=0
 for i in $(seq 1 2); do
 	gon "$config" && rc=0 && break || rc=$?
 	log "gon exit code: $rc"
-	if [ "$i" -lt 5 ]; then
+	if [[ $i -lt 5 ]]; then
 		log
 		log "Retrying notarization in 60 seconds"
 		log
