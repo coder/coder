@@ -43,10 +43,10 @@ type ServeOptions struct {
 	Logger     slog.Logger
 }
 
-func getAbsoluteBinaryPath(ctx context.Context) (string, bool) {
+func absoluteBinaryPath(ctx context.Context) (string, error) {
 	binaryPath, err := safeexec.LookPath("terraform")
 	if err != nil {
-		return "", false
+		return "", xerrors.Errorf("Terraform binary not found: %w", err)
 	}
 
 	// If the "coder" binary is in the same directory as
@@ -56,30 +56,32 @@ func getAbsoluteBinaryPath(ctx context.Context) (string, bool) {
 	// to execute this properly!
 	absoluteBinary, err := filepath.Abs(binaryPath)
 	if err != nil {
-		return "", false
+		return "", xerrors.Errorf("Terraform binary absolute path not found: %w", err)
 	}
 
 	// Checking the installed version of Terraform.
 	version, err := versionFromBinaryPath(ctx, absoluteBinary)
 	if err != nil {
-		return "", false
+		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
 	}
 
 	if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
-		return "", false
+		return "", xerrors.Errorf("Terraform binary minor version mismatch.")
 	}
 
-	return absoluteBinary, true
+	return absoluteBinary, nil
 }
 
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
-		absoluteBinary, ok := getAbsoluteBinaryPath(ctx)
+		absoluteBinary, err := absoluteBinaryPath(ctx)
 
-		if ok {
-			options.BinaryPath = absoluteBinary
-		} else {
+		if err != nil {
+			if xerrors.Is(err, context.Canceled) {
+				return xerrors.Errorf("absolute binary context canceled: %w", err)
+			}
+
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
@@ -91,6 +93,8 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
 			options.BinaryPath = execPath
+		} else {
+			options.BinaryPath = absoluteBinary
 		}
 	}
 	return provisionersdk.Serve(ctx, &server{

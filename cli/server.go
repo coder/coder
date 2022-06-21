@@ -376,7 +376,6 @@ func server() *cobra.Command {
 			shutdownConnsCtx, shutdownConns := context.WithCancel(cmd.Context())
 			defer shutdownConns()
 			go func() {
-				defer close(errCh)
 				server := http.Server{
 					// These errors are typically noise like "TLS: EOF". Vault does similar:
 					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
@@ -590,7 +589,7 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 			CachePath: cacheDir,
 			Logger:    logger,
 		})
-		if err != nil {
+		if err != nil && !xerrors.Is(err, context.Canceled) {
 			errChan <- err
 		}
 	}()

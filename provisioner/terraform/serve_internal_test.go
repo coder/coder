@@ -10,10 +10,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 )
 
 // nolint:paralleltest
-func Test_getAbsoluteBinaryPath(t *testing.T) {
+func Test_absoluteBinaryPath(t *testing.T) {
 	type args struct {
 		ctx context.Context
 	}
@@ -21,31 +22,31 @@ func Test_getAbsoluteBinaryPath(t *testing.T) {
 		name             string
 		args             args
 		terraformVersion string
-		expectedOk       bool
+		expectedErr      error
 	}{
 		{
 			name:             "TestCorrectVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.1.9",
-			expectedOk:       true,
+			expectedErr:      nil,
 		},
 		{
 			name:             "TestOldVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.0.9",
-			expectedOk:       false,
+			expectedErr:      xerrors.Errorf("Terraform binary minor version mismatch."),
 		},
 		{
 			name:             "TestNewVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.2.9",
-			expectedOk:       false,
+			expectedErr:      xerrors.Errorf("Terraform binary minor version mismatch."),
 		},
 		{
 			name:             "TestMalformedVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "version",
-			expectedOk:       false,
+			expectedErr:      xerrors.Errorf("Terraform binary get version failed: Malformed version: version"),
 		},
 	}
 	// nolint:paralleltest
@@ -80,16 +81,22 @@ func Test_getAbsoluteBinaryPath(t *testing.T) {
 			t.Setenv("PATH", strings.Join([]string{tempDir, pathVariable}, ":"))
 
 			var expectedAbsoluteBinary string
-			if tt.expectedOk {
+			if tt.expectedErr == nil {
 				expectedAbsoluteBinary = filepath.Join(tempDir, "terraform")
 			}
 
-			actualAbsoluteBinary, actualOk := getAbsoluteBinaryPath(tt.args.ctx)
+			actualAbsoluteBinary, actualErr := absoluteBinaryPath(tt.args.ctx)
 			if actualAbsoluteBinary != expectedAbsoluteBinary {
 				t.Errorf("getAbsoluteBinaryPath() absoluteBinaryPath, actual = %v, expected %v", actualAbsoluteBinary, expectedAbsoluteBinary)
 			}
-			if actualOk != tt.expectedOk {
-				t.Errorf("getAbsoluteBinaryPath() ok, actual = %v, expected %v", actualOk, tt.expectedOk)
+			if tt.expectedErr == nil {
+				if actualErr != nil {
+					t.Errorf("getAbsoluteBinaryPath() error, actual = %v, expected %v", actualErr.Error(), tt.expectedErr)
+				}
+			} else {
+				if actualErr.Error() != tt.expectedErr.Error() {
+					t.Errorf("getAbsoluteBinaryPath() error, actual = %v, expected %v", actualErr.Error(), tt.expectedErr.Error())
+				}
 			}
 		})
 	}
