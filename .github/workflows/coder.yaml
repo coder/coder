@@ -202,13 +202,10 @@ jobs:
 
       - name: Test with Mock Database
         shell: bash
-        env:
-          GOCOUNT: ${{ runner.os == 'Windows' && 1 || 2 }}
-          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=5m -count=$GOCOUNT -short -failfast
+          -timeout=5m -short -failfast
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
