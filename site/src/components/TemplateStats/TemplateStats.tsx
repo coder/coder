@@ -11,8 +11,8 @@ const Language = {
   usedByLabel: "Used by",
   activeVersionLabel: "Active version",
   lastUpdateLabel: "Last updated",
-  userPlural: "users",
-  userSingular: "user",
+  developerPlural: "developers",
+  developerSingular: "developer",
   createdByLabel: "Created by",
 }
 
@@ -31,7 +31,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
 
         <span className={styles.statsValue}>
           {template.workspace_owner_count}{" "}
-          {template.workspace_owner_count === 1 ? Language.userSingular : Language.userPlural}
+          {template.workspace_owner_count === 1 ? Language.developerSingular : Language.developerPlural}
         </span>
       </div>
       <div className={styles.statsDivider} />
