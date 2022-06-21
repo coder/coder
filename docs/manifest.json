@@ -26,8 +26,13 @@
         {
           "title": "Postgres",
           "description": "Learn how to create and use your own Postgres database.",
-          "path": "./postgres.md"
-        }
+          "path": "./install/postgres.md"
+        },
+        {
+          "title": "GitHub OAuth",
+          "description": "Learn how to authenticate with GitHub.",
+          "path": "./install/oauth.md"
+        } 
       ]
     },
     {
