@@ -33,9 +33,6 @@ export const workspaceBuildMachine = createMachine(
         getWorkspaceBuild: {
           data: WorkspaceBuild
         }
-        getLogs: {
-          data: ProvisionerJobLog[]
-        }
       },
     },
     tsTypes: {} as import("./workspaceBuildXService.typegen").Typegen0,
@@ -57,18 +54,8 @@ export const workspaceBuildMachine = createMachine(
       },
       idle: {},
       logs: {
-        initial: "gettingExistentLogs",
+        initial: "watchingLogs",
         states: {
-          gettingExistentLogs: {
-            invoke: {
-              id: "getLogs",
-              src: "getLogs",
-              onDone: {
-                actions: ["assignLogs"],
-                target: "watchingLogs",
-              },
-            },
-          },
           watchingLogs: {
             id: "watchingLogs",
             invoke: {
@@ -107,10 +94,6 @@ export const workspaceBuildMachine = createMachine(
       clearGetBuildError: assign({
         getBuildError: (_) => undefined,
       }),
-      // Logs
-      assignLogs: assign({
-        logs: (_, event) => event.data,
-      }),
       addLog: assign({
         logs: (context, event) => {
           const previousLogs = context.logs ?? []
@@ -120,7 +103,6 @@ export const workspaceBuildMachine = createMachine(
     },
     services: {
       getWorkspaceBuild: (ctx) => API.getWorkspaceBuildByNumber(ctx.username, ctx.workspaceName, ctx.buildNumber),
-      getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
         const reader = await API.streamWorkspaceBuildLogs(ctx.buildId)
 

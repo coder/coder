@@ -1,11 +1,6 @@
 import { screen } from "@testing-library/react"
 import * as API from "../../api/api"
-import {
-  MockWorkspace,
-  MockWorkspaceBuild,
-  MockWorkspaceBuildLogs,
-  renderWithAuth,
-} from "../../testHelpers/renderHelpers"
+import { MockWorkspace, MockWorkspaceBuild, renderWithAuth } from "../../testHelpers/renderHelpers"
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage"
 
 describe("WorkspaceBuildPage", () => {
@@ -27,6 +22,5 @@ describe("WorkspaceBuildPage", () => {
     })
 
     await screen.findByText(MockWorkspaceBuild.workspace_name)
-    await screen.findByText(MockWorkspaceBuildLogs[0].stage)
   })
 })
