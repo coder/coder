@@ -1,7 +1,7 @@
 # Templates
 
 Templates are written in standard Terraform and describe the infrastructure for
-workspaces (e.g aws_instance, kubernetes_pod, or both).
+workspaces (e.g., aws_instance, kubernetes_pod, or both).
 
 In most cases, a small group of users (Coder admins) manage templates. Then,
 other users provision their development workspaces from templates.
