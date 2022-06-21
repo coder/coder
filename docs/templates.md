@@ -52,7 +52,7 @@ template options, reference [Coder Terraform provider docs](https://registry.ter
 ### Resource
 
 Resources in Coder are simply [Terraform resources](https://www.terraform.io/language/resources). 
-If a Coder agent is attached to a resouce, users can connect directly to the resource over
+If a Coder agent is attached to a resource, users can connect directly to the resource over
 SSH or web apps.
 
 ### Coder agent
