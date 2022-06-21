@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -41,6 +42,9 @@ type Options struct {
 	Logger    slog.Logger
 	Database  database.Store
 	Pubsub    database.Pubsub
+
+	// CacheDir is used for caching files served by the API.
+	CacheDir string
 
 	AgentConnectionUpdateFrequency time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -78,11 +82,20 @@ func New(options *Options) *API {
 		}
 	}
 
+	siteCacheDir := options.CacheDir
+	if siteCacheDir != "" {
+		siteCacheDir = filepath.Join(siteCacheDir, "site")
+	}
+	binFS, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
+	if err != nil {
+		panic(xerrors.Errorf("read site bin failed: %w", err))
+	}
+
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
 		Handler:     r,
-		siteHandler: site.Handler(site.FS()),
+		siteHandler: site.Handler(site.FS(), binFS),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 
