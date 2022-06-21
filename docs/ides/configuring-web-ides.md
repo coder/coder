@@ -102,7 +102,7 @@ Workspace requirements:
 
 Installation instructions will vary depending on your workspace's operating system, platform, and build system.
 
-As a starting point, see the [jetbrains-container](https://github.com/bpmct/coder-templates/tree/main/jetbrains-container) community template. It builds & provisions a Dockerized workspaces for the following IDEs:
+As a starting point, see the [projector-container](https://github.com/bpmct/coder-templates/tree/main/projector-container) community template. It builds & provisions a Dockerized workspaces for the following IDEs:
 
 - CLion
 - pyCharm

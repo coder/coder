@@ -61,4 +61,4 @@ Code, connected to your Coder workspace for compute, etc.
 
 ## Web IDEs (Jupyter, code-server, Jetbrains Projector)
 
-Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./templates/configuring-ides.md).
+Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).

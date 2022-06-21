@@ -91,5 +91,5 @@ CODER_PG_CONNECTION_URL="postgres://<databaseUsername>@0.0.0.0/<databaseName>?ss
     coder server -a 0.0.0.0:3000 --verbose
 ```
 
-> If you [installed Coder manually](install.md), you can add the `CODER_PG_CONNECTION_URL`
-variable to  `/etc/coder.d/coder.env`.
+> If you [installed Coder manually](install.md), you can add the
+> `CODER_PG_CONNECTION_URL` variable to  `/etc/coder.d/coder.env`.
