@@ -72,7 +72,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 		before = time.UnixMilli(beforeMS)
 	} else {
-		before = database.Now()
+		// If we're following, we don't want logs before a timestamp!
+		if !follow {
+			before = database.Now()
+		}
 	}
 
 	if !follow {
