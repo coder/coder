@@ -14,25 +14,24 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
-
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func workspaceAgent() *cobra.Command {
 	var (
-		auth         string
-		pprofEnabled bool
-		pprofAddress string
-		noReap       bool
+		auth             string
+		pprofEnabled     bool
+		pprofAddress     string
+		noReap           bool
+		disableWireguard bool
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -178,7 +177,7 @@ func workspaceAgent() *cobra.Command {
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				EnableWireguard:      true,
+				EnableWireguard:      !disableWireguard,
 				PostPublicKeys:       client.PostWorkspaceAgentKeys,
 				ListenWireguardPeers: client.WireguardPeerListener,
 			})
@@ -191,5 +190,6 @@ func workspaceAgent() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
+	cliflag.BoolVarP(cmd.Flags(), &disableWireguard, "disable-wireguard", "", "", false, "Disable creating a wireguard interface.")
 	return cmd
 }
