@@ -111,17 +111,21 @@ done
 
 if [[ $compress != 0 ]]; then
 	pushd "$dest_dir"
-	log "--- Generating SHA256 for coder-slim binaries ($dest_dir/coder.sha256)"
-	shasum -b -a 256 coder-* | tee coder.sha256
-	echo "$dest_dir/coder.sha256"
+	sha_file=coder.sha1
+	sha_dest="$dest_dir/$sha_file"
+	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
+	shasum -b -a 1 coder-* | tee $sha_file
+	echo "$sha_dest"
 	log
 	log
 
-	log "--- Compressing coder-slim binaries using zstd level $compress ($dest_dir/coder.tar.zst)"
-	tar cf coder.tar coder.sha256 coder-*
+	tar_name=coder.tar.zst
+	tar_dest="$dest_dir/$tar_name"
+	log "--- Compressing coder-slim binaries using zstd level $compress ($tar_dest)"
+	tar cf coder.tar $sha_file coder-*
 	rm coder-*
-	zstd --force --ultra --long -"${compress}" --rm --no-progress coder.tar -o coder.tar.zst
-	echo "$dest_dir/coder.tar.zst"
+	zstd --force --ultra --long -"${compress}" --rm --no-progress coder.tar -o $tar_name
+	echo "$tar_dest"
 	log
 	log
 
