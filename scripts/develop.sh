@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Allow toggling verbose output
-[[ ! -z ${VERBOSE:-""} ]] && set -x
+[[ -n ${VERBOSE:-""} ]] && set -x
 set -euo pipefail
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
