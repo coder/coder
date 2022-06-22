@@ -175,8 +175,9 @@ func TestPostLogin(t *testing.T) {
 		require.NoError(t, err, "fetch api key")
 
 		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-			ID:       apiKey.ID,
-			LastUsed: apiKey.LastUsed,
+			ID:        apiKey.ID,
+			LastUsed:  apiKey.LastUsed,
+			IPAddress: apiKey.IPAddress,
 			// This should cause a refresh
 			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
 			OAuthAccessToken:  apiKey.OAuthAccessToken,

@@ -801,6 +801,9 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	}
 
 	ip := net.ParseIP(r.RemoteAddr)
+	if ip == nil {
+		ip = net.IPv4(0, 0, 0, 0)
+	}
 	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,

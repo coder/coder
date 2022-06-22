@@ -168,6 +168,9 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			if now.Sub(key.LastUsed) > time.Hour {
 				key.LastUsed = now
 				remoteIP := net.ParseIP(r.RemoteAddr)
+				if remoteIP == nil {
+					remoteIP = net.IPv4(0, 0, 0, 0)
+				}
 				key.IPAddress = pqtype.Inet{
 					IPNet: net.IPNet{
 						IP:   remoteIP,
