@@ -775,8 +775,7 @@ func TestUsersFilter(t *testing.T) {
 				Search: "a",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return (strings.Contains(u.Username, "a") || strings.Contains(u.Email, "a")) &&
-					u.Status == codersdk.UserStatusActive
+				return (strings.Contains(u.Username, "a") || strings.Contains(u.Email, "a"))
 			},
 		},
 		{
@@ -797,7 +796,7 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "SearchQuery",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: "i role:admin",
+				SearchQuery: "i role:admin status:active",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {

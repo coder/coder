@@ -110,9 +110,7 @@ WHERE
 		-- user_status enum, it would not.
 		WHEN cardinality(@status :: user_status[]) > 0 THEN
 			status = ANY(@status :: user_status[])
-		ELSE
-		    -- Only show active by default
-		    status = 'active'
+		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE

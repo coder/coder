@@ -2573,9 +2573,7 @@ WHERE
 		-- user_status enum, it would not.
 		WHEN cardinality($3 :: user_status[]) > 0 THEN
 			status = ANY($3 :: user_status[])
-		ELSE
-		    -- Only show active by default
-		    status = 'active'
+		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
