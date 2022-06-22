@@ -5,6 +5,13 @@ set -x
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
+set +u
+CODER_DEV_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-password}"
+set -u
+
+# Preflight check: make sure nothing is listening on port 3000 or 8080
+nc -z 127.0.0.1 3000 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
+nc -z 127.0.0.1 8080 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
 echo '== Run "make build" before running this command to build binaries.'
 echo '== Without these binaries, workspaces will fail to start!'
@@ -17,18 +24,19 @@ echo '== Without these binaries, workspaces will fail to start!'
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
 	cd "${PROJECT_ROOT}"
-
-	trap 'kill 0' SIGINT
+	# Send an interrupt signal to all processes in this subshell on exit
 	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
 	go run -tags embed cmd/coder/main.go server --in-memory --tunnel &
 
-	# Just a minor sleep to ensure the first user was created to make the member.
-	sleep 2
+	echo '== Waiting for Coder to become ready'
+	timeout 60s bash -c 'until nc -z 127.0.0.1 3000 > /dev/null 2>&1; do sleep 1; done'
 
 	#  create the first user, the admin
-	go run cmd/coder/main.go login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password=password || true
+	go run cmd/coder/main.go login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password=password \
+		|| echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
 
-	# || yes to always exit code 0. If this fails, whelp.
-	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" || true
+	# || true to always exit code 0. If this fails, whelp.
+	go run cmd/coder/main.go users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" \
+		|| echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 	wait
 )
