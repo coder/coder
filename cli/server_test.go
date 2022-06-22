@@ -202,25 +202,19 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--provisioner-daemons", "1")
 		serverErr := make(chan error)
 		go func() {
-			err := root.ExecuteContext(ctx)
-			serverErr <- err
+			serverErr <- root.ExecuteContext(ctx)
 		}()
 		require.Eventually(t, func() bool {
 			var err error
 			_, err = cfg.URL().Read()
 			return err == nil
 		}, 15*time.Second, 25*time.Millisecond)
-
 		currentProcess, err := os.FindProcess(os.Getpid())
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
-		// Send a two more signal, which should be ignored.  Send 2 because the channel has a buffer
-		// of 1 and we want to make sure that nothing strange happens if we exceed the buffer.
-		err = currentProcess.Signal(os.Interrupt)
-		require.NoError(t, err)
-		err = currentProcess.Signal(os.Interrupt)
-		require.NoError(t, err)
+		// We cannot send more signals here, because it's possible Coder
+		// has already exited, which could cause the test to fail due to interrupt.
 		err = <-serverErr
 		require.NoError(t, err)
 	})
