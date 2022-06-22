@@ -8,20 +8,18 @@ type LogsContext = {
   workspaceName: string
   buildNumber: string
   buildId: string
+  // Used to reference logs before + after.
+  timeCursor: Date
   build?: WorkspaceBuild
   getBuildError?: Error | unknown
   // Logs
   logs?: ProvisionerJobLog[]
 }
 
-type LogsEvent =
-  | {
-      type: "ADD_LOG"
-      log: ProvisionerJobLog
-    }
-  | {
-      type: "NO_MORE_LOGS"
-    }
+type LogsEvent = {
+  type: "ADD_LOG"
+  log: ProvisionerJobLog
+}
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -84,9 +82,6 @@ export const workspaceBuildMachine = createMachine(
           ADD_LOG: {
             actions: "addLog",
           },
-          NO_MORE_LOGS: {
-            target: "logs.loaded",
-          },
         },
       },
     },
@@ -120,22 +115,30 @@ export const workspaceBuildMachine = createMachine(
     },
     services: {
       getWorkspaceBuild: (ctx) => API.getWorkspaceBuildByNumber(ctx.username, ctx.workspaceName, ctx.buildNumber),
-      getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId),
+      getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId, ctx.timeCursor),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
-        const reader = await API.streamWorkspaceBuildLogs(ctx.buildId)
-
-        // Watching for the stream
-        // eslint-disable-next-line no-constant-condition, @typescript-eslint/no-unnecessary-condition
-        while (true) {
-          const { value, done } = await reader.read()
-
-          if (done) {
-            callback("NO_MORE_LOGS")
-            break
-          }
-
-          callback({ type: "ADD_LOG", log: value })
-        }
+        return new Promise<void>((resolve, reject) => {
+          const proto = location.protocol === "https:" ? "wss:" : "ws:"
+          const socket = new WebSocket(
+            `${proto}//${location.host}/api/v2/workspacebuilds/${
+              ctx.buildId
+            }/logs?follow=true&after=${ctx.timeCursor.getTime()}`,
+          )
+          socket.binaryType = "blob"
+          socket.addEventListener("message", (event) => {
+            callback({ type: "ADD_LOG", log: JSON.parse(event.data) })
+          })
+          socket.addEventListener("error", () => {
+            reject(new Error("socket errored"))
+          })
+          socket.addEventListener("open", () => {
+            resolve()
+          })
+          socket.addEventListener("close", () => {
+            // When the socket closes, logs have finished streaming!
+            resolve()
+          })
+        })
       },
     },
   },

@@ -74,7 +74,7 @@ layer of infrastructure control. This additional layer allows admins to:
 - Enable persistent workspaces, which are like local machines, but faster and
   hosted by a cloud service
 
-Coder includes [production-ready templates](../examples/templates) for use with AWS EC2,
+Coder includes [production-ready templates](../examples/templates/README.md) for use with AWS EC2,
 Azure, Google Cloud, Kubernetes, and more.
 
 ## What Coder is _not_

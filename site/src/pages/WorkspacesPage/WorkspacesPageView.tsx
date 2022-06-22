@@ -28,6 +28,7 @@ import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
+import { TableCellLink } from "../../components/TableCellLink/TableCellLink"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
@@ -104,27 +105,25 @@ const WorkspaceRow: React.FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ wor
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
   const status = getDisplayStatus(theme, workspace.latest_build)
-  const navigateToWorkspacePage = () => {
-    navigate(`/@${workspace.owner_name}/${workspace.name}`)
-  }
+  const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
+
   return (
     <TableRow
       hover
       data-testid={`workspace-${workspace.id}`}
       tabIndex={0}
-      onClick={navigateToWorkspacePage}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
-          navigateToWorkspacePage()
+          navigate(workspacePageLink)
         }
       }}
       className={styles.clickableTableRow}
     >
-      <TableCell>
+      <TableCellLink to={workspacePageLink}>
         <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
-      </TableCell>
-      <TableCell>{workspace.template_name}</TableCell>
-      <TableCell>
+      </TableCellLink>
+      <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
+      <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
           <span className={styles.outdatedLabel}>
             {Language.outdatedLabel}
@@ -137,20 +136,20 @@ const WorkspaceRow: React.FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ wor
         ) : (
           <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
         )}
-      </TableCell>
-      <TableCell>
+      </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
         <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
           {dayjs().to(dayjs(workspace.latest_build.created_at))}
         </span>
-      </TableCell>
-      <TableCell>
+      </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
         <span style={{ color: status.color }}>{status.status}</span>
-      </TableCell>
-      <TableCell>
+      </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
         <div className={styles.arrowCell}>
           <KeyboardArrowRight className={styles.arrowRight} />
         </div>
-      </TableCell>
+      </TableCellLink>
     </TableRow>
   )
 }
@@ -349,8 +348,6 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   clickableTableRow: {
-    cursor: "pointer",
-
     "&:hover td": {
       backgroundColor: fade(theme.palette.primary.light, 0.1),
     },

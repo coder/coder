@@ -436,6 +436,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			JobID:             provisionerJob.ID,
 			BuildNumber:       1,           // First build!
 			Deadline:          time.Time{}, // provisionerd will set this upon success
+			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -806,6 +807,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			ProvisionerState:  workspaceBuild.ProvisionerState,
 			JobID:             workspaceBuild.JobID,
 			Deadline:          workspaceBuild.Deadline,
+			Reason:            workspaceBuild.Reason,
 		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}

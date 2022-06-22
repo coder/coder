@@ -12,8 +12,9 @@ import (
 
 func users() *cobra.Command {
 	cmd := &cobra.Command{
-		Short: "Create, remove, and list users",
-		Use:   "users",
+		Short:   "Create, remove, and list users",
+		Use:     "users",
+		Aliases: []string{"user"},
 	}
 	cmd.AddCommand(
 		userCreate(),

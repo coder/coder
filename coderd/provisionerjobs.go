@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 
@@ -98,12 +99,28 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageText)
+	defer wsNetConn.Close() // Also closes conn.
+
 	bufferedLogs := make(chan database.ProvisionerJobLog, 128)
 	closeSubscribe, err := api.Pubsub.Subscribe(provisionerJobLogsChannel(job.ID), func(ctx context.Context, message []byte) {
 		var logs []database.ProvisionerJobLog
 		err := json.Unmarshal(message, &logs)
 		if err != nil {
-			api.Logger.Warn(r.Context(), fmt.Sprintf("invalid provisioner job log on channel %q: %s", provisionerJobLogsChannel(job.ID), err.Error()))
+			api.Logger.Warn(ctx, fmt.Sprintf("invalid provisioner job log on channel %q: %s", provisionerJobLogsChannel(job.ID), err.Error()))
 			return
 		}
 
@@ -113,7 +130,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			default:
 				// If this overflows users could miss logs streaming. This can happen
 				// if a database request takes a long amount of time, and we get a lot of logs.
-				api.Logger.Warn(r.Context(), "provisioner job log overflowing channel")
+				api.Logger.Warn(ctx, "provisioner job log overflowing channel")
 			}
 		}
 	})
@@ -126,7 +143,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 	defer closeSubscribe()
 
-	provisionerJobLogs, err := api.Database.GetProvisionerLogsByIDBetween(r.Context(), database.GetProvisionerLogsByIDBetweenParams{
+	provisionerJobLogs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
 		JobID:         job.ID,
 		CreatedAfter:  after,
 		CreatedBefore: before,
@@ -142,17 +159,8 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
-	// "follow" uses the ndjson format to stream data.
-	// See: https://canjs.com/doc/can-ndjson-stream.html
-	rw.Header().Set("Content-Type", "application/stream+json")
-	rw.WriteHeader(http.StatusOK)
-	if flusher, ok := rw.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
 	// The Go stdlib JSON encoder appends a newline character after message write.
-	encoder := json.NewEncoder(rw)
-
+	encoder := json.NewEncoder(wsNetConn)
 	for _, provisionerJobLog := range provisionerJobLogs {
 		err = encoder.Encode(convertProvisionerJobLog(provisionerJobLog))
 		if err != nil {
@@ -170,9 +178,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			err = encoder.Encode(convertProvisionerJobLog(log))
 			if err != nil {
 				return
-			}
-			if flusher, ok := rw.(http.Flusher); ok {
-				flusher.Flush()
 			}
 		case <-ticker.C:
 			job, err := api.Database.GetProvisionerJobByID(r.Context(), job.ID)

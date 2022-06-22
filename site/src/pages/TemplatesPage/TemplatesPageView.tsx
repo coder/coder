@@ -17,6 +17,7 @@ import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
+import { TableCellLink } from "../../components/TableCellLink/TableCellLink"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
@@ -115,36 +116,37 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
             </TableRow>
           )}
           {props.templates?.map((template) => {
-            const navigateToTemplatePage = () => {
-              navigate(`/templates/${template.name}`)
-            }
+            const templatePageLink = `/templates/${template.name}`
             return (
               <TableRow
                 key={template.id}
                 hover
                 data-testid={`template-${template.id}`}
                 tabIndex={0}
-                onClick={navigateToTemplatePage}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    navigateToTemplatePage()
+                    navigate(templatePageLink)
                   }
                 }}
                 className={styles.clickableTableRow}
               >
-                <TableCell>
+                <TableCellLink to={templatePageLink}>
                   <AvatarData title={template.name} subtitle={template.description} />
-                </TableCell>
+                </TableCellLink>
 
-                <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
+                <TableCellLink to={templatePageLink}>
+                  {Language.developerCount(template.workspace_owner_count)}
+                </TableCellLink>
 
-                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
-                <TableCell>{template.created_by_name}</TableCell>
-                <TableCell>
+                <TableCellLink data-chromatic="ignore" to={templatePageLink}>
+                  {dayjs().to(dayjs(template.updated_at))}
+                </TableCellLink>
+                <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
+                <TableCellLink to={templatePageLink}>
                   <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />
                   </div>
-                </TableCell>
+                </TableCellLink>
               </TableRow>
             )
           })}
@@ -159,8 +161,6 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: theme.spacing(62),
   },
   clickableTableRow: {
-    cursor: "pointer",
-
     "&:hover td": {
       backgroundColor: fade(theme.palette.primary.light, 0.1),
     },

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -18,6 +19,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -30,6 +32,7 @@ func workspaceAgent() *cobra.Command {
 		auth         string
 		pprofEnabled bool
 		pprofAddress string
+		noReap       bool
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -51,6 +54,26 @@ func workspaceAgent() *cobra.Command {
 			}
 			defer logWriter.Close()
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+			isLinux := runtime.GOOS == "linux"
+
+			// Spawn a reaper so that we don't accumulate a ton
+			// of zombie processes.
+			if reaper.IsInitProcess() && !noReap && isLinux {
+				logger.Info(cmd.Context(), "spawning reaper process")
+				// Do not start a reaper on the child process. It's important
+				// to do this else we fork bomb ourselves.
+				args := append(os.Args, "--no-reap")
+				err := reaper.ForkReap(reaper.WithExecArgs(args...))
+				if err != nil {
+					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					return xerrors.Errorf("fork reap: %w", err)
+				}
+
+				logger.Info(cmd.Context(), "reaper process exiting")
+				return nil
+			}
+
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -163,6 +186,7 @@ func workspaceAgent() *cobra.Command {
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
 	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
+	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
 }

@@ -19,6 +19,20 @@ const (
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
 )
 
+type BuildReason string
+
+const (
+	// "initiator" is used when a workspace build is triggered by a user.
+	// Combined with the initiator id/username, it indicates which user initiated the build.
+	BuildReasonInitiator BuildReason = "initiator"
+	// "autostart" is used when a build to start a workspace is triggered by Autostart.
+	// The initiator id/username in this case is the workspace owner and can be ignored.
+	BuildReasonAutostart BuildReason = "autostart"
+	// "autostop" is used when a build to stop a workspace is triggered by Autostop.
+	// The initiator id/username in this case is the workspace owner and can be ignored.
+	BuildReasonAutostop BuildReason = "autostop"
+)
+
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
@@ -37,6 +51,7 @@ type WorkspaceBuild struct {
 	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
 	Deadline           time.Time           `json:"deadline"`
+	Reason             BuildReason         `db:"reason" json:"reason"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.
