@@ -27,7 +27,7 @@ func TestTemplate(t *testing.T) {
 			assert.NotEmpty(t, eg.Name, "example name should not be empty")
 			assert.NotEmpty(t, eg.Description, "example description should not be empty")
 			assert.NotEmpty(t, eg.Markdown, "example markdown should not be empty")
-			_, err = examples.Archive(eg.ID)
+			_, err := examples.Archive(eg.ID)
 			assert.NoError(t, err, "error archiving example")
 		})
 	}
