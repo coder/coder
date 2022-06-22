@@ -30,7 +30,7 @@ func update() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated {
+			if !workspace.Outdated && !alwaysPrompt {
 				_, _ = fmt.Printf("Workspace isn't outdated!\n")
 				return nil
 			}
