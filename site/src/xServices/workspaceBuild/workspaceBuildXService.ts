@@ -16,11 +16,10 @@ type LogsContext = {
   logs?: ProvisionerJobLog[]
 }
 
-type LogsEvent =
-  | {
-      type: "ADD_LOG"
-      log: ProvisionerJobLog
-    }
+type LogsEvent = {
+  type: "ADD_LOG"
+  log: ProvisionerJobLog
+}
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -121,7 +120,9 @@ export const workspaceBuildMachine = createMachine(
         return new Promise<void>((resolve, reject) => {
           const proto = location.protocol === "https:" ? "wss:" : "ws:"
           const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/workspacebuilds/${ctx.buildId}/logs?follow=true&after=${ctx.timeCursor.getTime()}`,
+            `${proto}//${location.host}/api/v2/workspacebuilds/${
+              ctx.buildId
+            }/logs?follow=true&after=${ctx.timeCursor.getTime()}`,
           )
           socket.binaryType = "blob"
           socket.addEventListener("message", (event) => {

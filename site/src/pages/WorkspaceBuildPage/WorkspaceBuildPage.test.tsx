@@ -1,10 +1,6 @@
 import { screen } from "@testing-library/react"
 import WS from "jest-websocket-mock"
-import {
-  MockWorkspace,
-  MockWorkspaceBuild,
-  renderWithAuth,
-} from "../../testHelpers/renderHelpers"
+import { MockWorkspace, MockWorkspaceBuild, renderWithAuth } from "../../testHelpers/renderHelpers"
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage"
 
 describe("WorkspaceBuildPage", () => {

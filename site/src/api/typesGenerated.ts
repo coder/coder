@@ -201,7 +201,7 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
-// From codersdk/provisionerdaemons.go:33:6
+// From codersdk/provisionerdaemons.go:38:6
 export interface ProvisionerDaemon {
   readonly id: string
   readonly created_at: string
@@ -210,7 +210,7 @@ export interface ProvisionerDaemon {
   readonly provisioners: ProvisionerType[]
 }
 
-// From codersdk/provisionerdaemons.go:62:6
+// From codersdk/provisionerdaemons.go:67:6
 export interface ProvisionerJob {
   readonly id: string
   readonly created_at: string
@@ -222,7 +222,7 @@ export interface ProvisionerJob {
   readonly storage_source: string
 }
 
-// From codersdk/provisionerdaemons.go:73:6
+// From codersdk/provisionerdaemons.go:78:6
 export interface ProvisionerJobLog {
   readonly id: string
   readonly created_at: string
@@ -485,10 +485,10 @@ export interface WorkspaceResource {
 // From codersdk/workspacebuilds.go:22:6
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
-// From codersdk/provisionerdaemons.go:23:6
+// From codersdk/provisionerdaemons.go:28:6
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 
-// From codersdk/provisionerdaemons.go:16:6
+// From codersdk/provisionerdaemons.go:21:6
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/parameters.go:29:6
@@ -503,7 +503,7 @@ export type ParameterSourceScheme = "data" | "none"
 // From codersdk/parameters.go:37:6
 export type ParameterTypeSystem = "hcl" | "none"
 
-// From codersdk/provisionerdaemons.go:42:6
+// From codersdk/provisionerdaemons.go:47:6
 export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
 
 // From codersdk/organizations.go:14:6
