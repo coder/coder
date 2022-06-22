@@ -306,8 +306,12 @@ func configSSH() *cobra.Command {
 			}
 
 			if len(changes) > 0 {
+				dryRunDisclaimer := ""
+				if dryRun {
+					dryRunDisclaimer = " (dry-run, no changed will be made)"
+				}
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?", strings.Join(changes, "\n    * ")),
+					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?%s", strings.Join(changes, "\n    * "), dryRunDisclaimer),
 					IsConfirm: true,
 				})
 				if err != nil {
