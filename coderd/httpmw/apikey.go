@@ -7,11 +7,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -164,6 +167,17 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Only update LastUsed once an hour to prevent database spam.
 			if now.Sub(key.LastUsed) > time.Hour {
 				key.LastUsed = now
+				remoteIP := net.ParseIP(r.RemoteAddr)
+				if remoteIP == nil {
+					remoteIP = net.IPv4(0, 0, 0, 0)
+				}
+				key.IPAddress = pqtype.Inet{
+					IPNet: net.IPNet{
+						IP:   remoteIP,
+						Mask: remoteIP.DefaultMask(),
+					},
+					Valid: true,
+				}
 				changed = true
 			}
 			// Only update the ExpiresAt once an hour to prevent database spam.
@@ -178,6 +192,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 					ID:                key.ID,
 					LastUsed:          key.LastUsed,
 					ExpiresAt:         key.ExpiresAt,
+					IPAddress:         key.IPAddress,
 					OAuthAccessToken:  key.OAuthAccessToken,
 					OAuthRefreshToken: key.OAuthRefreshToken,
 					OAuthExpiry:       key.OAuthExpiry,
