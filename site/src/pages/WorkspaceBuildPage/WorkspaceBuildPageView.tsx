@@ -14,7 +14,6 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
 export interface WorkspaceBuildPageViewProps {
   logs: ProvisionerJobLog[] | undefined
   build: WorkspaceBuild | undefined
-  isWaitingForLogs: boolean
 }
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build }) => {
@@ -27,7 +26,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, 
       <Stack>
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
-        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={false} />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}
       </Stack>
     </Margins>
   )

@@ -21,9 +21,6 @@ type LogsEvent =
       type: "ADD_LOG"
       log: ProvisionerJobLog
     }
-  | {
-      type: "NO_MORE_LOGS"
-    }
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -86,9 +83,6 @@ export const workspaceBuildMachine = createMachine(
           ADD_LOG: {
             actions: "addLog",
           },
-          NO_MORE_LOGS: {
-            target: "logs.loaded",
-          },
         },
       },
     },
@@ -141,7 +135,6 @@ export const workspaceBuildMachine = createMachine(
           })
           socket.addEventListener("close", () => {
             // When the socket closes, logs have finished streaming!
-            callback("NO_MORE_LOGS")
             resolve()
           })
         })
