@@ -112,12 +112,7 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
 	out, err := cmd.Output()
 	if err != nil {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			return nil, err
-		}
+		return nil, err
 	}
 	vj := tfjson.VersionOutput{}
 	err = json.Unmarshal(out, &vj)

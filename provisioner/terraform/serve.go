@@ -76,8 +76,10 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
 		absoluteBinary, err := absoluteBinaryPath(ctx)
-
 		if err != nil {
+			// This is an early exit to prevent extra execution in case the context is canceled.
+			// It generally happens in unit tests since this method is asynchronous and
+			// the unit test kills the app before this is complete.
 			if xerrors.Is(err, context.Canceled) {
 				return xerrors.Errorf("absolute binary context canceled: %w", err)
 			}
