@@ -30,7 +30,7 @@
         },
         {
           "title": "GitHub OAuth",
-          "description": "Learn how to authenticate with GitHub.",
+          "description": "Learn how to set up OAuth using your GitHub organization.",
           "path": "./install/oauth.md"
         } 
       ]
