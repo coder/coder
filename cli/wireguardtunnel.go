@@ -34,6 +34,7 @@ func wireguardPortForward() *cobra.Command {
 		Use:     "wireguard-port-forward <workspace>",
 		Aliases: []string{"wireguard-tunnel"},
 		Args:    cobra.ExactArgs(1),
+		Hidden:  true,
 		Example: `
   - Port forward a single TCP port from 1234 in the workspace to port 5678 on
     your local machine

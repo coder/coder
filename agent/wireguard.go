@@ -13,6 +13,7 @@ import (
 func (a *agent) startWireguard(ctx context.Context, addrs []netaddr.IPPrefix) error {
 	if a.wg != nil {
 		_ = a.wg.Close()
+		a.wg = nil
 	}
 
 	if !a.enableWireguard {
@@ -46,12 +47,12 @@ func (a *agent) startWireguard(ctx context.Context, addrs []netaddr.IPPrefix) er
 			}
 
 			for {
-				peer := <-ch
-				if peer == nil {
+				peer, ok := <-ch
+				if !ok {
 					break
 				}
 
-				err := wg.AddPeer(*peer)
+				err := wg.AddPeer(peer)
 				a.logger.Info(ctx, "added wireguard peer", slog.F("peer", peer.Public.ShortString()), slog.Error(err))
 			}
 

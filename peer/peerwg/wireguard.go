@@ -36,12 +36,7 @@ import (
 )
 
 func UUIDToInet(uid uuid.UUID) pqtype.Inet {
-	uid[0] = 0xfd
-	uid[1] = 0x7a
-	uid[2] = 0x11
-	uid[3] = 0x5c
-	uid[4] = 0xa1
-	uid[5] = 0xe0
+	uid = privateUUID(uid)
 
 	return pqtype.Inet{
 		Valid: true,
@@ -53,6 +48,11 @@ func UUIDToInet(uid uuid.UUID) pqtype.Inet {
 }
 
 func UUIDToNetaddr(uid uuid.UUID) netaddr.IP {
+	return netaddr.IPFrom16(privateUUID(uid))
+}
+
+// privateUUID sets the uid to have the tailscale private ipv6 prefix.
+func privateUUID(uid uuid.UUID) uuid.UUID {
 	// fd7a:115c:a1e0
 	uid[0] = 0xfd
 	uid[1] = 0x7a
@@ -60,8 +60,7 @@ func UUIDToNetaddr(uid uuid.UUID) netaddr.IP {
 	uid[3] = 0x5c
 	uid[4] = 0xa1
 	uid[5] = 0xe0
-
-	return netaddr.IPFrom16(uid)
+	return uid
 }
 
 var logf tslogger.Logf = log.Printf

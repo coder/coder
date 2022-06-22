@@ -70,7 +70,7 @@ type PublicKeys struct {
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
 type PostKeys func(ctx context.Context, keys PublicKeys) error
-type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan *peerwg.WireguardPeerMessage, func(), error)
+type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.WireguardPeerMessage, func(), error)
 
 func New(dialer Dialer, options *Options) io.Closer {
 	if options == nil {

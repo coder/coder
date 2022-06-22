@@ -29,7 +29,7 @@ type WireguardPeerMessage struct {
 // WireguardPeerMessage to quickly determine if the message is meant for the
 // provided agentID.
 func WireguardPeerMessageRecipientHint(agentID []byte, msg []byte) (bool, error) {
-	idx := bytes.Index(msg, []byte{10})
+	idx := bytes.Index(msg, []byte{peerMessageSeparator})
 	if idx == -1 {
 		return false, xerrors.Errorf("invalid peer message, no separator")
 	}
