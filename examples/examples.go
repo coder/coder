@@ -18,13 +18,15 @@ var (
 	//go:embed templates
 	files embed.FS
 
-	examples      = make([]Example, 0)
-	parseExamples sync.Once
-	archives      = singleflight.Group{}
+	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
+	examples        = make([]Example, 0)
+	parseExamples   sync.Once
+	archives        = singleflight.Group{}
 )
 
 type Example struct {
 	ID          string `json:"id"`
+	URL         string `json:"url"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Markdown    string `json:"markdown"`
@@ -52,6 +54,7 @@ func List() ([]Example, error) {
 				continue
 			}
 			exampleID := dir.Name()
+			exampleURL := exampleBasePath + exampleID
 			// Each one of these is a example!
 			readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
 			if err != nil {
@@ -91,6 +94,7 @@ func List() ([]Example, error) {
 
 			examples = append(examples, Example{
 				ID:          exampleID,
+				URL:         exampleURL,
 				Name:        name,
 				Description: description,
 				Markdown:    string(frontMatter.Content),
