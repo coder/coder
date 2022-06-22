@@ -46,6 +46,10 @@ resource "coder_app" "code-server" {
   url      = "http://localhost:8080/?folder=/home/coder"
 }
 
+resource "docker_volume" "home_volume" {
+  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/code-server:latest"
@@ -59,5 +63,10 @@ resource "docker_container" "workspace" {
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/coder/"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
   }
 }
