@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/examples"
@@ -16,10 +17,20 @@ func TestTemplate(t *testing.T) {
 	t.Parallel()
 	list, err := examples.List()
 	require.NoError(t, err)
-	require.Greater(t, len(list), 0)
-
-	_, err = examples.Archive(list[0].ID)
-	require.NoError(t, err)
+	require.NotEmpty(t, list)
+	for _, eg := range list {
+		eg := eg
+		t.Run(eg.ID, func(t *testing.T) {
+			t.Parallel()
+			assert.NotEmpty(t, eg.ID, "example ID should not be empty")
+			assert.NotEmpty(t, eg.URL, "example URL should not be empty")
+			assert.NotEmpty(t, eg.Name, "example name should not be empty")
+			assert.NotEmpty(t, eg.Description, "example description should not be empty")
+			assert.NotEmpty(t, eg.Markdown, "example markdown should not be empty")
+			_, err = examples.Archive(eg.ID)
+			assert.NoError(t, err, "error archiving example")
+		})
+	}
 }
 
 func TestSubdirs(t *testing.T) {
