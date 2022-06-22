@@ -35,5 +35,5 @@ func (f File) RBACObject() rbac.Object {
 // If you are trying to get the RBAC object for the UserData, use
 // rbac.ResourceUserData
 func (u User) RBACObject() rbac.Object {
-	return rbac.ResourceFile.WithID(u.ID.String())
+	return rbac.ResourceUser.WithID(u.ID.String())
 }
