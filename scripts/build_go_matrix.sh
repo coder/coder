@@ -193,7 +193,7 @@ for spec in "${specs[@]}"; do
 		--os "$spec_os" \
 		--arch "$spec_arch" \
 		--output "$spec_output_binary" \
-		"${build_args[@]}" &
+		"${build_args[@]}"
 	log
 	log
 
@@ -227,5 +227,3 @@ for spec in "${specs[@]}"; do
 		log
 	fi
 done
-
-wait
