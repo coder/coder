@@ -4,7 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //#nosec // Not used for cryptography.
 	"encoding/hex"
 	"errors"
 	"fmt"
