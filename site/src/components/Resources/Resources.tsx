@@ -89,16 +89,13 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                       <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
                         {resource.name}
                         <span className={styles.resourceType}>{resource.type}</span>
-
                       </TableCell>
                     )}
 
                     <TableCell className={styles.agentColumn}>
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                      <span style={{ color: agentStatus.color }}>
-                        {agentStatus.status}
-                      </span>
+                      <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
                     </TableCell>
                     {canUpdateWorkspace && (
                       <TableCell>
