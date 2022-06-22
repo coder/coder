@@ -1382,6 +1382,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		ID:                arg.ID,
 		LifetimeSeconds:   arg.LifetimeSeconds,
 		HashedSecret:      arg.HashedSecret,
+		IPAddress:         arg.IPAddress,
 		UserID:            arg.UserID,
 		ExpiresAt:         arg.ExpiresAt,
 		CreatedAt:         arg.CreatedAt,
@@ -1802,6 +1803,7 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		}
 		apiKey.LastUsed = arg.LastUsed
 		apiKey.ExpiresAt = arg.ExpiresAt
+		apiKey.IPAddress = arg.IPAddress
 		apiKey.OAuthAccessToken = arg.OAuthAccessToken
 		apiKey.OAuthRefreshToken = arg.OAuthRefreshToken
 		apiKey.OAuthExpiry = arg.OAuthExpiry
