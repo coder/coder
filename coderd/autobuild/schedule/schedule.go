@@ -144,7 +144,7 @@ func (s Schedule) Time() string {
 	minute := strings.Fields(s.cronStr)[0]
 	hour := strings.Fields(s.cronStr)[1]
 	maybeTime := fmt.Sprintf("%s:%s", hour, minute)
-	t, err := time.ParseInLocation("3:4", maybeTime, s.sched.Location)
+	t, err := time.ParseInLocation("15:4", maybeTime, s.sched.Location)
 	if err != nil {
 		// return the original cronspec for minute and hour, who knows what's in there!
 		return fmt.Sprintf("cron(%s %s)", minute, hour)

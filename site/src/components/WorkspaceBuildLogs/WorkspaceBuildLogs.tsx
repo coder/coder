@@ -1,4 +1,3 @@
-import CircularProgress from "@material-ui/core/CircularProgress"
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { FC } from "react"
@@ -40,17 +39,16 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 
 export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
-  isWaitingForLogs: boolean
 }
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isWaitingForLogs }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()
 
   return (
     <div className={styles.logs}>
-      {stages.map((stage, stageIndex) => {
+      {stages.map((stage) => {
         const logs = groupedLogsByStage[stage]
         const isEmpty = logs.every((log) => log.output === "")
         const lines = logs.map((log) => ({
@@ -58,15 +56,12 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs, isWaitin
           output: log.output,
         }))
         const duration = getStageDurationInSeconds(logs)
-        const isLastStage = stageIndex === stages.length - 1
-        const shouldDisplaySpinner = isWaitingForLogs && isLastStage
-        const shouldDisplayDuration = !isWaitingForLogs && duration
+        const shouldDisplayDuration = duration !== undefined
 
         return (
           <div key={stage}>
             <div className={styles.header}>
               <div>{stage}</div>
-              {shouldDisplaySpinner && <CircularProgress size={14} className={styles.spinner} />}
               {shouldDisplayDuration && (
                 <div className={styles.duration}>
                   {duration} {Language.seconds}
@@ -108,9 +103,5 @@ const useStyles = makeStyles((theme) => ({
   codeBlock: {
     padding: theme.spacing(2),
     paddingLeft: theme.spacing(4),
-  },
-
-  spinner: {
-    marginLeft: "auto",
   },
 }))

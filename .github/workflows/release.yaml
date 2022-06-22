@@ -68,6 +68,9 @@ jobs:
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
       - name: Build Site
         run: make site/out/index.html
 
@@ -80,6 +83,7 @@ jobs:
           # build slim binaries
           ./scripts/build_go_slim.sh \
             --output ./dist/ \
+            --compress 22 \
             linux:amd64,armv7,arm64 \
             windows:amd64,arm64 \
             darwin:amd64,arm64
@@ -198,6 +202,9 @@ jobs:
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
 
+          # Used for compressing embedded slim binaries
+          brew install zstd
+
       - name: Build Site
         run: make site/out/index.html
 
@@ -210,6 +217,7 @@ jobs:
           # build slim binaries
           ./scripts/build_go_slim.sh \
             --output ./dist/ \
+            --compress 22 \
             linux:amd64,armv7,arm64 \
             windows:amd64,arm64 \
             darwin:amd64,arm64

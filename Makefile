@@ -35,6 +35,7 @@ build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name 
 	# build slim artifacts and copy them to the site output directory
 	./scripts/build_go_slim.sh \
 		--version "$(VERSION)" \
+		--compress 6 \
 		--output ./dist/ \
 		linux:amd64,armv7,arm64 \
 		windows:amd64,arm64 \
@@ -59,8 +60,9 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
+# This target is deprecated, as GNU make has issues passing signals to subprocesses.
 dev:
-	./scripts/develop.sh
+	@echo Please run ./scripts/develop.sh manually.
 .PHONY: dev
 
 fmt/prettier:

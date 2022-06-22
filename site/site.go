@@ -1,13 +1,17 @@
 package site
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
-
+	"crypto/sha1" //#nosec // Not used for cryptography.
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -15,7 +19,10 @@ import (
 	"time"
 
 	"github.com/justinas/nosurf"
+	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
+	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
 
@@ -29,22 +36,25 @@ func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Conte
 }
 
 // Handler returns an HTTP handler for serving the static site.
-func Handler(fileSystem fs.FS) http.Handler {
+func Handler(siteFS fs.FS, binFS http.FileSystem) http.Handler {
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
 	//
 	// REMARK: text/template is needed to inject values on each request like
 	//         CSRF.
-	files, err := htmlFiles(fileSystem)
-
+	files, err := htmlFiles(siteFS)
 	if err != nil {
 		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
 	}
 
+	mux := http.NewServeMux()
+	mux.Handle("/bin/", http.StripPrefix("/bin", http.FileServer(binFS)))
+	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
+
 	return secureHeaders(&handler{
-		fs:        fileSystem,
+		fs:        siteFS,
 		htmlFiles: files,
-		h:         http.FileServer(http.FS(fileSystem)), // All other non-html static files
+		h:         mux,
 	})
 }
 
@@ -146,8 +156,13 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	switch {
+	// If requesting binaries, serve straight up.
+	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
+		h.h.ServeHTTP(resp, req)
+		return
 	// If the original file path exists we serve it.
-	if h.exists(reqFile) {
+	case h.exists(reqFile):
 		if ShouldCacheFile(reqFile) {
 			resp.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
@@ -357,7 +372,6 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -365,4 +379,234 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 	return &htmlTemplates{
 		tpls: root,
 	}, nil
+}
+
+// ExtractOrReadBinFS checks the provided fs for compressed coder
+// binaries and extracts them into dest/bin if found. As a fallback,
+// the provided FS is checked for a /bin directory, if it is non-empty
+// it is returned. Finally dest/bin is returned as a fallback allowing
+// binaries to be manually placed in dest (usually
+// ${CODER_CACHE_DIRECTORY}/site/bin).
+func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
+	if dest == "" {
+		// No destination on fs, embedded fs is the only option.
+		binFS, err := fs.Sub(siteFS, "bin")
+		if err != nil {
+			return nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
+		}
+		return http.FS(binFS), nil
+	}
+
+	dest = filepath.Join(dest, "bin")
+	mkdest := func() (http.FileSystem, error) {
+		err := os.MkdirAll(dest, 0o700)
+		if err != nil {
+			return nil, xerrors.Errorf("mkdir failed: %w", err)
+		}
+		return http.Dir(dest), nil
+	}
+
+	archive, err := siteFS.Open("bin/coder.tar.zst")
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			files, err := fs.ReadDir(siteFS, "bin")
+			if err != nil {
+				if xerrors.Is(err, fs.ErrNotExist) {
+					// Given fs does not have a bin directory,
+					// serve from cache directory.
+					return mkdest()
+				}
+				return nil, xerrors.Errorf("site fs read dir failed: %w", err)
+			}
+
+			if len(filterFiles(files, "GITKEEP")) > 0 {
+				// If there are other files than bin/GITKEEP,
+				// serve the files.
+				binFS, err := fs.Sub(siteFS, "bin")
+				if err != nil {
+					return nil, xerrors.Errorf("site fs sub dir failed: %w", err)
+				}
+				return http.FS(binFS), nil
+			}
+
+			// Nothing we can do, serve the cache directory,
+			// thus allowing binaries to be places there.
+			return mkdest()
+		}
+		return nil, xerrors.Errorf("open coder binary archive failed: %w", err)
+	}
+	defer archive.Close()
+
+	dir, err := mkdest()
+	if err != nil {
+		return nil, err
+	}
+
+	ok, err := verifyBinSha1IsCurrent(dest, siteFS)
+	if err != nil {
+		return nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
+	}
+	if !ok {
+		n, err := extractBin(dest, archive)
+		if err != nil {
+			return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		}
+		if n == 0 {
+			return nil, xerrors.New("no files were extracted from coder binaries archive")
+		}
+	}
+
+	return dir, nil
+}
+
+func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
+	var filtered []fs.DirEntry
+	for _, f := range files {
+		if slices.Contains(names, f.Name()) {
+			continue
+		}
+		filtered = append(filtered, f)
+	}
+	return filtered
+}
+
+// errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
+var errHashMismatch = xerrors.New("hash mismatch")
+
+func verifyBinSha1IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
+	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
+	if err != nil {
+		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+	}
+	// Parse sha1 file.
+	shaFiles := make(map[string][]byte)
+	for _, line := range bytes.Split(bytes.TrimSpace(b1), []byte{'\n'}) {
+		parts := bytes.Split(line, []byte{' ', '*'})
+		if len(parts) != 2 {
+			return false, xerrors.Errorf("malformed sha1 file: %w", err)
+		}
+		shaFiles[string(parts[1])] = parts[0]
+	}
+	if len(shaFiles) == 0 {
+		return false, xerrors.Errorf("empty sha1 file: %w", err)
+	}
+
+	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
+	}
+
+	// Check shasum files for equality for early-exit.
+	if !bytes.Equal(b1, b2) {
+		return false, nil
+	}
+
+	var eg errgroup.Group
+	// Speed up startup by verifying files concurrently. Concurrency
+	// is limited to save resources / early-exit. Early-exit speed
+	// could be improved by using a context aware io.Reader and
+	// passing the context from errgroup.WithContext.
+	eg.SetLimit(3)
+
+	// Verify the hash of each on-disk binary.
+	for file, hash1 := range shaFiles {
+		file := file
+		hash1 := hash1
+		eg.Go(func() error {
+			hash2, err := sha1HashFile(filepath.Join(dest, file))
+			if err != nil {
+				if xerrors.Is(err, fs.ErrNotExist) {
+					return errHashMismatch
+				}
+				return xerrors.Errorf("hash file failed: %w", err)
+			}
+			if !bytes.Equal(hash1, hash2) {
+				return errHashMismatch
+			}
+			return nil
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		if xerrors.Is(err, errHashMismatch) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+// sha1HashFile computes a SHA1 hash of the file, returning the hex
+// representation.
+func sha1HashFile(name string) ([]byte, error) {
+	//#nosec // Not used for cryptography.
+	hash := sha1.New()
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(hash, f)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, hash.Size())
+	hash.Sum(b[:0])
+
+	return []byte(hex.EncodeToString(b)), nil
+}
+
+func extractBin(dest string, r io.Reader) (numExtraced int, err error) {
+	opts := []zstd.DOption{
+		// Concurrency doesn't help us when decoding the tar and
+		// can actually slow us down.
+		zstd.WithDecoderConcurrency(1),
+		// Ignoring checksums can give a slight performance
+		// boost but it's probalby not worth the reduced safety.
+		zstd.IgnoreChecksum(false),
+		// Allow the decoder to use more memory giving us a 2-3x
+		// performance boost.
+		zstd.WithDecoderLowmem(false),
+	}
+	zr, err := zstd.NewReader(r, opts...)
+	if err != nil {
+		return 0, xerrors.Errorf("open zstd archive failed: %w", err)
+	}
+	defer zr.Close()
+
+	tr := tar.NewReader(zr)
+	n := 0
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return n, nil
+			}
+			return n, xerrors.Errorf("read tar archive failed: %w", err)
+		}
+
+		name := filepath.Join(dest, filepath.Base(h.Name))
+		f, err := os.Create(name)
+		if err != nil {
+			return n, xerrors.Errorf("create file failed: %w", err)
+		}
+		//#nosec // We created this tar, no risk of decompression bomb.
+		_, err = io.Copy(f, tr)
+		if err != nil {
+			_ = f.Close()
+			return n, xerrors.Errorf("write file contents failed: %w", err)
+		}
+		err = f.Close()
+		if err != nil {
+			return n, xerrors.Errorf("close file failed: %w", err)
+		}
+
+		n++
+	}
 }

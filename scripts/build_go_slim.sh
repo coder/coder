@@ -3,7 +3,7 @@
 # This script builds multiple "slim" Go binaries for Coder with the given OS and
 # architecture combinations. This wraps ./build_go_matrix.sh.
 #
-# Usage: ./build_go_slim.sh [--version 1.2.3-devel+abcdef] [--output dist/] os1:arch1,arch2 os2:arch1 os1:arch3
+# Usage: ./build_go_slim.sh [--version 1.2.3-devel+abcdef] [--output dist/] [--compress 22] os1:arch1,arch2 os2:arch1 os1:arch3
 #
 # If no OS:arch combinations are provided, nothing will happen and no error will
 # be returned. If no version is specified, defaults to the version from
@@ -15,6 +15,10 @@
 #
 # The built binaries are additionally copied to the site output directory so
 # they can be packaged into non-slim binaries correctly.
+#
+# When the --compress <level> parameter is provided, the binaries in site/bin
+# will be compressed using zstd into site/bin/coder.tar.zst, this helps reduce
+# final binary size significantly.
 
 set -euo pipefail
 shopt -s nullglob
@@ -23,8 +27,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
 output_path=""
+compress=0
 
-args="$(getopt -o "" -l version:,output: -- "$@")"
+args="$(getopt -o "" -l version:,output:,compress: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -34,6 +39,10 @@ while true; do
 		;;
 	--output)
 		output_path="$2"
+		shift 2
+		;;
+	--compress)
+		compress="$2"
 		shift 2
 		;;
 	--)
@@ -48,6 +57,13 @@ done
 
 # Check dependencies
 dependencies go
+if [[ $compress != 0 ]]; then
+	dependencies shasum tar zstd
+
+	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
+		error "Invalid value for compress, must in in the range of [1, 22]"
+	fi
+fi
 
 # Remove the "v" prefix.
 version="${version#v}"
@@ -92,3 +108,26 @@ for f in ./coder-slim_*; do
 	dest="$dest_dir/$hyphenated"
 	cp "$f" "$dest"
 done
+
+if [[ $compress != 0 ]]; then
+	pushd "$dest_dir"
+	sha_file=coder.sha1
+	sha_dest="$dest_dir/$sha_file"
+	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
+	shasum -b -a 1 coder-* | tee $sha_file
+	echo "$sha_dest"
+	log
+	log
+
+	tar_name=coder.tar.zst
+	tar_dest="$dest_dir/$tar_name"
+	log "--- Compressing coder-slim binaries using zstd level $compress ($tar_dest)"
+	tar cf coder.tar $sha_file coder-*
+	rm coder-*
+	zstd --force --ultra --long -"${compress}" --rm --no-progress coder.tar -o $tar_name
+	echo "$tar_dest"
+	log
+	log
+
+	popd
+fi

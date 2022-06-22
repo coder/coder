@@ -6,11 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 type LogSource string
@@ -106,17 +111,30 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?follow%s", path, afterQuery), nil)
+	followURL, err := c.URL.Parse(fmt.Sprintf("%s?follow%s", path, afterQuery))
 	if err != nil {
 		return nil, err
 	}
-	if res.StatusCode != http.StatusOK {
-		defer res.Body.Close()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(followURL, []*http.Cookie{{
+		Name:  httpmw.SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
 		return nil, readBodyAsError(res)
 	}
-
 	logs := make(chan ProvisionerJobLog)
-	decoder := json.NewDecoder(res.Body)
+	decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageText))
 	go func() {
 		defer close(logs)
 		var log ProvisionerJobLog

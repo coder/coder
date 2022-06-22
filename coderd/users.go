@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -779,10 +781,21 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		}
 	}
 
-	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+	ip := net.ParseIP(r.RemoteAddr)
+	if ip == nil {
+		ip = net.IPv4(0, 0, 0, 0)
+	}
+	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
 		LifetimeSeconds: params.LifetimeSeconds,
+		IPAddress: pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   ip,
+				Mask: ip.DefaultMask(),
+			},
+			Valid: true,
+		},
 		// Make sure in UTC time for common time zone
 		ExpiresAt:         params.ExpiresAt.UTC(),
 		CreatedAt:         database.Now(),
@@ -801,6 +814,10 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		})
 		return "", false
 	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(key)},
+	})
 
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)

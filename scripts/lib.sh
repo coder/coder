@@ -156,7 +156,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 	# we capture the version output first before
 	make_version_raw="$(make --version 2>/dev/null)"
 	make_version="$(echo "$make_version_raw" | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
-	if [ "${make_version//.*/}" -lt 4 ]; then
+	if [[ ${make_version//.*/} -lt 4 ]]; then
 		libsh_bad_dependencies=1
 		log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
 		if isdarwin; then

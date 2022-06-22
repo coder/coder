@@ -23,7 +23,7 @@ PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 		# --check-files
 	)
 
-	if [ -n "${CI:-}" ]; then
+	if [[ -n ${CI:-} ]]; then
 		yarn_flags+=(
 			# Install dependencies from lockfile, ensuring builds are fully
 			# reproducible

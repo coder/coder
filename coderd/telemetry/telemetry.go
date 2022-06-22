@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -428,13 +429,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 
 // ConvertAPIKey anonymizes an API key.
 func ConvertAPIKey(apiKey database.APIKey) APIKey {
-	return APIKey{
+	a := APIKey{
 		ID:        apiKey.ID,
 		UserID:    apiKey.UserID,
 		CreatedAt: apiKey.CreatedAt,
 		LastUsed:  apiKey.LastUsed,
 		LoginType: apiKey.LoginType,
 	}
+	if apiKey.IPAddress.Valid {
+		a.IPAddress = apiKey.IPAddress.IPNet.IP
+	}
+	return a
 }
 
 // ConvertWorkspace anonymizes a workspace.
@@ -616,6 +621,7 @@ type APIKey struct {
 	CreatedAt time.Time          `json:"created_at"`
 	LastUsed  time.Time          `json:"last_used"`
 	LoginType database.LoginType `json:"login_type"`
+	IPAddress net.IP             `json:"ip_address"`
 }
 
 type User struct {

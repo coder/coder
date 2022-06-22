@@ -202,13 +202,10 @@ jobs:
 
       - name: Test with Mock Database
         shell: bash
-        env:
-          GOCOUNT: ${{ runner.os == 'Windows' && 1 || 2 }}
-          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=5m -count=$GOCOUNT -short -failfast
+          -timeout=5m -short -failfast
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -370,6 +367,9 @@ jobs:
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
       - name: Build site
         run: make -B site/out/index.html
 
@@ -382,6 +382,7 @@ jobs:
           # build slim binaries
           ./scripts/build_go_slim.sh \
             --output ./dist/ \
+            --compress 22 \
             linux:amd64,armv7,arm64 \
             windows:amd64,arm64 \
             darwin:amd64,arm64
