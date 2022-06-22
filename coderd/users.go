@@ -800,7 +800,8 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		}
 	}
 
-	ip := net.ParseIP(r.RemoteAddr)
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip := net.ParseIP(host)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}

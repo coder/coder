@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -413,13 +414,13 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.RemoteAddr = "1.1.1.1"
+		r.RemoteAddr = "1.1.1.1:3555"
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now().AddDate(0, 0, -1),
@@ -435,7 +436,7 @@ func TestAPIKey(t *testing.T) {
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
 
-		require.NotEqual(t, sentAPIKey.IPAddress, gotAPIKey.IPAddress)
+		require.Equal(t, net.ParseIP("1.1.1.1"), gotAPIKey.IPAddress.IPNet.IP)
 	})
 }
 
