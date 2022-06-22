@@ -170,8 +170,6 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			fmt.Println("enable wireguard", wireguard)
-
 			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
 				Logger: logger,
 				EnvironmentVariables: map[string]string{
