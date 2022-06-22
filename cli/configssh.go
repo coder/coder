@@ -146,7 +146,7 @@ func configSSH() *cobra.Command {
 
     ` + cliui.Styles.Code.Render("$ coder config-ssh -o ForwardAgent=yes") + `
 
-  - You can use --dry-run (or -n) to see the changes that will be made.
+  - You can use --dry-run (or -n) to see the changes that would be made.
 
     ` + cliui.Styles.Code.Render("$ coder config-ssh --dry-run"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -308,7 +308,7 @@ func configSSH() *cobra.Command {
 			if len(changes) > 0 {
 				dryRunDisclaimer := ""
 				if dryRun {
-					dryRunDisclaimer = " (dry-run, no changed will be made)"
+					dryRunDisclaimer = " (dry-run, no changes will be made)"
 				}
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?%s", strings.Join(changes, "\n    * "), dryRunDisclaimer),
