@@ -404,6 +404,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
 			ScopeIds: []uuid.UUID{workspace.ID},
 		})
+		if err != nil {
+			return xerrors.Errorf("Fetch previous parameters: %w", err)
+		}
 
 		// Write/Update any new params
 		now := database.Now()

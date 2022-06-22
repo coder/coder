@@ -53,6 +53,9 @@ func update() *cobra.Command {
 				ParameterFile:    parameterFile,
 				NewWorkspaceName: workspace.Name,
 			})
+			if err != nil {
+				return nil
+			}
 
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
