@@ -9,7 +9,7 @@ import { WorkspaceBuildPage } from "./WorkspaceBuildPage"
 
 describe("WorkspaceBuildPage", () => {
   it("renders the stats and logs", async () => {
-    const server = new WS("ws://localhost/api/v2/workspacebuilds/" + MockWorkspaceBuild.id + "/logs")
+    const server = new WS(`ws://localhost/api/v2/workspacebuilds/${MockWorkspaceBuild.id}/logs`)
     renderWithAuth(<WorkspaceBuildPage />, {
       route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
       path: "/@:username/:workspace/builds/:buildNumber",
