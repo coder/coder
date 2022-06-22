@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 
+# Allow toggling verbose output
+[[ ! -z ${VERBOSE:-""} ]] && set -x
 set -euo pipefail
-set -x
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+source "${SCRIPT_DIR}/lib.sh"
 PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 set +u
 CODER_DEV_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-password}"
 set -u
 
-# Preflight check: make sure nothing is listening on port 3000 or 8080
+# Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
+dependencies git make nc go yarn
 nc -z 127.0.0.1 3000 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
 nc -z 127.0.0.1 8080 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
