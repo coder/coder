@@ -280,7 +280,7 @@ export const getWorkspaceBuildByNumber = async (
 }
 
 export const getWorkspaceBuildLogs = async (buildname: string, before: Date): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs?before=`+before.getTime())
+  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs?before=${before.getTime()}`)
   return response.data
 }
 
