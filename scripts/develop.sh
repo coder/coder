@@ -14,8 +14,8 @@ set -u
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go make nc yarn
-nc -z localhost 3000 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
-nc -z localhost 8080 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+nc -z 127.0.0.1 3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
+nc -z 127.0.0.1 8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
 echo '== Run "make build" before running this command to build binaries.'
 echo '== Without these binaries, workspaces will fail to start!'
@@ -29,8 +29,8 @@ echo '== Without these binaries, workspaces will fail to start!'
 (
 	SCRIPT_PID=$$
 	cd "${PROJECT_ROOT}"
-	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT ${SCRIPT_PID} &
-	go run -tags embed cmd/coder/main.go server --in-memory --tunnel || kill -INT ${SCRIPT_PID} &
+	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -${SCRIPT_PID} &
+	go run -tags embed cmd/coder/main.go server --address 127.0.0.1:3000 --in-memory --tunnel || kill -INT -${SCRIPT_PID} &
 
 	echo '== Waiting for Coder to become ready'
 	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
