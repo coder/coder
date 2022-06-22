@@ -124,4 +124,7 @@ export const handlers = [
   rest.patch("/api/v2/workspacebuilds/:workspaceBuildId/cancel", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockCancellationMessage))
   }),
+  rest.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))
+  }),
 ]

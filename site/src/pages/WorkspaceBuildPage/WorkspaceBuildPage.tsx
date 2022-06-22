@@ -8,7 +8,7 @@ import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 
 export const WorkspaceBuildPage: FC = () => {
   const { username, workspace: workspaceName, buildNumber } = useParams()
-  const [buildState] = useMachine(workspaceBuildMachine, { context: { username, workspaceName, buildNumber } })
+  const [buildState] = useMachine(workspaceBuildMachine, { context: { username, workspaceName, buildNumber, timeCursor: new Date() } })
   const { logs, build } = buildState.context
   const isWaitingForLogs = !buildState.matches("logs.loaded")
 

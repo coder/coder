@@ -17,7 +17,7 @@ export interface WorkspaceBuildPageViewProps {
   isWaitingForLogs: boolean
 }
 
-export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build, isWaitingForLogs }) => {
+export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build }) => {
   return (
     <Margins>
       <PageHeader>
@@ -27,7 +27,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, 
       <Stack>
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
-        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={isWaitingForLogs} />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={false} />}
       </Stack>
     </Margins>
   )
