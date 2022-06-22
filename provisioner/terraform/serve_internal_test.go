@@ -34,13 +34,13 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			name:             "TestOldVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.0.9",
-			expectedErr:      xerrors.Errorf("Terraform binary minor version mismatch."),
+			expectedErr:      terraformMinorVersionMismatch,
 		},
 		{
 			name:             "TestNewVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.2.9",
-			expectedErr:      xerrors.Errorf("Terraform binary minor version mismatch."),
+			expectedErr:      terraformMinorVersionMismatch,
 		},
 		{
 			name:             "TestMalformedVersion",
@@ -86,17 +86,12 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			}
 
 			actualAbsoluteBinary, actualErr := absoluteBinaryPath(tt.args.ctx)
-			if actualAbsoluteBinary != expectedAbsoluteBinary {
-				t.Errorf("getAbsoluteBinaryPath() absoluteBinaryPath, actual = %v, expected %v", actualAbsoluteBinary, expectedAbsoluteBinary)
-			}
+
+			require.Equal(t, expectedAbsoluteBinary, actualAbsoluteBinary)
 			if tt.expectedErr == nil {
-				if actualErr != nil {
-					t.Errorf("getAbsoluteBinaryPath() error, actual = %v, expected %v", actualErr.Error(), tt.expectedErr)
-				}
+				require.NoError(t, actualErr)
 			} else {
-				if actualErr.Error() != tt.expectedErr.Error() {
-					t.Errorf("getAbsoluteBinaryPath() error, actual = %v, expected %v", actualErr.Error(), tt.expectedErr.Error())
-				}
+				require.EqualError(t, actualErr, tt.expectedErr.Error())
 			}
 		})
 	}

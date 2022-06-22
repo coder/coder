@@ -33,6 +33,8 @@ var (
 	}()
 )
 
+var terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+
 type ServeOptions struct {
 	*provisionersdk.ServeOptions
 
@@ -66,7 +68,7 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 	}
 
 	if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
-		return "", xerrors.Errorf("Terraform binary minor version mismatch.")
+		return "", terraformMinorVersionMismatch
 	}
 
 	return absoluteBinary, nil

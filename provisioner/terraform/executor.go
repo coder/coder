@@ -112,7 +112,14 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		select {
+		// `exec` library throws a `signal: killed`` error instead of the canceled context.
+		// Since we know the cause for the killed signal, we are throwing the relevant error here.
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return nil, err
+		}
 	}
 	vj := tfjson.VersionOutput{}
 	err = json.Unmarshal(out, &vj)
