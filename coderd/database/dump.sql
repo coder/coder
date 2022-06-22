@@ -99,7 +99,8 @@ CREATE TABLE api_keys (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_id_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    lifetime_seconds bigint DEFAULT 86400 NOT NULL
+    lifetime_seconds bigint DEFAULT 86400 NOT NULL,
+    ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL
 );
 
 CREATE TABLE audit_logs (

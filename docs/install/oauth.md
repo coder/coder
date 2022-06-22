@@ -8,7 +8,6 @@ configuration steps.
 
 First, [https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/](register a GitHub OAuth app). GitHub will ask you for the following Coder parameters:
 
-
 - **Homepage URL**: Set to your Coder domain (e.g. `https://coder.domain.com`)
 - **User Authorization Callback URL**: Set to `https://coder.domain.com/api/v2/users/oauth2/github/callback`
 

@@ -1,5 +1,4 @@
 import axios, { AxiosRequestHeaders } from "axios"
-import ndjsonStream from "can-ndjson-stream"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
@@ -280,23 +279,11 @@ export const getWorkspaceBuildByNumber = async (
   return response.data
 }
 
-export const getWorkspaceBuildLogs = async (buildname: string): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
+export const getWorkspaceBuildLogs = async (buildname: string, before: Date): Promise<TypesGen.ProvisionerJobLog[]> => {
+  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(
+    `/api/v2/workspacebuilds/${buildname}/logs?before=${before.getTime()}`,
+  )
   return response.data
-}
-
-export const streamWorkspaceBuildLogs = async (
-  buildname: string,
-): Promise<ReadableStreamDefaultReader<TypesGen.ProvisionerJobLog>> => {
-  // Axios does not support HTTP stream in the browser
-  // https://github.com/axios/axios/issues/1474
-  // So we are going to use window.fetch and return a "stream" reader
-  const reader = await window
-    .fetch(`/api/v2/workspacebuilds/${buildname}/logs?follow=true`)
-    .then((res) => ndjsonStream<TypesGen.ProvisionerJobLog>(res.body))
-    .then((stream) => stream.getReader())
-
-  return reader
 }
 
 export const putWorkspaceExtension = async (
