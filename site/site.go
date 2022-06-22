@@ -499,6 +499,11 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
 		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
 	}
 
+	// Check shasum files for equality for early-exit.
+	if !bytes.Equal(b1, b2) {
+		return false, nil
+	}
+
 	var eg errgroup.Group
 	// Speed up startup by verifying files concurrently. Concurrency
 	// is limited to save resources / early-exit. Early-exit speed
@@ -532,7 +537,7 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
 		return false, err
 	}
 
-	return bytes.Equal(b1, b2), nil
+	return true, nil
 }
 
 // sha1HashFile computes a SHA1 hash of the file, returning the hex
