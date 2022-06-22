@@ -7,7 +7,7 @@ import { combineClasses } from "../../util/combineClasses"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
-  linkText: "terminal",
+  linkText: "Terminal",
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
 }
 
