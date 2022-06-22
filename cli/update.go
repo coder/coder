@@ -4,13 +4,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coder/coder/cli/cliflag"
+
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/codersdk"
 )
 
 func update() *cobra.Command {
-	return &cobra.Command{
+	var (
+		parameterFile string
+		alwaysPrompt  bool
+	)
+
+	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "update",
 		Short:       "Update a workspace to the latest template version",
@@ -31,10 +38,27 @@ func update() *cobra.Command {
 			if err != nil {
 				return nil
 			}
+
+			var existingParams []codersdk.Parameter
+			if !alwaysPrompt {
+				existingParams, err = client.Parameters(cmd.Context(), codersdk.ParameterWorkspace, workspace.ID)
+				if err != nil {
+					return nil
+				}
+			}
+
+			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+				Template:         template,
+				ExistingParams:   existingParams,
+				ParameterFile:    parameterFile,
+				NewWorkspaceName: workspace.Name,
+			})
+
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: template.ActiveVersionID,
 				Transition:        workspace.LatestBuild.Transition,
+				ParameterValues:   parameters,
 			})
 			if err != nil {
 				return err
@@ -53,4 +77,8 @@ func update() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from existing workspace")
+	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
+	return cmd
 }

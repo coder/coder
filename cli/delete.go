@@ -10,7 +10,7 @@ import (
 )
 
 // nolint
-func delete() *cobra.Command {
+func deleteWorkspace() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
