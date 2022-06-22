@@ -60,8 +60,9 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
+# This target is deprecated, as GNU make has issues passing signals to subprocesses.
 dev:
-	./scripts/develop.sh
+	@echo Please run ./scripts/develop.sh manually.
 .PHONY: dev
 
 fmt/prettier:
