@@ -99,7 +99,8 @@ CREATE TABLE api_keys (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_id_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    lifetime_seconds bigint DEFAULT 86400 NOT NULL
+    lifetime_seconds bigint DEFAULT 86400 NOT NULL,
+    ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL
 );
 
 CREATE TABLE audit_logs (
@@ -400,9 +401,6 @@ ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
 
 ALTER TABLE ONLY templates
-    ADD CONSTRAINT templates_organization_id_name_key UNIQUE (organization_id, name);
-
-ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
@@ -453,13 +451,11 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text));
-
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
-CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 

@@ -12,6 +12,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
+import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { TableLoader } from "../TableLoader/TableLoader"
 
 export const Language = {
@@ -51,10 +52,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
         {builds &&
           builds.map((build) => {
             const status = getDisplayWorkspaceBuildStatus(theme, build)
-
-            const navigateToBuildPage = () => {
-              navigate(`/@${username}/${workspaceName}/builds/${build.build_number}`)
-            }
+            const buildPageLink = `/@${username}/${workspaceName}/builds/${build.build_number}`
 
             return (
               <TableRow
@@ -62,31 +60,30 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
                 key={build.id}
                 data-testid={`build-${build.id}`}
                 tabIndex={0}
-                onClick={navigateToBuildPage}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    navigateToBuildPage()
+                    navigate(buildPageLink)
                   }
                 }}
                 className={styles.clickableTableRow}
               >
-                <TableCell>{build.transition}</TableCell>
-                <TableCell>
+                <TableCellLink to={buildPageLink}>{build.transition}</TableCellLink>
+                <TableCellLink to={buildPageLink}>
                   <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(build)}</span>
-                </TableCell>
-                <TableCell>
+                </TableCellLink>
+                <TableCellLink to={buildPageLink}>
                   <span style={{ color: theme.palette.text.secondary }}>
                     {new Date(build.created_at).toLocaleString()}
                   </span>
-                </TableCell>
-                <TableCell>
+                </TableCellLink>
+                <TableCellLink to={buildPageLink}>
                   <span style={{ color: status.color }}>{status.status}</span>
-                </TableCell>
-                <TableCell>
+                </TableCellLink>
+                <TableCellLink to={buildPageLink}>
                   <div className={styles.arrowCell}>
                     <KeyboardArrowRight className={styles.arrowRight} />
                   </div>
-                </TableCell>
+                </TableCellLink>
               </TableRow>
             )
           })}
@@ -107,8 +104,6 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
 
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
-    cursor: "pointer",
-
     "&:hover td": {
       backgroundColor: fade(theme.palette.primary.light, 0.1),
     },

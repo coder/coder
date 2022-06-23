@@ -1,5 +1,7 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import AccountTreeIcon from "@material-ui/icons/AccountTree"
+import AssistantIcon from "@material-ui/icons/Assistant"
 import * as TypesGen from "../../api/typesGenerated"
 
 export const Language = {
@@ -7,7 +9,7 @@ export const Language = {
     return `Coder ${buildInfo.version}`
   },
   copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`,
-  reportBugLink: "Report an issue",
+  reportBugLink: "Report an issue or share feedback",
 }
 
 export interface FooterProps {
@@ -21,14 +23,15 @@ export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
 
   return (
     <div className={styles.root}>
-      <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
-        &#129714;&nbsp;{Language.reportBugLink}
-      </Link>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
         <div className={styles.buildInfo}>
           <Link className={styles.link} variant="caption" target="_blank" href={buildInfo.external_url}>
-            {Language.buildInfoText(buildInfo)}
+            <AccountTreeIcon className={styles.icon} /> {Language.buildInfoText(buildInfo)}
+          </Link>
+          &nbsp;|&nbsp;
+          <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
+            <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
           </Link>
         </div>
       )}
@@ -50,9 +53,18 @@ const useFooterStyles = makeStyles((theme) => ({
   },
   buildInfo: {
     margin: theme.spacing(0.25),
+    display: "inline-flex",
   },
   link: {
     color: theme.palette.text.secondary,
     fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  icon: {
+    fontSize: 12,
+    color: theme.palette.secondary.dark,
+    marginRight: theme.spacing(0.5),
   },
 }))

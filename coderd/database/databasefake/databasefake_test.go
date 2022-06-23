@@ -1,14 +1,66 @@
 package databasefake_test
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/coderd/database"
 
 	"github.com/coder/coder/coderd/database/databasefake"
 )
+
+// test that transactions don't deadlock, and that we don't see intermediate state.
+func TestInTx(t *testing.T) {
+	t.Parallel()
+
+	uut := databasefake.New()
+
+	inTx := make(chan any)
+	queriesDone := make(chan any)
+	queriesStarted := make(chan any)
+	go func() {
+		err := uut.InTx(func(tx database.Store) error {
+			close(inTx)
+			_, err := tx.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+				Name: "1",
+			})
+			assert.NoError(t, err)
+			<-queriesStarted
+			time.Sleep(5 * time.Millisecond)
+			_, err = tx.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+				Name: "2",
+			})
+			assert.NoError(t, err)
+			return nil
+		})
+		assert.NoError(t, err)
+	}()
+	var nums []int
+	go func() {
+		<-inTx
+		for i := 0; i < 20; i++ {
+			orgs, err := uut.GetOrganizations(context.Background())
+			if err != nil {
+				assert.ErrorIs(t, err, sql.ErrNoRows)
+			}
+			nums = append(nums, len(orgs))
+			time.Sleep(time.Millisecond)
+		}
+		close(queriesDone)
+	}()
+	close(queriesStarted)
+	<-queriesDone
+	// ensure we never saw 1 org, only 0 or 2.
+	for i := 0; i < 20; i++ {
+		assert.NotEqual(t, 1, nums[i])
+	}
+}
 
 // TestExactMethods will ensure the fake database does not hold onto excessive
 // functions. The fake database is a manual implementation, so it is possible

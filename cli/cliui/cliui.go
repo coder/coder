@@ -52,5 +52,5 @@ var Styles = struct {
 	Fuschia:       defaultStyles.SelectedMenuItem.Copy(),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
 	Warn:          lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#ECFD65"}),
-	Wrap:          defaultStyles.Wrap,
+	Wrap:          lipgloss.NewStyle().Width(80),
 }

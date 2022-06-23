@@ -76,7 +76,7 @@ func templateDelete() *cobra.Command {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+"!")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+"!")
 			}
 
 			return nil

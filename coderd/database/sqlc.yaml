@@ -29,3 +29,4 @@ rename:
   userstatus: UserStatus
   gitsshkey: GitSSHKey
   rbac_roles: RBACRoles
+  ip_address: IPAddress

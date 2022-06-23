@@ -21,7 +21,6 @@ const Language = {
   resourceLabel: "Resource",
   agentsLabel: "Agents",
   agentLabel: "Agent",
-  statusLabel: "Status",
   accessLabel: "Access",
 }
 
@@ -57,7 +56,6 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                 </Stack>
               </TableCell>
               {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
-              <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -82,6 +80,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                   )
                 }
 
+                const agentStatus = getDisplayAgentStatus(theme, agent)
                 return (
                   <TableRow key={`${resource.id}-${agent.id}`}>
                     {/* We only want to display the name in the first row because we are using rowSpan */}
@@ -96,6 +95,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                     <TableCell className={styles.agentColumn}>
                       {agent.name}
                       <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                      <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
                     </TableCell>
                     {canUpdateWorkspace && (
                       <TableCell>
@@ -121,11 +121,6 @@ export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, wo
                         </Stack>
                       </TableCell>
                     )}
-                    <TableCell>
-                      <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
-                        {getDisplayAgentStatus(theme, agent).status}
-                      </span>
-                    </TableCell>
                   </TableRow>
                 )
               })

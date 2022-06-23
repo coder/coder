@@ -46,7 +46,7 @@ journalctl -u coder.service -b
 Before proceeding, please ensure that you have both Docker and the [latest version of
 Coder](https://github.com/coder/coder/releases) installed.
 
-> See our [docker-compose](../docker-compose.yaml) file
+> See our [docker-compose](https://github.com/coder/coder/blob/93b78755a6d48191cc53c82654e249f25fc00ce9/docker-compose.yaml) file
 > for additional information.
 
 1. Clone the `coder` repository:

@@ -51,6 +51,19 @@ func Test_Weekly(t *testing.T) {
 			expectedTime:       "9:30AM",
 		},
 		{
+			name:               "24h format",
+			spec:               "30 13 * * 1-5",
+			at:                 time.Date(2022, 4, 1, 13, 29, 0, 0, time.UTC),
+			expectedNext:       time.Date(2022, 4, 1, 13, 30, 0, 0, time.UTC),
+			expectedMin:        24 * time.Hour,
+			expectedDaysOfWeek: "Mon-Fri",
+			expectedError:      "",
+			expectedCron:       "30 13 * * 1-5",
+			expectedLocation:   time.UTC,
+			expectedString:     "CRON_TZ=UTC 30 13 * * 1-5",
+			expectedTime:       "1:30PM",
+		},
+		{
 			name:               "convoluted with timezone",
 			spec:               "CRON_TZ=US/Central */5 12-18 * * 1,3,6",
 			at:                 time.Date(2022, 4, 1, 14, 29, 0, 0, time.UTC),
@@ -141,6 +154,7 @@ func Test_Weekly(t *testing.T) {
 				require.Equal(t, testCase.expectedString, actual.String())
 				require.Equal(t, testCase.expectedMin, actual.Min())
 				require.Equal(t, testCase.expectedDaysOfWeek, actual.DaysOfWeek())
+				require.Equal(t, testCase.expectedTime, actual.Time())
 			} else {
 				require.EqualError(t, err, testCase.expectedError)
 				require.Nil(t, actual)
