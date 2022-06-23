@@ -17,8 +17,15 @@ dependencies curl git go make yarn
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
 curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
-echo '== Run "make build" before running this command to build binaries.'
-echo '== Without these binaries, workspaces will fail to start!'
+if [[ ! -e ./site/out/bin/coder.sha1 && ! -e ./site/out/bin/coder.tar.zst ]]; then
+	log
+	log "======================================================================="
+	log "==   Run 'make bin' before running this command to build binaries.   =="
+	log "==       Without these binaries, workspaces will fail to start!      =="
+	log "======================================================================="
+	log
+	exit 1
+fi
 
 # Run yarn install, to make sure node_modules are ready to go
 "$PROJECT_ROOT/scripts/yarn_install.sh"
@@ -28,7 +35,7 @@ echo '== Without these binaries, workspaces will fail to start!'
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
 	SCRIPT_PID=$$
-	cd "${PROJECT_ROOT}"
+	cdroot
 	CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -${SCRIPT_PID} &
 	go run -tags embed cmd/coder/main.go server --address 127.0.0.1:3000 --in-memory --tunnel || kill -INT -${SCRIPT_PID} &
 
