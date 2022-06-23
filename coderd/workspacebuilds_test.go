@@ -325,7 +325,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
-	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before.Add(-time.Second))
+	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before.Add(-time.Hour))
 	require.NoError(t, err)
 	for {
 		log, ok := <-logs
