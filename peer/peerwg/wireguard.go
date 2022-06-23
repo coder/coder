@@ -75,14 +75,17 @@ type Network struct {
 	mu     sync.Mutex
 	logger slog.Logger
 
-	listeners map[listenKey]*listener
+	Netstack  *netstack.Impl
 	magicSock *magicsock.Conn
 	netMap    *netmap.NetworkMap
 	router    *router.Config
 	wgEngine  wgengine.Engine
 
+	// listeners is a map of listening sockets that will be forwarded traffic
+	// from the wireguard interface.
+	listeners map[listenKey]*listener
+
 	DiscoPublicKey key.DiscoPublic
-	Netstack       *netstack.Impl
 	NodePrivateKey key.NodePrivate
 }
 
@@ -342,7 +345,9 @@ func (n *Network) Ping(ip netaddr.IP) *ipnstate.PingResult {
 }
 
 // Listener returns a net.Listener in userspace that can be used to accept
-// connections from the Wireguard network to the specified address.
+// connections from the Wireguard network to the specified address. If a
+// listener exists for a given address, all connections will be forwarded to the
+// listener instead of being routed to the host.
 func (n *Network) Listen(network, addr string) (net.Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
