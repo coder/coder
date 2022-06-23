@@ -26,15 +26,17 @@ import (
 
 func wireguardPortForward() *cobra.Command {
 	var (
-		tcpForwards  []string // <port>:<port>
-		udpForwards  []string // <port>:<port>
-		unixForwards []string // <path>:<path> OR <port>:<path>
+		tcpForwards []string // <port>:<port>
+		udpForwards []string // <port>:<port>
+		// TODO: unix support
+		// unixForwards []string // <path>:<path> OR <port>:<path>
 	)
 	cmd := &cobra.Command{
 		Use:     "wireguard-port-forward <workspace>",
 		Aliases: []string{"wireguard-tunnel"},
 		Args:    cobra.ExactArgs(1),
-		Hidden:  true,
+		// Hide all wireguard commands for now while we test!
+		Hidden: true,
 		Example: `
   - Port forward a single TCP port from 1234 in the workspace to port 5678 on
     your local machine
@@ -46,17 +48,10 @@ func wireguardPortForward() *cobra.Command {
 
     ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --udp 9000") + `
 
-  - Forward a Unix socket in the workspace to a local Unix socket
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --unix ./local.sock:~/remote.sock") + `
-
-  - Forward a Unix socket in the workspace to a local TCP port
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --unix 8080:~/remote.sock") + `
-
   - Port forward multiple TCP ports and a UDP port
 
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53"),
+    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53") + `
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			specs, err := parsePortForwards(tcpForwards, nil, nil)
 			if err != nil {
@@ -177,11 +172,9 @@ func wireguardPortForward() *cobra.Command {
 		},
 	}
 
-	// Hide all wireguard commands for now while we test!
-	cmd.Hidden = true
 	cmd.Flags().StringArrayVarP(&tcpForwards, "tcp", "p", []string{}, "Forward a TCP port from the workspace to the local machine")
 	cmd.Flags().StringArrayVar(&udpForwards, "udp", []string{}, "Forward a UDP port from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
-	cmd.Flags().StringArrayVar(&unixForwards, "unix", []string{}, "Forward a Unix socket in the workspace to a local Unix socket or TCP port")
+	// cmd.Flags().StringArrayVar(&unixForwards, "unix", []string{}, "Forward a Unix socket in the workspace to a local Unix socket or TCP port")
 
 	return cmd
 }

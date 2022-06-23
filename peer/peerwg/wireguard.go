@@ -237,7 +237,7 @@ func (n *Network) forwardTCP(conn net.Conn, port uint16) {
 	listener, ok := n.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
 	n.mu.Unlock()
 	if !ok {
-		// No listener added, forward to host.
+		// No in-memory listener exists, forward to host.
 		n.forwardTCPToLocalHandler(conn, port)
 		return
 	}
