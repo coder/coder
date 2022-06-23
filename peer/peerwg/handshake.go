@@ -10,7 +10,7 @@ import (
 	"tailscale.com/types/key"
 )
 
-const handshakeSeparator byte = '\n'
+const handshakeSeparator byte = '|'
 
 // Handshake is a message received from a wireguard peer, indicating
 // it would like to connect.
@@ -88,7 +88,7 @@ func (h Handshake) MarshalText() ([]byte, error) {
 
 	// Ensure we're always allocating exactly enough.
 	if buf.Len() != expectedLen {
-		panic("buffer length mismatch: want 221, got " + strconv.Itoa(buf.Len()))
+		panic("buffer length mismatch: want 223, got " + strconv.Itoa(buf.Len()))
 	}
 	return buf.Bytes(), nil
 }

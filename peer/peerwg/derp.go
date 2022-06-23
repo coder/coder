@@ -1,6 +1,11 @@
 package peerwg
 
-import "tailscale.com/tailcfg"
+import (
+	"net"
+
+	"tailscale.com/tailcfg"
+	"tailscale.com/wgengine/magicsock"
+)
 
 // This is currently set to use Tailscale's DERP server in DFW while we build in
 // our own support for DERP servers.
@@ -57,4 +62,6 @@ var DerpMap = &tailcfg.DERPMap{
 	OmitDefaultRegions: true,
 }
 
-const DefaultDerpHome = "127.3.3.40:9"
+// DefaultDerpHome is the ipv4 representation of a DERP server. The port is the
+// DERP id. We only support using DERP 9 for now.
+var DefaultDerpHome = net.JoinHostPort(magicsock.DerpMagicIP, "9")
