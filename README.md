@@ -58,11 +58,14 @@ curl -L https://coder.com/install.sh | sh -s -- --help
 Once installed, you can start a production deployment with a single command:
 
 ```sh
-# Automatically sets up an external access URL on *.try.coder.app
+# Optionally sets up an external access URL on *.try.coder.app
 coder server --tunnel
 
-# Requires a PostgreSQL instance and external access URL
-coder server --postgres-url <url> --access-url <url>
+# Using a PostgreSQL instance and external access URL
+coder server --postgres-url <url> [--access-url <url>]
+
+# OR using embedded PostgreSQL (not recommended for production)
+coder server [--access-url <url>]
 ```
 
 Use `coder --help` to get a complete list of flags and environment variables. Use our [quickstart guide](https://coder.com/docs/coder-oss/latest/quickstart) for a full walkthrough.
