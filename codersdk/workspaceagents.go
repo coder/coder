@@ -255,7 +255,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 
 // PostWireguardPeer announces your public keys and IPv6 address to the
 // specified recipient.
-func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, peerMsg peerwg.WireguardPeerMessage) error {
+func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, peerMsg peerwg.Handshake) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer?workspace=%s",
 		peerMsg.Recipient,
 		workspaceID.String(),
@@ -275,7 +275,7 @@ func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, p
 // WireguardPeerListener listens for wireguard peer messages. Peer messages are
 // sent when a new client wants to connect. Once receiving a peer message, the
 // peer should be added to the NetworkMap of the wireguard interface.
-func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) (<-chan peerwg.WireguardPeerMessage, func(), error) {
+func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/wireguardlisten")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("parse url: %w", err)
@@ -304,7 +304,7 @@ func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) 
 		return nil, nil, readBodyAsError(res)
 	}
 
-	ch := make(chan peerwg.WireguardPeerMessage, 1)
+	ch := make(chan peerwg.Handshake, 1)
 	go func() {
 		defer conn.Close(websocket.StatusGoingAway, "")
 		defer close(ch)
@@ -315,7 +315,7 @@ func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) 
 				break
 			}
 
-			var msg peerwg.WireguardPeerMessage
+			var msg peerwg.Handshake
 			err = msg.UnmarshalText(message)
 			if err != nil {
 				logger.Error(ctx, "unmarshal wireguard peer message", slog.Error(err))
@@ -329,10 +329,10 @@ func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) 
 	return ch, func() { _ = conn.Close(websocket.StatusGoingAway, "") }, nil
 }
 
-// PostWorkspaceAgentKeys uploads the public keys of the workspace agent that
+// UploadWorkspaceAgentKeys uploads the public keys of the workspace agent that
 // were generated on startup. These keys are used by clients to communicate with
 // the workspace agent over the wireguard interface.
-func (c *Client) PostWorkspaceAgentKeys(ctx context.Context, keys agent.PublicKeys) error {
+func (c *Client) UploadWorkspaceAgentKeys(ctx context.Context, keys agent.WireguardPublicKeys) error {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/keys", keys)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)

@@ -1599,23 +1599,23 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	agent := database.WorkspaceAgent{
-		ID:                   arg.ID,
-		CreatedAt:            arg.CreatedAt,
-		UpdatedAt:            arg.UpdatedAt,
-		ResourceID:           arg.ResourceID,
-		AuthToken:            arg.AuthToken,
-		AuthInstanceID:       arg.AuthInstanceID,
-		EnvironmentVariables: arg.EnvironmentVariables,
-		Name:                 arg.Name,
-		Architecture:         arg.Architecture,
-		OperatingSystem:      arg.OperatingSystem,
-		Directory:            arg.Directory,
-		StartupScript:        arg.StartupScript,
-		InstanceMetadata:     arg.InstanceMetadata,
-		ResourceMetadata:     arg.ResourceMetadata,
-		Ipv6:                 arg.Ipv6,
-		WireguardPublicKey:   arg.WireguardPublicKey,
-		DiscoPublicKey:       arg.DiscoPublicKey,
+		ID:                      arg.ID,
+		CreatedAt:               arg.CreatedAt,
+		UpdatedAt:               arg.UpdatedAt,
+		ResourceID:              arg.ResourceID,
+		AuthToken:               arg.AuthToken,
+		AuthInstanceID:          arg.AuthInstanceID,
+		EnvironmentVariables:    arg.EnvironmentVariables,
+		Name:                    arg.Name,
+		Architecture:            arg.Architecture,
+		OperatingSystem:         arg.OperatingSystem,
+		Directory:               arg.Directory,
+		StartupScript:           arg.StartupScript,
+		InstanceMetadata:        arg.InstanceMetadata,
+		ResourceMetadata:        arg.ResourceMetadata,
+		WireguardNodeIPv6:       arg.WireguardNodeIPv6,
+		WireguardNodePublicKey:  arg.WireguardNodePublicKey,
+		WireguardDiscoPublicKey: arg.WireguardDiscoPublicKey,
 	}
 
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
@@ -1920,8 +1920,8 @@ func (q *fakeQuerier) UpdateWorkspaceAgentKeysByID(_ context.Context, arg databa
 			continue
 		}
 
-		agent.WireguardPublicKey = arg.WireguardPublicKey
-		agent.DiscoPublicKey = arg.DiscoPublicKey
+		agent.WireguardNodePublicKey = arg.WireguardNodePublicKey
+		agent.WireguardDiscoPublicKey = arg.WireguardDiscoPublicKey
 		agent.UpdatedAt = database.Now()
 		q.provisionerJobAgents[index] = agent
 		return nil

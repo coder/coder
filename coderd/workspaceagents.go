@@ -161,17 +161,17 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.Ipv6.IPNet)
+	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.WireguardNodeIPv6.IPNet)
 	if !ok {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Workspace agent has an invalid ipv6 address.",
-			Detail:  workspaceAgent.Ipv6.IPNet.String(),
+			Detail:  workspaceAgent.WireguardNodeIPv6.IPNet.String(),
 		})
 		return
 	}
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		Addresses:            []netaddr.IPPrefix{ipp},
+		WireguardAddresses:   []netaddr.IPPrefix{ipp},
 		OwnerEmail:           owner.Email,
 		OwnerUsername:        owner.Username,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
@@ -487,9 +487,9 @@ func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	err := api.Database.UpdateWorkspaceAgentKeysByID(ctx, database.UpdateWorkspaceAgentKeysByIDParams{
-		ID:                 workspaceAgent.ID,
-		WireguardPublicKey: keys.Public.String(),
-		DiscoPublicKey:     keys.Disco.String(),
+		ID:                      workspaceAgent.ID,
+		WireguardNodePublicKey:  keys.Public.String(),
+		WireguardDiscoPublicKey: keys.Disco.String(),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -504,7 +504,7 @@ func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) 
 
 func (api *API) postWorkspaceAgentWireguardPeer(rw http.ResponseWriter, r *http.Request) {
 	var (
-		req            peerwg.WireguardPeerMessage
+		req            peerwg.Handshake
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
 		workspace      = httpmw.WorkspaceParam(r)
 	)
@@ -570,7 +570,7 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 		// Since we subscribe to all peer broadcasts, we do a light check to
 		// make sure we're the intended recipient without fully decoding the
 		// message.
-		hint, err := peerwg.WireguardPeerMessageRecipientHint(agentIDBytes, message)
+		hint, err := peerwg.HandshakeRecipientHint(agentIDBytes, message)
 		if err != nil {
 			api.Logger.Error(ctx, "invalid wireguard peer message", slog.Error(err))
 			return
@@ -710,16 +710,16 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
-		IPv6:                 inetToNetaddr(dbAgent.Ipv6),
+		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
 	}
 
-	err := workspaceAgent.WireguardPublicKey.UnmarshalText([]byte(dbAgent.WireguardPublicKey))
+	err := workspaceAgent.WireguardPublicKey.UnmarshalText([]byte(dbAgent.WireguardNodePublicKey))
 	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal wireguard public key %q: %w", dbAgent.WireguardPublicKey, err)
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal wireguard node public key %q: %w", dbAgent.WireguardNodePublicKey, err)
 	}
-	err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey))
+	err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.WireguardDiscoPublicKey))
 	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal disco public key %q: %w", dbAgent.DiscoPublicKey, err)
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal disco public key %q: %w", dbAgent.WireguardDiscoPublicKey, err)
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

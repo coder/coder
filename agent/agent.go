@@ -47,7 +47,7 @@ const (
 
 type Options struct {
 	EnableWireguard        bool
-	PostPublicKeys         PostKeys
+	UploadWireguardKeys    UploadWireguardKeys
 	ListenWireguardPeers   ListenWireguardPeers
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
@@ -55,7 +55,7 @@ type Options struct {
 }
 
 type Metadata struct {
-	Addresses            []netaddr.IPPrefix `json:"addresses"`
+	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
 	OwnerEmail           string             `json:"owner_email"`
 	OwnerUsername        string             `json:"owner_username"`
 	EnvironmentVariables map[string]string  `json:"environment_variables"`
@@ -63,14 +63,14 @@ type Metadata struct {
 	Directory            string             `json:"directory"`
 }
 
-type PublicKeys struct {
+type WireguardPublicKeys struct {
 	Public key.NodePublic  `json:"public"`
 	Disco  key.DiscoPublic `json:"disco"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
-type PostKeys func(ctx context.Context, keys PublicKeys) error
-type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.WireguardPeerMessage, func(), error)
+type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
+type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
 
 func New(dialer Dialer, options *Options) io.Closer {
 	if options == nil {
@@ -88,7 +88,7 @@ func New(dialer Dialer, options *Options) io.Closer {
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
 		enableWireguard:        options.EnableWireguard,
-		postKeys:               options.PostPublicKeys,
+		postKeys:               options.UploadWireguardKeys,
 		listenWireguardPeers:   options.ListenWireguardPeers,
 	}
 	server.init(ctx)
@@ -114,8 +114,8 @@ type agent struct {
 	sshServer     *ssh.Server
 
 	enableWireguard      bool
-	wg                   *peerwg.WireguardNetwork
-	postKeys             PostKeys
+	network              *peerwg.Network
+	postKeys             UploadWireguardKeys
 	listenWireguardPeers ListenWireguardPeers
 }
 
@@ -160,9 +160,11 @@ func (a *agent) run(ctx context.Context) {
 		}()
 	}
 
-	err = a.startWireguard(ctx, metadata.Addresses)
-	if err != nil {
-		a.logger.Error(ctx, "start wireguard", slog.Error(err))
+	if a.enableWireguard {
+		err = a.startWireguard(ctx, metadata.WireguardAddresses)
+		if err != nil {
+			a.logger.Error(ctx, "start wireguard", slog.Error(err))
+		}
 	}
 
 	for {

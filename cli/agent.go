@@ -178,7 +178,7 @@ func workspaceAgent() *cobra.Command {
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
 				EnableWireguard:      wireguard,
-				PostPublicKeys:       client.PostWorkspaceAgentKeys,
+				UploadWireguardKeys:  client.UploadWorkspaceAgentKeys,
 				ListenWireguardPeers: client.WireguardPeerListener,
 			})
 			<-cmd.Context().Done()
