@@ -35,6 +35,14 @@ import (
 	"cdr.dev/slog"
 )
 
+var logf tslogger.Logf = log.Printf
+
+func init() {
+	// Globally disable network namespacing.
+	// All networking happens in userspace.
+	netns.SetEnabled(false)
+}
+
 func UUIDToInet(uid uuid.UUID) pqtype.Inet {
 	uid = privateUUID(uid)
 
@@ -63,40 +71,41 @@ func privateUUID(uid uuid.UUID) uuid.UUID {
 	return uid
 }
 
-var logf tslogger.Logf = log.Printf
+type Network struct {
+	mu     sync.Mutex
+	logger slog.Logger
 
-type WireguardNetwork struct {
-	mu      sync.Mutex
-	logger  slog.Logger
-	Private key.NodePrivate
-	Disco   key.DiscoPublic
-
-	Engine   wgengine.Engine
-	Netstack *netstack.Impl
-	Magic    *magicsock.Conn
-
+	listeners map[listenKey]*listener
+	magicSock *magicsock.Conn
 	netMap    *netmap.NetworkMap
 	router    *router.Config
-	listeners map[listenKey]*listener
+	wgEngine  wgengine.Engine
+
+	DiscoPublicKey key.DiscoPublic
+	Netstack       *netstack.Impl
+	NodePrivateKey key.NodePrivate
 }
 
-func NewWireguardNetwork(_ context.Context, logger slog.Logger, addrs []netaddr.IPPrefix) (*WireguardNetwork, error) {
-	var (
-		private      = key.NewNode()
-		public       = private.Public()
-		id, stableID = nodeIDs(public)
-	)
+// New constructs a Wireguard network that filters traffic
+// to destinations matching the addresses provided.
+func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
+	nodePrivateKey := key.NewNode()
+	nodePublicKey := nodePrivateKey.Public()
+	id, stableID := nodeIDs(nodePublicKey)
 
 	netMap := &netmap.NetworkMap{
-		NodeKey:    public,
-		PrivateKey: private,
-		Addresses:  addrs,
+		NodeKey:    nodePublicKey,
+		PrivateKey: nodePrivateKey,
+		Addresses:  addresses,
 		PacketFilter: []filter.Match{{
-			IPProto: []ipproto.Proto{ipproto.TCP, ipproto.UDP, ipproto.ICMPv4, ipproto.ICMPv6},
+			// Allow any protocol!
+			IPProto: []ipproto.Proto{ipproto.TCP, ipproto.UDP, ipproto.ICMPv4, ipproto.ICMPv6, ipproto.SCTP},
+			// Allow traffic sourced from anywhere.
 			Srcs: []netaddr.IPPrefix{
 				netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
 				netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 0),
 			},
+			// Allow traffic to route anywhere.
 			Dsts: []filter.NetPortRange{
 				{
 					Net: netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
@@ -116,63 +125,70 @@ func NewWireguardNetwork(_ context.Context, logger slog.Logger, addrs []netaddr.
 			Caps: []filter.CapMatch{},
 		}},
 	}
+	// Identify itself as a node on the network with the addresses provided.
 	netMap.SelfNode = &tailcfg.Node{
 		ID:         id,
 		StableID:   stableID,
-		Key:        public,
+		Key:        nodePublicKey,
 		Addresses:  netMap.Addresses,
 		AllowedIPs: append(netMap.Addresses, netaddr.MustParseIPPrefix("::/0")),
 		Endpoints:  []string{},
 		DERP:       DefaultDerpHome,
 	}
 
-	linkMon, err := monitor.New(logf)
+	wgMonitor, err := monitor.New(logf)
 	if err != nil {
 		return nil, xerrors.Errorf("create link monitor: %w", err)
 	}
 
-	netns.SetEnabled(false)
 	dialer := new(tsdial.Dialer)
 	dialer.Logf = logf
-	e, err := wgengine.NewUserspaceEngine(logf, wgengine.Config{
-		LinkMonitor: linkMon,
+	// Create a wireguard engine in userspace.
+	engine, err := wgengine.NewUserspaceEngine(logf, wgengine.Config{
+		LinkMonitor: wgMonitor,
 		Dialer:      dialer,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
 	}
 
-	ig, _ := e.(wgengine.InternalsGetter)
-	tunDev, magicConn, dnsMgr, ok := ig.GetInternals()
+	// This is taken from Tailscale:
+	// https://github.com/tailscale/tailscale/blob/0f05b2c13ff0c305aa7a1655fa9c17ed969d65be/tsnet/tsnet.go#L247-L255
+	// nolint
+	tunDev, magicConn, dnsManager, ok := engine.(wgengine.InternalsGetter).GetInternals()
 	if !ok {
 		return nil, xerrors.New("could not get wgengine internals")
 	}
 
-	// This can't error.
-	_ = magicConn.SetPrivateKey(private)
+	// Update the keys for the magic connection!
+	err = magicConn.SetPrivateKey(nodePrivateKey)
+	if err != nil {
+		return nil, xerrors.Errorf("set node private key: %w", err)
+	}
 	netMap.SelfNode.DiscoKey = magicConn.DiscoPublicKey()
 
-	ns, err := netstack.Create(logf, tunDev, e, magicConn, dialer, dnsMgr)
+	// Create the networking stack.
+	// This is called to route connections.
+	netStack, err := netstack.Create(logf, tunDev, engine, magicConn, dialer, dnsManager)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
-
-	ns.ProcessLocalIPs = true
-	ns.ProcessSubnets = true
+	netStack.ProcessLocalIPs = true
+	netStack.ProcessSubnets = true
 	dialer.UseNetstackForIP = func(ip netaddr.IP) bool {
-		_, ok := e.PeerForIP(ip)
+		_, ok := engine.PeerForIP(ip)
 		return ok
 	}
 	dialer.NetstackDialTCP = func(ctx context.Context, dst netaddr.IPPort) (net.Conn, error) {
-		return ns.DialContextTCP(ctx, dst)
+		return netStack.DialContextTCP(ctx, dst)
 	}
-
-	err = ns.Start()
+	err = netStack.Start()
 	if err != nil {
 		return nil, xerrors.Errorf("start netstack: %w", err)
 	}
-	e = wgengine.NewWatchdog(e)
+	engine = wgengine.NewWatchdog(engine)
 
+	// Update the wireguard configuration to allow traffic to flow.
 	cfg, err := nmcfg.WGCfg(netMap, logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, netMap.SelfNode.StableID)
 	if err != nil {
 		return nil, xerrors.Errorf("create wgcfg: %w", err)
@@ -181,14 +197,13 @@ func NewWireguardNetwork(_ context.Context, logger slog.Logger, addrs []netaddr.
 	rtr := &router.Config{
 		LocalAddrs: cfg.Addresses,
 	}
-
-	err = e.Reconfig(cfg, rtr, &dns.Config{}, &tailcfg.Debug{})
+	err = engine.Reconfig(cfg, rtr, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
 		return nil, xerrors.Errorf("reconfig: %w", err)
 	}
 
-	e.SetDERPMap(DerpMap)
-	e.SetNetworkMap(copyNetMap(netMap))
+	engine.SetDERPMap(DerpMap)
+	engine.SetNetworkMap(copyNetMap(netMap))
 
 	ipb := netaddr.IPSetBuilder{}
 	for _, addr := range netMap.Addresses {
@@ -198,56 +213,47 @@ func NewWireguardNetwork(_ context.Context, logger slog.Logger, addrs []netaddr.
 
 	iplb := netaddr.IPSetBuilder{}
 	ipl, _ := iplb.IPSet()
-	e.SetFilter(filter.New(netMap.PacketFilter, ips, ipl, nil, logf))
+	engine.SetFilter(filter.New(netMap.PacketFilter, ips, ipl, nil, logf))
 
-	wn := &WireguardNetwork{
-		logger:    logger,
-		Private:   private,
-		Disco:     magicConn.DiscoPublicKey(),
-		Engine:    e,
-		Netstack:  ns,
-		Magic:     magicConn,
-		netMap:    netMap,
-		router:    rtr,
-		listeners: map[listenKey]*listener{},
+	wn := &Network{
+		logger:         logger,
+		NodePrivateKey: nodePrivateKey,
+		DiscoPublicKey: magicConn.DiscoPublicKey(),
+		wgEngine:       engine,
+		Netstack:       netStack,
+		magicSock:      magicConn,
+		netMap:         netMap,
+		router:         rtr,
+		listeners:      map[listenKey]*listener{},
 	}
-	ns.ForwardTCPIn = wn.forwardTCP
+	netStack.ForwardTCPIn = wn.forwardTCP
 
 	return wn, nil
 }
 
-// nodeIDs generates Tailscale node IDs for the provided public key.
-func nodeIDs(public key.NodePublic) (tailcfg.NodeID, tailcfg.StableNodeID) {
-	idhash := fnv.New64()
-	pub, _ := public.MarshalText()
-	_, _ = idhash.Write(pub)
-
-	return tailcfg.NodeID(idhash.Sum64()), tailcfg.StableNodeID(pub)
-}
-
-// forwardTCP handles incoming TCP connections from wireguard.
-func (wn *WireguardNetwork) forwardTCP(c net.Conn, port uint16) {
-	wn.mu.Lock()
-	ln, ok := wn.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
-	wn.mu.Unlock()
+// forwardTCP handles incoming connections from Wireguard in userspace.
+func (n *Network) forwardTCP(conn net.Conn, port uint16) {
+	n.mu.Lock()
+	listener, ok := n.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	n.mu.Unlock()
 	if !ok {
 		// No listener added, forward to host.
-		wn.forwardTCPLocal(c, port)
+		n.forwardTCPToLocalHandler(conn, port)
 		return
 	}
 
-	t := time.NewTimer(time.Second)
-	defer t.Stop()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
 	select {
-	case ln.conn <- c:
-	case <-t.C:
-		_ = c.Close()
+	case listener.conn <- conn:
+	case <-timer.C:
+		_ = conn.Close()
 	}
 }
 
-// forwardTCPLocal forwards the provided net.Conn to the matching port on the
-// host.
-func (wn *WireguardNetwork) forwardTCPLocal(c net.Conn, port uint16) {
+// forwardTCPToLocalHandler forwards the provided net.Conn to the
+// matching port bound to localhost.
+func (n *Network) forwardTCPToLocalHandler(c net.Conn, port uint16) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer c.Close()
@@ -256,7 +262,7 @@ func (wn *WireguardNetwork) forwardTCPLocal(c net.Conn, port uint16) {
 	var stdDialer net.Dialer
 	server, err := stdDialer.DialContext(ctx, "tcp", dialAddrStr)
 	if err != nil {
-		wn.logger.Debug(ctx, "dial local port", slog.F("port", port), slog.Error(err))
+		n.logger.Debug(ctx, "dial local port", slog.F("port", port), slog.Error(err))
 		return
 	}
 	defer server.Close()
@@ -272,84 +278,72 @@ func (wn *WireguardNetwork) forwardTCPLocal(c net.Conn, port uint16) {
 	}()
 	err = <-connClosed
 	if err != nil {
-		wn.logger.Debug(ctx, "proxy connection closed with error", slog.Error(err))
+		n.logger.Debug(ctx, "proxy connection closed with error", slog.Error(err))
 	}
-	wn.logger.Debug(ctx, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
+	n.logger.Debug(ctx, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
 }
 
-func (wn *WireguardNetwork) Close() error {
-	_ = wn.Netstack.Close()
-	wn.Engine.Close()
-
-	return nil
-}
-
-// AddPeer adds a peer to the network from a WireguardPeerMessage. After adding
-// a peer, they may connect to you.
-func (wn *WireguardNetwork) AddPeer(peer WireguardPeerMessage) error {
-	wn.mu.Lock()
-	defer wn.mu.Unlock()
+// AddPeer allows connections from another Wireguard instance with the
+// handshake credentials.
+func (n *Network) AddPeer(handshake Handshake) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
 	// If the peer already exists in the network map, do nothing.
-	for _, p := range wn.netMap.Peers {
-		if p.Key == peer.Public {
-			wn.logger.Debug(context.Background(), "peer already in netmap", slog.F("peer", peer.Public.ShortString()))
+	for _, p := range n.netMap.Peers {
+		if p.Key == handshake.NodePublicKey {
+			n.logger.Debug(context.Background(), "peer already in netmap", slog.F("peer", handshake.NodePublicKey.ShortString()))
 			return nil
 		}
 	}
 
 	// The Tailscale engine owns this slice, so we need to copy to make
 	// modifications.
-	peers := append(([]*tailcfg.Node)(nil), wn.netMap.Peers...)
+	peers := append(([]*tailcfg.Node)(nil), n.netMap.Peers...)
 
-	id, stableID := nodeIDs(peer.Public)
+	id, stableID := nodeIDs(handshake.NodePublicKey)
 	peers = append(peers, &tailcfg.Node{
 		ID:         id,
 		StableID:   stableID,
-		Name:       peer.Public.String() + ".com",
-		Key:        peer.Public,
-		DiscoKey:   peer.Disco,
-		Addresses:  []netaddr.IPPrefix{netaddr.IPPrefixFrom(peer.IPv6, 128)},
-		AllowedIPs: []netaddr.IPPrefix{netaddr.IPPrefixFrom(peer.IPv6, 128)},
+		Name:       handshake.NodePublicKey.String() + ".com",
+		Key:        handshake.NodePublicKey,
+		DiscoKey:   handshake.DiscoPublicKey,
+		Addresses:  []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
+		AllowedIPs: []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
 		DERP:       DefaultDerpHome,
 		Endpoints:  []string{DefaultDerpHome},
 	})
 
-	wn.netMap.Peers = peers
+	n.netMap.Peers = peers
 
-	cfg, err := nmcfg.WGCfg(wn.netMap, logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, tailcfg.StableNodeID("nBBoJZ5CNTRL"))
+	cfg, err := nmcfg.WGCfg(n.netMap, logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, tailcfg.StableNodeID("nBBoJZ5CNTRL"))
 	if err != nil {
 		return xerrors.Errorf("create wgcfg: %w", err)
 	}
 
-	err = wn.Engine.Reconfig(cfg, wn.router, &dns.Config{}, &tailcfg.Debug{})
+	err = n.wgEngine.Reconfig(cfg, n.router, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
 		return xerrors.Errorf("reconfig: %w", err)
 	}
 
 	// Always give the Tailscale engine a copy of our network map.
-	wn.Engine.SetNetworkMap(copyNetMap(wn.netMap))
+	n.wgEngine.SetNetworkMap(copyNetMap(n.netMap))
 	return nil
 }
 
-func copyNetMap(nm *netmap.NetworkMap) *netmap.NetworkMap {
-	nmCopy := *nm
-	return &nmCopy
-}
-
 // Ping sends a discovery ping to the provided peer.
-func (wn *WireguardNetwork) Ping(peer WireguardPeerMessage) *ipnstate.PingResult {
+// The peer address must be connected before a successful ping will work.
+func (n *Network) Ping(ip netaddr.IP) *ipnstate.PingResult {
 	ch := make(chan *ipnstate.PingResult)
-	wn.Engine.Ping(peer.IPv6, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
+	n.wgEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		ch <- pr
 	})
-
 	return <-ch
 }
 
-// Listen returns a net.Listener that can be used to accept connections from the
-// wireguard network at the specified address.
-func (wn *WireguardNetwork) Listen(network, addr string) (net.Listener, error) {
+// Listener returns a net.Listener in userspace that can be used to accept
+// connections from the Wireguard network to the specified address.
+func (n *Network) Listen(network, addr string) (net.Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("split addr host port: %w", err)
@@ -357,22 +351,29 @@ func (wn *WireguardNetwork) Listen(network, addr string) (net.Listener, error) {
 
 	lkey := listenKey{network, host, port}
 	ln := &listener{
-		wn:   wn,
+		wn:   n,
 		key:  lkey,
 		addr: addr,
 
 		conn: make(chan net.Conn, 1),
 	}
 
-	wn.mu.Lock()
-	defer wn.mu.Unlock()
+	n.mu.Lock()
+	defer n.mu.Unlock()
 
-	if _, ok := wn.listeners[lkey]; ok {
+	if _, ok := n.listeners[lkey]; ok {
 		return nil, xerrors.Errorf("listener already open for %s, %s", network, addr)
 	}
-	wn.listeners[lkey] = ln
+	n.listeners[lkey] = ln
 
 	return ln, nil
+}
+
+func (n *Network) Close() error {
+	_ = n.Netstack.Close()
+	n.wgEngine.Close()
+
+	return nil
 }
 
 type listenKey struct {
@@ -382,7 +383,7 @@ type listenKey struct {
 }
 
 type listener struct {
-	wn   *WireguardNetwork
+	wn   *Network
 	key  listenKey
 	addr string
 	conn chan net.Conn
@@ -413,3 +414,17 @@ type addr struct{ ln *listener }
 
 func (a addr) Network() string { return a.ln.key.network }
 func (a addr) String() string  { return a.ln.addr }
+
+// nodeIDs generates Tailscale node IDs for the provided public key.
+func nodeIDs(public key.NodePublic) (tailcfg.NodeID, tailcfg.StableNodeID) {
+	idhash := fnv.New64()
+	pub, _ := public.MarshalText()
+	_, _ = idhash.Write(pub)
+
+	return tailcfg.NodeID(idhash.Sum64()), tailcfg.StableNodeID(pub)
+}
+
+func copyNetMap(nm *netmap.NetworkMap) *netmap.NetworkMap {
+	nmCopy := *nm
+	return &nmCopy
+}

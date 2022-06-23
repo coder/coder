@@ -11,13 +11,9 @@ import (
 )
 
 func (a *agent) startWireguard(ctx context.Context, addrs []netaddr.IPPrefix) error {
-	if a.wg != nil {
-		_ = a.wg.Close()
-		a.wg = nil
-	}
-
-	if !a.enableWireguard {
-		return nil
+	if a.network != nil {
+		_ = a.network.Close()
+		a.network = nil
 	}
 
 	// We can't create a wireguard network without these.
@@ -25,14 +21,16 @@ func (a *agent) startWireguard(ctx context.Context, addrs []netaddr.IPPrefix) er
 		return xerrors.New("wireguard is enabled, but no addresses were provided or necessary functions were not provided")
 	}
 
-	wg, err := peerwg.NewWireguardNetwork(ctx, a.logger.Named("wireguard"), addrs)
+	wg, err := peerwg.New(a.logger.Named("wireguard"), addrs)
 	if err != nil {
 		return xerrors.Errorf("create wireguard network: %w", err)
 	}
 
-	err = a.postKeys(ctx, PublicKeys{
-		Public: wg.Private.Public(),
-		Disco:  wg.Disco,
+	// A new keypair is generated on each agent start.
+	// This keypair must be sent to Coder to allow for incoming connections.
+	err = a.postKeys(ctx, WireguardPublicKeys{
+		Public: wg.NodePrivateKey.Public(),
+		Disco:  wg.DiscoPublicKey,
 	})
 	if err != nil {
 		a.logger.Warn(ctx, "post keys", slog.Error(err))
@@ -53,13 +51,13 @@ func (a *agent) startWireguard(ctx context.Context, addrs []netaddr.IPPrefix) er
 				}
 
 				err := wg.AddPeer(peer)
-				a.logger.Info(ctx, "added wireguard peer", slog.F("peer", peer.Public.ShortString()), slog.Error(err))
+				a.logger.Info(ctx, "added wireguard peer", slog.F("peer", peer.NodePublicKey.ShortString()), slog.Error(err))
 			}
 
 			listenClose()
 		}
 	}()
 
-	a.wg = wg
+	a.network = wg
 	return nil
 }

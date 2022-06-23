@@ -746,7 +746,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   agentID,
-			Ipv6:                 peerwg.UUIDToInet(agentID),
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
@@ -761,8 +760,9 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			WireguardPublicKey: key.NodePublic{}.String(),
-			DiscoPublicKey:     key.DiscoPublic{}.String(),
+			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
+			WireguardNodePublicKey:  key.NodePublic{}.String(),
+			WireguardDiscoPublicKey: key.DiscoPublic{}.String(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

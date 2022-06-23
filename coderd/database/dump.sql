@@ -293,9 +293,9 @@ CREATE TABLE workspace_agents (
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    ipv6 inet DEFAULT '::'::inet NOT NULL,
-    wireguard_public_key character varying(128) DEFAULT 'mkey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
-    disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL
+    wireguard_node_ipv6 inet DEFAULT '::'::inet NOT NULL,
+    wireguard_node_public_key character varying(128) DEFAULT 'mkey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
+    wireguard_disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL
 );
 
 CREATE TABLE workspace_apps (

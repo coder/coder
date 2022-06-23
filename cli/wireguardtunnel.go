@@ -100,7 +100,7 @@ func wireguardPortForward() *cobra.Command {
 			}
 
 			ipv6 := peerwg.UUIDToNetaddr(uuid.New())
-			wgn, err := peerwg.NewWireguardNetwork(cmd.Context(),
+			wgn, err := peerwg.New(
 				slog.Make(sloghuman.Sink(os.Stderr)),
 				[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
 			)
@@ -108,21 +108,21 @@ func wireguardPortForward() *cobra.Command {
 				return xerrors.Errorf("create wireguard network: %w", err)
 			}
 
-			err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.WireguardPeerMessage{
-				Recipient: workspaceAgent.ID,
-				Public:    wgn.Private.Public(),
-				Disco:     wgn.Disco,
-				IPv6:      ipv6,
+			err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
+				Recipient:      workspaceAgent.ID,
+				NodePublicKey:  wgn.NodePrivateKey.Public(),
+				DiscoPublicKey: wgn.DiscoPublicKey,
+				IPv6:           ipv6,
 			})
 			if err != nil {
 				return xerrors.Errorf("post wireguard peer: %w", err)
 			}
 
-			err = wgn.AddPeer(peerwg.WireguardPeerMessage{
-				Recipient: workspaceAgent.ID,
-				Disco:     workspaceAgent.DiscoPublicKey,
-				Public:    workspaceAgent.WireguardPublicKey,
-				IPv6:      workspaceAgent.IPv6.IP(),
+			err = wgn.AddPeer(peerwg.Handshake{
+				Recipient:      workspaceAgent.ID,
+				DiscoPublicKey: workspaceAgent.DiscoPublicKey,
+				NodePublicKey:  workspaceAgent.WireguardPublicKey,
+				IPv6:           workspaceAgent.IPv6.IP(),
 			})
 			if err != nil {
 				return xerrors.Errorf("add workspace agent as peer: %w", err)
@@ -177,6 +177,8 @@ func wireguardPortForward() *cobra.Command {
 		},
 	}
 
+	// Hide all wireguard commands for now while we test!
+	cmd.Hidden = true
 	cmd.Flags().StringArrayVarP(&tcpForwards, "tcp", "p", []string{}, "Forward a TCP port from the workspace to the local machine")
 	cmd.Flags().StringArrayVar(&udpForwards, "udp", []string{}, "Forward a UDP port from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
 	cmd.Flags().StringArrayVar(&unixForwards, "unix", []string{}, "Forward a Unix socket in the workspace to a local Unix socket or TCP port")
@@ -185,7 +187,7 @@ func wireguardPortForward() *cobra.Command {
 }
 
 func listenAndPortForwardWireguard(ctx context.Context, cmd *cobra.Command,
-	wgn *peerwg.WireguardNetwork,
+	wgn *peerwg.Network,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	agentIP netaddr.IP,
