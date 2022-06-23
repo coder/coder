@@ -652,6 +652,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			})
 
 			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
