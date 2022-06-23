@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
@@ -14,6 +16,10 @@ import (
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+)
+
+const (
+	ParameterExecKey = "echo.exec"
 )
 
 var (
@@ -86,6 +92,22 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		// A cancel could occur here!
 		return nil
 	}
+
+	for _, param := range request.ParameterValues {
+		if param.Name == ParameterExecKey {
+			// #nosec G204
+			cmd := exec.Command("/bin/sh", "-c", param.Value)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return xerrors.Errorf("exec %q returned %q: %w",
+					strings.Join(cmd.Args, " "),
+					string(out),
+					err,
+				)
+			}
+		}
+	}
+
 	for index := 0; ; index++ {
 		extension := ".protobuf"
 		if request.DryRun {

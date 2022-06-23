@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"sort"
@@ -14,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -138,94 +135,24 @@ func TestPostLogin(t *testing.T) {
 		var (
 			ctx = context.Background()
 		)
-		client, api := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
 
 		split := strings.Split(client.SessionToken, "-")
-		loginKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		key, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
-		require.Equal(t, int64(86400), loginKey.LifetimeSeconds, "default should be 86400")
+		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
 		// Generated tokens have a longer life
 		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
 		require.NoError(t, err, "make new api key")
 		split = strings.Split(token.Key, "-")
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
 		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
-		require.True(t, apiKey.ExpiresAt.After(loginKey.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
-		require.Greater(t, apiKey.LifetimeSeconds, loginKey.LifetimeSeconds, "api key should have longer lifetime")
-	})
-
-	t.Run("APIKeyExtend", func(t *testing.T) {
-		t.Parallel()
-		var (
-			ctx = context.Background()
-		)
-		client, api := coderdtest.NewWithAPI(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-
-		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
-		require.NoError(t, err, "make new api key")
-		client.SessionToken = token.Key
-		split := strings.Split(token.Key, "-")
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch api key")
-
-		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-			ID:        apiKey.ID,
-			LastUsed:  apiKey.LastUsed,
-			IPAddress: apiKey.IPAddress,
-			// This should cause a refresh
-			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
-			OAuthAccessToken:  apiKey.OAuthAccessToken,
-			OAuthRefreshToken: apiKey.OAuthRefreshToken,
-			OAuthExpiry:       apiKey.OAuthExpiry,
-		})
-		require.NoError(t, err, "update api key")
-
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch user")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch refreshed api key")
-		// 1 minute tolerance
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*7).Add(time.Minute*-1)), "api key lasts 7 days")
-	})
-
-	t.Run("LoginKeyExtend", func(t *testing.T) {
-		t.Parallel()
-		var (
-			ctx = context.Background()
-		)
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		split := strings.Split(client.SessionToken, "-")
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch login key")
-
-		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-			ID:        apiKey.ID,
-			LastUsed:  apiKey.LastUsed,
-			IPAddress: apiKey.IPAddress,
-			// This should cause a refresh
-			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
-			OAuthAccessToken:  apiKey.OAuthAccessToken,
-			OAuthRefreshToken: apiKey.OAuthRefreshToken,
-			OAuthExpiry:       apiKey.OAuthExpiry,
-		})
-		require.NoError(t, err, "update login key")
-
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch user")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch refreshed login key")
-		// 1 minute tolerance
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24).Add(time.Minute*-1)), "login key lasts 24 hrs")
+		require.True(t, apiKey.ExpiresAt.After(key.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
+		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "api key should have longer lifetime")
 	})
 }
 
@@ -237,11 +164,11 @@ func TestPostLogout(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
 		keyID := strings.Split(client.SessionToken, "-")[0]
 
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
 
@@ -259,44 +186,10 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
 		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
 
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
-		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
-	})
-
-	t.Run("LogoutWithoutKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		keyID := strings.Split(client.SessionToken, "-")[0]
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
-		require.NoError(t, err)
-		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
-
-		// Setting a fake database without the API Key to be used by the API.
-		// The middleware that extracts the API key is already set to read
-		// from the original database.
-		dbWithoutKey := databasefake.New()
-		api.Database = dbWithoutKey
-
-		fullURL, err := client.URL.Parse("/api/v2/users/logout")
-		require.NoError(t, err, "Server URL should parse successfully")
-
-		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
-		require.NoError(t, err, "/logout request should succeed")
-		res.Body.Close()
-		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
-
-		cookies := res.Cookies()
-		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
-
-		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
-		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
-		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
+		apiKey, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
+		var sdkErr = &codersdk.Error{}
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode(), "Expecting Forbidden")
 	})
 }
 
