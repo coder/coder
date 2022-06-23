@@ -19,10 +19,10 @@ export const Language = {
 export interface SearchBarWithFilterProps {
   filter?: string
   onFilter: (query: string) => void
-  presetFilters?: PresetFilters[]
+  presetFilters?: PresetFilter[]
 }
 
-export interface PresetFilters {
+export interface PresetFilter {
   name: string
   query: string
 }
