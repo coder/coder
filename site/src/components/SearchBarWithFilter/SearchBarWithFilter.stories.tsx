@@ -18,7 +18,6 @@ export const WithoutPresetFilters = Template.bind({})
 
 export const WithPresetFilters = Template.bind({})
 WithPresetFilters.args = {
-  ...WithoutPresetFilters.args,
   presetFilters: [
     { query: workspaceFilterQuery.me, name: "Your workspaces" },
     { query: "random query", name: "Random query" },
