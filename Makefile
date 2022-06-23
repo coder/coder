@@ -20,7 +20,9 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 
 	mkdir -p ./dist
 	rm -rf ./dist/coder-slim_*
+	rm -f ./site/out/bin/coder*
 	./scripts/build_go_slim.sh \
+		--compress 6 \
 		--version "$(VERSION)" \
 		--output ./dist/ \
 		linux:amd64,armv7,arm64 \
@@ -31,6 +33,7 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	rm -rf ./dist
 	mkdir -p ./dist
+	rm -f ./site/out/bin/coder*
 
 	# build slim artifacts and copy them to the site output directory
 	./scripts/build_go_slim.sh \
