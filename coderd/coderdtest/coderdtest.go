@@ -74,12 +74,12 @@ type Options struct {
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _ := NewWithAPI(t, options)
+	client, _ := newWithAPI(t, options)
 	return client
 }
 
-// NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
+// newWithAPI constructs a codersdk client connected to the returned in-memory API instance.
+func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}

@@ -189,7 +189,7 @@ func TestPostLogout(t *testing.T) {
 		apiKey, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		var sdkErr = &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode(), "Expecting Forbidden")
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting Forbidden")
 	})
 }
 

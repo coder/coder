@@ -617,7 +617,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Eventually(t, func() bool {
+				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
+				assert.NoError(t, err)
+
+				t.Logf("Status: %s", job.Status)
+				return job.Status == codersdk.ProvisionerJobSucceeded
+			}, 5*time.Second, 25*time.Millisecond)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			var apiErr *codersdk.Error

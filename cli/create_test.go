@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"testing"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -255,44 +253,55 @@ func TestCreate(t *testing.T) {
 
 	t.Run("FailedDryRun", func(t *testing.T) {
 		t.Parallel()
-		client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse: []*proto.Parse_Response{{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								AllowOverrideSource: true,
+								Name:                echo.ParameterExecKey,
+								Description:         "description 1",
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  "exit 0",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+						},
+					},
+				},
+			}},
 			ProvisionDryRun: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
-							Error: "test error",
-						},
+						Complete: &proto.Provision_Complete{},
 					},
 				},
 			},
 		})
 
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(fmt.Sprintf("%s: %q", echo.ParameterExecKey, "exit 1"))
+
 		// The template import job should end up failed, but we need it to be
 		// succeeded so the dry-run can begin.
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		require.Equal(t, codersdk.ProvisionerJobFailed, version.Job.Status, "job is not failed")
-		err := api.Database.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: version.Job.ID,
-			CompletedAt: sql.NullTime{
-				Time:  time.Now(),
-				Valid: true,
-			},
-			UpdatedAt: time.Now(),
-			Error:     sql.NullString{},
-		})
-		require.NoError(t, err, "update provisioner job")
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status, "job is not failed")
 
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "test")
+		cmd, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 
-		err = cmd.Execute()
+		err := cmd.Execute()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "dry-run workspace")
 	})

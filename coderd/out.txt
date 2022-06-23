@@ -1,0 +1,74 @@
+=== RUN   TestTemplateVersionDryRun
+=== PAUSE TestTemplateVersionDryRun
+=== CONT  TestTemplateVersionDryRun
+=== RUN   TestTemplateVersionDryRun/OK
+=== PAUSE TestTemplateVersionDryRun/OK
+=== CONT  TestTemplateVersionDryRun/OK
+    t.go:81: 2022-06-22 23:22:14.354 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	POST /api/v2/users/first
+    t.go:81: 2022-06-22 23:22:14.357 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	POST /api/v2/users/login
+    t.go:81: 2022-06-22 23:22:14.358 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	POST /api/v2/files
+    t.go:81: 2022-06-22 23:22:14.359 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	POST /api/v2/organizations/7aa01787-2231-4ddd-9332-0086223719a3/templateversions
+    t.go:81: 2022-06-22 23:22:14.386 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.412 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.436 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.455 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:134>	(*Server).connect	connected
+    t.go:81: 2022-06-22 23:22:14.461 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.466 [DEBUG]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:157>	(*provisionerdServer).AcquireJob	locked job from database	{"id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c"}
+    t.go:81: 2022-06-22 23:22:14.466 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:245>	(*Server).acquireJob	acquired job	{"initiator_username": "testuser", "provisioner": "echo", "id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c"}
+    t.go:81: 2022-06-22 23:22:14.467 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:359>	(*Server).runJob	unpacking template source archive	{"size_bytes": 5120}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.parse.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.provision.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 39, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/1.provision.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.provision.dry.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 39, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/1.provision.dry.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.467 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:419>	(*Server).runJob	acquired job is template import
+    t.go:81: 2022-06-22 23:22:14.468 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:655>	(*Server).runTemplateImportParse	parse complete	{"parameter_schemas": null}
+    t.go:81: 2022-06-22 23:22:14.470 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:715>	(*Server).runTemplateImportProvision	template import provision job logged	{"level": "TRACE", "output": ""}
+    t.go:81: 2022-06-22 23:22:14.470 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:745>	(*Server).runTemplateImportProvision	parse dry-run provision successful	{"resource_count": 1, "resources": [{"name": "cool-resource", "type": "cool_resource_type"}], "state_length": 0}
+    t.go:81: 2022-06-22 23:22:14.471 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:715>	(*Server).runTemplateImportProvision	template import provision job logged	{"level": "TRACE", "output": ""}
+    t.go:81: 2022-06-22 23:22:14.472 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:745>	(*Server).runTemplateImportProvision	parse dry-run provision successful	{"resource_count": 1, "resources": [{"name": "cool-resource", "type": "cool_resource_type"}], "state_length": 0}
+    t.go:81: 2022-06-22 23:22:14.475 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.486 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.486 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.495 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.505 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.511 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.516 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.522 [INFO]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:567>	(*provisionerdServer).CompleteJob	inserting template import job resource	{"job_id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c", "resource_name": "cool-resource", "resource_type": "cool_resource_type", "transition": "start"}
+    t.go:81: 2022-06-22 23:22:14.523 [INFO]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:567>	(*provisionerdServer).CompleteJob	inserting template import job resource	{"job_id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c", "resource_name": "cool-resource", "resource_type": "cool_resource_type", "transition": "stop"}
+    t.go:81: 2022-06-22 23:22:14.523 [DEBUG]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:591>	(*provisionerdServer).CompleteJob	marked import job as completed	{"job_id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c"}
+    t.go:81: 2022-06-22 23:22:14.523 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:463>	(*Server).runJob	completed job	{"id": "d3e7db15-a63a-4fc0-a48a-8fffe1d0c89c"}
+    t.go:81: 2022-06-22 23:22:14.524 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:321>	(*Server).runJob.func2	cleaned up work directory	{"error": null}
+    t.go:81: 2022-06-22 23:22:14.536 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa
+    t.go:81: 2022-06-22 23:22:14.537 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	POST /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run
+    t.go:81: 2022-06-22 23:22:14.539 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e
+    t.go:81: 2022-06-22 23:22:14.544 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e/logs
+    t.go:81: 2022-06-22 23:22:14.545 [DEBUG]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:157>	(*provisionerdServer).AcquireJob	locked job from database	{"id": "b5e90a3f-0aab-4479-ab11-3b278804e81e"}
+    t.go:81: 2022-06-22 23:22:14.546 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:245>	(*Server).acquireJob	acquired job	{"initiator_username": "testuser", "provisioner": "echo", "id": "b5e90a3f-0aab-4479-ab11-3b278804e81e"}
+    t.go:81: 2022-06-22 23:22:14.547 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:359>	(*Server).runJob	unpacking template source archive	{"size_bytes": 5120}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.parse.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.provision.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 39, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/1.provision.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 2, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/0.provision.dry.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:409>	(*Server).runJob	extracted file	{"size_bytes": 39, "path": "/tmp/TestTemplateVersionDryRunOK238154715/001/1.provision.dry.protobuf", "mode": "-rw-------"}
+    t.go:81: 2022-06-22 23:22:14.547 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:424>	(*Server).runJob	acquired job is template dry-run	{"workspace_name": "", "parameters": null}
+    t.go:81: 2022-06-22 23:22:14.548 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:715>	(*Server).runTemplateImportProvision	template import provision job logged	{"level": "TRACE", "output": ""}
+    t.go:81: 2022-06-22 23:22:14.548 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:745>	(*Server).runTemplateImportProvision	parse dry-run provision successful	{"resource_count": 1, "resources": [{"name": "cool-resource", "type": "cool_resource_type"}], "state_length": 0}
+    t.go:81: 2022-06-22 23:22:14.555 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.566 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.573 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e
+    t.go:81: 2022-06-22 23:22:14.575 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.585 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.596 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:212>	(*Server).acquireJob	skipping acquire; job is already running
+    t.go:81: 2022-06-22 23:22:14.597 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e
+    t.go:81: 2022-06-22 23:22:14.600 [INFO]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:668>	(*provisionerdServer).CompleteJob	inserting template dry-run job resource	{"job_id": "b5e90a3f-0aab-4479-ab11-3b278804e81e", "resource_name": "cool-resource", "resource_type": "cool_resource_type"}
+    t.go:81: 2022-06-22 23:22:14.600 [DEBUG]	(provisionerd-brave_borg8)	<github.com/coder/coder/coderd/provisionerdaemons.go:690>	(*provisionerdServer).CompleteJob	marked template dry-run job as completed	{"job_id": "b5e90a3f-0aab-4479-ab11-3b278804e81e"}
+    t.go:81: 2022-06-22 23:22:14.601 [INFO]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:463>	(*Server).runJob	completed job	{"id": "b5e90a3f-0aab-4479-ab11-3b278804e81e"}
+    t.go:81: 2022-06-22 23:22:14.602 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:321>	(*Server).runJob.func2	cleaned up work directory	{"error": null}
+    t.go:81: 2022-06-22 23:22:14.623 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e
+    t.go:81: 2022-06-22 23:22:14.798 [DEBUG]	<github.com/coder/coder/coderd/coderd.go:388>	debugLogRequest.func1.1	GET /api/v2/templateversions/2970435c-f7ce-48c6-81a7-73735baf6afa/dry-run/b5e90a3f-0aab-4479-ab11-3b278804e81e/resources
+    t.go:81: 2022-06-22 23:22:14.800 [DEBUG]	(provisionerd)	<github.com/coder/coder/provisionerd/provisionerd.go:1073>	(*Server).closeWithError	closing server with error	{"error": null}
+--- PASS: TestTemplateVersionDryRun (0.00s)
+    --- PASS: TestTemplateVersionDryRun/OK (0.46s)
+PASS
+ok  	github.com/coder/coder/coderd	0.828s
