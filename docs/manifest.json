@@ -25,9 +25,14 @@
       "children": [
         {
           "title": "Postgres",
-          "description": "Learn how to create and use your own Postgres database",
-          "path": "./postgres.md"
-        }
+          "description": "Learn how to create and use your own Postgres database.",
+          "path": "./install/postgres.md"
+        },
+        {
+          "title": "GitHub OAuth",
+          "description": "Learn how to set up OAuth using your GitHub organization.",
+          "path": "./install/oauth.md"
+        } 
       ]
     },
     {
