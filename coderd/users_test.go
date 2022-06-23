@@ -186,7 +186,7 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
 		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
 
-		apiKey, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
+		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		var sdkErr = &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
