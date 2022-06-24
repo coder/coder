@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -3105,8 +3106,8 @@ type InsertWorkspaceAgentParams struct {
 	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  string                `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey string                `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -3196,9 +3197,9 @@ WHERE
 `
 
 type UpdateWorkspaceAgentKeysByIDParams struct {
-	ID                      uuid.UUID `db:"id" json:"id"`
-	WireguardNodePublicKey  string    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey string    `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	WireguardNodePublicKey  dbtypes.NodePublic  `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {

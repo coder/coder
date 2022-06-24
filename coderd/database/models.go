@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 )
@@ -521,8 +522,8 @@ type WorkspaceAgent struct {
 	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory               string                `db:"directory" json:"directory"`
 	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  string                `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey string                `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 type WorkspaceApp struct {

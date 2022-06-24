@@ -19,11 +19,11 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
-	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
@@ -761,8 +761,8 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  prAgent.StartupScript != "",
 			},
 			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
-			WireguardNodePublicKey:  key.NodePublic{}.String(),
-			WireguardDiscoPublicKey: key.DiscoPublic{}.String(),
+			WireguardNodePublicKey:  dbtypes.NodePublic{},
+			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

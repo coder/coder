@@ -17,10 +17,10 @@ packages:
     output_db_file_name: db_tmp.go
 
 overrides:
-  - column: workspaces.wireguard_public_key
-    go_type: tailscale.com/types/key.MachinePublic
-  - column: workspaces.disco_public_key
-    go_type: tailscale.com/types/key.DiscoPublic
+  - column: workspace_agents.wireguard_node_public_key
+    go_type: github.com/coder/coder/coderd/database/dbtypes.NodePublic
+  - column: workspace_agents.wireguard_disco_public_key
+    go_type: github.com/coder/coder/coderd/database/dbtypes.DiscoPublic
 
 rename:
   api_key: APIKey
