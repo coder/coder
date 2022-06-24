@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -41,7 +42,14 @@ func delete() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
+
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been deleted!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			return nil
 		},
 	}
 	cliui.AllowSkipPrompt(cmd)
