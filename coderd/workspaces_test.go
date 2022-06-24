@@ -671,8 +671,10 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			func(req *codersdk.CreateWorkspaceRequest) {
 				req.ParameterValues = []codersdk.CreateParameterRequest{
 					{
-						Name:        echo.ParameterExecKey,
-						SourceValue: "tail -f /dev/null",
+						Name:              echo.ParameterExecKey,
+						SourceValue:       echo.ParameterSleep(time.Minute * 5),
+						SourceScheme:      codersdk.ParameterSourceSchemeData,
+						DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 					},
 				}
 			})

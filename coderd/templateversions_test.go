@@ -578,8 +578,10 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{
 					{
-						Name:        echo.ParameterExecKey,
-						SourceValue: "tail -f /dev/null",
+						Name: echo.ParameterExecKey,
+						// Sleep for a ridiculously long time so we don't accidentally complete
+						// before we successfully cancel the job.
+						SourceValue: echo.ParameterSleep(time.Minute * 5),
 					},
 				},
 			})
@@ -659,7 +661,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				ParameterValues: []codersdk.CreateParameterRequest{
 					{
 						Name:        echo.ParameterExecKey,
-						SourceValue: "tail -f /dev/null",
+						SourceValue: echo.ParameterSleep(time.Minute * 5),
 					},
 				},
 			})

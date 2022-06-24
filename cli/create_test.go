@@ -266,7 +266,7 @@ func TestCreate(t *testing.T) {
 								Description:         "description 1",
 								DefaultSource: &proto.ParameterSource{
 									Scheme: proto.ParameterSource_DATA,
-									Value:  "exit 0",
+									Value:  echo.ParameterSucceed(),
 								},
 								DefaultDestination: &proto.ParameterDestination{
 									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
@@ -287,7 +287,7 @@ func TestCreate(t *testing.T) {
 
 		tempDir := t.TempDir()
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
-		_, _ = parameterFile.WriteString(fmt.Sprintf("%s: %q", echo.ParameterExecKey, "exit 1"))
+		_, _ = parameterFile.WriteString(fmt.Sprintf("%s: %q", echo.ParameterExecKey, echo.ParameterError("fail")))
 
 		// The template import job should end up failed, but we need it to be
 		// succeeded so the dry-run can begin.

@@ -5,9 +5,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
@@ -20,7 +20,27 @@ import (
 
 const (
 	ParameterExecKey = "echo.exec"
+
+	sleepKey   = "sleep"
+	errorKey   = "error"
+	successKey = "success"
 )
+
+func ParameterError(s string) string {
+	return formatExecValue(errorKey, s)
+}
+
+func ParameterSleep(dur time.Duration) string {
+	return formatExecValue(sleepKey, dur.String())
+}
+
+func ParameterSucceed() string {
+	return formatExecValue(successKey, "")
+}
+
+func formatExecValue(key, value string) string {
+	return fmt.Sprintf("%s=%s", key, value)
+}
 
 var (
 	// ParseComplete is a helper to indicate an empty parse completion.
@@ -95,15 +115,22 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 
 	for _, param := range request.ParameterValues {
 		if param.Name == ParameterExecKey {
-			// #nosec G204
-			cmd := exec.Command("/bin/sh", "-c", param.Value)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				return xerrors.Errorf("exec %q returned %q: %w",
-					strings.Join(cmd.Args, " "),
-					string(out),
-					err,
-				)
+			toks := strings.Split(param.Value, "=")
+			if len(toks) < 2 {
+				break
+			}
+
+			switch toks[0] {
+			case sleepKey:
+				dur, err := time.ParseDuration(toks[1])
+				if err != nil {
+					return xerrors.Errorf("parse duration: %w", err)
+				}
+				time.Sleep(dur)
+			case errorKey:
+				return xerrors.Errorf("returning error: %v", toks[1])
+			default:
+				// Do nothing
 			}
 		}
 	}
