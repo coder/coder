@@ -338,10 +338,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"POST:/api/v2/users/{user}/organizations/": {
+		"POST:/api/v2/users/{user}/organizations": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: rbac.ResourceOrganization,
 		},
+		"GET:/api/v2/users": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},

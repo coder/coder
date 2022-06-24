@@ -704,6 +704,131 @@ func TestGetUser(t *testing.T) {
 	})
 }
 
+// TestUsersFilter creates a set of users to run various filters against for testing.
+func TestUsersFilter(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	first := coderdtest.CreateFirstUser(t, client)
+	firstUser, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "fetch me")
+
+	users := make([]codersdk.User, 0)
+	users = append(users, firstUser)
+	for i := 0; i < 15; i++ {
+		roles := []string{}
+		if i%2 == 0 {
+			roles = append(roles, rbac.RoleAdmin())
+		}
+		if i%3 == 0 {
+			roles = append(roles, "auditor")
+		}
+		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
+		user, err := userClient.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+
+		if i%4 == 0 {
+			user, err = client.UpdateUserStatus(context.Background(), user.ID.String(), codersdk.UserStatusSuspended)
+			require.NoError(t, err, "suspend user")
+		}
+
+		users = append(users, user)
+	}
+
+	// --- Setup done ---
+	testCases := []struct {
+		Name   string
+		Filter codersdk.UsersRequest
+		// If FilterF is true, we include it in the expected results
+		FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
+	}{
+		{
+			Name: "All",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return true
+			},
+		},
+		{
+			Name: "Active",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusActive
+			},
+		},
+		{
+			Name: "Suspended",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusSuspended,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusSuspended
+			},
+		},
+		{
+			Name: "NameContains",
+			Filter: codersdk.UsersRequest{
+				Search: "a",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return (strings.Contains(u.Username, "a") || strings.Contains(u.Email, "a"))
+			},
+		},
+		{
+			Name: "Admins",
+			Filter: codersdk.UsersRequest{
+				Role:   rbac.RoleAdmin(),
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return true
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "SearchQuery",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "i role:admin status:active",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return (strings.Contains(u.Username, "i") || strings.Contains(u.Email, "i")) &&
+							u.Status == codersdk.UserStatusActive
+					}
+				}
+				return false
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			matched, err := client.Users(context.Background(), c.Filter)
+			require.NoError(t, err, "fetch workspaces")
+
+			exp := make([]codersdk.User, 0)
+			for _, made := range users {
+				match := c.FilterF(c.Filter, made)
+				if match {
+					exp = append(exp, made)
+				}
+			}
+			require.ElementsMatch(t, exp, matched, "expected workspaces returned")
+		})
+	}
+}
+
 func TestGetUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("AllUsers", func(t *testing.T) {
@@ -754,7 +879,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
-			Status: string(codersdk.UserStatusActive),
+			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, active, users)

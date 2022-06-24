@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,9 +23,13 @@ const (
 )
 
 type UsersRequest struct {
-	Search string `json:"search,omitempty"`
-	// Filter users by status
-	Status string `json:"status,omitempty"`
+	Search string `json:"search,omitempty" typescript:"-"`
+	// Filter users by status.
+	Status UserStatus `json:"status,omitempty" typescript:"-"`
+	// Filter users that have the given role.
+	Role string `json:"role,omitempty" typescript:"-"`
+
+	SearchQuery string `json:"q,omitempty"`
 	Pagination
 }
 
@@ -362,8 +367,20 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		req.Pagination.asRequestOption(),
 		func(r *http.Request) {
 			q := r.URL.Query()
-			q.Set("search", req.Search)
-			q.Set("status", req.Status)
+			var params []string
+			if req.Search != "" {
+				params = append(params, req.Search)
+			}
+			if req.Status != "" {
+				params = append(params, "status:"+string(req.Status))
+			}
+			if req.Role != "" {
+				params = append(params, "role:"+req.Role)
+			}
+			if req.SearchQuery != "" {
+				params = append(params, req.SearchQuery)
+			}
+			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()
 		},
 	)

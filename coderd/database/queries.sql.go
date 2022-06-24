@@ -2571,27 +2571,33 @@ WHERE
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN (
+		WHEN cardinality($3 :: user_status[]) > 0 THEN
 			status = ANY($3 :: user_status[])
-		)
-		ELSE
-		    -- Only show active by default
-		    status = 'active'
+		ELSE true
+	END
+	-- Filter by rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+	    -- everyone is a member.
+		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
+		    rbac_roles && $4 :: text[]
+		ELSE true
 	END
 	-- End of filters
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $4
+	(created_at, id) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
-	NULLIF($5 :: int, -1)
+	NULLIF($6 :: int, -1)
 `
 
 type GetUsersParams struct {
 	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
 	Search    string       `db:"search" json:"search"`
 	Status    []UserStatus `db:"status" json:"status"`
+	RbacRole  []string     `db:"rbac_role" json:"rbac_role"`
 	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
@@ -2601,6 +2607,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 		arg.AfterID,
 		arg.Search,
 		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
