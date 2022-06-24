@@ -162,6 +162,23 @@ resource "docker_container" "workspace" {
 }
 ```
 
+#### Using updated images when rebuilding a workspace
+
+To ensure that Coder uses an updated image when rebuilding a workspace, set the
+`imagePullPolicy` to `Always` in your Terraform template; when set, Coder will
+check `image:tag` on every build and update if necessary:
+
+```tf
+resource "kubernetes_pod" "podName" {
+    spec {
+        container {
+            image_pull_policy = "Always"
+        }
+    }
+}
+```
+
+
 #### Delete workspaces
 
 When a workspace is deleted, the Coder server essentially runs a
@@ -172,7 +189,7 @@ resources associated with the workspace.
 > [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
 > and
 > [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
-> meta-arguments can be used to accidental data loss. 
+> meta-arguments can be used to accidental data loss.
 
 ### Coder apps
 
