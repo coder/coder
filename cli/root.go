@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -39,6 +40,13 @@ const (
 	varNoOpen          = "no-open"
 	varForceTty        = "force-tty"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
+
+	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
+)
+
+var (
+	errUnauthenticated = xerrors.New(notLoggedInMessage)
+	varNoVersionCheck  = false
 )
 
 func init() {
@@ -57,9 +65,23 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if varNoVersionCheck {
+				return nil
+			}
 
+			client, err := createClient(cmd)
+			// If the client is unauthenticated we can ignore the check.
+			// The child commands should handle an unauthenticated client.
+			if xerrors.Is(err, errUnauthenticated) {
+				return nil
+			}
+			if err != nil {
+				return xerrors.Errorf("create client: %w", err)
+			}
+			return checkVersions(cmd, client)
 		},
+
 		Example: `  Start a Coder server.
   ` + cliui.Styles.Code.Render("$ coder server") + `
 
@@ -99,6 +121,7 @@ func Root() *cobra.Command {
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
+	cliflag.BoolVarP(cmd.PersistentFlags(), &varNoVersionCheck, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
@@ -143,7 +166,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -158,7 +181,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -331,4 +354,27 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 func FormatCobraError(err error, cmd *cobra.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
 	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
+}
+
+func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
+	clientVersion := buildinfo.Version()
+
+	info, err := client.BuildInfo(cmd.Context())
+	if err != nil {
+		return xerrors.Errorf("build info: %w", err)
+	}
+
+	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
+		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("client/server versions do not match"))
+		fmt.Println()
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("client version: %s"), clientVersion)
+		fmt.Println()
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("server version: %s"), info.Version)
+		fmt.Println()
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("download the appropriate version from https://github.com/coder/coder/releases/tag/%s"), info.TrimmedVersion())
+		fmt.Println()
+	}
+
+	return nil
 }

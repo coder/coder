@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -14,6 +15,18 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
+}
+
+// TrimmedVersion trims build information from the version.
+// E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
+func (b BuildInfoResponse) TrimmedVersion() string {
+	// Linter doesn't like strings.Index...
+	idx := bytes.Index([]byte(b.Version), []byte("-devel"))
+	if idx < 0 {
+		return string(b.Version)
+	}
+
+	return b.Version[:idx]
 }
 
 // BuildInfo returns build information for this instance of Coder.

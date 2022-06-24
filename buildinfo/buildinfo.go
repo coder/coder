@@ -51,7 +51,7 @@ func Version() string {
 			version += revision
 		}
 	})
-	return version
+	return "v1.5.0"
 }
 
 // VersionsMatch compares the two versions. It assumes the versions match if
