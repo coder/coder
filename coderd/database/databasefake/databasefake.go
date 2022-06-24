@@ -400,7 +400,7 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 			continue
 		}
 
-		if arg.Name != "" && !strings.Contains(workspace.Name, arg.Name) {
+		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
 			continue
 		}
 		if len(arg.TemplateIds) > 0 {
