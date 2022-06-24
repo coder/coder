@@ -12,9 +12,6 @@ set +u
 CODER_DEV_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-password}"
 set -u
 
-# shellcheck disable=SC1090
-source <(go env)
-
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go make yarn
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
@@ -58,17 +55,12 @@ fi
 	# If we have docker available, then let's try to create a template!
 	if docker run --rm hello-world >/dev/null 2>&1; then
 		temp_template_dir=$(mktemp -d)
-		# cd "${temp_template_dir}"
 		echo code-server | go run "${PROJECT_ROOT}/cmd/coder/main.go" templates init "${temp_template_dir}"
-		if [[ "$GOARCH" = "arm64" ]]; then
-			# MacOS sed expects an argument to -i.
-			sed_ext_arg=""
-			if [[ "$GOOS" = "darwin" ]]; then
-				sed_ext_arg="''"
-			fi
-			sed -i "$sed_ext_arg" 's/arch.*=.*"amd64"/arch = "arm64"/' "${temp_template_dir}/main.tf"
-		fi
-		go run "${PROJECT_ROOT}/cmd/coder/main.go" templates create "docker-${GOARCH}" -d "${temp_template_dir}" -y
+		# shellcheck disable=SC1090
+		source <(go env | grep GOARCH)
+		DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
+		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
+		go run "${PROJECT_ROOT}/cmd/coder/main.go" templates create "docker-${GOARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
 		rm -rfv "${temp_template_dir}"
 	fi
 
