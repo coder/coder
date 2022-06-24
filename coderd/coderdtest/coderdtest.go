@@ -87,8 +87,8 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 		options = &Options{}
 	}
 	options.IncludeProvisionerD = true
-	client, close := newWithCloser(t, options)
-	return client, close
+	client, closer := newWithCloser(t, options)
+	return client, closer
 }
 
 // newWithCloser constructs a codersdk client connected to an in-memory API instance.
