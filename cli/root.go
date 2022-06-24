@@ -46,7 +46,7 @@ const (
 
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
-	varNoVersionCheck  = false
+	varSuppressVersion = false
 )
 
 func init() {
@@ -66,7 +66,7 @@ func Root() *cobra.Command {
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if varNoVersionCheck {
+			if varSuppressVersion {
 				return nil
 			}
 
@@ -121,7 +121,7 @@ func Root() *cobra.Command {
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
-	cliflag.BoolVarP(cmd.PersistentFlags(), &varNoVersionCheck, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
@@ -364,16 +364,16 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 		return xerrors.Errorf("build info: %w", err)
 	}
 
+	fmtWarningText := `client/server versions do not match
+client version: %s
+server version: %s
+download the appropriate version from https://github.com/coder/coder/releases/tag/%s
+`
+
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("client/server versions do not match"))
-		fmt.Println()
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("client version: %s"), clientVersion)
-		fmt.Println()
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("server version: %s"), info.Version)
-		fmt.Println()
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render("download the appropriate version from https://github.com/coder/coder/releases/tag/%s"), info.TrimmedVersion())
-		fmt.Println()
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, info.TrimmedVersion())
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 
 	return nil
