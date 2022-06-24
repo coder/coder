@@ -553,7 +553,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
 
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -574,16 +576,10 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
 
+			closer.Close()
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{
-					{
-						Name: echo.ParameterExecKey,
-						// Sleep for a ridiculously long time so we don't accidentally complete
-						// before we successfully cancel the job.
-						SourceValue: echo.ParameterSleep(time.Minute * 5),
-					},
-				},
+				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
@@ -592,7 +588,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobRunning
+				return job.Status == codersdk.ProvisionerJobPending
 			}, 5*time.Second, 25*time.Millisecond)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
@@ -603,7 +599,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceled
+				return job.Status == codersdk.ProvisionerJobCanceling
 			}, 5*time.Second, 25*time.Millisecond)
 		})
 
@@ -636,7 +632,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("AlreadyCanceled", func(t *testing.T) {
 			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
@@ -656,14 +654,11 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
 
+			closer.Close()
+
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{
-					{
-						Name:        echo.ParameterExecKey,
-						SourceValue: echo.ParameterSleep(time.Minute * 5),
-					},
-				},
+				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
 

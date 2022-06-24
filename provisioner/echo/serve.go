@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
@@ -21,17 +20,12 @@ import (
 const (
 	ParameterExecKey = "echo.exec"
 
-	sleepKey   = "sleep"
 	errorKey   = "error"
 	successKey = "success"
 )
 
 func ParameterError(s string) string {
 	return formatExecValue(errorKey, s)
-}
-
-func ParameterSleep(dur time.Duration) string {
-	return formatExecValue(sleepKey, dur.String())
 }
 
 func ParameterSucceed() string {
@@ -121,12 +115,6 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			}
 
 			switch toks[0] {
-			case sleepKey:
-				dur, err := time.ParseDuration(toks[1])
-				if err != nil {
-					return xerrors.Errorf("parse duration: %w", err)
-				}
-				time.Sleep(dur)
 			case errorKey:
 				return xerrors.Errorf("returning error: %v", toks[1])
 			default:

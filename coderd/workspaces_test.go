@@ -656,28 +656,16 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerD: true,
-		})
+		client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+		defer closer.Close()
 
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		closer.Close()
 		// Close here so workspace build doesn't process!
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID,
-			// Provide a parameter that will cause the workspace build to
-			// hang.
-			func(req *codersdk.CreateWorkspaceRequest) {
-				req.ParameterValues = []codersdk.CreateParameterRequest{
-					{
-						Name:              echo.ParameterExecKey,
-						SourceValue:       echo.ParameterSleep(time.Minute * 5),
-						SourceScheme:      codersdk.ParameterSourceSchemeData,
-						DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-					},
-				}
-			})
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
