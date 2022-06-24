@@ -35,7 +35,7 @@ import (
 	"cdr.dev/slog"
 )
 
-var logf tslogger.Logf = log.Printf
+var Logf tslogger.Logf = log.Printf
 
 func init() {
 	// Globally disable network namespacing.
@@ -139,15 +139,15 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 		DERP:       DefaultDerpHome,
 	}
 
-	wgMonitor, err := monitor.New(logf)
+	wgMonitor, err := monitor.New(Logf)
 	if err != nil {
 		return nil, xerrors.Errorf("create link monitor: %w", err)
 	}
 
 	dialer := new(tsdial.Dialer)
-	dialer.Logf = logf
+	dialer.Logf = Logf
 	// Create a wireguard engine in userspace.
-	engine, err := wgengine.NewUserspaceEngine(logf, wgengine.Config{
+	engine, err := wgengine.NewUserspaceEngine(Logf, wgengine.Config{
 		LinkMonitor: wgMonitor,
 		Dialer:      dialer,
 	})
@@ -172,7 +172,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 
 	// Create the networking stack.
 	// This is called to route connections.
-	netStack, err := netstack.Create(logf, tunDev, engine, magicConn, dialer, dnsManager)
+	netStack, err := netstack.Create(Logf, tunDev, engine, magicConn, dialer, dnsManager)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
@@ -192,7 +192,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	engine = wgengine.NewWatchdog(engine)
 
 	// Update the wireguard configuration to allow traffic to flow.
-	cfg, err := nmcfg.WGCfg(netMap, logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, netMap.SelfNode.StableID)
+	cfg, err := nmcfg.WGCfg(netMap, Logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, netMap.SelfNode.StableID)
 	if err != nil {
 		return nil, xerrors.Errorf("create wgcfg: %w", err)
 	}
@@ -216,7 +216,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 
 	iplb := netaddr.IPSetBuilder{}
 	ipl, _ := iplb.IPSet()
-	engine.SetFilter(filter.New(netMap.PacketFilter, ips, ipl, nil, logf))
+	engine.SetFilter(filter.New(netMap.PacketFilter, ips, ipl, nil, Logf))
 
 	wn := &Network{
 		logger:         logger,
@@ -319,7 +319,7 @@ func (n *Network) AddPeer(handshake Handshake) error {
 
 	n.netMap.Peers = peers
 
-	cfg, err := nmcfg.WGCfg(n.netMap, logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, tailcfg.StableNodeID("nBBoJZ5CNTRL"))
+	cfg, err := nmcfg.WGCfg(n.netMap, Logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, tailcfg.StableNodeID("nBBoJZ5CNTRL"))
 	if err != nil {
 		return xerrors.Errorf("create wgcfg: %w", err)
 	}
@@ -375,6 +375,12 @@ func (n *Network) Listen(network, addr string) (net.Listener, error) {
 }
 
 func (n *Network) Close() error {
+	// Close all listeners.
+	for _, l := range n.listeners {
+		_ = l.Close()
+	}
+
+	// Close the Wireguard netstack and engine.
 	_ = n.Netstack.Close()
 	n.wgEngine.Close()
 
