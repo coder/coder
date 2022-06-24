@@ -127,6 +127,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Invalid user search query.",
 			Validations: errs,
 		})
+		return
 	}
 
 	paginationParams, ok := parsePagination(rw, r)
@@ -959,6 +960,7 @@ func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
 		// No filter
 		return database.GetUsersParams{}, nil
 	}
+	query = strings.ToLower(query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.

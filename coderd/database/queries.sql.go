@@ -2563,8 +2563,8 @@ WHERE
 	-- Filter by name, email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
-			email LIKE concat('%', $2, '%')
-			OR username LIKE concat('%', $2, '%')
+			email ILIKE concat('%', $2, '%')
+			OR username ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END

@@ -99,8 +99,8 @@ WHERE
 	-- Filter by name, email or username
 	AND CASE
 		WHEN @search :: text != '' THEN (
-			email LIKE concat('%', @search, '%')
-			OR username LIKE concat('%', @search, '%')
+			email ILIKE concat('%', @search, '%')
+			OR username ILIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END

@@ -732,6 +732,13 @@ func TestUsersFilter(t *testing.T) {
 			require.NoError(t, err, "suspend user")
 		}
 
+		if i%5 == 0 {
+			user, err = client.UpdateUserProfile(context.Background(), user.ID.String(), codersdk.UpdateUserProfileRequest{
+				Username: strings.ToUpper(user.Username),
+			})
+			require.NoError(t, err, "update username to uppercase")
+		}
+
 		users = append(users, user)
 	}
 
@@ -761,6 +768,15 @@ func TestUsersFilter(t *testing.T) {
 			},
 		},
 		{
+			Name: "ActiveUppercase",
+			Filter: codersdk.UsersRequest{
+				Status: "ACTIVE",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusActive
+			},
+		},
+		{
 			Name: "Suspended",
 			Filter: codersdk.UsersRequest{
 				Status: codersdk.UserStatusSuspended,
@@ -775,7 +791,7 @@ func TestUsersFilter(t *testing.T) {
 				Search: "a",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return (strings.Contains(u.Username, "a") || strings.Contains(u.Email, "a"))
+				return (strings.ContainsAny(u.Username, "aA") || strings.ContainsAny(u.Email, "aA"))
 			},
 		},
 		{
@@ -794,6 +810,31 @@ func TestUsersFilter(t *testing.T) {
 			},
 		},
 		{
+			Name: "AdminsUppercase",
+			Filter: codersdk.UsersRequest{
+				Role:   "ADMIN",
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return true
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "Members",
+			Filter: codersdk.UsersRequest{
+				Role:   rbac.RoleMember(),
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return true
+			},
+		},
+		{
 			Name: "SearchQuery",
 			Filter: codersdk.UsersRequest{
 				SearchQuery: "i role:admin status:active",
@@ -801,7 +842,22 @@ func TestUsersFilter(t *testing.T) {
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
 					if r.Name == rbac.RoleAdmin() {
-						return (strings.Contains(u.Username, "i") || strings.Contains(u.Email, "i")) &&
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
+							u.Status == codersdk.UserStatusActive
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "SearchQueryInsensitive",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "i Role:Admin STATUS:Active",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
 				}

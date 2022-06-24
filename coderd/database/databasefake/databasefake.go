@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/slice"
 )
 
@@ -276,9 +277,9 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	if params.Search != "" {
 		tmp := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if strings.Contains(user.Email, params.Search) {
+			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Username, params.Search) {
+			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
 				tmp = append(tmp, users[i])
 			}
 		}
@@ -295,7 +296,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByStatus
 	}
 
-	if len(params.RbacRole) > 0 {
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
 		usersFilteredByRole := make([]database.User, 0, len(users))
 		for i, user := range users {
 			if slice.Overlap(params.RbacRole, user.RBACRoles) {
