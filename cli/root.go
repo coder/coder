@@ -377,12 +377,13 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	fmtWarningText := `client/server versions do not match
 client version: %s
 server version: %s
-download the appropriate version from https://github.com/coder/coder/releases/tag/%s
+to download the appropriate version run 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
 `
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, info.TrimmedVersion())
+		// Trim the leading 'v', our install.sh script does not handle this case well.
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, info.TrimmedVersion()[1:])
 		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 
