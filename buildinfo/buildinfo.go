@@ -3,6 +3,7 @@ package buildinfo
 import (
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,11 +61,25 @@ func Version() string {
 func VersionsMatch(v1, v2 string) bool {
 	// Developer versions are disregarded...hopefully they know what they are
 	// doing.
-	if semver.Prerelease(v1) != "" || semver.Prerelease(v2) != "" {
+	if strings.HasPrefix(v1, develPrefix) || strings.HasPrefix(v2, develPrefix) {
 		return true
 	}
 
-	return semver.Compare(semver.MajorMinor(v1), semver.MajorMinor(v2)) == 0
+	v1Toks := strings.Split(v1, ".")
+	v2Toks := strings.Split(v2, ".")
+
+	// Versions should be formatted as "<major>.<minor>.<patch>".
+	// We assume malformed versions are evidence of a bug and return false.
+	if len(v1Toks) < 3 || len(v2Toks) < 3 {
+		return false
+	}
+
+	// Slice off the patch suffix. Patch versions should be non-breaking
+	// changes.
+	v1MajorMinor := strings.Join(v1Toks[:2], ".")
+	v2MajorMinor := strings.Join(v2Toks[:2], ".")
+
+	return v1MajorMinor == v2MajorMinor
 }
 
 // ExternalURL returns a URL referencing the current Coder version.
