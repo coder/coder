@@ -3,6 +3,7 @@ package buildinfo
 import (
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,11 @@ var (
 	tag string
 )
 
+const (
+	// develPrefix is prefixed to developer versions of the application.
+	develPrefix = "v0.0.0-devel"
+)
+
 // Version returns the semantic version of the build.
 // Use golang.org/x/mod/semver to compare versions.
 func Version() string {
@@ -35,7 +41,7 @@ func Version() string {
 		if tag == "" {
 			// This occurs when the tag hasn't been injected,
 			// like when using "go run".
-			version = "v0.0.0-devel" + revision
+			version = develPrefix + revision
 			return
 		}
 		version = "v" + tag
@@ -46,6 +52,34 @@ func Version() string {
 		}
 	})
 	return version
+}
+
+// VersionsMatch compares the two versions. It assumes the versions match if
+// the major and the minor versions are equivalent. Patch versions are
+// disregarded. If it detects that either version is a developer build it
+// returns true.
+func VersionsMatch(v1, v2 string) bool {
+	// Developer versions are disregarded...hopefully they know what they are
+	// doing.
+	if strings.HasPrefix(v1, develPrefix) || strings.HasPrefix(v2, develPrefix) {
+		return true
+	}
+
+	v1Toks := strings.Split(v1, ".")
+	v2Toks := strings.Split(v2, ".")
+
+	// Versions should be formatted as "<major>.<minor>.<patch>".
+	// We assume malformed versions are evidence of a bug and return false.
+	if len(v1Toks) < 3 || len(v2Toks) < 3 {
+		return false
+	}
+
+	// Slice off the patch suffix. Patch versions should be non-breaking
+	// changes.
+	v1MajorMinor := strings.Join(v1Toks[:2], ".")
+	v2MajorMinor := strings.Join(v2Toks[:2], ".")
+
+	return v1MajorMinor == v2MajorMinor
 }
 
 // ExternalURL returns a URL referencing the current Coder version.

@@ -1,6 +1,7 @@
 package buildinfo_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,5 +29,74 @@ func TestBuildInfo(t *testing.T) {
 		t.Parallel()
 		_, valid := buildinfo.Time()
 		require.False(t, valid)
+	})
+
+	t.Run("VersionsMatch", func(t *testing.T) {
+		t.Parallel()
+
+		type testcase struct {
+			name        string
+			v1          string
+			v2          string
+			expectMatch bool
+		}
+
+		cases := []testcase{
+			{
+				name:        "OK",
+				v1:          "v1.2.3",
+				v2:          "v1.2.3",
+				expectMatch: true,
+			},
+			// Test that we return false if a version is malformed.
+			{
+				name:        "MalformedIgnored",
+				v1:          "v1.2.3",
+				v2:          "v1.2",
+				expectMatch: false,
+			},
+			// Test that we return true if a developer version is detected.
+			// Developers do not need to be warned of mismatched versions.
+			{
+				name:        "DevelIgnored",
+				v1:          "v0.0.0-devel+123abac",
+				v2:          "v1.2.3",
+				expectMatch: true,
+			},
+			{
+				name:        "MajorMismatch",
+				v1:          "v1.2.3",
+				v2:          "v0.1.2",
+				expectMatch: false,
+			},
+			{
+				name:        "MinorMismatch",
+				v1:          "v1.2.3",
+				v2:          "v1.3.2",
+				expectMatch: false,
+			},
+			// Different patches are ok, breaking changes are not allowed
+			// in patches.
+			{
+				name:        "PatchMismatch",
+				v1:          "v1.2.3+hash.whocares",
+				v2:          "v1.2.4+somestuff.hm.ok",
+				expectMatch: true,
+			},
+		}
+
+		for _, c := range cases {
+			// It's very important to do this since we're running the tests
+			// in parallel. Otherwise you will likely get the last element
+			// in the list since the goroutines will likely start executing
+			// after the for loop has completed.
+			c := c
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+				require.Equal(t, c.expectMatch, buildinfo.VersionsMatch(c.v1, c.v2),
+					fmt.Sprintf("expected match=%v for version %s and %s", c.expectMatch, c.v1, c.v2),
+				)
+			})
+		}
 	})
 }
