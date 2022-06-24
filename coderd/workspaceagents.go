@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -488,8 +489,8 @@ func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) 
 
 	err := api.Database.UpdateWorkspaceAgentKeysByID(ctx, database.UpdateWorkspaceAgentKeysByIDParams{
 		ID:                      workspaceAgent.ID,
-		WireguardNodePublicKey:  keys.Public.String(),
-		WireguardDiscoPublicKey: keys.Disco.String(),
+		WireguardNodePublicKey:  dbtypes.NodePublic(keys.Public),
+		WireguardDiscoPublicKey: dbtypes.DiscoPublic(keys.Disco),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -711,15 +712,8 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
 		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
-	}
-
-	err := workspaceAgent.WireguardPublicKey.UnmarshalText([]byte(dbAgent.WireguardNodePublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal wireguard node public key %q: %w", dbAgent.WireguardNodePublicKey, err)
-	}
-	err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.WireguardDiscoPublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal disco public key %q: %w", dbAgent.WireguardDiscoPublicKey, err)
+		WireguardPublicKey:   key.NodePublic(dbAgent.WireguardNodePublicKey),
+		DiscoPublicKey:       key.DiscoPublic(dbAgent.WireguardDiscoPublicKey),
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {
