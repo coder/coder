@@ -107,7 +107,7 @@ func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryP
 	if err != nil {
 		parser.Errors = append(parser.Errors, Error{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q has invalid value: %q", queryParam, err.Error()),
+			Detail: fmt.Sprintf("Query param %q has invalid value: %s", queryParam, err.Error()),
 		})
 	}
 	return v
