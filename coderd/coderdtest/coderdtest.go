@@ -74,7 +74,7 @@ type Options struct {
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _ := newWithAPI(t, options)
+	client, _ := newWithCloser(t, options)
 	return client
 }
 
@@ -87,13 +87,18 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 		options = &Options{}
 	}
 	options.IncludeProvisionerD = true
-	client, close := newWithAPI(t, options)
+	client, close := newWithCloser(t, options)
 	return client, close
 }
 
-// newWithAPI constructs a codersdk client connected to an in-memory API instance.
+// newWithCloser constructs a codersdk client connected to an in-memory API instance.
 // The returned closer closes a provisioner if it was provided
-func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+// The API is intentionally not returned here because coderd tests should not
+// require a handle to the API. Do not expose the API or wrath shall descend
+// upon thee. Even the io.Closer that is exposed here shouldn't be exposed
+// and is a temporary measure while the API to register provisioners is ironed
+// out.
+func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
