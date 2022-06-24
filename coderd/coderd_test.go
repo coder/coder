@@ -154,8 +154,12 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/derp":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/wireguardlisten":          {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},

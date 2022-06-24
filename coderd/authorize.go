@@ -6,7 +6,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 )

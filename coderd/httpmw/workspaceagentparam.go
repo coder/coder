@@ -31,6 +31,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 			if !parsed {
 				return
 			}
+
 			agent, err := db.GetWorkspaceAgentByID(r.Context(), agentUUID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
@@ -45,6 +46,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				})
 				return
 			}
+
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
