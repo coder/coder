@@ -491,7 +491,8 @@ func TestWorkspaceFilter(t *testing.T) {
 				FilterQuery: allWorkspaces[5].Owner.Username + "/" + strings.ToUpper(allWorkspaces[5].Workspace.Name),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				if strings.EqualFold(workspace.Owner.Username, allWorkspaces[5].Owner.Username) && strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(allWorkspaces[5].Workspace.Name)) {
+				if strings.EqualFold(workspace.Owner.Username, allWorkspaces[5].Owner.Username) &&
+					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(allWorkspaces[5].Workspace.Name)) {
 					return true
 				}
 
