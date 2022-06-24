@@ -53,7 +53,7 @@ fi
 		echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 
 	# If we have docker available, then let's try to create a template!
-	if docker run --rm hello-world >/dev/null 2>&1; then
+	if docker info >/dev/null 2>&1; then
 		temp_template_dir=$(mktemp -d)
 		echo code-server | go run "${PROJECT_ROOT}/cmd/coder/main.go" templates init "${temp_template_dir}"
 		# shellcheck disable=SC1090
