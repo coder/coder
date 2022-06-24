@@ -10,6 +10,7 @@ import {
 } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { queryToFilter } from "../../util/filters"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
@@ -28,6 +29,7 @@ export const Language = {
 export interface UsersContext {
   // Get users
   users?: TypesGen.User[]
+  filter?: string
   getUsersError?: Error | unknown
   createUserErrorMessage?: string
   createUserFormErrors?: FieldErrors
@@ -47,7 +49,7 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  | { type: "GET_USERS" }
+  | { type: "GET_USERS"; query: string }
   | { type: "CREATE"; user: TypesGen.CreateUserRequest }
   | { type: "CANCEL_CREATE_USER" }
   // Suspend events
@@ -97,7 +99,10 @@ export const usersMachine = createMachine(
     states: {
       idle: {
         on: {
-          GET_USERS: "gettingUsers",
+          GET_USERS: {
+            actions: "assignFilter",
+            target: "gettingUsers",
+          },
           CREATE: "creatingUser",
           CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
           SUSPEND_USER: {
@@ -242,7 +247,10 @@ export const usersMachine = createMachine(
       },
       error: {
         on: {
-          GET_USERS: "gettingUsers",
+          GET_USERS: {
+            actions: "assignFilter",
+            target: "gettingUsers",
+          },
         },
       },
     },
@@ -252,7 +260,7 @@ export const usersMachine = createMachine(
       // Passing API.getUsers directly does not invoke the function properly
       // when it is mocked. This happen in the UsersPage tests inside of the
       // "shows a success message and refresh the page" test case.
-      getUsers: () => API.getUsers(),
+      getUsers: (context) => API.getUsers(queryToFilter(context.filter)),
       createUser: (_, event) => API.createUser(event.user),
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {
@@ -296,6 +304,9 @@ export const usersMachine = createMachine(
     actions: {
       assignUsers: assign({
         users: (_, event) => event.data,
+      }),
+      assignFilter: assign({
+        filter: (_, event) => event.query,
       }),
       assignGetUsersError: assign({
         getUsersError: (_, event) => event.data,

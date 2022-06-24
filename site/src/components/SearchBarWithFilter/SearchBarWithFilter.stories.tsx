@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { workspaceFilterQuery } from "../../util/workspace"
+import { workspaceFilterQuery } from "../../util/filters"
 import { SearchBarWithFilter, SearchBarWithFilterProps } from "./SearchBarWithFilter"
 
 export default {

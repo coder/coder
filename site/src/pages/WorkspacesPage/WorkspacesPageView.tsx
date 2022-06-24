@@ -35,7 +35,8 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
-import { getDisplayStatus, workspaceFilterQuery } from "../../util/workspace"
+import { workspaceFilterQuery } from "../../util/filters"
+import { getDisplayStatus } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 
 dayjs.extend(relativeTime)

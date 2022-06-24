@@ -2,8 +2,10 @@ import { useActor, useSelector } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useNavigate } from "react-router"
+import { useSearchParams } from "react-router-dom"
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
+import { userFilterQuery } from "../../util/filters"
 import { pageTitle } from "../../util/page"
 import { selectPermissions } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -31,6 +33,7 @@ export const UsersPage: React.FC = () => {
     newUserPassword,
   } = usersState.context
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
@@ -46,8 +49,13 @@ export const UsersPage: React.FC = () => {
 
   // Fetch users on component mount
   useEffect(() => {
-    usersSend("GET_USERS")
-  }, [usersSend])
+    const filter = searchParams.get("filter")
+    const query = filter !== null ? filter : userFilterQuery.active
+    usersSend({
+      type: "GET_USERS",
+      query,
+    })
+  }, [searchParams, usersSend])
 
   // Fetch roles on component mount
   useEffect(() => {
@@ -91,6 +99,11 @@ export const UsersPage: React.FC = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canCreateUser={canCreateUser}
+        filter={usersState.context.filter}
+        onFilter={(query) => {
+          searchParams.set("filter", query)
+          setSearchParams(searchParams)
+        }}
       />
 
       <ConfirmDialog

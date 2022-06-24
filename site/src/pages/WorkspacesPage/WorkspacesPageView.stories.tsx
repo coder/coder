@@ -2,7 +2,7 @@ import { ComponentMeta, Story } from "@storybook/react"
 import { spawn } from "xstate"
 import { ProvisionerJobStatus, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
-import { workspaceFilterQuery } from "../../util/workspace"
+import { workspaceFilterQuery } from "../../util/filters"
 import {
   workspaceItemMachine,
   WorkspaceItemMachineRef,
