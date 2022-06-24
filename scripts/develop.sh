@@ -53,6 +53,7 @@ fi
 		echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 
 	# If we have docker available, then let's try to create a template!
+	template_name=""
 	if docker info >/dev/null 2>&1; then
 		temp_template_dir=$(mktemp -d)
 		echo code-server | go run "${PROJECT_ROOT}/cmd/coder/main.go" templates init "${temp_template_dir}"
@@ -60,15 +61,22 @@ fi
 		source <(go env | grep GOARCH)
 		DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
-		go run "${PROJECT_ROOT}/cmd/coder/main.go" templates create "docker-${GOARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
+		template_name="docker-${GOARCH}"
+		go run "${PROJECT_ROOT}/cmd/coder/main.go" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
 		rm -rfv "${temp_template_dir}"
 	fi
 
 	log
 	log "======================================================================="
+	log "==                                                                   =="
 	log "==               Coder is now running in development mode.           =="
 	log "==                    API   : http://localhost:3000                  =="
 	log "==                    Web UI: http://localhost:8080                  =="
+	if [[ -n "${template_name}" ]]; then
+		log "==                                                                   =="
+		log "==            Docker template ${template_name} is ready to use!          =="
+		log "==                                                                   =="
+	fi
 	log "======================================================================="
 	log
 	# Wait for both frontend and backend to exit.
