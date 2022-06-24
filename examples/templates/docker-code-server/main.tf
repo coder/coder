@@ -13,7 +13,7 @@ terraform {
 
 variable "docker_host" {
   description = "Specify location of Docker socket (check `docker context ls` if you're not sure)"
-  sensitive = true
+  sensitive   = true
 }
 
 variable "docker_arch" {
