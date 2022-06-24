@@ -57,6 +57,9 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+
+		},
 		Example: `  Start a Coder server.
   ` + cliui.Styles.Code.Render("$ coder server") + `
 
