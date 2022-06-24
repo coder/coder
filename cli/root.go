@@ -65,8 +65,14 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if varSuppressVersion {
+				return nil
+			}
+
+			// Login handles checking the versions itself since it
+			// has a handle to an unauthenticated client.
+			if cmd.Name() == "login" {
 				return nil
 			}
 
@@ -357,6 +363,10 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 }
 
 func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
+	if varSuppressVersion {
+		return nil
+	}
+
 	clientVersion := buildinfo.Version()
 
 	info, err := client.BuildInfo(cmd.Context())
