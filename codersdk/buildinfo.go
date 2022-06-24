@@ -23,7 +23,7 @@ func (b BuildInfoResponse) TrimmedVersion() string {
 	// Linter doesn't like strings.Index...
 	idx := bytes.Index([]byte(b.Version), []byte("-devel"))
 	if idx < 0 {
-		return string(b.Version)
+		return b.Version
 	}
 
 	return b.Version[:idx]
