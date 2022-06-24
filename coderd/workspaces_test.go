@@ -358,6 +358,13 @@ func TestWorkspaceFilter(t *testing.T) {
 		user, err := userClient.User(context.Background(), codersdk.Me)
 		require.NoError(t, err, "fetch me")
 
+		if i%3 == 0 {
+			user, err = client.UpdateUserProfile(context.Background(), user.ID.String(), codersdk.UpdateUserProfileRequest{
+				Username: strings.ToUpper(user.Username),
+			})
+			require.NoError(t, err, "uppercase username")
+		}
+
 		org, err := userClient.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: user.Username + "-org",
 		})
@@ -378,16 +385,32 @@ func TestWorkspaceFilter(t *testing.T) {
 
 	availTemplates := make([]codersdk.Template, 0)
 	allWorkspaces := make([]madeWorkspace, 0)
+	upperTemplates := make([]string, 0)
 
 	// Create some random workspaces
-	for _, user := range users {
+	var count int
+	for i, user := range users {
 		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
 
 		// Create a template & workspace in the user's org
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
+
+		var template codersdk.Template
+		if i%3 == 0 {
+			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+				request.Name = strings.ToUpper(request.Name)
+			})
+			upperTemplates = append(upperTemplates, template.Name)
+		} else {
+			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
+		}
+
 		availTemplates = append(availTemplates, template)
-		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			if count%3 == 0 {
+				request.Name = strings.ToUpper(request.Name)
+			}
+		})
 		allWorkspaces = append(allWorkspaces, madeWorkspace{
 			Workspace: workspace,
 			Template:  template,
@@ -444,6 +467,15 @@ func TestWorkspaceFilter(t *testing.T) {
 			},
 		},
 		{
+			Name: "UpperTemplateName",
+			Filter: codersdk.WorkspaceFilter{
+				Template: upperTemplates[0],
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return strings.EqualFold(workspace.Template.Name, f.Template)
+			},
+		},
+		{
 			Name: "Name",
 			Filter: codersdk.WorkspaceFilter{
 				// Use a common letter... one has to have this letter in it
@@ -456,18 +488,13 @@ func TestWorkspaceFilter(t *testing.T) {
 		{
 			Name: "Q-Owner/Name",
 			Filter: codersdk.WorkspaceFilter{
-				FilterQuery: allWorkspaces[5].Owner.Username + "/" + allWorkspaces[5].Workspace.Name,
+				FilterQuery: allWorkspaces[5].Owner.Username + "/" + strings.ToUpper(allWorkspaces[5].Workspace.Name),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				if strings.EqualFold(workspace.Owner.Username, f.Owner) {
+				if strings.EqualFold(workspace.Owner.Username, allWorkspaces[5].Owner.Username) && strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(allWorkspaces[5].Workspace.Name)) {
 					return true
 				}
-				if strings.EqualFold(workspace.Owner.Email, f.Owner) {
-					return true
-				}
-				if strings.EqualFold(workspace.Workspace.Name, f.Name) {
-					return true
-				}
+
 				return false
 			},
 		},
@@ -479,16 +506,9 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name:     allWorkspaces[3].Workspace.Name,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				if strings.EqualFold(workspace.Owner.Username, f.Owner) {
-					return true
-				}
-				if strings.EqualFold(workspace.Owner.Email, f.Owner) {
-					return true
-				}
-				if strings.EqualFold(workspace.Workspace.Name, f.Name) {
-					return true
-				}
-				if strings.EqualFold(workspace.Template.Name, f.Template) {
+				if strings.EqualFold(workspace.Owner.Username, f.Owner) &&
+					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(f.Name)) &&
+					strings.EqualFold(workspace.Template.Name, f.Template) {
 					return true
 				}
 				return false

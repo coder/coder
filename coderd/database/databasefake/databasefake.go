@@ -276,9 +276,9 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	if params.Search != "" {
 		tmp := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if strings.Contains(user.Email, params.Search) {
+			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Username, params.Search) {
+			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
 				tmp = append(tmp, users[i])
 			}
 		}
@@ -288,7 +288,9 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	if len(params.Status) > 0 {
 		usersFilteredByStatus := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if slice.Contains(params.Status, user.Status) {
+			if slice.ContainsCompare(params.Status, user.Status, func(a, b database.UserStatus) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
 				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
 			}
 		}
@@ -298,7 +300,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	if len(params.RbacRole) > 0 {
 		usersFilteredByRole := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if slice.Overlap(params.RbacRole, user.RBACRoles) {
+			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
 				usersFilteredByRole = append(usersFilteredByRole, users[i])
 			}
 		}
@@ -384,24 +386,20 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 		}
 		if arg.OwnerUsername != "" {
 			owner, err := q.GetUserByID(context.Background(), workspace.OwnerID)
-			if err == nil && arg.OwnerUsername != owner.Username {
+			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
 				continue
 			}
 		}
 		if arg.TemplateName != "" {
-			templates, err := q.GetTemplatesWithFilter(context.Background(), database.GetTemplatesWithFilterParams{
-				ExactName: arg.TemplateName,
-			})
-			// Add to later param
-			if err == nil {
-				for _, t := range templates {
-					arg.TemplateIds = append(arg.TemplateIds, t.ID)
-				}
+			template, err := q.GetTemplateByID(context.Background(), workspace.TemplateID)
+			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
+				continue
 			}
 		}
 		if !arg.Deleted && workspace.Deleted {
 			continue
 		}
+
 		if arg.Name != "" && !strings.Contains(workspace.Name, arg.Name) {
 			continue
 		}
