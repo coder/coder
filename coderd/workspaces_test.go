@@ -428,19 +428,19 @@ func TestWorkspaceFilter(t *testing.T) {
 		{
 			Name: "Owner",
 			Filter: codersdk.WorkspaceFilter{
-				Owner: users[2].User.Username,
+				Owner: strings.ToUpper(users[2].User.Username),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Owner.Username == f.Owner
+				return strings.EqualFold(workspace.Owner.Username, f.Owner)
 			},
 		},
 		{
 			Name: "TemplateName",
 			Filter: codersdk.WorkspaceFilter{
-				Template: allWorkspaces[5].Template.Name,
+				Template: strings.ToUpper(allWorkspaces[5].Template.Name),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Template.Name == f.Template
+				return strings.EqualFold(workspace.Template.Name, f.Template)
 			},
 		},
 		{
@@ -450,7 +450,7 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name: "a",
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.Contains(workspace.Workspace.Name, f.Name)
+				return strings.ContainsAny(workspace.Workspace.Name, "Aa")
 			},
 		},
 		{
@@ -458,8 +458,17 @@ func TestWorkspaceFilter(t *testing.T) {
 			Filter: codersdk.WorkspaceFilter{
 				FilterQuery: allWorkspaces[5].Owner.Username + "/" + allWorkspaces[5].Workspace.Name,
 			},
-			FilterF: func(_ codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Workspace.ID == allWorkspaces[5].Workspace.ID
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				if strings.EqualFold(workspace.Owner.Username, f.Owner) {
+					return true
+				}
+				if strings.EqualFold(workspace.Owner.Email, f.Owner) {
+					return true
+				}
+				if strings.EqualFold(workspace.Workspace.Name, f.Name) {
+					return true
+				}
+				return false
 			},
 		},
 		{
@@ -470,7 +479,19 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name:     allWorkspaces[3].Workspace.Name,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Workspace.ID == allWorkspaces[3].Workspace.ID
+				if strings.EqualFold(workspace.Owner.Username, f.Owner) {
+					return true
+				}
+				if strings.EqualFold(workspace.Owner.Email, f.Owner) {
+					return true
+				}
+				if strings.EqualFold(workspace.Workspace.Name, f.Name) {
+					return true
+				}
+				if strings.EqualFold(workspace.Template.Name, f.Template) {
+					return true
+				}
+				return false
 			},
 		},
 	}
