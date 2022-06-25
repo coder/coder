@@ -35,12 +35,17 @@ Error.args = {
   roles: MockSiteRoles,
   canEditUsers: true,
   error: {
-    message: "Invalid user search query.",
-    validations: [
-      {
-        field: "status",
-        detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+    response: {
+      data: {
+        message: "Invalid user search query.",
+        validations: [
+          {
+            field: "status",
+            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+          },
+        ],
       },
-    ],
+    },
+    isAxiosError: true,
   },
 }

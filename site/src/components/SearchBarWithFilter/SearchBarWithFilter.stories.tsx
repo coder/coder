@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { workspaceFilterQuery } from "../../util/filters"
+import { userFilterQuery, workspaceFilterQuery } from "../../util/filters"
 import { SearchBarWithFilter, SearchBarWithFilterProps } from "./SearchBarWithFilter"
 
 export default {
@@ -26,18 +26,23 @@ WithPresetFilters.args = {
 
 export const WithError = Template.bind({})
 WithError.args = {
+  filter: "status:inactive",
   presetFilters: [
-    { query: workspaceFilterQuery.me, name: "Your workspaces" },
+    { query: userFilterQuery.active, name: "Active users" },
     { query: "random query", name: "Random query" },
   ],
   error: {
     response: {
       data: {
-        validations: {
-          field: "status",
-          detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-        },
+        message: "Invalid user search query.",
+        validations: [
+          {
+            field: "status",
+            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+          },
+        ],
       },
     },
+    isAxiosError: true,
   },
 }
