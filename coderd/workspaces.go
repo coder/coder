@@ -959,6 +959,7 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []httpapi
 		// No filter
 		return database.GetWorkspacesParams{}, nil
 	}
+	query = strings.ToLower(query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.

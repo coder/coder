@@ -25,7 +25,7 @@ WHERE
   	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE username = @owner_username)
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username))
 		ELSE true
 	END
 	-- Filter by template_name
@@ -33,7 +33,7 @@ WHERE
   	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE name = @template_name)
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name))
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -45,7 +45,7 @@ WHERE
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN
-			LOWER(name) LIKE '%' || LOWER(@name) || '%'
+		    name ILIKE '%' || @name || '%'
 		ELSE true
 	END
 ;
