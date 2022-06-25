@@ -307,7 +307,7 @@ export const workspacesMachine = createMachine(
               }
 
               // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id === ref.id)
+              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id !== ref.id)
             }
           }
 
