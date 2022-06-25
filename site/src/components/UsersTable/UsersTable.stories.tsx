@@ -28,3 +28,19 @@ Empty.args = {
   users: [],
   roles: MockSiteRoles,
 }
+
+export const Error = Template.bind({})
+Error.args = {
+  users: [MockUser, MockUser2],
+  roles: MockSiteRoles,
+  canEditUsers: true,
+  error: {
+    message: "Invalid user search query.",
+    validations: [
+      {
+        field: "status",
+        detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+      },
+    ],
+  },
+}

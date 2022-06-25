@@ -23,3 +23,21 @@ WithPresetFilters.args = {
     { query: "random query", name: "Random query" },
   ],
 }
+
+export const WithError = Template.bind({})
+WithError.args = {
+  presetFilters: [
+    { query: workspaceFilterQuery.me, name: "Your workspaces" },
+    { query: "random query", name: "Random query" },
+  ],
+  error: {
+    response: {
+      data: {
+        validations: {
+          field: "status",
+          detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+        },
+      },
+    },
+  },
+}

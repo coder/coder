@@ -14,6 +14,7 @@ import { queryToFilter } from "../../util/filters"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
+  getUsersError: "Error getting users.",
   createUserSuccess: "Successfully created user.",
   createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
@@ -135,7 +136,7 @@ export const usersMachine = createMachine(
           ],
           onError: [
             {
-              actions: "assignGetUsersError",
+              actions: ["assignGetUsersError", "displayGetUsersErrorMessage"],
               target: "#usersState.error",
             },
           ],
@@ -364,6 +365,10 @@ export const usersMachine = createMachine(
       clearUpdateUserRolesError: assign({
         updateUserRolesError: (_) => undefined,
       }),
+      displayGetUsersErrorMessage: (context) => {
+        const message = getErrorMessage(context.getUsersError, Language.getUsersError)
+        displayError(message)
+      },
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
       },

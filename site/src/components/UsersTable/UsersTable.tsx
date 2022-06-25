@@ -36,6 +36,7 @@ export interface UsersTableProps {
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
+  error?: unknown
 }
 
 export const UsersTable: FC<UsersTableProps> = ({
@@ -48,6 +49,7 @@ export const UsersTable: FC<UsersTableProps> = ({
   isUpdatingUserRoles,
   canEditUsers,
   isLoading,
+  error,
 }) => {
   const styles = useStyles()
 
@@ -63,8 +65,9 @@ export const UsersTable: FC<UsersTableProps> = ({
         </TableRow>
       </TableHead>
       <TableBody>
-        {isLoading && <TableLoader />}
+        {isLoading && !error && <TableLoader />}
         {!isLoading &&
+          !error &&
           users &&
           users.map((user) => {
             // When the user has no role we want to show they are a Member
@@ -134,15 +137,18 @@ export const UsersTable: FC<UsersTableProps> = ({
             )
           })}
 
-        {users && users.length === 0 && (
-          <TableRow>
-            <TableCell colSpan={999}>
-              <Box p={4}>
-                <EmptyState message={Language.emptyMessage} />
-              </Box>
-            </TableCell>
-          </TableRow>
-        )}
+        {
+          // Default behavior for error state and empty list
+          (error || (users && users.length === 0)) && (
+            <TableRow>
+              <TableCell colSpan={999}>
+                <Box p={4}>
+                  <EmptyState message={Language.emptyMessage} />
+                </Box>
+              </TableCell>
+            </TableRow>
+          )
+        }
       </TableBody>
     </Table>
   )

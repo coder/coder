@@ -2,7 +2,6 @@ import Button from "@material-ui/core/Button"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Margins } from "../../components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
@@ -68,23 +67,25 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
         <PageHeaderTitle>Users</PageHeaderTitle>
       </PageHeader>
 
-      <SearchBarWithFilter filter={filter} onFilter={onFilter} presetFilters={presetFilters} />
+      <SearchBarWithFilter
+        filter={filter}
+        onFilter={onFilter}
+        presetFilters={presetFilters}
+        error={error}
+      />
 
-      {error ? (
-        <ErrorSummary error={error} />
-      ) : (
-        <UsersTable
-          users={users}
-          roles={roles}
-          onSuspendUser={onSuspendUser}
-          onActivateUser={onActivateUser}
-          onResetUserPassword={onResetUserPassword}
-          onUpdateUserRoles={onUpdateUserRoles}
-          isUpdatingUserRoles={isUpdatingUserRoles}
-          canEditUsers={canEditUsers}
-          isLoading={isLoading}
-        />
-      )}
+      <UsersTable
+        users={users}
+        roles={roles}
+        onSuspendUser={onSuspendUser}
+        onActivateUser={onActivateUser}
+        onResetUserPassword={onResetUserPassword}
+        onUpdateUserRoles={onUpdateUserRoles}
+        isUpdatingUserRoles={isUpdatingUserRoles}
+        canEditUsers={canEditUsers}
+        isLoading={isLoading}
+        error={error}
+      />
     </Margins>
   )
 }
