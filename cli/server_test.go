@@ -170,7 +170,7 @@ func TestServer(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			accessURLRaw, err = cfg.URL().Read()
-			return err == nil
+			return accessURLRaw != "" && err == nil
 		}, 15*time.Second, 25*time.Millisecond)
 		accessURL, err := url.Parse(accessURLRaw)
 		require.NoError(t, err)
