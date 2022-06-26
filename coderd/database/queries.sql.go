@@ -2242,8 +2242,8 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $3
 LIMIT
-	-- A null limit means "no limit", so -1 means return all
-	NULLIF($4 :: int, -1)
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($4 :: int, 0)
 `
 
 type GetTemplateVersionsByTemplateIDParams struct {
@@ -2590,8 +2590,8 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $5
 LIMIT
-	-- A null limit means "no limit", so -1 means return all
-	NULLIF($6 :: int, -1)
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($6 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -3573,8 +3573,8 @@ END
 ORDER BY
     build_number desc OFFSET $3
 LIMIT
-    -- A null limit means "no limit", so -1 means return all
-    NULLIF($4 :: int, -1)
+    -- A null limit means "no limit", so 0 means return all
+    NULLIF($4 :: int, 0)
 `
 
 type GetWorkspaceBuildByWorkspaceIDParams struct {

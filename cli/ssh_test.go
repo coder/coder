@@ -68,6 +68,7 @@ func TestSSH(t *testing.T) {
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -79,7 +80,6 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
