@@ -267,44 +267,8 @@ jobs:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - name: Start PostgreSQL Database
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-          PGDATA: /tmp
-        run: |
-          docker run \
-            -e POSTGRES_PASSWORD=postgres \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_DB=postgres \
-            -e PGDATA=/tmp \
-            -p 5432:5432 \
-            -d postgres:13 \
-            -c shared_buffers=1GB \
-            -c max_connections=1000 \
-            -c fsync=false
-          while ! pg_isready -h 127.0.0.1
-          do
-              echo "$(date) - waiting for database to start"
-              sleep 0.5
-          done
-
-      - name: Create Migration Template
-        id: migrated
-        run: |
-          DB_FROM=$(go run scripts/migrate-ci/main.go)
-          echo "::set-output name=db-from::$DB_FROM"
-          echo $DB_FROM
-
       - name: Test with PostgreSQL Database
-        run: |
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-            -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
-            -coverpkg=./...,github.com/coder/coder/codersdk \
-            -count=2 -race -failfast
-        env:
-          DB_FROM: ${{ steps.migrated.outputs.db-from }}
+        run: make test-postgres
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork

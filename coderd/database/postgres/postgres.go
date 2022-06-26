@@ -23,7 +23,7 @@ var openPortMutex sync.Mutex
 
 // Open creates a new PostgreSQL server using a Docker container.
 func Open() (string, func(), error) {
-	if os.Getenv("DB") == "ci" {
+	if os.Getenv("DB_FROM") != "" {
 		// In CI, creating a Docker container for each test is slow.
 		// This expects a PostgreSQL instance with the hardcoded credentials
 		// available.
@@ -40,21 +40,9 @@ func Open() (string, func(), error) {
 		}
 
 		dbName = "ci" + dbName
-		if os.Getenv("DB_FROM") == "" {
-			_, err = db.Exec("CREATE DATABASE " + dbName)
-			if err != nil {
-				return "", nil, xerrors.Errorf("create db: %w", err)
-			}
-
-			err = database.MigrateUp(db)
-			if err != nil {
-				return "", nil, xerrors.Errorf("migrate db: %w", err)
-			}
-		} else {
-			_, err = db.Exec("CREATE DATABASE " + dbName + " WITH TEMPLATE " + os.Getenv("DB_FROM"))
-			if err != nil {
-				return "", nil, xerrors.Errorf("create db with template: %w", err)
-			}
+		_, err = db.Exec("CREATE DATABASE " + dbName + " WITH TEMPLATE " + os.Getenv("DB_FROM"))
+		if err != nil {
+			return "", nil, xerrors.Errorf("create db with template: %w", err)
 		}
 
 		deleteDB := func() {
@@ -145,6 +133,10 @@ func Open() (string, func(), error) {
 		err = db.Ping()
 		if err != nil {
 			return xerrors.Errorf("ping postgres: %w", err)
+		}
+		err = database.MigrateUp(db)
+		if err != nil {
+			return xerrors.Errorf("migrate db: %w", err)
 		}
 
 		return nil

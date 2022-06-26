@@ -171,14 +171,15 @@ test: test-clean
 	gotestsum -- -v -short ./...
 .PHONY: test
 
-test-postgres: test-clean
-	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
-          -coverpkg=./...,github.com/coder/coder/codersdk \
-          -count=1 -race -failfast
+test-postgres: test-clean test-postgres-docker
+	DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+		-covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
+		-coverpkg=./...,github.com/coder/coder/codersdk \
+		-count=2 -race -failfast
 .PHONY: test-postgres
 
 test-postgres-docker:
+	docker rm -f test-postgres-docker || true
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -195,6 +196,11 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off
+	while ! pg_isready -h 127.0.0.1
+	do
+		echo "$(date) - waiting for database to start"
+		sleep 0.5
+	done
 .PHONY: test-postgres-docker
 
 test-clean:

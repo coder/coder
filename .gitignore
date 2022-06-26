@@ -13,6 +13,8 @@ node_modules
 vendor
 .eslintcache
 yarn-error.log
+gotests.xml
+gotests.coverage
 .idea
 .DS_Store
 
