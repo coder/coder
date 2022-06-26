@@ -197,7 +197,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
       - name: Test with Mock Database
@@ -264,7 +264,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
       - name: Start PostgreSQL Database
@@ -494,7 +494,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
       - uses: actions/setup-node@v3

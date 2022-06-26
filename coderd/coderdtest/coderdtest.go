@@ -25,17 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/afero"
-
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/ptr"
-
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
@@ -50,7 +45,10 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -398,7 +396,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 5*time.Second, 25*time.Millisecond)
+	}, 15*time.Second, 50*time.Millisecond)
 	return resources
 }
 

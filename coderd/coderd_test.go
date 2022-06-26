@@ -154,8 +154,12 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/derp":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/wireguardlisten":          {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
@@ -338,10 +342,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"POST:/api/v2/users/{user}/organizations/": {
+		"POST:/api/v2/users/{user}/organizations": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: rbac.ResourceOrganization,
 		},
+		"GET:/api/v2/users": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},

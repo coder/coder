@@ -307,6 +307,9 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
+				r.Get("/wireguardlisten", api.workspaceAgentWireguardListener)
+				r.Post("/keys", api.postWorkspaceAgentKeys)
+				r.Get("/derp", api.derpMap)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -315,10 +318,12 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
+				r.Get("/derp", api.derpMap)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {

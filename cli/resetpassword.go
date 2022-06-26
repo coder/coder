@@ -2,6 +2,7 @@ package cli
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -80,6 +81,7 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("updating password: %w", err)
 			}
 
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
 			return nil
 		},
 	}

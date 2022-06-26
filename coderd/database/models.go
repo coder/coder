@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 )
@@ -503,23 +504,26 @@ type Workspace struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID             `db:"id" json:"id"`
-	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
-	Name                 string                `db:"name" json:"name"`
-	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
-	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture         string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
-	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	Directory            string                `db:"directory" json:"directory"`
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	FirstConnectedAt        sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt         sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt          sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
+	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture            string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
+	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Directory               string                `db:"directory" json:"directory"`
+	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
+	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 type WorkspaceApp struct {

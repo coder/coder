@@ -20,7 +20,9 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 
 	mkdir -p ./dist
 	rm -rf ./dist/coder-slim_*
+	rm -f ./site/out/bin/coder*
 	./scripts/build_go_slim.sh \
+		--compress 6 \
 		--version "$(VERSION)" \
 		--output ./dist/ \
 		linux:amd64,armv7,arm64 \
@@ -31,6 +33,7 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	rm -rf ./dist
 	mkdir -p ./dist
+	rm -f ./site/out/bin/coder*
 
 	# build slim artifacts and copy them to the site output directory
 	./scripts/build_go_slim.sh \
@@ -57,7 +60,7 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
 
 # Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
 # This target is deprecated, as GNU make has issues passing signals to subprocesses.

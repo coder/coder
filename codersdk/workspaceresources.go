@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"inet.af/netaddr"
+	"tailscale.com/types/key"
 )
 
 type WorkspaceAgentStatus string
@@ -45,6 +47,9 @@ type WorkspaceAgent struct {
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
 	Apps                 []WorkspaceApp       `json:"apps"`
+	WireguardPublicKey   key.NodePublic       `json:"wireguard_public_key"`
+	DiscoPublicKey       key.DiscoPublic      `json:"disco_public_key"`
+	IPv6                 netaddr.IPPrefix     `json:"ipv6"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

@@ -37,21 +37,20 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 			token, err := uuid.Parse(cookie.Value)
 			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("Parse token %q: %s.", cookie.Value, err),
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "Agent token is invalid.",
 				})
 				return
 			}
 			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
-			if errors.Is(err, sql.ErrNoRows) {
+			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 						Message: "Agent token is invalid.",
 					})
 					return
 				}
-			}
-			if err != nil {
+
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
