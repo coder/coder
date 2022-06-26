@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/sha1" //#nosec // Not used for cryptography.
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +22,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
 
@@ -439,12 +442,18 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
 		return nil, err
 	}
 
-	n, err := extractBin(dest, archive)
+	ok, err := verifyBinSha1IsCurrent(dest, siteFS)
 	if err != nil {
-		return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		return nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
 	}
-	if n == 0 {
-		return nil, xerrors.New("no files were extracted from coder binaries archive")
+	if !ok {
+		n, err := extractBin(dest, archive)
+		if err != nil {
+			return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		}
+		if n == 0 {
+			return nil, xerrors.New("no files were extracted from coder binaries archive")
+		}
 	}
 
 	return dir, nil
@@ -459,6 +468,98 @@ func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 		filtered = append(filtered, f)
 	}
 	return filtered
+}
+
+// errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
+var errHashMismatch = xerrors.New("hash mismatch")
+
+func verifyBinSha1IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
+	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
+	if err != nil {
+		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+	}
+	// Parse sha1 file.
+	shaFiles := make(map[string][]byte)
+	for _, line := range bytes.Split(bytes.TrimSpace(b1), []byte{'\n'}) {
+		parts := bytes.Split(line, []byte{' ', '*'})
+		if len(parts) != 2 {
+			return false, xerrors.Errorf("malformed sha1 file: %w", err)
+		}
+		shaFiles[string(parts[1])] = parts[0]
+	}
+	if len(shaFiles) == 0 {
+		return false, xerrors.Errorf("empty sha1 file: %w", err)
+	}
+
+	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
+	}
+
+	// Check shasum files for equality for early-exit.
+	if !bytes.Equal(b1, b2) {
+		return false, nil
+	}
+
+	var eg errgroup.Group
+	// Speed up startup by verifying files concurrently. Concurrency
+	// is limited to save resources / early-exit. Early-exit speed
+	// could be improved by using a context aware io.Reader and
+	// passing the context from errgroup.WithContext.
+	eg.SetLimit(3)
+
+	// Verify the hash of each on-disk binary.
+	for file, hash1 := range shaFiles {
+		file := file
+		hash1 := hash1
+		eg.Go(func() error {
+			hash2, err := sha1HashFile(filepath.Join(dest, file))
+			if err != nil {
+				if xerrors.Is(err, fs.ErrNotExist) {
+					return errHashMismatch
+				}
+				return xerrors.Errorf("hash file failed: %w", err)
+			}
+			if !bytes.Equal(hash1, hash2) {
+				return errHashMismatch
+			}
+			return nil
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		if xerrors.Is(err, errHashMismatch) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+// sha1HashFile computes a SHA1 hash of the file, returning the hex
+// representation.
+func sha1HashFile(name string) ([]byte, error) {
+	//#nosec // Not used for cryptography.
+	hash := sha1.New()
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(hash, f)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, hash.Size())
+	hash.Sum(b[:0])
+
+	return []byte(hex.EncodeToString(b)), nil
 }
 
 func extractBin(dest string, r io.Reader) (numExtraced int, err error) {

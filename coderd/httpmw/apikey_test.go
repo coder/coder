@@ -402,6 +402,41 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
 		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
 	})
+
+	t.Run("RemoteIPUpdates", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = databasefake.New()
+			id, secret = randomAPIKeyParts()
+			hashed     = sha256.Sum256([]byte(secret))
+			r          = httptest.NewRequest("GET", "/", nil)
+			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
+		)
+		r.RemoteAddr = "1.1.1.1"
+		r.AddCookie(&http.Cookie{
+			Name:  httpmw.SessionTokenKey,
+			Value: fmt.Sprintf("%s-%s", id, secret),
+		})
+
+		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+			ID:           id,
+			HashedSecret: hashed[:],
+			LastUsed:     database.Now().AddDate(0, 0, -1),
+			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
+		})
+		require.NoError(t, err)
+		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		require.NoError(t, err)
+
+		require.NotEqual(t, sentAPIKey.IPAddress, gotAPIKey.IPAddress)
+	})
 }
 
 func createUser(ctx context.Context, t *testing.T, db database.Store) database.User {

@@ -27,10 +27,13 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/pty"
 	"github.com/coder/retry"
@@ -43,20 +46,31 @@ const (
 )
 
 type Options struct {
+	EnableWireguard        bool
+	UploadWireguardKeys    UploadWireguardKeys
+	ListenWireguardPeers   ListenWireguardPeers
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
 type Metadata struct {
-	OwnerEmail           string            `json:"owner_email"`
-	OwnerUsername        string            `json:"owner_username"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script"`
-	Directory            string            `json:"directory"`
+	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
+	OwnerEmail           string             `json:"owner_email"`
+	OwnerUsername        string             `json:"owner_username"`
+	EnvironmentVariables map[string]string  `json:"environment_variables"`
+	StartupScript        string             `json:"startup_script"`
+	Directory            string             `json:"directory"`
+}
+
+type WireguardPublicKeys struct {
+	Public key.NodePublic  `json:"public"`
+	Disco  key.DiscoPublic `json:"disco"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
+type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
+type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
 
 func New(dialer Dialer, options *Options) io.Closer {
 	if options == nil {
@@ -73,6 +87,9 @@ func New(dialer Dialer, options *Options) io.Closer {
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
+		enableWireguard:        options.EnableWireguard,
+		postKeys:               options.UploadWireguardKeys,
+		listenWireguardPeers:   options.ListenWireguardPeers,
 	}
 	server.init(ctx)
 	return server
@@ -95,6 +112,11 @@ type agent struct {
 	metadata      atomic.Value
 	startupScript atomic.Bool
 	sshServer     *ssh.Server
+
+	enableWireguard      bool
+	network              *peerwg.Network
+	postKeys             UploadWireguardKeys
+	listenWireguardPeers ListenWireguardPeers
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -136,6 +158,13 @@ func (a *agent) run(ctx context.Context) {
 				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
 			}
 		}()
+	}
+
+	if a.enableWireguard {
+		err = a.startWireguard(ctx, metadata.WireguardAddresses)
+		if err != nil {
+			a.logger.Error(ctx, "start wireguard", slog.Error(err))
+		}
 	}
 
 	for {
@@ -366,17 +395,17 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
-	for key, value := range metadata.EnvironmentVariables {
+	for envKey, value := range metadata.EnvironmentVariables {
 		// Expanding environment variables allows for customization
 		// of the $PATH, among other variables. Customers can prepand
 		// or append to the $PATH, so allowing expand is required!
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, os.ExpandEnv(value)))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
 	}
 
 	// Agent-level environment variables should take over all!
 	// This is used for setting agent-specific variables like "CODER_AGENT_TOKEN".
-	for key, value := range a.envVars {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	for envKey, value := range a.envVars {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, value))
 	}
 
 	return cmd, nil

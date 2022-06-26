@@ -83,14 +83,31 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 	return v
 }
 
-func (p *QueryParamParser) String(vals url.Values, def string, queryParam string) string {
-	v, err := parseQueryParam(vals, func(v string) (string, error) {
+func (*QueryParamParser) String(vals url.Values, def string, queryParam string) string {
+	v, _ := parseQueryParam(vals, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
+	return v
+}
+
+func (*QueryParamParser) Strings(vals url.Values, def []string, queryParam string) []string {
+	v, _ := parseQueryParam(vals, func(v string) ([]string, error) {
+		if v == "" {
+			return []string{}, nil
+		}
+		return strings.Split(v, ","), nil
+	}, def, queryParam)
+	return v
+}
+
+// ParseCustom has to be a function, not a method on QueryParamParser because generics
+// cannot be used on struct methods.
+func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryParam string, parseFunc func(v string) (T, error)) T {
+	v, err := parseQueryParam(vals, parseFunc, def, queryParam)
 	if err != nil {
-		p.Errors = append(p.Errors, Error{
+		parser.Errors = append(parser.Errors, Error{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid string", queryParam),
+			Detail: fmt.Sprintf("Query param %q has invalid value: %s", queryParam, err.Error()),
 		})
 	}
 	return v

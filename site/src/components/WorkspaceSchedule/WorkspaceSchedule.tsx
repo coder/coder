@@ -88,13 +88,13 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
         </Typography>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStartLabel}</span>
-          <span className={styles.scheduleValue} data-chromatic="ignore">
+          <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
             {Language.autoStartDisplay(workspace.autostart_schedule)}
           </span>
         </div>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStopLabel}</span>
-          <span className={styles.scheduleValue} data-chromatic="ignore">
+          <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
             {Language.autoStopDisplay(workspace)}
           </span>
         </div>

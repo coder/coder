@@ -30,3 +30,10 @@ func (d ProvisionerDaemon) RBACObject() rbac.Object {
 func (f File) RBACObject() rbac.Object {
 	return rbac.ResourceFile.WithID(f.Hash).WithOwner(f.CreatedBy.String())
 }
+
+// RBACObject returns the RBAC object for the site wide user resource.
+// If you are trying to get the RBAC object for the UserData, use
+// rbac.ResourceUserData
+func (u User) RBACObject() rbac.Object {
+	return rbac.ResourceUser.WithID(u.ID.String())
+}

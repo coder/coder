@@ -1,6 +1,7 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import React, { FC } from "react"
+import ComputerIcon from "@material-ui/icons/Computer"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 
@@ -8,7 +9,7 @@ export interface AppLinkProps {
   userName: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
   appName: TypesGen.WorkspaceApp["name"]
-  appIcon: TypesGen.WorkspaceApp["icon"]
+  appIcon?: TypesGen.WorkspaceApp["icon"]
 }
 
 export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, appIcon }) => {
@@ -25,11 +26,15 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
         window.open(href, appName, "width=900,height=600")
       }}
     >
-      <img
-        className={combineClasses([styles.icon, appIcon === "" ? "empty" : ""])}
-        alt={`${appName} Icon`}
-        src={appIcon || ""}
-      />
+      {appIcon ? (
+        <img
+          className={combineClasses([styles.icon, appIcon === "" ? "empty" : ""])}
+          alt={`${appName} Icon`}
+          src={appIcon || ""}
+        />
+      ) : (
+        <ComputerIcon className={styles.icon} />
+      )}
       {appName}
     </Link>
   )

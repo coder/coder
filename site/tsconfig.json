@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es5"
+    "target": "es2018"
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "_jest"]

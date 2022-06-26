@@ -494,6 +494,26 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 			},
 		},
+		{
+			name: "Do not overwrite config when using --dry-run",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					baseHeader,
+					"",
+				}, "\n"),
+			},
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					baseHeader,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--ssh-option", "ForwardAgent=yes",
+				"--dry-run",
+				"--yes",
+			},
+		},
 
 		// Tests for deprecated split coder config.
 		{
