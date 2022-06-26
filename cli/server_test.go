@@ -83,8 +83,8 @@ func TestServer(t *testing.T) {
 			errC <- root.ExecuteContext(ctx)
 		}()
 		require.Eventually(t, func() bool {
-			_, err := cfg.URL().Read()
-			return err == nil
+			accessURLRaw, err := cfg.URL().Read()
+			return accessURLRaw != "" && err == nil
 		}, time.Minute, 25*time.Millisecond)
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
