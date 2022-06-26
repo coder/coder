@@ -85,7 +85,7 @@ func TestServer(t *testing.T) {
 		require.Eventually(t, func() bool {
 			accessURLRaw, err := cfg.URL().Read()
 			return accessURLRaw != "" && err == nil
-		}, time.Minute, 25*time.Millisecond)
+		}, 3*time.Minute, 250*time.Millisecond)
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})

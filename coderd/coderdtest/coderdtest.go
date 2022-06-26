@@ -149,7 +149,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(&coderd.Options{
-		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+		AgentConnectionUpdateFrequency: 250 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
