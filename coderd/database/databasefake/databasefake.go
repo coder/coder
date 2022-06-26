@@ -1360,10 +1360,10 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		if jobLog.JobID.String() != arg.JobID.String() {
 			continue
 		}
-		if jobLog.CreatedAt.After(arg.CreatedBefore) {
+		if !arg.CreatedBefore.IsZero() && jobLog.CreatedAt.After(arg.CreatedBefore) {
 			continue
 		}
-		if jobLog.CreatedAt.Before(arg.CreatedAfter) {
+		if !arg.CreatedAfter.IsZero() && jobLog.CreatedAt.Before(arg.CreatedAfter) {
 			continue
 		}
 		logs = append(logs, jobLog)
