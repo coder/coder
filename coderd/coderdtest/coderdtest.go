@@ -396,7 +396,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 5*time.Second, 25*time.Millisecond)
+	}, 15*time.Second, 50*time.Millisecond)
 	return resources
 }
 
