@@ -167,7 +167,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Only update LastUsed once an hour to prevent database spam.
 			if now.Sub(key.LastUsed) > time.Hour {
 				key.LastUsed = now
-				remoteIP := net.ParseIP(r.RemoteAddr)
+				host, _, _ := net.SplitHostPort(r.RemoteAddr)
+				remoteIP := net.ParseIP(host)
 				if remoteIP == nil {
 					remoteIP = net.IPv4(0, 0, 0, 0)
 				}
