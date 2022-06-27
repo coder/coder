@@ -467,6 +467,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	}
 	go func() {
 		_, _ = io.Copy(stdinPipe, session)
+		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {

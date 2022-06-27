@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pion/webrtc/v3"
@@ -144,6 +145,20 @@ func TestAgent(t *testing.T) {
 		file, err := client.Create(tempFile)
 		require.NoError(t, err)
 		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("SCP", func(t *testing.T) {
+		t.Parallel()
+		sshClient, err := setupAgent(t, agent.Metadata{}, 0).SSHClient()
+		require.NoError(t, err)
+		scpClient, err := scp.NewClientBySSH(sshClient)
+		require.NoError(t, err)
+		tempFile := filepath.Join(t.TempDir(), "scp")
+		content := "hello world"
+		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
 		require.NoError(t, err)
 		_, err = os.Stat(tempFile)
 		require.NoError(t, err)
