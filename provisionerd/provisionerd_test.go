@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
@@ -30,6 +32,18 @@ import (
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
+}
+
+func closedWithin(c chan struct{}, d time.Duration) func() bool {
+	return func() bool {
+		pop := time.After(d)
+		select {
+		case <-c:
+			return true
+		case <-pop:
+			return false
+		}
+	}
 }
 
 func TestProvisionerd(t *testing.T) {
@@ -54,7 +68,7 @@ func TestProvisionerd(t *testing.T) {
 			defer close(completeChan)
 			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, closer.Close())
 	})
 
@@ -77,7 +91,7 @@ func TestProvisionerd(t *testing.T) {
 				updateJob: noopUpdateJob,
 			}), nil
 		}, provisionerd.Provisioners{})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, closer.Close())
 	})
 
@@ -122,7 +136,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		closerMutex.Unlock()
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, closer.Close())
 	})
 
@@ -160,7 +174,7 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, closer.Close())
 	})
 
@@ -203,7 +217,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, closer.Close())
 	})
 
@@ -308,7 +322,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.True(t, didDryRun.Load())
@@ -388,7 +402,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
@@ -459,7 +473,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
@@ -514,7 +528,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.True(t, didFail.Load())
 		require.NoError(t, closer.Close())
 	})
@@ -587,10 +601,10 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-updateChan
+		require.Condition(t, closedWithin(updateChan, 5*time.Second))
 		err := server.Shutdown(context.Background())
 		require.NoError(t, err)
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, server.Close())
 	})
 
@@ -617,15 +631,21 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					resp := &proto.UpdateJobResponse{}
 					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
 						// Close on a log so we know when the job is in progress!
 						updated.Do(func() {
 							close(updateChan)
 						})
 					}
-					return &proto.UpdateJobResponse{
-						Canceled: true,
-					}, nil
+					// start returning Canceled once we've gotten at least one log.
+					select {
+					case <-updateChan:
+						resp.Canceled = true
+					default:
+						// pass
+					}
+					return resp, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					completed.Do(func() {
@@ -664,8 +684,8 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-updateChan
-		<-completeChan
+		require.Condition(t, closedWithin(updateChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, server.Close())
 	})
 
@@ -703,6 +723,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.UpdateJobResponse{}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					assert.Equal(t, job.JobId, "test")
 					if second.Load() {
 						completeOnce.Do(func() { close(completeChan) })
 						return &proto.Empty{}, nil
@@ -736,7 +757,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
 		require.NoError(t, server.Close())
 	})
 
@@ -808,7 +829,96 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		<-completeChan
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.NoError(t, server.Close())
+	})
+
+	t.Run("UpdatesBeforeComplete", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil)
+		m := sync.Mutex{}
+		var ops []string
+		completeChan := make(chan struct{})
+		completeOnce := sync.Once{}
+
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					m.Lock()
+					defer m.Unlock()
+					logger.Info(ctx, "AcquiredJob called.")
+					if len(ops) > 0 {
+						return &proto.AcquiredJob{}, nil
+					}
+					ops = append(ops, "AcquireJob")
+
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						TemplateSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					m.Lock()
+					defer m.Unlock()
+					logger.Info(ctx, "UpdateJob called.")
+					ops = append(ops, "UpdateJob")
+					for _, log := range update.Logs {
+						ops = append(ops, fmt.Sprintf("Log: %s | %s", log.Stage, log.Output))
+					}
+					return &proto.UpdateJobResponse{}, nil
+				},
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					m.Lock()
+					defer m.Unlock()
+					logger.Info(ctx, "CompleteJob called.")
+					ops = append(ops, "CompleteJob")
+					completeOnce.Do(func() { close(completeChan) })
+					return &proto.Empty{}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					m.Lock()
+					defer m.Unlock()
+					logger.Info(ctx, "FailJob called.")
+					ops = append(ops, "FailJob")
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_DEBUG,
+								Output: "wow",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+			}),
+		})
+		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		m.Lock()
+		defer m.Unlock()
+		require.Equal(t, ops[len(ops)-1], "CompleteJob")
+		require.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 		require.NoError(t, server.Close())
 	})
 }

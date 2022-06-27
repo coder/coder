@@ -331,6 +331,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "UpdateJob starting", slog.F("job_id", parsedID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job: %w", err)
@@ -368,19 +369,27 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			insertParams.Stage = append(insertParams.Stage, log.Stage)
 			insertParams.Source = append(insertParams.Source, logSource)
 			insertParams.Output = append(insertParams.Output, log.Output)
+			server.Logger.Debug(ctx, "job log",
+				slog.F("job_id", parsedID),
+				slog.F("stage", log.Stage),
+				slog.F("output", log.Output))
 		}
 		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
+			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
 		data, err := json.Marshal(logs)
 		if err != nil {
 			return nil, xerrors.Errorf("marshal job log: %w", err)
 		}
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
+			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)
 		}
+		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
 
 	if len(request.Readme) > 0 {
@@ -488,6 +497,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "FailJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
@@ -547,6 +557,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "CompleteJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job by id: %w", err)
@@ -699,6 +710,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			reflect.TypeOf(completed.Type).String())
 	}
 
+	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
 }
 

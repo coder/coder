@@ -130,6 +130,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		for _, log := range logs {
 			select {
 			case bufferedLogs <- log:
+				api.Logger.Debug(r.Context(), "subscribe buffered log", slog.F("job_id", job.ID), slog.F("stage", log.Stage))
 			default:
 				// If this overflows users could miss logs streaming. This can happen
 				// if a database request takes a long amount of time, and we get a lot of logs.
@@ -176,8 +177,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	for {
 		select {
 		case <-r.Context().Done():
+			api.Logger.Debug(context.Background(), "job logs context canceled", slog.F("job_id", job.ID))
 			return
 		case log := <-bufferedLogs:
+			api.Logger.Debug(r.Context(), "subscribe encoding log", slog.F("job_id", job.ID), slog.F("stage", log.Stage))
 			err = encoder.Encode(convertProvisionerJobLog(log))
 			if err != nil {
 				return
@@ -189,6 +192,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 				continue
 			}
 			if job.CompletedAt.Valid {
+				api.Logger.Debug(context.Background(), "streaming job logs done; job done", slog.F("job_id", job.ID))
 				return
 			}
 		}
