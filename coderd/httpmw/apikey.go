@@ -172,10 +172,11 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 				if remoteIP == nil {
 					remoteIP = net.IPv4(0, 0, 0, 0)
 				}
+				bitlen := len(remoteIP) * 8
 				key.IPAddress = pqtype.Inet{
 					IPNet: net.IPNet{
 						IP:   remoteIP,
-						Mask: remoteIP.DefaultMask(),
+						Mask: net.CIDRMask(bitlen, bitlen),
 					},
 					Valid: true,
 				}
