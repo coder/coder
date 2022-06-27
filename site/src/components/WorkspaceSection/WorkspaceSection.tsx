@@ -14,7 +14,12 @@ export interface WorkspaceSectionProps {
   title?: string
 }
 
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ action, children, contentsProps, title }) => {
+export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
+  action,
+  children,
+  contentsProps,
+  title,
+}) => {
   const styles = useStyles()
 
   return (
@@ -28,7 +33,10 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ action, chil
         </div>
       )}
 
-      <div {...contentsProps} className={combineClasses([styles.contents, contentsProps?.className])}>
+      <div
+        {...contentsProps}
+        className={combineClasses([styles.contents, contentsProps?.className])}
+      >
         {children}
       </div>
     </Paper>

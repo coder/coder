@@ -47,6 +47,7 @@ const (
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
 	varSuppressVersion = false
+	envSessionToken = "CODER_SESSION_TOKEN"
 )
 
 func init() {
@@ -98,7 +99,7 @@ func Root() *cobra.Command {
 	cmd.AddCommand(
 		configSSH(),
 		create(),
-		delete(),
+		deleteWorkspace(),
 		dotfiles(),
 		gitssh(),
 		list(),
@@ -126,9 +127,9 @@ func Root() *cobra.Command {
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
-	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
 	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
-	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
+=======
+>>>>>>> main
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)

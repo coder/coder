@@ -11,7 +11,9 @@ namespace Helpers {
 
   export const requiredValidationMsg = "required"
 
-  export const Component: FC<Omit<FormTextFieldProps<FormValues>, "form" | "formFieldName">> = (props) => {
+  export const Component: FC<Omit<FormTextFieldProps<FormValues>, "form" | "formFieldName">> = (
+    props,
+  ) => {
     const form = useFormik<FormValues>({
       initialValues: {
         name: "",

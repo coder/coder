@@ -77,11 +77,15 @@ describe("Workspace Page", () => {
     expect(status).toHaveTextContent("Running")
   })
   it("requests a stop job when the user presses Stop", async () => {
-    const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
     await testButton(Language.stop, stopWorkspaceMock)
   })
   it("requests a delete job when the user presses Delete and confirms", async () => {
-    const deleteWorkspaceMock = jest.spyOn(api, "deleteWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    const deleteWorkspaceMock = jest
+      .spyOn(api, "deleteWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
     const button = await screen.findByText(Language.delete)
     await waitFor(() => fireEvent.click(button))
@@ -172,9 +176,13 @@ describe("Workspace Page", () => {
       expect(agent1Names.length).toEqual(2)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
       expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgent.status])
+      const agent1Status = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
+      )
       expect(agent1Status.length).toEqual(2)
-      const agent2Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status])
+      const agent2Status = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
+      )
       expect(agent2Status.length).toEqual(2)
     })
   })

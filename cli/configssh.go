@@ -135,6 +135,7 @@ func configSSH() *cobra.Command {
 		coderConfigFile  string
 		dryRun           bool
 		skipProxyCommand bool
+		wireguard        bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -287,7 +288,11 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+						if !wireguard {
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+						} else {
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --wireguard --stdio %s", binaryFile, root, hostname))
+						}
 					}
 
 					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
@@ -374,6 +379,8 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
+	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
+	_ = cmd.Flags().MarkHidden("wireguard")
 
 	// Deprecated: Remove after migration period.
 	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
@@ -539,7 +546,7 @@ func currentBinPath(w io.Writer) (string, error) {
 		_, _ = fmt.Fprint(w, "\n")
 	}
 
-	return binName, nil
+	return exePath, nil
 }
 
 // diffBytes takes two byte slices and diffs them as if they were in a

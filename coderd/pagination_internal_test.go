@@ -77,7 +77,6 @@ func TestPagination(t *testing.T) {
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
 				Offset:  150,
-				Limit:   -1,
 			},
 		},
 		{
@@ -85,7 +84,6 @@ func TestPagination(t *testing.T) {
 			AfterID: "5f2005fc-acc4-4e5e-a7fa-be017359c60b",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.MustParse("5f2005fc-acc4-4e5e-a7fa-be017359c60b"),
-				Limit:   -1,
 			},
 		},
 	}

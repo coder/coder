@@ -48,7 +48,13 @@ export interface TableProps<T> {
   rowMenu?: (data: T) => ReactElement
 }
 
-export const Table = <T,>({ columns, data, emptyState, title, rowMenu }: TableProps<T>): ReactElement => {
+export const Table = <T,>({
+  columns,
+  data,
+  emptyState,
+  title,
+  rowMenu,
+}: TableProps<T>): ReactElement => {
   const columnNames = columns.map(({ name }) => name)
   const body = renderTableBody(data, columns, emptyState, rowMenu)
 
@@ -76,9 +82,15 @@ const renderTableBody = <T,>(
     const rows = data.map((item: T, index) => {
       const cells = columns.map((column) => {
         if (column.renderer) {
-          return <TableCell key={String(column.key)}>{column.renderer(item[column.key], item)}</TableCell>
+          return (
+            <TableCell key={String(column.key)}>
+              {column.renderer(item[column.key], item)}
+            </TableCell>
+          )
         } else {
-          return <TableCell key={String(column.key)}>{String(item[column.key]).toString()}</TableCell>
+          return (
+            <TableCell key={String(column.key)}>{String(item[column.key]).toString()}</TableCell>
+          )
         }
       })
       return (

@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -49,7 +50,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error reading workspace agent.",
@@ -73,7 +74,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error reading workspace agent.",
@@ -120,7 +121,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error reading workspace agent.",
@@ -400,7 +401,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error reading workspace agent.",
@@ -488,8 +489,8 @@ func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) 
 
 	err := api.Database.UpdateWorkspaceAgentKeysByID(ctx, database.UpdateWorkspaceAgentKeysByIDParams{
 		ID:                      workspaceAgent.ID,
-		WireguardNodePublicKey:  keys.Public.String(),
-		WireguardDiscoPublicKey: keys.Disco.String(),
+		WireguardNodePublicKey:  dbtypes.NodePublic(keys.Public),
+		WireguardDiscoPublicKey: dbtypes.DiscoPublic(keys.Disco),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -688,7 +689,7 @@ func inetToNetaddr(inet pqtype.Inet) netaddr.IPPrefix {
 	return ipp
 }
 
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -711,15 +712,8 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
 		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
-	}
-
-	err := workspaceAgent.WireguardPublicKey.UnmarshalText([]byte(dbAgent.WireguardNodePublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal wireguard node public key %q: %w", dbAgent.WireguardNodePublicKey, err)
-	}
-	err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.WireguardDiscoPublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal disco public key %q: %w", dbAgent.WireguardDiscoPublicKey, err)
+		WireguardPublicKey:   key.NodePublic(dbAgent.WireguardNodePublicKey),
+		DiscoPublicKey:       key.DiscoPublic(dbAgent.WireguardDiscoPublicKey),
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {
@@ -740,13 +734,13 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
-	case agentUpdateFrequency*2 >= database.Now().Sub(dbAgent.LastConnectedAt.Time):
-		// The connection updated it's timestamp within the update frequency.
-		// We multiply by two to allow for some lag.
-		workspaceAgent.Status = codersdk.WorkspaceAgentConnected
-	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentUpdateFrequency*2:
+	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentInactiveDisconnectTimeout:
 		// The connection died without updating the last connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
+	case dbAgent.LastConnectedAt.Valid:
+		// The agent should be assumed connected if it's under inactivity timeouts
+		// and last connected at has been properly set.
+		workspaceAgent.Status = codersdk.WorkspaceAgentConnected
 	}
 
 	return workspaceAgent, nil

@@ -29,8 +29,8 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET @offset_opt
 LIMIT
-	-- A null limit means "no limit", so -1 means return all
-	NULLIF(@limit_opt :: int, -1);
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF(@limit_opt :: int, 0);
 
 -- name: GetTemplateVersionByJobID :one
 SELECT

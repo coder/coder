@@ -6,7 +6,9 @@ export default {
   component: EnterpriseSnackbar,
 }
 
-const Template: Story<EnterpriseSnackbarProps> = (args: EnterpriseSnackbarProps) => <EnterpriseSnackbar {...args} />
+const Template: Story<EnterpriseSnackbarProps> = (args: EnterpriseSnackbarProps) => (
+  <EnterpriseSnackbar {...args} />
+)
 
 export const Error = Template.bind({})
 Error.args = {

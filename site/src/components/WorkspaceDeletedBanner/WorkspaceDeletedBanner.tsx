@@ -16,7 +16,10 @@ export interface WorkspaceDeletedBannerProps {
   handleClick: () => void
 }
 
-export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({ workspace, handleClick }) => {
+export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
+  workspace,
+  handleClick,
+}) => {
   const styles = useStyles()
 
   if (!isWorkspaceDeleted(workspace)) {

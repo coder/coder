@@ -59,6 +59,7 @@ func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, s
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	return client, workspace, agentToken
 }
@@ -79,7 +80,6 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
@@ -96,11 +96,9 @@ func TestSSH(t *testing.T) {
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
-
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
 			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
@@ -154,11 +152,9 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
-
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
 			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{

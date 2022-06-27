@@ -22,7 +22,11 @@ export const AvatarData: FC<AvatarDataProps> = ({ title, subtitle, link }) => {
       </Avatar>
 
       {link ? (
-        <Link component={RouterLink} to={link} className={combineClasses([styles.info, styles.link])}>
+        <Link
+          component={RouterLink}
+          to={link}
+          className={combineClasses([styles.info, styles.link])}
+        >
           <b>{title}</b>
           <span>{subtitle}</span>
         </Link>

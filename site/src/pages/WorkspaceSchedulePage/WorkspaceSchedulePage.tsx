@@ -87,7 +87,9 @@ export const formValuesToAutoStartRequest = (
   }
 }
 
-export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
+export const formValuesToTTLRequest = (
+  values: WorkspaceScheduleFormValues,
+): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
     ttl_ms: values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
@@ -99,7 +101,9 @@ export const workspaceToInitialValues = (
   defaultTimeZone = "",
 ): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : defaultWorkspaceScheduleTTL
+  const ttlHours = workspace.ttl_ms
+    ? Math.round(workspace.ttl_ms / (1000 * 60 * 60))
+    : defaultWorkspaceScheduleTTL
 
   if (!schedule) {
     return defaultWorkspaceSchedule(ttlHours, defaultTimeZone)
@@ -149,7 +153,11 @@ export const WorkspaceSchedulePage: React.FC = () => {
   if (!username || !workspaceName) {
     navigate("/workspaces")
     return null
-  } else if (scheduleState.matches("idle") || scheduleState.matches("gettingWorkspace") || !workspace) {
+  } else if (
+    scheduleState.matches("idle") ||
+    scheduleState.matches("gettingWorkspace") ||
+    !workspace
+  ) {
     return <FullScreenLoader />
   } else if (scheduleState.matches("error")) {
     return (

@@ -226,7 +226,10 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
 }
-export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
+export const MockDeletedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildDelete,
+}
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 

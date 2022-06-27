@@ -68,8 +68,8 @@ END
 ORDER BY
     build_number desc OFFSET @offset_opt
 LIMIT
-    -- A null limit means "no limit", so -1 means return all
-    NULLIF(@limit_opt :: int, -1);
+    -- A null limit means "no limit", so 0 means return all
+    NULLIF(@limit_opt :: int, 0);
 
 -- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT

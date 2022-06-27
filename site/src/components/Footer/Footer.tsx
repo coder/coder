@@ -26,7 +26,12 @@ export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
         <div className={styles.buildInfo}>
-          <Link className={styles.link} variant="caption" target="_blank" href={buildInfo.external_url}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={buildInfo.external_url}
+          >
             <AccountTreeIcon className={styles.icon} /> {Language.buildInfoText(buildInfo)}
           </Link>
           &nbsp;|&nbsp;

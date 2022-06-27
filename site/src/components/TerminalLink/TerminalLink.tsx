@@ -25,7 +25,12 @@ export interface TerminalLinkProps {
  * If no user name is provided "me" is used however it makes the link not
  * shareable.
  */
-export const TerminalLink: FC<TerminalLinkProps> = ({ agentName, userName = "me", workspaceName, className }) => {
+export const TerminalLink: FC<TerminalLinkProps> = ({
+  agentName,
+  userName = "me",
+  workspaceName,
+  className,
+}) => {
   const styles = useStyles()
   const href = `/@${userName}/${workspaceName}${agentName ? `.${agentName}` : ""}/terminal`
 

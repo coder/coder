@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -2241,8 +2242,8 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $3
 LIMIT
-	-- A null limit means "no limit", so -1 means return all
-	NULLIF($4 :: int, -1)
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($4 :: int, 0)
 `
 
 type GetTemplateVersionsByTemplateIDParams struct {
@@ -2562,8 +2563,8 @@ WHERE
 	-- Filter by name, email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
-			email LIKE concat('%', $2, '%')
-			OR username LIKE concat('%', $2, '%')
+			email ILIKE concat('%', $2, '%')
+			OR username ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END
@@ -2589,8 +2590,8 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $5
 LIMIT
-	-- A null limit means "no limit", so -1 means return all
-	NULLIF($6 :: int, -1)
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($6 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -3105,8 +3106,8 @@ type InsertWorkspaceAgentParams struct {
 	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  string                `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey string                `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -3196,9 +3197,9 @@ WHERE
 `
 
 type UpdateWorkspaceAgentKeysByIDParams struct {
-	ID                      uuid.UUID `db:"id" json:"id"`
-	WireguardNodePublicKey  string    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey string    `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	WireguardNodePublicKey  dbtypes.NodePublic  `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {
@@ -3572,8 +3573,8 @@ END
 ORDER BY
     build_number desc OFFSET $3
 LIMIT
-    -- A null limit means "no limit", so -1 means return all
-    NULLIF($4 :: int, -1)
+    -- A null limit means "no limit", so 0 means return all
+    NULLIF($4 :: int, 0)
 `
 
 type GetWorkspaceBuildByWorkspaceIDParams struct {
@@ -4093,7 +4094,7 @@ WHERE
   	-- Filter by owner_name
 	AND CASE
 		WHEN $3 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE username = $3)
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower($3))
 		ELSE true
 	END
 	-- Filter by template_name
@@ -4101,7 +4102,7 @@ WHERE
   	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE name = $4)
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($4))
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -4113,7 +4114,7 @@ WHERE
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN $6 :: text != '' THEN
-			LOWER(name) LIKE '%' || LOWER($6) || '%'
+		    name ILIKE '%' || $6 || '%'
 		ELSE true
 	END
 `

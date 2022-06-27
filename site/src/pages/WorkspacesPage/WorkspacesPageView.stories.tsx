@@ -3,7 +3,10 @@ import { spawn } from "xstate"
 import { ProvisionerJobStatus, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { workspaceFilterQuery } from "../../util/workspace"
-import { workspaceItemMachine, WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
+import {
+  workspaceItemMachine,
+  WorkspaceItemMachineRef,
+} from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView, WorkspacesPageViewProps } from "./WorkspacesPageView"
 
 const createWorkspaceItemRef = (

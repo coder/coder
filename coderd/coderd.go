@@ -47,6 +47,7 @@ type Options struct {
 	CacheDir string
 
 	AgentConnectionUpdateFrequency time.Duration
+	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Specific routes may have their own limiters.
@@ -68,6 +69,10 @@ type Options struct {
 func New(options *Options) *API {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
+	}
+	if options.AgentInactiveDisconnectTimeout == 0 {
+		// Multiply the update by two to allow for some lag-time.
+		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
@@ -282,7 +287,11 @@ func New(options *Options) *API {
 
 					r.Post("/authorization", api.checkPermissions)
 
-					r.Post("/keys", api.postAPIKey)
+					r.Route("/keys", func(r chi.Router) {
+						r.Post("/", api.postAPIKey)
+						r.Get("/{keyid}", api.apiKey)
+					})
+
 					r.Route("/organizations", func(r chi.Router) {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)

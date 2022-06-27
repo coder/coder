@@ -190,7 +190,9 @@ interface WorkspacesContext {
   getWorkspacesError?: Error | unknown
 }
 
-type WorkspacesEvent = { type: "GET_WORKSPACES"; query: string } | { type: "UPDATE_VERSION"; workspaceId: string }
+type WorkspacesEvent =
+  | { type: "GET_WORKSPACES"; query: string }
+  | { type: "UPDATE_VERSION"; workspaceId: string }
 
 export const workspacesMachine = createMachine(
   {
@@ -307,7 +309,7 @@ export const workspacesMachine = createMachine(
               }
 
               // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id === ref.id)
+              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id !== ref.id)
             }
           }
 

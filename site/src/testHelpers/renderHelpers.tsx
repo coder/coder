@@ -2,7 +2,12 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
 import { FC, ReactElement } from "react"
-import { MemoryRouter, Route, Routes, unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  unstable_HistoryRouter as HistoryRouter,
+} from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
 import { XServiceProvider } from "../xServices/StateContext"

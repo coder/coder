@@ -82,7 +82,8 @@ export const GlobalSnackbar: React.FC = () => {
             <Typography variant="body1" className={styles.messageTitle}>
               {notification.msg}
             </Typography>
-            {notification.additionalMsgs && notification.additionalMsgs.map(renderAdditionalMessage)}
+            {notification.additionalMsgs &&
+              notification.additionalMsgs.map(renderAdditionalMessage)}
           </div>
         </div>
       }

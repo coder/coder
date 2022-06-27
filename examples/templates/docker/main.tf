@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.1"
+      version = "0.4.2"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -75,8 +75,8 @@ variable "docker_image" {
   # The codercom/enterprise-* images are only built for amd64
   default = "codercom/enterprise-base:ubuntu"
   validation {
-    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu",
-                              "codercom/enterprise-intellij:ubuntu", "codercom/enterprise-golang:ubuntu"], var.docker_image)
+    condition = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu",
+    "codercom/enterprise-intellij:ubuntu", "codercom/enterprise-golang:ubuntu"], var.docker_image)
     error_message = "Invalid Docker image!"
   }
 

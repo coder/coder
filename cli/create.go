@@ -120,87 +120,11 @@ func create() *cobra.Command {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
-			if err != nil {
-				return err
-			}
-			parameterSchemas, err := client.TemplateVersionSchema(cmd.Context(), templateVersion.ID)
-			if err != nil {
-				return err
-			}
-
-			// parameterMapFromFile can be nil if parameter file is not specified
-			var parameterMapFromFile map[string]string
-			if parameterFile != "" {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-				parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
-				if err != nil {
-					return err
-				}
-			}
-
-			disclaimerPrinted := false
-			parameters := make([]codersdk.CreateParameterRequest, 0)
-			for _, parameterSchema := range parameterSchemas {
-				if !parameterSchema.AllowOverrideSource {
-					continue
-				}
-				if !disclaimerPrinted {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-					disclaimerPrinted = true
-				}
-				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
-				if err != nil {
-					return err
-				}
-				parameters = append(parameters, codersdk.CreateParameterRequest{
-					Name:              parameterSchema.Name,
-					SourceValue:       parameterValue,
-					SourceScheme:      codersdk.ParameterSourceSchemeData,
-					DestinationScheme: parameterSchema.DefaultDestinationScheme,
-				})
-			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-
-			// Run a dry-run with the given parameters to check correctness
-			after := time.Now()
-			dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				WorkspaceName:   workspaceName,
-				ParameterValues: parameters,
-			})
-			if err != nil {
-				return xerrors.Errorf("begin workspace dry-run: %w", err)
-			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
-				Fetch: func() (codersdk.ProvisionerJob, error) {
-					return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
-				},
-				Cancel: func() error {
-					return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
-				},
-				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-					return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
-				},
-				// Don't show log output for the dry-run unless there's an error.
-				Silent: true,
-			})
-			if err != nil {
-				// TODO (Dean): reprompt for parameter values if we deem it to
-				// be a validation error
-				return xerrors.Errorf("dry-run workspace: %w", err)
-			}
-
-			resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
-			if err != nil {
-				return xerrors.Errorf("get workspace dry-run resources: %w", err)
-			}
-
-			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspaceName,
-				// Since agent's haven't connected yet, hiding this makes more sense.
-				HideAgentState: true,
-				Title:          "Workspace Preview",
+			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+				Template:         template,
+				ExistingParams:   []codersdk.Parameter{},
+				ParameterFile:    parameterFile,
+				NewWorkspaceName: workspaceName,
 			})
 			if err != nil {
 				return err
@@ -214,6 +138,7 @@ func create() *cobra.Command {
 				return err
 			}
 
+			after := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
@@ -241,4 +166,119 @@ func create() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &startAt, "start-at", "", "CODER_WORKSPACE_START_AT", "", "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.")
 	cliflag.DurationVarP(cmd.Flags(), &stopAfter, "stop-after", "", "CODER_WORKSPACE_STOP_AFTER", 8*time.Hour, "Specify a duration after which the workspace should shut down (e.g. 8h).")
 	return cmd
+}
+
+type prepWorkspaceBuildArgs struct {
+	Template         codersdk.Template
+	ExistingParams   []codersdk.Parameter
+	ParameterFile    string
+	NewWorkspaceName string
+}
+
+// prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
+// Any missing params will be prompted to the user.
+func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.CreateParameterRequest, error) {
+	ctx := cmd.Context()
+	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
+	if err != nil {
+		return nil, err
+	}
+	parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// parameterMapFromFile can be nil if parameter file is not specified
+	var parameterMapFromFile map[string]string
+	useParamFile := false
+	if args.ParameterFile != "" {
+		useParamFile = true
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	disclaimerPrinted := false
+	parameters := make([]codersdk.CreateParameterRequest, 0)
+PromptParamLoop:
+	for _, parameterSchema := range parameterSchemas {
+		if !parameterSchema.AllowOverrideSource {
+			continue
+		}
+		if !disclaimerPrinted {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+			disclaimerPrinted = true
+		}
+
+		// Param file is all or nothing
+		if !useParamFile {
+			for _, e := range args.ExistingParams {
+				if e.Name == parameterSchema.Name {
+					// If the param already exists, we do not need to prompt it again.
+					// The workspace scope will reuse params for each build.
+					continue PromptParamLoop
+				}
+			}
+		}
+
+		parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+		if err != nil {
+			return nil, err
+		}
+
+		parameters = append(parameters, codersdk.CreateParameterRequest{
+			Name:              parameterSchema.Name,
+			SourceValue:       parameterValue,
+			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			DestinationScheme: parameterSchema.DefaultDestinationScheme,
+		})
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+
+	// Run a dry-run with the given parameters to check correctness
+	after := time.Now()
+	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+		WorkspaceName:   args.NewWorkspaceName,
+		ParameterValues: parameters,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
+	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+		Fetch: func() (codersdk.ProvisionerJob, error) {
+			return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+		},
+		Cancel: func() error {
+			return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+		},
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+			return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
+		},
+		// Don't show log output for the dry-run unless there's an error.
+		Silent: true,
+	})
+	if err != nil {
+		// TODO (Dean): reprompt for parameter values if we deem it to
+		// be a validation error
+		return nil, xerrors.Errorf("dry-run workspace: %w", err)
+	}
+
+	resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
+	}
+
+	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+		WorkspaceName: args.NewWorkspaceName,
+		// Since agents haven't connected yet, hiding this makes more sense.
+		HideAgentState: true,
+		Title:          "Workspace Preview",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return parameters, nil
 }

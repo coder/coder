@@ -127,6 +127,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Invalid user search query.",
 			Validations: errs,
 		})
+		return
 	}
 
 	paginationParams, ok := parsePagination(rw, r)
@@ -718,6 +719,34 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
 }
 
+func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	keyID := chi.URLParam(r, "keyid")
+	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertAPIKey(key))
+}
+
 // Clear the user's session cookie.
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// Get a blank token cookie.
@@ -781,7 +810,8 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		}
 	}
 
-	ip := net.ParseIP(r.RemoteAddr)
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip := net.ParseIP(host)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}
@@ -959,6 +989,7 @@ func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
 		// No filter
 		return database.GetUsersParams{}, nil
 	}
+	query = strings.ToLower(query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.
@@ -1004,4 +1035,17 @@ func parseUserStatus(v string) ([]database.UserStatus, error) {
 		}
 	}
 	return statuses, nil
+}
+
+func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	return codersdk.APIKey{
+		ID:              k.ID,
+		UserID:          k.UserID,
+		LastUsed:        k.LastUsed,
+		ExpiresAt:       k.ExpiresAt,
+		CreatedAt:       k.CreatedAt,
+		UpdatedAt:       k.UpdatedAt,
+		LoginType:       codersdk.LoginType(k.LoginType),
+		LifetimeSeconds: k.LifetimeSeconds,
+	}
 }
