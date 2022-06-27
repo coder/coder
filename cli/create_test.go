@@ -273,7 +273,9 @@ func TestCreate(t *testing.T) {
 		})
 
 		tempDir := t.TempDir()
-		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		parameterFile, err := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		require.NoError(t, err)
+		defer parameterFile.Close()
 		_, _ = parameterFile.WriteString(fmt.Sprintf("%s: %q", echo.ParameterExecKey, echo.ParameterError("fail")))
 
 		// The template import job should end up failed, but we need it to be
@@ -288,7 +290,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 
-		err := cmd.Execute()
+		err = cmd.Execute()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "dry-run workspace")
 	})
