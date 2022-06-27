@@ -75,7 +75,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.5.0
-	github.com/hashicorp/hc-install v0.3.2
+	github.com/hashicorp/hc-install v0.4.0
 	github.com/hashicorp/hcl/v2 v2.12.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
@@ -104,7 +104,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.3
+	github.com/stretchr/testify v1.7.5
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
