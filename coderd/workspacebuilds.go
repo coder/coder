@@ -400,6 +400,43 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
+		existing, err := db.ParameterValues(r.Context(), database.ParameterValuesParams{
+			Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+			ScopeIds: []uuid.UUID{workspace.ID},
+		})
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("Fetch previous parameters: %w", err)
+		}
+
+		// Write/Update any new params
+		now := database.Now()
+		for _, param := range createBuild.ParameterValues {
+			for _, exists := range existing {
+				// If the param exists, delete the old param before inserting the new one
+				if exists.Name == param.Name {
+					err = db.DeleteParameterValueByID(r.Context(), exists.ID)
+					if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+						return xerrors.Errorf("Failed to delete old param %q: %w", exists.Name, err)
+					}
+				}
+			}
+
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              param.Name,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				Scope:             database.ParameterScopeWorkspace,
+				ScopeID:           workspace.ID,
+				SourceScheme:      database.ParameterSourceScheme(param.SourceScheme),
+				SourceValue:       param.SourceValue,
+				DestinationScheme: database.ParameterDestinationScheme(param.DestinationScheme),
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
+
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(workspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,

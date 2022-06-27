@@ -104,6 +104,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go:76:6
@@ -232,7 +233,7 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
-// From codersdk/workspaces.go:202:6
+// From codersdk/workspaces.go:206:6
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
@@ -305,12 +306,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:161:6
+// From codersdk/workspaces.go:165:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
 }
 
-// From codersdk/workspaces.go:181:6
+// From codersdk/workspaces.go:185:6
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
@@ -464,17 +465,17 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
 }
 
-// From codersdk/workspaces.go:84:6
+// From codersdk/workspaces.go:88:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:220:6
+// From codersdk/workspaces.go:224:6
 export interface WorkspaceFilter {
   readonly q?: string
 }
 
-// From codersdk/workspaces.go:42:6
+// From codersdk/workspaces.go:46:6
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
