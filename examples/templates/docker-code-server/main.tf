@@ -44,6 +44,7 @@ resource "coder_agent" "dev" {
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
   url      = "http://localhost:8080/?folder=/home/coder"
+  icon     = "/icon/code.svg"
 }
 
 resource "docker_container" "workspace" {
