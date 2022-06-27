@@ -18,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
@@ -48,6 +51,7 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 type Options struct {
 	Filesystem afero.Fs
 	Logger     slog.Logger
+	Tracer     trace.TracerProvider
 
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
@@ -70,8 +74,12 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
 	}
+	if opts.Tracer == nil {
+		opts.Tracer = trace.NewNoopTracerProvider()
+	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
+		tracer:       opts.Tracer.Tracer("provisionerd"),
 		clientDialer: clientDialer,
 		opts:         opts,
 
@@ -91,7 +99,8 @@ func New(clientDialer Dialer, opts *Options) *Server {
 }
 
 type Server struct {
-	opts *Options
+	opts   *Options
+	tracer trace.Tracer
 
 	clientDialer Dialer
 	clientValue  atomic.Value
@@ -127,11 +136,11 @@ func (p *Server) connect(ctx context.Context) {
 			if p.isClosed() {
 				return
 			}
-			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			p.opts.Logger.Warn(ctx, "failed to dial", slog.Error(err))
 			continue
 		}
 		p.clientValue.Store(client)
-		p.opts.Logger.Debug(context.Background(), "connected")
+		p.opts.Logger.Debug(ctx, "connected")
 		break
 	}
 	select {
@@ -155,7 +164,7 @@ func (p *Server) connect(ctx context.Context) {
 			// We use the update stream to detect when the connection
 			// has been interrupted. This works well, because logs need
 			// to buffer if a job is running in the background.
-			p.opts.Logger.Debug(context.Background(), "client stream ended")
+			p.opts.Logger.Debug(ctx, "client stream ended")
 			p.connect(ctx)
 		}
 	}()
@@ -209,11 +218,11 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if p.isRunningJob() {
-		p.opts.Logger.Debug(context.Background(), "skipping acquire; job is already running")
+		p.opts.Logger.Debug(ctx, "skipping acquire; job is already running")
 		return
 	}
 	if p.isShutdown() {
-		p.opts.Logger.Debug(context.Background(), "skipping acquire; provisionerd is shutting down...")
+		p.opts.Logger.Debug(ctx, "skipping acquire; provisionerd is shutting down...")
 		return
 	}
 	var err error
@@ -229,12 +238,13 @@ func (p *Server) acquireJob(ctx context.Context) {
 		if errors.Is(err, yamux.ErrSessionShutdown) {
 			return
 		}
-		p.opts.Logger.Warn(context.Background(), "acquire job", slog.Error(err))
+		p.opts.Logger.Warn(ctx, "acquire job", slog.Error(err))
 		return
 	}
 	if job.JobId == "" {
 		return
 	}
+
 	ctx, p.jobCancel = context.WithCancel(ctx)
 	p.jobRunningMutex.Lock()
 	p.jobRunning = make(chan struct{})
@@ -242,7 +252,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	p.jobFailed.Store(false)
 	p.jobID = job.JobId
 
-	p.opts.Logger.Info(context.Background(), "acquired job",
+	p.opts.Logger.Info(ctx, "acquired job",
 		slog.F("initiator_username", job.UserName),
 		slog.F("provisioner", job.Provisioner),
 		slog.F("id", job.JobId),
@@ -252,6 +262,17 @@ func (p *Server) acquireJob(ctx context.Context) {
 }
 
 func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
+	ctx, span := p.tracer.Start(ctx, "runJob",
+		trace.WithAttributes(
+			attribute.String("job_id", job.JobId),
+			attribute.String("initiator_username", job.UserName),
+			attribute.String("provisioner", job.Provisioner),
+			attribute.Int64("created_at", job.CreatedAt),
+			attribute.Int("size_bytes", len(job.TemplateSourceArchive)),
+		),
+	)
+	defer span.End()
+
 	shutdown, shutdownCancel := context.WithCancel(ctx)
 	defer shutdownCancel()
 
@@ -285,7 +306,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 				continue
 			}
 			if err != nil {
-				p.failActiveJobf("send periodic update: %s", err)
+				p.failActiveJobf(ctx, "send periodic update: %s", err)
 				return
 			}
 			if !resp.Canceled {
@@ -297,7 +318,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			timer := time.NewTimer(p.opts.ForceCancelInterval)
 			select {
 			case <-timer.C:
-				p.failActiveJobf("cancelation timed out")
+				p.failActiveJobf(ctx, "cancelation timed out")
 				return
 			case <-ctx.Done():
 				timer.Stop()
@@ -306,9 +327,16 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		}
 	}()
 	defer func() {
+		ctx, span := p.tracer.Start(ctx, "cleanupJob")
+		defer span.End()
+
+		var (
+			err      error
+			attempts int
+		)
 		// Cleanup the work directory after execution.
-		for attempt := 0; attempt < 5; attempt++ {
-			err := p.opts.Filesystem.RemoveAll(p.opts.WorkDirectory)
+		for ; attempts < 5; attempts++ {
+			err = p.opts.Filesystem.RemoveAll(p.opts.WorkDirectory)
 			if err != nil {
 				// On Windows, open files cannot be removed.
 				// When the provisioner daemon is shutting down,
@@ -322,26 +350,36 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			break
 		}
 
+		span.SetAttributes(attribute.Int("cleanup_attempts", attempts))
+		if err != nil {
+			span.SetStatus(codes.Error, "cleanup failed")
+			span.RecordError(err)
+		}
 		close(p.jobRunning)
 	}()
+
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[job.Provisioner]
 	if !hasProvisioner {
-		p.failActiveJobf("provisioner %q not registered", job.Provisioner)
+		p.failActiveJobf(ctx, "provisioner %q not registered", job.Provisioner)
 		return
 	}
 
+	span.AddEvent("mkdirall work directory", trace.WithAttributes(
+		attribute.String("work_directory", p.opts.WorkDirectory),
+	))
 	err := p.opts.Filesystem.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
-		p.failActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
+		p.failActiveJobf(ctx, "create work directory %q: %s", p.opts.WorkDirectory, err)
 		return
 	}
 
 	client, ok := p.client()
 	if !ok {
-		p.failActiveJobf("client disconnected")
+		p.failActiveJobf(ctx, "client disconnected")
 		return
 	}
+
 	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -352,11 +390,11 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		}},
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 
-	p.opts.Logger.Info(ctx, "unpacking template source archive", slog.F("size_bytes", len(job.TemplateSourceArchive)))
+	p.traceAndDebug(ctx, "unpack template source archive", attribute.Int("size_bytes", len(job.TemplateSourceArchive)))
 	reader := tar.NewReader(bytes.NewBuffer(job.TemplateSourceArchive))
 	for {
 		header, err := reader.Next()
@@ -364,13 +402,14 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			break
 		}
 		if err != nil {
-			p.failActiveJobf("read template source archive: %s", err)
+			p.failActiveJobf(ctx, "read template source archive: %s", err)
 			return
 		}
-		// #nosec
+
+		// nolint:gosec
 		headerPath := filepath.Join(p.opts.WorkDirectory, header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(p.opts.WorkDirectory)) {
-			p.failActiveJobf("tar attempts to target relative upper directory")
+			p.failActiveJobf(ctx, "tar attempts to target relative upper directory")
 			return
 		}
 		mode := header.FileInfo().Mode()
@@ -381,14 +420,15 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		case tar.TypeDir:
 			err = p.opts.Filesystem.MkdirAll(headerPath, mode)
 			if err != nil {
-				p.failActiveJobf("mkdir %q: %s", headerPath, err)
+				p.failActiveJobf(ctx, "mkdir %q: %s", headerPath, err)
 				return
 			}
-			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", headerPath))
+			p.traceAndDebug(ctx, "extracted directory", attribute.String("path", headerPath))
+
 		case tar.TypeReg:
 			file, err := p.opts.Filesystem.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				p.failActiveJobf("create file %q (mode %s): %s", headerPath, mode, err)
+				p.failActiveJobf(ctx, "create file %q (mode %s): %s", headerPath, mode, err)
 				return
 			}
 			// Max file size of 10MiB.
@@ -398,44 +438,47 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			}
 			if err != nil {
 				_ = file.Close()
-				p.failActiveJobf("copy file %q: %s", headerPath, err)
+				p.failActiveJobf(ctx, "copy file %q: %s", headerPath, err)
 				return
 			}
 			err = file.Close()
 			if err != nil {
-				p.failActiveJobf("close file %q: %s", headerPath, err)
+				p.failActiveJobf(ctx, "close file %q: %s", headerPath, err)
 				return
 			}
-			p.opts.Logger.Debug(context.Background(), "extracted file",
-				slog.F("size_bytes", size),
-				slog.F("path", headerPath),
-				slog.F("mode", mode),
+			p.traceAndDebug(ctx, "extracted file",
+				attribute.Int64("size_bytes", size),
+				attribute.String("path", headerPath),
+				attribute.String("mode", mode.String()),
 			)
 		}
 	}
 
 	switch jobType := job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is template import")
+		p.opts.Logger.Debug(ctx, "acquired job is template import")
 
 		p.runReadmeParse(ctx, job)
 		p.runTemplateImport(ctx, shutdown, provisioner, job)
+
 	case *proto.AcquiredJob_TemplateDryRun_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is template dry-run",
+		p.opts.Logger.Debug(ctx, "acquired job is template dry-run",
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
 			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
 		)
 		p.runTemplateDryRun(ctx, shutdown, provisioner, job)
+
 	case *proto.AcquiredJob_WorkspaceBuild_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
+		p.opts.Logger.Debug(ctx, "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 		)
 
 		p.runWorkspaceBuild(ctx, shutdown, provisioner, job)
+
 	default:
-		p.failActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
+		p.failActiveJobf(ctx, "unknown job type %T; ensure your provisioner daemon is up-to-date", job.Type)
 		return
 	}
 
@@ -456,11 +499,11 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			}},
 		})
 		if err != nil {
-			p.failActiveJobf("write log: %s", err)
+			p.failActiveJobf(ctx, "write log: %s", err)
 			return
 		}
 
-		p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
+		p.opts.Logger.Info(ctx, "completed job", slog.F("id", job.JobId))
 	}
 }
 
@@ -469,9 +512,12 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 const ReadmeFile = "README.md"
 
 func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
+	ctx, span := p.tracer.Start(ctx, "runReadmeParse")
+	defer span.End()
+
 	client, ok := p.client()
 	if !ok {
-		p.failActiveJobf("client disconnected")
+		p.failActiveJobf(ctx, "client disconnected")
 		return
 	}
 
@@ -487,7 +533,7 @@ func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
 			}},
 		})
 		if err != nil {
-			p.failActiveJobf("write log: %s", err)
+			p.failActiveJobf(ctx, "write log: %s", err)
 		}
 
 		return
@@ -504,15 +550,18 @@ func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
 		Readme: fi,
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 }
 
 func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	ctx, span := p.tracer.Start(ctx, "runTemplateImport")
+	defer span.End()
+
 	client, ok := p.client()
 	if !ok {
-		p.failActiveJobf("client disconnected")
+		p.failActiveJobf(ctx, "client disconnected")
 		return
 	}
 
@@ -527,12 +576,12 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}},
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 	parameterSchemas, err := p.runTemplateImportParse(ctx, provisioner, job)
 	if err != nil {
-		p.failActiveJobf("run parse: %s", err)
+		p.failActiveJobf(ctx, "run parse: %s", err)
 		return
 	}
 	updateResponse, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -540,7 +589,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		ParameterSchemas: parameterSchemas,
 	})
 	if err != nil {
-		p.failActiveJobf("update job: %s", err)
+		p.failActiveJobf(ctx, "update job: %s", err)
 		return
 	}
 
@@ -551,7 +600,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			p.failActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
+			p.failActiveJobf(ctx, "%s: %s", missingParameterErrorText, parameterSchema.Name)
 			return
 		}
 	}
@@ -567,7 +616,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}},
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 	startResources, err := p.runTemplateImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
@@ -575,7 +624,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
-		p.failActiveJobf("template import provision for start: %s", err)
+		p.failActiveJobf(ctx, "template import provision for start: %s", err)
 		return
 	}
 
@@ -590,7 +639,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}},
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 	stopResources, err := p.runTemplateImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
@@ -598,11 +647,11 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
-		p.failActiveJobf("template import provision for stop: %s", err)
+		p.failActiveJobf(ctx, "template import provision for stop: %s", err)
 		return
 	}
 
-	p.completeJob(&proto.CompletedJob{
+	p.completeJob(ctx, &proto.CompletedJob{
 		JobId: job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
@@ -615,6 +664,9 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 
 // Parses parameter schemas from source.
 func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
+	ctx, span := p.tracer.Start(ctx, "runTemplateImportParse")
+	defer span.End()
+
 	client, ok := p.client()
 	if !ok {
 		return nil, xerrors.New("client disconnected")
@@ -633,7 +685,7 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Parse_Response_Log:
-			p.opts.Logger.Debug(context.Background(), "parse job logged",
+			p.opts.Logger.Debug(ctx, "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -652,7 +704,7 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 				return nil, xerrors.Errorf("update job: %w", err)
 			}
 		case *sdkproto.Parse_Response_Complete:
-			p.opts.Logger.Info(context.Background(), "parse complete",
+			p.opts.Logger.Info(ctx, "parse complete",
 				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas))
 
 			return msgType.Complete.ParameterSchemas, nil
@@ -667,6 +719,9 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
 func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+	ctx, span := p.tracer.Start(ctx, "runTemplateImportProvision")
+	defer span.End()
+
 	var stage string
 	switch metadata.WorkspaceTransition {
 	case sdkproto.WorkspaceTransition_START:
@@ -712,7 +767,7 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			p.opts.Logger.Debug(context.Background(), "template import provision job logged",
+			p.opts.Logger.Debug(ctx, "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -735,14 +790,14 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 			}
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				p.opts.Logger.Info(context.Background(), "dry-run provision failure",
+				p.opts.Logger.Info(ctx, "dry-run provision failure",
 					slog.F("error", msgType.Complete.Error),
 				)
 
 				return nil, xerrors.New(msgType.Complete.Error)
 			}
 
-			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
+			p.opts.Logger.Info(ctx, "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),
@@ -757,6 +812,9 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 }
 
 func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	ctx, span := p.tracer.Start(ctx, "runTemplateImportDryRun")
+	defer span.End()
+
 	// Ensure all metadata fields are set as they are all optional for dry-run.
 	metadata := job.GetTemplateDryRun().GetMetadata()
 	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
@@ -773,7 +831,7 @@ func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sd
 	if metadata.WorkspaceId == "" {
 		id, err := uuid.NewRandom()
 		if err != nil {
-			p.failActiveJobf("generate random ID: %s", err)
+			p.failActiveJobf(ctx, "generate random ID: %s", err)
 			return
 		}
 		metadata.WorkspaceId = id.String()
@@ -781,7 +839,7 @@ func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sd
 	if metadata.WorkspaceOwnerId == "" {
 		id, err := uuid.NewRandom()
 		if err != nil {
-			p.failActiveJobf("generate random ID: %s", err)
+			p.failActiveJobf(ctx, "generate random ID: %s", err)
 			return
 		}
 		metadata.WorkspaceOwnerId = id.String()
@@ -796,11 +854,11 @@ func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sd
 		metadata,
 	)
 	if err != nil {
-		p.failActiveJobf("run dry-run provision job: %s", err)
+		p.failActiveJobf(ctx, "run dry-run provision job: %s", err)
 		return
 	}
 
-	p.completeJob(&proto.CompletedJob{
+	p.completeJob(ctx, &proto.CompletedJob{
 		JobId: job.JobId,
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
@@ -811,8 +869,23 @@ func (p *Server) runTemplateDryRun(ctx, shutdown context.Context, provisioner sd
 }
 
 func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	var stage string
-	switch job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
+	var (
+		build = job.GetWorkspaceBuild()
+		stage string
+	)
+
+	ctx = slog.With(ctx, slog.F("workspace_build_id", build.WorkspaceBuildId))
+	ctx, span := p.tracer.Start(ctx, "runWorkspaceBuild", trace.WithAttributes(
+		attribute.String("workspace_build_id", build.WorkspaceBuildId),
+		attribute.String("workspace_id", build.Metadata.WorkspaceId),
+		attribute.String("workspace_name", build.WorkspaceName),
+		attribute.String("workspace_owner_id", build.Metadata.WorkspaceOwnerId),
+		attribute.String("workspace_owner", build.Metadata.WorkspaceOwner),
+		attribute.String("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+	))
+	defer span.End()
+
+	switch build.Metadata.WorkspaceTransition {
 	case sdkproto.WorkspaceTransition_START:
 		stage = "Starting workspace"
 	case sdkproto.WorkspaceTransition_STOP:
@@ -823,7 +896,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 
 	client, ok := p.client()
 	if !ok {
-		p.failActiveJobf("client disconnected")
+		p.failActiveJobf(ctx, "client disconnected")
 		return
 	}
 	_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -836,13 +909,13 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 		}},
 	})
 	if err != nil {
-		p.failActiveJobf("write log: %s", err)
+		p.failActiveJobf(ctx, "write log: %s", err)
 		return
 	}
 
 	stream, err := provisioner.Provision(ctx)
 	if err != nil {
-		p.failActiveJobf("provision: %s", err)
+		p.failActiveJobf(ctx, "provision: %s", err)
 		return
 	}
 	defer stream.Close()
@@ -869,22 +942,21 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 		},
 	})
 	if err != nil {
-		p.failActiveJobf("start provision: %s", err)
+		p.failActiveJobf(ctx, "start provision: %s", err)
 		return
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			p.failActiveJobf("recv workspace provision: %s", err)
+			p.failActiveJobf(ctx, "recv workspace provision: %s", err)
 			return
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			p.opts.Logger.Debug(context.Background(), "workspace provision job logged",
-				slog.F("level", msgType.Log.Level),
-				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_build_id", job.GetWorkspaceBuild().WorkspaceBuildId),
+			p.traceAndDebug(ctx, "workspace provision job logged",
+				attribute.String("level", msgType.Log.Level.String()),
+				attribute.String("output", msgType.Log.Output),
 			)
 
 			_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -898,16 +970,17 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 				}},
 			})
 			if err != nil {
-				p.failActiveJobf("send job update: %s", err)
+				p.failActiveJobf(ctx, "send job update: %s", err)
 				return
 			}
+
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				p.opts.Logger.Info(context.Background(), "provision failed; updating state",
+				p.opts.Logger.Info(ctx, "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
 				)
 
-				p.failActiveJob(&proto.FailedJob{
+				p.failActiveJob(ctx, &proto.FailedJob{
 					Error: msgType.Complete.Error,
 					Type: &proto.FailedJob_WorkspaceBuild_{
 						WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
@@ -918,7 +991,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 				return
 			}
 
-			p.completeJob(&proto.CompletedJob{
+			p.completeJob(ctx, &proto.CompletedJob{
 				JobId: job.JobId,
 				Type: &proto.CompletedJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
@@ -927,21 +1000,25 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 					},
 				},
 			})
-			p.opts.Logger.Info(context.Background(), "provision successful; marked job as complete",
+			p.opts.Logger.Info(ctx, "provision successful; marked job as complete",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
 			// Stop looping!
 			return
+
 		default:
-			p.failActiveJobf("invalid message type %T received from provisioner", msg.Type)
+			p.failActiveJobf(ctx, "invalid message type %T received from provisioner", msg.Type)
 			return
 		}
 	}
 }
 
-func (p *Server) completeJob(job *proto.CompletedJob) {
+func (p *Server) completeJob(ctx context.Context, job *proto.CompletedJob) {
+	ctx, span := p.tracer.Start(ctx, "completeJob")
+	defer span.End()
+
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(p.closeContext); {
 		client, ok := p.client()
 		if !ok {
@@ -955,32 +1032,36 @@ func (p *Server) completeJob(job *proto.CompletedJob) {
 		}
 		if err != nil {
 			p.opts.Logger.Warn(p.closeContext, "failed to complete job", slog.Error(err))
-			p.failActiveJobf(err.Error())
+			p.failActiveJobf(ctx, err.Error())
 			return
 		}
 		break
 	}
 }
 
-func (p *Server) failActiveJobf(format string, args ...interface{}) {
-	p.failActiveJob(&proto.FailedJob{
-		Error: fmt.Sprintf(format, args...),
+func (p *Server) failActiveJobf(ctx context.Context, format string, args ...interface{}) {
+	span := trace.SpanFromContext(ctx)
+	msg := fmt.Sprintf(format, args...)
+
+	span.SetStatus(codes.Error, msg)
+	p.failActiveJob(ctx, &proto.FailedJob{
+		Error: msg,
 	})
 }
 
-func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
+func (p *Server) failActiveJob(ctx context.Context, failedJob *proto.FailedJob) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
 	if !p.isRunningJob() {
 		return
 	}
 	if p.jobFailed.Load() {
-		p.opts.Logger.Debug(context.Background(), "job has already been marked as failed", slog.F("error_messsage", failedJob.Error))
+		p.opts.Logger.Debug(ctx, "job has already been marked as failed", slog.F("error_messsage", failedJob.Error))
 		return
 	}
 	p.jobFailed.Store(true)
 	p.jobCancel()
-	p.opts.Logger.Info(context.Background(), "failing running job",
+	p.opts.Logger.Info(ctx, "failing running job",
 		slog.F("error_message", failedJob.Error),
 		slog.F("job_id", p.jobID),
 	)
@@ -998,12 +1079,22 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 			if p.isClosed() {
 				return
 			}
-			p.opts.Logger.Warn(context.Background(), "failed to notify of error; job is no longer running", slog.Error(err))
+			p.opts.Logger.Warn(ctx, "failed to notify of error; job is no longer running", slog.Error(err))
 			return
 		}
-		p.opts.Logger.Debug(context.Background(), "marked running job as failed")
+		p.opts.Logger.Debug(ctx, "marked running job as failed")
 		return
 	}
+}
+
+func (p *Server) traceAndDebug(ctx context.Context, msg string, fields ...attribute.KeyValue) {
+	trace.SpanFromContext(ctx).AddEvent(msg, trace.WithAttributes(fields...))
+
+	slogFields := make([]slog.Field, 0, len(fields))
+	for _, f := range fields {
+		slogFields = append(slogFields, slog.F(string(f.Key), f.Value.AsInterface()))
+	}
+	p.opts.Logger.Debug(ctx, msg, slogFields...)
 }
 
 // isClosed returns whether the API is closed or not.
@@ -1064,7 +1155,7 @@ func (p *Server) closeWithError(err error) error {
 	if err != nil {
 		errMsg = err.Error()
 	}
-	p.failActiveJobf(errMsg)
+	p.failActiveJobf(context.Background(), errMsg)
 	p.jobRunningMutex.Lock()
 	<-p.jobRunning
 	p.jobRunningMutex.Unlock()

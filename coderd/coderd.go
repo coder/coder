@@ -16,7 +16,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
@@ -62,7 +62,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
-	TracerProvider       *sdktrace.TracerProvider
+	TracerProvider       trace.TracerProvider
 }
 
 // New constructs a Coder API handler.

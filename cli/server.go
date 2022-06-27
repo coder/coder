@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -35,7 +37,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
@@ -94,7 +95,8 @@ func server() *cobra.Command {
 		turnRelayAddress                 string
 		tunnel                           bool
 		stunServers                      []string
-		trace                            bool
+		traceEnable                      bool
+		traceEnableOld                   bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
@@ -111,13 +113,16 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
+			// Enable tracing if either the new or old flags are set.
+			traceEnable = traceEnableOld || traceEnable
+
 			var (
-				tracerProvider *sdktrace.TracerProvider
+				tracerProvider trace.TracerProvider
 				err            error
 				sqlDriver      = "postgres"
 			)
-			if trace {
-				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
+			if traceEnable {
+				sdkTracerProvider, err := tracing.TracerProvider(cmd.Context(), "coderd")
 				if err != nil {
 					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
 				} else {
@@ -125,15 +130,17 @@ func server() *cobra.Command {
 						// allow time for traces to flush even if command context is canceled
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
-						_ = tracerProvider.Shutdown(ctx)
+						_ = sdkTracerProvider.Shutdown(ctx)
 					}()
 
-					d, err := tracing.PostgresDriver(tracerProvider, "coderd.database")
+					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
 					if err != nil {
 						logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
 					} else {
 						sqlDriver = d
 					}
+
+					tracerProvider = sdkTracerProvider
 				}
 			}
 
@@ -559,7 +566,9 @@ func server() *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
+	cliflag.BoolVarP(root.Flags(), &traceEnableOld, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
+	_ = root.Flags().MarkHidden("trace") // deprecated, use trace-enable instead
+	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace-enable", "", "CODER_TRACE_ENABLE", false, "Specifies if application tracing data is collected")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
@@ -615,6 +624,7 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 	}
 	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
+		Tracer:         coderAPI.TracerProvider,
 		PollInterval:   500 * time.Millisecond,
 		UpdateInterval: 500 * time.Millisecond,
 		Provisioners:   provisioners,
