@@ -1,7 +1,12 @@
 import dayjs from "dayjs"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
-import { defaultWorkspaceExtension, isWorkspaceDeleted, isWorkspaceOn, workspaceQueryToFilter } from "./workspace"
+import {
+  defaultWorkspaceExtension,
+  isWorkspaceDeleted,
+  isWorkspaceOn,
+  workspaceQueryToFilter,
+} from "./workspace"
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {

@@ -16,7 +16,9 @@ export const WorkspaceBuildPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{build ? pageTitle(`Build #${build.build_number} · ${build.workspace_name}`) : ""}</title>
+        <title>
+          {build ? pageTitle(`Build #${build.build_number} · ${build.workspace_name}`) : ""}
+        </title>
       </Helmet>
 
       <WorkspaceBuildPageView logs={logs} build={build} />

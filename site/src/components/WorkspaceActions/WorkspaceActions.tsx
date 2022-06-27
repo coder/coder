@@ -37,9 +37,11 @@ const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
 const canCancelJobs = (workspaceStatus: WorkspaceStatus) =>
   ["starting", "stopping", "deleting"].includes(workspaceStatus)
 
-const canStart = (workspaceStatus: WorkspaceStatus) => ["stopped", "canceled", "error"].includes(workspaceStatus)
+const canStart = (workspaceStatus: WorkspaceStatus) =>
+  ["stopped", "canceled", "error"].includes(workspaceStatus)
 
-const canStop = (workspaceStatus: WorkspaceStatus) => ["started", "canceled", "error"].includes(workspaceStatus)
+const canStop = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "canceled", "error"].includes(workspaceStatus)
 
 const canDelete = (workspaceStatus: WorkspaceStatus) =>
   ["started", "stopped", "canceled", "error"].includes(workspaceStatus)
@@ -99,7 +101,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         />
       )}
       {workspace.outdated && canAcceptJobs(workspaceStatus) && (
-        <Button className={styles.actionButton} startIcon={<CloudDownloadIcon />} onClick={handleUpdate}>
+        <Button
+          className={styles.actionButton}
+          startIcon={<CloudDownloadIcon />}
+          onClick={handleUpdate}
+        >
           {Language.update}
         </Button>
       )}

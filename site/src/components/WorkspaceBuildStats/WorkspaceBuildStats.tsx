@@ -54,7 +54,9 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Action</span>
-        <span className={combineClasses([styles.statsValue, styles.capitalize])}>{build.transition}</span>
+        <span className={combineClasses([styles.statsValue, styles.capitalize])}>
+          {build.transition}
+        </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>

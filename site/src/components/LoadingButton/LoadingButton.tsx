@@ -14,7 +14,11 @@ export interface LoadingButtonProps extends ButtonProps {
  * In Material-UI 5+ - this is built-in, but since we're on an earlier version,
  * we have to roll our own.
  */
-export const LoadingButton: React.FC<LoadingButtonProps> = ({ loading = false, children, ...rest }) => {
+export const LoadingButton: React.FC<LoadingButtonProps> = ({
+  loading = false,
+  children,
+  ...rest
+}) => {
   const styles = useStyles()
   const hidden = loading ? { opacity: 0 } : undefined
 

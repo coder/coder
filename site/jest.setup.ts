@@ -46,7 +46,9 @@ CONSOLE_FAIL_TYPES.forEach((logType: string) => {
   const consoleAsAny = global.console as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   consoleAsAny[logType] = (format: string, ...args: any[]): void => {
-    throw new Error(`Failing due to console.${logType} while running test!\n\n${util.format(format, ...args)}`)
+    throw new Error(
+      `Failing due to console.${logType} while running test!\n\n${util.format(format, ...args)}`,
+    )
   }
 })
 

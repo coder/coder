@@ -1,7 +1,11 @@
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import * as Mocks from "../../testHelpers/entities"
-import { formValuesToAutoStartRequest, formValuesToTTLRequest, workspaceToInitialValues } from "./WorkspaceSchedulePage"
+import {
+  formValuesToAutoStartRequest,
+  formValuesToTTLRequest,
+  workspaceToInitialValues,
+} from "./WorkspaceSchedulePage"
 
 const validValues: WorkspaceScheduleFormValues = {
   sunday: false,

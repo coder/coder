@@ -21,7 +21,13 @@ export interface TerminalContext {
 }
 
 export type TerminalEvent =
-  | { type: "CONNECT"; agentName?: string; reconnection?: string; workspaceName?: string; username?: string }
+  | {
+      type: "CONNECT"
+      agentName?: string
+      reconnection?: string
+      workspaceName?: string
+      username?: string
+    }
   | { type: "WRITE"; request: Types.ReconnectingPTYRequest }
   | { type: "READ"; data: ArrayBuffer }
   | { type: "DISCONNECT" }

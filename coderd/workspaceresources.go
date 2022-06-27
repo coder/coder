@@ -69,7 +69,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
+		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: "Internal error reading workspace agent.",

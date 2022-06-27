@@ -1,7 +1,13 @@
 import * as React from "react"
 
 export const Logo = (props: React.SVGProps<SVGSVGElement>): JSX.Element => (
-  <svg aria-labelledby="title" viewBox="0 0 341 75" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+  <svg
+    aria-labelledby="title"
+    viewBox="0 0 341 75"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
     <title id="title" lang="en">
       Coder logo
     </title>

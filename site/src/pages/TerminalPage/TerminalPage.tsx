@@ -59,7 +59,8 @@ const TerminalPage: FC<{
   })
   const isConnected = terminalState.matches("connected")
   const isDisconnected = terminalState.matches("disconnected")
-  const { workspaceError, workspaceAgentError, workspaceAgent, websocketError } = terminalState.context
+  const { workspaceError, workspaceAgentError, workspaceAgent, websocketError } =
+    terminalState.context
 
   // Create the terminal!
   useEffect(() => {
@@ -177,7 +178,16 @@ const TerminalPage: FC<{
         width: terminal.cols,
       },
     })
-  }, [workspaceError, workspaceAgentError, websocketError, workspaceAgent, terminal, fitAddon, isConnected, sendEvent])
+  }, [
+    workspaceError,
+    workspaceAgentError,
+    websocketError,
+    workspaceAgent,
+    terminal,
+    fitAddon,
+    isConnected,
+    sendEvent,
+  ])
 
   return (
     <>

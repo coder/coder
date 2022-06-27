@@ -16,7 +16,9 @@ export default {
 const Template: Story<HelpTooltipProps> = (args) => (
   <HelpTooltip {...args}>
     <HelpTooltipTitle>What is a template?</HelpTooltipTitle>
-    <HelpTooltipText>A template is a common configuration for your team&apos;s workspaces.</HelpTooltipText>
+    <HelpTooltipText>
+      A template is a common configuration for your team&apos;s workspaces.
+    </HelpTooltipText>
     <HelpTooltipLinksGroup>
       <HelpTooltipLink href="https://github.com/coder/coder/">Creating a template</HelpTooltipLink>
       <HelpTooltipLink href="https://github.com/coder/coder/">Updating a template</HelpTooltipLink>
