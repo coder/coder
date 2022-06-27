@@ -46,9 +46,10 @@ func TestWorkspaceResource(t *testing.T) {
 
 	t.Run("Apps", func(t *testing.T) {
 		t.Parallel()
-		client, coderd := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerD: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, coderd)
 		app := &proto.App{
 			Name:    "code-server",
 			Command: "some-command",

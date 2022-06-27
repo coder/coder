@@ -237,12 +237,12 @@ func TestWorkspaceBuildResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client, coderAPI := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerD: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		closeDaemon.Close()
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
