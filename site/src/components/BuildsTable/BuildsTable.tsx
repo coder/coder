@@ -69,7 +69,9 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
               >
                 <TableCellLink to={buildPageLink}>{build.transition}</TableCellLink>
                 <TableCellLink to={buildPageLink}>
-                  <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(build)}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>
+                    {displayWorkspaceBuildDuration(build)}
+                  </span>
                 </TableCellLink>
                 <TableCellLink to={buildPageLink}>
                   <span style={{ color: theme.palette.text.secondary }}>

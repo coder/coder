@@ -31,7 +31,9 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
 
         <span className={styles.statsValue}>
           {template.workspace_owner_count}{" "}
-          {template.workspace_owner_count === 1 ? Language.developerSingular : Language.developerPlural}
+          {template.workspace_owner_count === 1
+            ? Language.developerSingular
+            : Language.developerPlural}
         </span>
       </div>
       <div className={styles.statsDivider} />

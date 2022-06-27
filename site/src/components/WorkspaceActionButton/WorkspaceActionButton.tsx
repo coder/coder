@@ -8,7 +8,12 @@ export interface WorkspaceActionButtonProps {
   className?: string
 }
 
-export const WorkspaceActionButton: FC<WorkspaceActionButtonProps> = ({ label, icon, onClick, className }) => {
+export const WorkspaceActionButton: FC<WorkspaceActionButtonProps> = ({
+  label,
+  icon,
+  onClick,
+  className,
+}) => {
   return (
     <Button className={className} startIcon={icon} onClick={onClick}>
       {label}

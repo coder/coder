@@ -115,9 +115,12 @@ export const handlers = [
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuilds))
   }),
-  rest.get("/api/v2/users/:username/workspace/:workspaceName/builds/:buildNumber", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockWorkspaceBuild))
-  }),
+  rest.get(
+    "/api/v2/users/:username/workspace/:workspaceName/builds/:buildNumber",
+    (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockWorkspaceBuild))
+    },
+  ),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/resources", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]))
   }),

@@ -217,7 +217,9 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
   }
 }
 
-export const getWorkspaceBuildDurationInSeconds = (build: TypesGen.WorkspaceBuild): number | undefined => {
+export const getWorkspaceBuildDurationInSeconds = (
+  build: TypesGen.WorkspaceBuild,
+): number | undefined => {
   const isCompleted = build.job.started_at && build.job.completed_at
 
   if (!isCompleted) {
@@ -284,7 +286,9 @@ export const isWorkspaceDeleted = (workspace: TypesGen.Workspace): boolean => {
   return getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
 }
 
-export const defaultWorkspaceExtension = (__startDate?: dayjs.Dayjs): TypesGen.PutExtendWorkspaceRequest => {
+export const defaultWorkspaceExtension = (
+  __startDate?: dayjs.Dayjs,
+): TypesGen.PutExtendWorkspaceRequest => {
   const now = __startDate ? dayjs(__startDate) : dayjs()
   const fourHoursFromNow = now.add(4, "hours").utc()
 

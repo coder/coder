@@ -32,7 +32,10 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </ListItem>
         <ListItem button className={styles.item}>
           <NavLink
-            className={combineClasses([styles.link, location.pathname.startsWith("/@") && "active"])}
+            className={combineClasses([
+              styles.link,
+              location.pathname.startsWith("/@") && "active",
+            ])}
             to="/workspaces"
           >
             {Language.workspaces}
@@ -50,7 +53,9 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </ListItem>
       </List>
       <div className={styles.fullWidth} />
-      <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
+      <div className={styles.fixed}>
+        {user && <UserDropdown user={user} onSignOut={onSignOut} />}
+      </div>
     </nav>
   )
 }

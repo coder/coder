@@ -9,7 +9,9 @@ export default {
   component: WorkspaceSection,
 }
 
-const Template: Story<WorkspaceSectionProps> = (args) => <WorkspaceSection {...args}>Content</WorkspaceSection>
+const Template: Story<WorkspaceSectionProps> = (args) => (
+  <WorkspaceSection {...args}>Content</WorkspaceSection>
+)
 
 export const NoAction = Template.bind({})
 NoAction.args = {

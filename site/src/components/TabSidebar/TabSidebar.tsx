@@ -24,7 +24,13 @@ export const TabSidebar: FC<TabSidebarProps> = ({ menuItems }) => {
         return (
           <NavLink to={tab.path} key={tab.path} className={styles.link}>
             {({ isActive }) => (
-              <ListItem button className={styles.menuItem} disableRipple focusRipple={false} component="li">
+              <ListItem
+                button
+                className={styles.menuItem}
+                disableRipple
+                focusRipple={false}
+                component="li"
+              >
                 <span className={combineClasses({ [styles.menuItemSpan]: true, active: isActive })}>
                   {hasChanges ? `${tab.label}*` : tab.label}
                 </span>

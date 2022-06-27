@@ -67,7 +67,9 @@ export const Language = {
   },
   editScheduleLink: "Edit schedule",
   scheduleHeader: (workspace: Workspace): string => {
-    const tz = workspace.autostart_schedule ? extractTimezone(workspace.autostart_schedule) : dayjs.tz.guess()
+    const tz = workspace.autostart_schedule
+      ? extractTimezone(workspace.autostart_schedule)
+      : dayjs.tz.guess()
     return `Schedule (${tz})`
   },
 }

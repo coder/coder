@@ -8,7 +8,9 @@ import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/Workspac
 import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
-  return [...logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  return [...logs].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
 }
 
 export interface WorkspaceBuildPageViewProps {

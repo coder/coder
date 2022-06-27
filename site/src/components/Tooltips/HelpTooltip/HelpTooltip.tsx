@@ -15,7 +15,9 @@ export interface HelpTooltipProps {
   size?: Size
 }
 
-const HelpTooltipContext = createContext<{ open: boolean; onClose: () => void } | undefined>(undefined)
+const HelpTooltipContext = createContext<{ open: boolean; onClose: () => void } | undefined>(
+  undefined,
+)
 
 const useHelpTooltip = () => {
   const helpTooltipContext = useContext(HelpTooltipContext)
@@ -77,7 +79,9 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
           },
         }}
       >
-        <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>{children}</HelpTooltipContext.Provider>
+        <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>
+          {children}
+        </HelpTooltipContext.Provider>
       </Popover>
     </>
   )
@@ -106,7 +110,11 @@ export const HelpTooltipLink: React.FC<{ href: string }> = ({ children, href }) 
   )
 }
 
-export const HelpTooltipAction: React.FC<{ icon: Icon; onClick: () => void }> = ({ children, icon: Icon, onClick }) => {
+export const HelpTooltipAction: React.FC<{ icon: Icon; onClick: () => void }> = ({
+  children,
+  icon: Icon,
+  onClick,
+}) => {
   const styles = useStyles()
   const tooltip = useHelpTooltip()
 

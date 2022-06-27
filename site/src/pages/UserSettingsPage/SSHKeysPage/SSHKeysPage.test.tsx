@@ -25,19 +25,24 @@ describe("SSH keys Page", () => {
         await screen.findByText(MockGitSSHKey.public_key)
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", { name: SSHKeysPageLanguage.regenerateLabel })
+        const regenerateButton = screen.getByRole("button", {
+          name: SSHKeysPageLanguage.regenerateLabel,
+        })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
         expect(confirmDialog).toHaveTextContent(SSHKeysPageLanguage.regenerateDialogMessage)
 
-        const newUserSSHKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66"
+        const newUserSSHKey =
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66"
         jest.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
           ...MockGitSSHKey,
           public_key: newUserSSHKey,
         })
 
         // Click on the "Confirm" button
-        const confirmButton = within(confirmDialog).getByRole("button", { name: SSHKeysPageLanguage.confirmLabel })
+        const confirmButton = within(confirmDialog).getByRole("button", {
+          name: SSHKeysPageLanguage.confirmLabel,
+        })
         fireEvent.click(confirmButton)
 
         // Check if the success message is displayed
@@ -66,13 +71,17 @@ describe("SSH keys Page", () => {
         jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce({})
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", { name: SSHKeysPageLanguage.regenerateLabel })
+        const regenerateButton = screen.getByRole("button", {
+          name: SSHKeysPageLanguage.regenerateLabel,
+        })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
         expect(confirmDialog).toHaveTextContent(SSHKeysPageLanguage.regenerateDialogMessage)
 
         // Click on the "Confirm" button
-        const confirmButton = within(confirmDialog).getByRole("button", { name: SSHKeysPageLanguage.confirmLabel })
+        const confirmButton = within(confirmDialog).getByRole("button", {
+          name: SSHKeysPageLanguage.confirmLabel,
+        })
         fireEvent.click(confirmButton)
 
         // Check if the error message is displayed

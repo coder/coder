@@ -12,7 +12,9 @@ export default {
   component: WorkspaceScheduleBanner,
 }
 
-const Template: Story<WorkspaceScheduleBannerProps> = (args) => <WorkspaceScheduleBanner {...args} />
+const Template: Story<WorkspaceScheduleBannerProps> = (args) => (
+  <WorkspaceScheduleBanner {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

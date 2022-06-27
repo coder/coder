@@ -27,7 +27,11 @@ export interface UserDropdownContentProps {
   onSignOut: () => void
 }
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({ user, onPopoverClose, onSignOut }) => {
+export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+  user,
+  onPopoverClose,
+  onSignOut,
+}) => {
   const styles = useStyles()
 
   return (

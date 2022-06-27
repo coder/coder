@@ -42,6 +42,8 @@ export type AnnotatedEventListener<E extends Event> = (event: E) => void
  * @remark this is especially necessary when an event originates from an iframe
  * as `instanceof` will not match against another origin's prototype chain.
  */
-export const isCustomEvent = <D = unknown>(event: CustomEvent<D> | Event): event is CustomEvent<D> => {
+export const isCustomEvent = <D = unknown>(
+  event: CustomEvent<D> | Event,
+): event is CustomEvent<D> => {
   return !!(event as CustomEvent).detail
 }
