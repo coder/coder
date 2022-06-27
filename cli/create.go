@@ -272,7 +272,7 @@ PromptParamLoop:
 
 	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
 		WorkspaceName: args.NewWorkspaceName,
-		// Since agent's haven't connected yet, hiding this makes more sense.
+		// Since agents haven't connected yet, hiding this makes more sense.
 		HideAgentState: true,
 		Title:          "Workspace Preview",
 	})

@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/cli/cliflag"
-
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 )
 
