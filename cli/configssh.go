@@ -546,7 +546,7 @@ func currentBinPath(w io.Writer) (string, error) {
 		_, _ = fmt.Fprint(w, "\n")
 	}
 
-	return binName, nil
+	return exePath, nil
 }
 
 // diffBytes takes two byte slices and diffs them as if they were in a
