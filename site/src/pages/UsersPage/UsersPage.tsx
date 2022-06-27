@@ -22,8 +22,14 @@ export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
-  const { users, getUsersError, userIdToSuspend, userIdToActivate, userIdToResetPassword, newUserPassword } =
-    usersState.context
+  const {
+    users,
+    getUsersError,
+    userIdToSuspend,
+    userIdToActivate,
+    userIdToResetPassword,
+    newUserPassword,
+  } = usersState.context
   const navigate = useNavigate()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)

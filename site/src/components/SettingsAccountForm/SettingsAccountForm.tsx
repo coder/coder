@@ -51,7 +51,13 @@ export const AccountForm: FC<AccountFormProps> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          <TextField disabled fullWidth label={Language.emailLabel} value={email} variant="outlined" />
+          <TextField
+            disabled
+            fullWidth
+            label={Language.emailLabel}
+            value={email}
+            variant="outlined"
+          />
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}

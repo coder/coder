@@ -19,7 +19,9 @@ import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPag
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
-const WorkspaceAppErrorPage = lazy(() => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"))
+const WorkspaceAppErrorPage = lazy(
+  () => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"),
+)
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))

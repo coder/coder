@@ -8,7 +8,8 @@ import {
 
 export const Language = {
   resourceTooltipTitle: "What is a resource?",
-  resourceTooltipText: "A resource is an infrastructure object that is created when the workspace is provisioned.",
+  resourceTooltipText:
+    "A resource is an infrastructure object that is created when the workspace is provisioned.",
   resourceTooltipLink: "Persistent and ephemeral resources",
 }
 

@@ -114,7 +114,8 @@ export const workspaceBuildMachine = createMachine(
       }),
     },
     services: {
-      getWorkspaceBuild: (ctx) => API.getWorkspaceBuildByNumber(ctx.username, ctx.workspaceName, ctx.buildNumber),
+      getWorkspaceBuild: (ctx) =>
+        API.getWorkspaceBuildByNumber(ctx.username, ctx.workspaceName, ctx.buildNumber),
       getLogs: async (ctx) => API.getWorkspaceBuildLogs(ctx.buildId, ctx.timeCursor),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
         return new Promise<void>((resolve, reject) => {

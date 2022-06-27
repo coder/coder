@@ -512,7 +512,13 @@ export type ParameterSourceScheme = "data" | "none"
 export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go:47:6
-export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
+export type ProvisionerJobStatus =
+  | "canceled"
+  | "canceling"
+  | "failed"
+  | "pending"
+  | "running"
+  | "succeeded"
 
 // From codersdk/organizations.go:14:6
 export type ProvisionerStorageMethod = "file"

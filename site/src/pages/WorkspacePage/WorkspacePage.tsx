@@ -26,7 +26,8 @@ export const WorkspacePage: React.FC = () => {
       userId: me?.id,
     },
   })
-  const { workspace, resources, getWorkspaceError, getResourcesError, builds, permissions } = workspaceState.context
+  const { workspace, resources, getWorkspaceError, getResourcesError, builds, permissions } =
+    workspaceState.context
 
   const canUpdateWorkspace = !!permissions?.updateWorkspace
 

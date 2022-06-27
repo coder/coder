@@ -43,16 +43,18 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
   error,
   myOrgId,
 }) => {
-  const form: FormikContextType<TypesGen.CreateUserRequest> = useFormik<TypesGen.CreateUserRequest>({
-    initialValues: {
-      email: "",
-      password: "",
-      username: "",
-      organization_id: myOrgId,
+  const form: FormikContextType<TypesGen.CreateUserRequest> = useFormik<TypesGen.CreateUserRequest>(
+    {
+      initialValues: {
+        email: "",
+        password: "",
+        username: "",
+        organization_id: myOrgId,
+      },
+      validationSchema,
+      onSubmit,
     },
-    validationSchema,
-    onSubmit,
-  })
+  )
   const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(form, formErrors)
 
   return (

@@ -24,7 +24,9 @@ export const isNotificationText = (msg: AdditionalMessage): msg is string => {
   return !Array.isArray(msg) && typeof msg === "string"
 }
 
-export const isNotificationTextPrefixed = (msg: AdditionalMessage | null): msg is NotificationTextPrefixed => {
+export const isNotificationTextPrefixed = (
+  msg: AdditionalMessage | null,
+): msg is NotificationTextPrefixed => {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return typeof (msg as NotificationTextPrefixed)?.prefix !== "undefined"
 }
@@ -45,7 +47,11 @@ export const SnackbarEventType = "coder:notification"
 // Notification Functions
 ///////////////////////////////////////////////////////////////////////////////
 
-function dispatchNotificationEvent(msgType: MsgType, msg: string, additionalMsgs?: AdditionalMessage[]) {
+function dispatchNotificationEvent(
+  msgType: MsgType,
+  msg: string,
+  additionalMsgs?: AdditionalMessage[],
+) {
   dispatchCustomEvent<NotificationMsg>(SnackbarEventType, {
     msgType,
     msg,

@@ -27,7 +27,13 @@ export interface StackProps {
   alignItems?: CSSProperties["alignItems"]
 }
 
-export const Stack: FC<StackProps> = ({ children, className, direction = "column", spacing = 2, alignItems }) => {
+export const Stack: FC<StackProps> = ({
+  children,
+  className,
+  direction = "column",
+  spacing = 2,
+  alignItems,
+}) => {
   const styles = useStyles({ spacing, direction, alignItems })
 
   return <div className={combineClasses([styles.stack, className])}>{children}</div>

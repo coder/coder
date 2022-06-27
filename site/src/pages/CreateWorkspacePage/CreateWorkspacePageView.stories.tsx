@@ -31,7 +31,9 @@ export default {
   component: CreateWorkspacePageView,
 } as ComponentMeta<typeof CreateWorkspacePageView>
 
-const Template: Story<CreateWorkspacePageViewProps> = (args) => <CreateWorkspacePageView {...args} />
+const Template: Story<CreateWorkspacePageViewProps> = (args) => (
+  <CreateWorkspacePageView {...args} />
+)
 
 export const NoParameters = Template.bind({})
 NoParameters.args = {

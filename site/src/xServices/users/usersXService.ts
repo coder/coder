@@ -321,7 +321,8 @@ export const usersMachine = createMachine(
       }),
       assignCreateUserFormErrors: assign({
         // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+        createUserFormErrors: (_, event) =>
+          mapApiErrorToFieldErrors((event.data as ApiError).response.data),
       }),
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
@@ -373,7 +374,10 @@ export const usersMachine = createMachine(
         displaySuccess(Language.resetUserPasswordSuccess)
       },
       displayResetPasswordErrorMessage: (context) => {
-        const message = getErrorMessage(context.resetUserPasswordError, Language.resetUserPasswordError)
+        const message = getErrorMessage(
+          context.resetUserPasswordError,
+          Language.resetUserPasswordError,
+        )
         displayError(message)
       },
       displayUpdateRolesErrorMessage: (context) => {

@@ -18,7 +18,11 @@ import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../../components/PageHeader/PageHeader"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "../../components/Stack/Stack"
 import { TableCellLink } from "../../components/TableCellLink/TableCellLink"
@@ -152,7 +156,12 @@ export interface WorkspacesPageViewProps {
   onFilter: (query: string) => void
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, workspaceRefs, filter, onFilter }) => {
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
+  loading,
+  workspaceRefs,
+  filter,
+  onFilter,
+}) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
@@ -202,7 +211,9 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
                       description={Language.emptyCreateWorkspaceDescription}
                       cta={
                         <Link underline="none" component={RouterLink} to="/templates">
-                          <Button startIcon={<AddCircleOutline />}>{Language.createFromTemplateButton}</Button>
+                          <Button startIcon={<AddCircleOutline />}>
+                            {Language.createFromTemplateButton}
+                          </Button>
                         </Link>
                       }
                     />
@@ -218,7 +229,9 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({ loading, works
             </>
           )}
           {workspaceRefs &&
-            workspaceRefs.map((workspaceRef) => <WorkspaceRow workspaceRef={workspaceRef} key={workspaceRef.id} />)}
+            workspaceRefs.map((workspaceRef) => (
+              <WorkspaceRow workspaceRef={workspaceRef} key={workspaceRef.id} />
+            ))}
         </TableBody>
       </Table>
     </Margins>
