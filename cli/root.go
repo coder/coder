@@ -128,6 +128,8 @@ func Root() *cobra.Command {
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
+	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
