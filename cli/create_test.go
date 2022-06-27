@@ -259,20 +259,7 @@ func TestCreate(t *testing.T) {
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
-							{
-								AllowOverrideSource: true,
-								Name:                echo.ParameterExecKey,
-								Description:         "description 1",
-								DefaultSource: &proto.ParameterSource{
-									Scheme: proto.ParameterSource_DATA,
-									Value:  echo.ParameterSucceed(),
-								},
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-						},
+						ParameterSchemas: echo.ParameterSuccess,
 					},
 				},
 			}},

@@ -49,6 +49,21 @@ var (
 			Complete: &proto.Provision_Complete{},
 		},
 	}}
+
+	ParameterSuccess = []*proto.ParameterSchema{
+		{
+			AllowOverrideSource: true,
+			Name:                ParameterExecKey,
+			Description:         "description 1",
+			DefaultSource: &proto.ParameterSource{
+				Scheme: proto.ParameterSource_DATA,
+				Value:  formatExecValue(successKey, ""),
+			},
+			DefaultDestination: &proto.ParameterDestination{
+				Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+			},
+		},
+	}
 )
 
 // Serve starts the echo provisioner.
