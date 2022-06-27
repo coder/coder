@@ -152,6 +152,9 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+		// Force a long disconnection timeout to ensure
+		// agents are not marked as disconnected during slow tests.
+		AgentInactiveDisconnectTimeout: 5 * time.Second,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
