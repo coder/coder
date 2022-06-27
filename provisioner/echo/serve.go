@@ -82,6 +82,10 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return err
 	}
 	request := msg.GetStart()
+	if request == nil {
+		// A cancel could occur here!
+		return nil
+	}
 	for index := 0; ; index++ {
 		extension := ".protobuf"
 		if request.DryRun {
