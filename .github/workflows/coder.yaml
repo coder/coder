@@ -267,30 +267,8 @@ jobs:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - name: Start PostgreSQL Database
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-          PGDATA: /tmp
-        run: |
-          docker run \
-            -e POSTGRES_PASSWORD=postgres \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_DB=postgres \
-            -e PGDATA=/tmp \
-            -p 5432:5432 \
-            -d postgres:11 \
-            -c shared_buffers=1GB \
-            -c max_connections=1000
-          while ! pg_isready -h 127.0.0.1
-          do
-              echo "$(date) - waiting for database to start"
-              sleep 0.5
-          done
-
       - name: Test with PostgreSQL Database
-        run: "make test-postgres"
+        run: make test-postgres
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
