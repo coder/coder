@@ -76,7 +76,7 @@ require (
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.5.0
 	github.com/hashicorp/hc-install v0.4.0
-	github.com/hashicorp/hcl/v2 v2.12.0
+	github.com/hashicorp/hcl/v2 v2.13.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
@@ -111,7 +111,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220516162934-403b01795ae8
+	golang.org/x/crypto v0.0.0-20220517005047-85d78b3ac167
 	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/net v0.0.0-20220617184016-355a448f1bc9
