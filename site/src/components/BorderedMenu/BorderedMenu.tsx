@@ -12,7 +12,11 @@ export const BorderedMenu: FC<BorderedMenuProps> = ({ children, variant, ...rest
   const styles = useStyles()
 
   return (
-    <Popover classes={{ root: styles.root, paper: styles.paperRoot }} data-variant={variant} {...rest}>
+    <Popover
+      classes={{ root: styles.root, paper: styles.paperRoot }}
+      data-variant={variant}
+      {...rest}
+    >
       {children}
     </Popover>
   )

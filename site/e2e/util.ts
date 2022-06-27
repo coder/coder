@@ -22,7 +22,10 @@ export const timeout = (timeoutInMilliseconds: number): Promise<void> => {
  * @param timeToWaitInMilliseconds  The total time to wait for the condition to be `true`.
  * @returns
  */
-export const waitFor = async (f: () => Promise<boolean>, timeToWaitInMilliseconds = 30000): Promise<void> => {
+export const waitFor = async (
+  f: () => Promise<boolean>,
+  timeToWaitInMilliseconds = 30000,
+): Promise<void> => {
   let elapsedTime = 0
   const timeToWaitPerIteration = 1000
 
@@ -58,7 +61,10 @@ interface WaitForClientSideNavigationOpts {
  * waitForNavigation waits for load events on the DOM (ex: after a page load
  * from the server).
  */
-export const waitForClientSideNavigation = async (page: Page, opts: WaitForClientSideNavigationOpts): Promise<void> => {
+export const waitForClientSideNavigation = async (
+  page: Page,
+  opts: WaitForClientSideNavigationOpts,
+): Promise<void> => {
   console.info(`--- waitForClientSideNavigation: start`)
 
   await Promise.all([

@@ -15,7 +15,11 @@ export interface ErrorSummaryProps {
 
 export const ErrorSummary: FC<ErrorSummaryProps> = ({ error, retry }) => (
   <Stack>
-    {!(error instanceof Error) ? <div>{Language.unknownErrorMessage}</div> : <div>{error.toString()}</div>}
+    {!(error instanceof Error) ? (
+      <div>{Language.unknownErrorMessage}</div>
+    ) : (
+      <div>{error.toString()}</div>
+    )}
 
     {retry && (
       <div>

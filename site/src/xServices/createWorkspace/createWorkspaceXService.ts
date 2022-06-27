@@ -1,6 +1,11 @@
 import { assign, createMachine } from "xstate"
 import { createWorkspace, getTemplates, getTemplateVersionSchema } from "../../api/api"
-import { CreateWorkspaceRequest, ParameterSchema, Template, Workspace } from "../../api/typesGenerated"
+import {
+  CreateWorkspaceRequest,
+  ParameterSchema,
+  Template,
+  Workspace,
+} from "../../api/typesGenerated"
 
 type CreateWorkspaceContext = {
   organizationId: string

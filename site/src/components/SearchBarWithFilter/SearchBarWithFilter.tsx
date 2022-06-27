@@ -33,7 +33,11 @@ interface FilterFormValues {
 
 export type FilterFormErrors = FormikErrors<FilterFormValues>
 
-export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({ filter, onFilter, presetFilters }) => {
+export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
+  filter,
+  onFilter,
+  presetFilters,
+}) => {
   const styles = useStyles()
 
   const form = useFormik<FilterFormValues>({
@@ -67,7 +71,12 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({ filter
   return (
     <Stack direction="row" spacing={0} className={styles.filterContainer}>
       {presetFilters && presetFilters.length > 0 && (
-        <Button aria-controls="filter-menu" aria-haspopup="true" onClick={handleClick} className={styles.buttonRoot}>
+        <Button
+          aria-controls="filter-menu"
+          aria-haspopup="true"
+          onClick={handleClick}
+          className={styles.buttonRoot}
+        >
           {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </Button>
       )}

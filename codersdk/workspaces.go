@@ -37,6 +37,10 @@ type CreateWorkspaceBuildRequest struct {
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
+	// ParameterValues are optional. It will write params to the 'workspace' scope.
+	// This will overwrite any existing parameters with the same name.
+	// This will not delete old params not included in this list.
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 type WorkspaceOptions struct {

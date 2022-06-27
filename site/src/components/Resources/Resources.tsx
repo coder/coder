@@ -31,12 +31,20 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({ resources, getResourcesError, workspace, canUpdateWorkspace }) => {
+export const Resources: FC<ResourcesProps> = ({
+  resources,
+  getResourcesError,
+  workspace,
+  canUpdateWorkspace,
+}) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
 
   return (
-    <WorkspaceSection title={Language.resources} contentsProps={{ className: styles.sectionContents }}>
+    <WorkspaceSection
+      title={Language.resources}
+      contentsProps={{ className: styles.sectionContents }}
+    >
       {getResourcesError ? (
         { getResourcesError }
       ) : (

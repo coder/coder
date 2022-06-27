@@ -63,7 +63,11 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
           onClick={copyToClipboard}
           size="small"
         >
-          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
+          {isCopied ? (
+            <Check className={styles.fileCopyIcon} />
+          ) : (
+            <FileCopyIcon className={styles.fileCopyIcon} />
+          )}
           {ctaCopy && <div className={styles.buttonCopy}>{ctaCopy}</div>}
         </IconButton>
       </div>

@@ -69,7 +69,7 @@ func Root() *cobra.Command {
 	cmd.AddCommand(
 		configSSH(),
 		create(),
-		delete(),
+		deleteWorkspace(),
 		dotfiles(),
 		gitssh(),
 		list(),

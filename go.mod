@@ -76,12 +76,12 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.5.0
-	github.com/hashicorp/hc-install v0.3.2
+	github.com/hashicorp/hc-install v0.4.0
 	github.com/hashicorp/hcl/v2 v2.12.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
-	github.com/jedib0t/go-pretty/v6 v6.3.2
+	github.com/jedib0t/go-pretty/v6 v6.3.3
 	github.com/justinas/nosurf v1.1.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/lib/pq v1.10.6
@@ -93,19 +93,19 @@ require (
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
-	github.com/pion/transport v0.13.0
+	github.com/pion/transport v0.13.1
 	github.com/pion/turn/v2 v2.0.8
 	github.com/pion/udp v0.1.1
-	github.com/pion/webrtc/v3 v3.1.41
+	github.com/pion/webrtc/v3 v3.1.42
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.12.2
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.3
+	github.com/stretchr/testify v1.7.5
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1

@@ -6,7 +6,13 @@ import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
-import { MockAuditorRole, MockUser, MockUser2, render, SuspendedMockUser } from "../../testHelpers/renderHelpers"
+import {
+  MockAuditorRole,
+  MockUser,
+  MockUser2,
+  render,
+  SuspendedMockUser,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
@@ -30,7 +36,9 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
-  expect(confirmDialog).toHaveTextContent(`${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`)
+  expect(confirmDialog).toHaveTextContent(
+    `${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`,
+  )
 
   // Setup spies to check the actions after
   setupActionSpies()
@@ -86,13 +94,17 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
-  expect(confirmDialog).toHaveTextContent(`You will need to send ${MockUser.username} the following password:`)
+  expect(confirmDialog).toHaveTextContent(
+    `You will need to send ${MockUser.username} the following password:`,
+  )
 
   // Setup spies to check the actions after
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByRole("button", { name: ResetPasswordDialogLanguage.confirmText })
+  const confirmButton = within(confirmDialog).getByRole("button", {
+    name: ResetPasswordDialogLanguage.confirmText,
+  })
   fireEvent.click(confirmButton)
 }
 
@@ -169,7 +181,9 @@ describe("Users Page", () => {
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest.spyOn(API, "getUsers").mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
+          jest
+            .spyOn(API, "getUsers")
+            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
         })
 
         // Check if the success message is displayed
@@ -274,7 +288,10 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
       })
     })
 
@@ -296,7 +313,10 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
       })
     })
   })
@@ -324,7 +344,10 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
-        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+        expect(API.updateUserRoles).toBeCalledWith(
+          [...currentRoles, MockAuditorRole.name],
+          MockUser.id,
+        )
       })
     })
 
@@ -347,7 +370,10 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
-        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+        expect(API.updateUserRoles).toBeCalledWith(
+          [...currentRoles, MockAuditorRole.name],
+          MockUser.id,
+        )
       })
       it("shows an error from the backend", async () => {
         render(

@@ -281,9 +281,9 @@ export const ttlShutdownAt = (formTTL: number): string => {
     // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
     return Language.ttlCausesNoShutdownHelperText
   } else {
-    return `${Language.ttlCausesShutdownHelperText} ${dayjs.duration(formTTL, "hours").humanize()} ${
-      Language.ttlCausesShutdownAfterStart
-    }.`
+    return `${Language.ttlCausesShutdownHelperText} ${dayjs
+      .duration(formTTL, "hours")
+      .humanize()} ${Language.ttlCausesShutdownAfterStart}.`
   }
 }
 

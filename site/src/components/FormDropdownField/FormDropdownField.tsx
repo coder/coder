@@ -15,7 +15,10 @@ export interface FormDropdownFieldProps<T> extends FormTextFieldProps<T> {
   items: FormDropdownItem[]
 }
 
-export const FormDropdownField = <T,>({ items, ...props }: FormDropdownFieldProps<T>): ReactElement => {
+export const FormDropdownField = <T,>({
+  items,
+  ...props
+}: FormDropdownFieldProps<T>): ReactElement => {
   const styles = useStyles()
   return (
     <FormTextField select {...props}>

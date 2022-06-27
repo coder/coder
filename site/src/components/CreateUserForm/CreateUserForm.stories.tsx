@@ -7,7 +7,9 @@ export default {
   component: CreateUserForm,
 }
 
-const Template: Story<CreateUserFormProps> = (args: CreateUserFormProps) => <CreateUserForm {...args} />
+const Template: Story<CreateUserFormProps> = (args: CreateUserFormProps) => (
+  <CreateUserForm {...args} />
+)
 
 export const Ready = Template.bind({})
 Ready.args = {

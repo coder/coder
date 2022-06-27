@@ -16,7 +16,9 @@ export const AccountPage: React.FC = () => {
   const { me, updateProfileError } = authState.context
   const hasError = !!updateProfileError
   const formErrors =
-    hasError && isApiError(updateProfileError) ? mapApiErrorToFieldErrors(updateProfileError.response.data) : undefined
+    hasError && isApiError(updateProfileError)
+      ? mapApiErrorToFieldErrors(updateProfileError.response.data)
+      : undefined
   const hasUnknownError = hasError && !isApiError(updateProfileError)
 
   if (!me) {

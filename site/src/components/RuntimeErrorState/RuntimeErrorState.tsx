@@ -81,7 +81,9 @@ export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({ error }) =
           title={<ErrorStateTitle />}
           description={
             <ErrorStateDescription
-              emailBody={createFormattedStackTrace(reportState.error, reportState.mappedStack).join("\r\n")}
+              emailBody={createFormattedStackTrace(reportState.error, reportState.mappedStack).join(
+                "\r\n",
+              )}
             />
           }
         >
