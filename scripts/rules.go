@@ -151,6 +151,29 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
 }
 
+// HttpAPIReturn will report a linter violation if the http function is not
+// returned after writing a response to the client.
+func HttpAPIReturn(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/coderd/httpapi")
+
+	// Manually enumerate the httpapi function rather then a 'Where' condition
+	// as this is a bit more efficient.
+	m.Match(`
+	if $*_ {
+		httpapi.Write($*a)
+	}
+	`, `
+	if $*_ {
+		httpapi.Forbidden($*a)
+	}
+	`, `
+	if $*_ {
+		httpapi.ResourceNotFound($*a)
+	}
+	`).At(m["a"]).
+		Report("Forgot to return early after writing to the http response writer.")
+}
+
 // ProperRBACReturn ensures we always write to the response writer after a
 // call to Authorize. If we just do a return, the client will get a status code
 // 200, which is incorrect.
