@@ -41,17 +41,6 @@ sudo systemctl enable --now coder
 journalctl -u coder.service -b
 ```
 
-> **Note:** If you wish to run Coder on a privileged port (lower than 1024),
-> then you will need to edit `/usr/lib/systemd/system/coder.service` and
-> make the following change:
->
-> ```diff
-> -AmbientCapabilities=CAP_IPC_LOCK
-> +AmbientCapabilities=CAP_IPC_LOCK CAP_NET_BIND_SERVICE
-> ```
->
-> This will allow Coder to bind to ports lower than 1024.
-
 ## docker-compose
 
 Before proceeding, please ensure that you have both Docker and the [latest version of
