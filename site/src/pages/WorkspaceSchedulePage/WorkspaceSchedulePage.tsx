@@ -168,23 +168,31 @@ export const WorkspaceSchedulePage: React.FC = () => {
   if (!username || !workspaceName) {
     navigate("/workspaces")
     return null
-  } else if (
+  }
+
+  if (
     scheduleState.matches("idle") ||
     scheduleState.matches("gettingWorkspace") ||
     scheduleState.matches("gettingPermissions") ||
     !workspace
   ) {
     return <FullScreenLoader />
-  } else if (scheduleState.matches("error")) {
+  }
+
+  if (scheduleState.matches("error")) {
     return (
       <ErrorSummary
         error={getWorkspaceError || checkPermissionsError}
         retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
       />
     )
-  } else if (!permissions?.updateWorkspace) {
+  }
+
+  if (!permissions?.updateWorkspace) {
     return <ErrorSummary error={Error(Language.forbiddenError)} />
-  } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
+  }
+
+  if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
         fieldErrors={formErrors}
@@ -202,13 +210,15 @@ export const WorkspaceSchedulePage: React.FC = () => {
         }}
       />
     )
-  } else if (scheduleState.matches("submitSuccess")) {
+  }
+
+  if (scheduleState.matches("submitSuccess")) {
     navigate(`/@${username}/${workspaceName}`)
     return <FullScreenLoader />
-  } else {
-    // Theoretically impossible - log and bail
-    console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
-    navigate("/")
-    return null
   }
+
+  // Theoretically impossible - log and bail
+  console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
+  navigate("/")
+  return null
 }
