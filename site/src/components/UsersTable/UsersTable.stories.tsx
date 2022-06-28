@@ -35,3 +35,6 @@ Loading.args = {
   roles: MockSiteRoles,
   isLoading: true,
 }
+Loading.parameters = {
+  chromatic: { pauseAnimationAtEnd: true },
+}
