@@ -171,7 +171,7 @@ func HttpAPIReturn(m dsl.Matcher) {
 		httpapi.ResourceNotFound($*a)
 	}
 	`).At(m["a"]).
-		Report("Forgot to return early after the httpapi.Write call")
+		Report("Forgot to return early after writing to the http response writer.")
 }
 
 // ProperRBACReturn ensures we always write to the response writer after a
