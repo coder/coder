@@ -36,7 +36,7 @@ export interface AzureInstanceIdentityToken {
   readonly encoding: string
 }
 
-// From codersdk/buildinfo.go:11:6
+// From codersdk/buildinfo.go:13:6
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
