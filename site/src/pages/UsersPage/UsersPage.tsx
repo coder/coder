@@ -1,4 +1,4 @@
-import { useActor, useSelector } from "@xstate/react"
+import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useNavigate } from "react-router"
@@ -7,7 +7,6 @@ import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { userFilterQuery } from "../../util/filters"
 import { pageTitle } from "../../util/page"
-import { selectPermissions } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
@@ -23,7 +22,6 @@ export const Language = {
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
-  const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const {
     users,
     getUsersError,
@@ -37,15 +35,23 @@ export const UsersPage: React.FC = () => {
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
-  const permissions = useSelector(xServices.authXService, selectPermissions)
+
+  const [authState, _] = useActor(xServices.authXService)
+  const { permissions } = authState.context
   const canEditUsers = permissions && permissions.updateUsers
   const canCreateUser = permissions && permissions.createUser
+
+  const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
+
   // Is loading if
-  // - permissions are not loaded or
-  // - users are not loaded or
-  // - the user can edit the users but the roles are not loaded yet
-  const isLoading = !permissions || !users || (canEditUsers && !roles)
+  // - permissions are loading or
+  // - users are loading or
+  // - the user can edit the users but the roles are loading
+  const isLoading =
+    authState.matches("gettingPermissions") ||
+    usersState.matches("gettingUsers") ||
+    (canEditUsers && rolesState.matches("gettingRoles"))
 
   // Fetch users on component mount
   useEffect(() => {

@@ -84,7 +84,6 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
         isUpdatingUserRoles={isUpdatingUserRoles}
         canEditUsers={canEditUsers}
         isLoading={isLoading}
-        error={error}
       />
     </Margins>
   )

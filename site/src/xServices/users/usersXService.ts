@@ -125,18 +125,19 @@ export const usersMachine = createMachine(
         },
       },
       gettingUsers: {
+        entry: "clearGetUsersError",
         invoke: {
           src: "getUsers",
           id: "getUsers",
           onDone: [
             {
               target: "#usersState.idle",
-              actions: ["assignUsers", "clearGetUsersError"],
+              actions: "assignUsers",
             },
           ],
           onError: [
             {
-              actions: ["assignGetUsersError", "displayGetUsersErrorMessage"],
+              actions: ["clearUsers", "assignGetUsersError", "displayGetUsersErrorMessage"],
               target: "#usersState.error",
             },
           ],
@@ -348,6 +349,10 @@ export const usersMachine = createMachine(
       assignUpdateRolesError: assign({
         updateUserRolesError: (_, event) => event.data,
       }),
+      clearUsers: assign((context: UsersContext) => ({
+        ...context,
+        users: undefined,
+      })),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
         createUserErrorMessage: undefined,
