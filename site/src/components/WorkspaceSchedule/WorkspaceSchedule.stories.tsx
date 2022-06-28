@@ -16,6 +16,11 @@ const THIRTY = 30
 export default {
   title: "components/WorkspaceSchedule",
   component: WorkspaceSchedule,
+  argTypes: {
+    canUpdateWorkspace: {
+      defaultValue: true,
+    },
+  },
 }
 
 const Template: Story<WorkspaceScheduleProps> = (args) => <WorkspaceSchedule {...args} />
@@ -40,7 +45,7 @@ NoTTL.args = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+      // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
       // SEE: #1834
       deadline: "0001-01-01T00:00:00Z",
     },
@@ -112,4 +117,18 @@ WorkspaceOffLong.args = {
     },
     ttl_ms: 2 * 365 * 24 * 60 * 60 * 1000, // 2 years
   },
+}
+
+export const CannotEdit = Template.bind({})
+CannotEdit.args = {
+  workspace: {
+    ...Mocks.MockWorkspace,
+
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      transition: "stop",
+    },
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
+  },
+  canUpdateWorkspace: false,
 }
