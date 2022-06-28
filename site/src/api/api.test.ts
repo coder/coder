@@ -114,18 +114,25 @@ describe("api.ts", () => {
     })
   })
 
-  describe("getURLWithSearchParams", () => {
-    it.each<[string, TypesGen.WorkspaceFilter | TypesGen.UsersRequest | undefined, string]>([
+  describe("getURLWithSearchParams - workspaces", () => {
+    it.each<[string, TypesGen.WorkspaceFilter | undefined, string]>([
       ["/api/v2/workspaces", undefined, "/api/v2/workspaces"],
 
       ["/api/v2/workspaces", { q: "" }, "/api/v2/workspaces"],
       ["/api/v2/workspaces", { q: "owner:1" }, "/api/v2/workspaces?q=owner%3A1"],
 
       ["/api/v2/workspaces", { q: "owner:me" }, "/api/v2/workspaces?q=owner%3Ame"],
+    ])(`Workspaces - getURLWithSearchParams(%p, %p) returns %p`, (basePath, filter, expected) => {
+      expect(getURLWithSearchParams(basePath, filter)).toBe(expected)
+    })
+  })
 
+  describe("getURLWithSearchParams - users", () => {
+    it.each<[string, TypesGen.UsersRequest | undefined, string]>([
+      ["/api/v2/users", undefined, "/api/v2/users"],
       ["/api/v2/users", { q: "status:active" }, "/api/v2/users?q=status%3Aactive"],
       ["/api/v2/users", { q: "" }, "/api/v2/users"],
-    ])(`getURLWithSearchParams(%p) returns %p`, (basePath, filter, expected) => {
+    ])(`Users - getURLWithSearchParams(%p, %p) returns %p`, (basePath, filter, expected) => {
       expect(getURLWithSearchParams(basePath, filter)).toBe(expected)
     })
   })

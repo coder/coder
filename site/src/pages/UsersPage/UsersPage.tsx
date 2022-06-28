@@ -50,7 +50,7 @@ export const UsersPage: React.FC = () => {
   // Fetch users on component mount
   useEffect(() => {
     const filter = searchParams.get("filter")
-    const query = filter !== null ? filter : userFilterQuery.active
+    const query = filter ?? userFilterQuery.active
     usersSend({
       type: "GET_USERS",
       query,
