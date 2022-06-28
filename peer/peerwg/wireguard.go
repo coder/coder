@@ -56,7 +56,7 @@ func UUIDToInet(uid uuid.UUID) pqtype.Inet {
 }
 
 func UUIDToNetaddr(uid uuid.UUID) netaddr.IP {
-	return netaddr.IPFrom16(privateUUID(uid))
+	return netaddr.IPFrom16(uuid.New())
 }
 
 // privateUUID sets the uid to have the tailscale private ipv6 prefix.
@@ -94,7 +94,7 @@ type Network struct {
 func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	nodePrivateKey := key.NewNode()
 	nodePublicKey := nodePrivateKey.Public()
-	id, stableID := nodeIDs(nodePublicKey)
+	// id, stableID := nodeIDs(nodePublicKey)
 
 	netMap := &netmap.NetworkMap{
 		NodeKey:    nodePublicKey,
@@ -128,15 +128,9 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 			Caps: []filter.CapMatch{},
 		}},
 	}
-	// Identify itself as a node on the network with the addresses provided.
 	netMap.SelfNode = &tailcfg.Node{
-		ID:         id,
-		StableID:   stableID,
-		Key:        nodePublicKey,
-		Addresses:  netMap.Addresses,
-		AllowedIPs: append(netMap.Addresses, netaddr.MustParseIPPrefix("::/0")),
-		Endpoints:  []string{},
-		DERP:       DefaultDerpHome,
+		Key:       nodePublicKey,
+		Addresses: addresses,
 	}
 
 	wgMonitor, err := monitor.New(Logf)
@@ -144,8 +138,9 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 		return nil, xerrors.Errorf("create link monitor: %w", err)
 	}
 
-	dialer := new(tsdial.Dialer)
-	dialer.Logf = Logf
+	dialer := &tsdial.Dialer{
+		Logf: Logf,
+	}
 	// Create a wireguard engine in userspace.
 	engine, err := wgengine.NewUserspaceEngine(Logf, wgengine.Config{
 		LinkMonitor: wgMonitor,
@@ -153,6 +148,10 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
+	}
+	dialer.UseNetstackForIP = func(ip netaddr.IP) bool {
+		_, ok := engine.PeerForIP(ip)
+		return ok
 	}
 
 	// This is taken from Tailscale:
@@ -176,15 +175,10 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
-	netStack.ProcessLocalIPs = true
-	netStack.ProcessSubnets = true
-	dialer.UseNetstackForIP = func(ip netaddr.IP) bool {
-		_, ok := engine.PeerForIP(ip)
-		return ok
-	}
 	dialer.NetstackDialTCP = func(ctx context.Context, dst netaddr.IPPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
+	netStack.ProcessLocalIPs = true
 	err = netStack.Start()
 	if err != nil {
 		return nil, xerrors.Errorf("start netstack: %w", err)
@@ -192,7 +186,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	engine = wgengine.NewWatchdog(engine)
 
 	// Update the wireguard configuration to allow traffic to flow.
-	cfg, err := nmcfg.WGCfg(netMap, Logf, netmap.AllowSingleHosts|netmap.AllowSubnetRoutes, netMap.SelfNode.StableID)
+	cfg, err := nmcfg.WGCfg(netMap, Logf, netmap.AllowSingleHosts, "")
 	if err != nil {
 		return nil, xerrors.Errorf("create wgcfg: %w", err)
 	}
@@ -206,7 +200,9 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	}
 
 	engine.SetDERPMap(DerpMap)
-	engine.SetNetworkMap(copyNetMap(netMap))
+	netMapCopy := *netMap
+	netMapCopy.SelfNode = &tailcfg.Node{}
+	engine.SetNetworkMap(&netMapCopy)
 
 	ipb := netaddr.IPSetBuilder{}
 	for _, addr := range netMap.Addresses {
@@ -304,17 +300,17 @@ func (n *Network) AddPeer(handshake Handshake) error {
 	// modifications.
 	peers := append(([]*tailcfg.Node)(nil), n.netMap.Peers...)
 
-	id, stableID := nodeIDs(handshake.NodePublicKey)
+	// id, stableID := nodeIDs(handshake.NodePublicKey)
 	peers = append(peers, &tailcfg.Node{
-		ID:         id,
-		StableID:   stableID,
-		Name:       handshake.NodePublicKey.String() + ".com",
+		// ID:         id,
+		// StableID:   stableID,
+		// Name:       handshake.NodePublicKey.String() + ".com",
 		Key:        handshake.NodePublicKey,
 		DiscoKey:   handshake.DiscoPublicKey,
 		Addresses:  []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
 		AllowedIPs: []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
 		DERP:       DefaultDerpHome,
-		Endpoints:  []string{DefaultDerpHome},
+		// Endpoints:  []string{DefaultDerpHome},
 	})
 
 	n.netMap.Peers = peers

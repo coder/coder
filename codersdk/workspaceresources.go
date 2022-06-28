@@ -47,9 +47,16 @@ type WorkspaceAgent struct {
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
 	Apps                 []WorkspaceApp       `json:"apps"`
-	WireguardPublicKey   key.NodePublic       `json:"wireguard_public_key"`
-	DiscoPublicKey       key.DiscoPublic      `json:"disco_public_key"`
-	IPv6                 netaddr.IPPrefix     `json:"ipv6"`
+
+	// For internal routing only.
+	IPAddresses    []netaddr.IP    `json:"ip_addresses"`
+	NodePublicKey  key.NodePublic  `json:"node_public_key"`
+	DiscoPublicKey key.DiscoPublic `json:"disco_public_key"`
+	// DERP represents the connected region.
+	DERP string `json:"derp"`
+	// Maps DERP region to MS latency.
+	// Fetch the DERP mapping to extract region names!
+	DERPLatency map[string]float64 `json:"latency"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

@@ -23,10 +23,10 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/tailnet"
 )
 
 type GoogleInstanceIdentityToken struct {
@@ -255,11 +255,10 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 
 // PostWireguardPeer announces your public keys and IPv6 address to the
 // specified recipient.
-func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, peerMsg peerwg.Handshake) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer?workspace=%s",
-		peerMsg.Recipient,
-		workspaceID.String(),
-	), peerMsg)
+func (c *Client) UpdateTailscaleNode(ctx context.Context, agentID string, node *tailnet.Node) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer",
+		agentID,
+	), node)
 	if err != nil {
 		return err
 	}
@@ -272,10 +271,10 @@ func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, p
 	return nil
 }
 
-// WireguardPeerListener listens for wireguard peer messages. Peer messages are
+// ListenTailscaleNodes listens for Tailscale node updates. Peer messages are
 // sent when a new client wants to connect. Once receiving a peer message, the
 // peer should be added to the NetworkMap of the wireguard interface.
-func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error) {
+func (c *Client) ListenTailscaleNodes(ctx context.Context, logger slog.Logger) (<-chan *tailnet.Node, func(), error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/wireguardlisten")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("parse url: %w", err)
@@ -304,44 +303,23 @@ func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) 
 		return nil, nil, readBodyAsError(res)
 	}
 
-	ch := make(chan peerwg.Handshake, 1)
+	ch := make(chan *tailnet.Node, 1)
 	go func() {
 		defer conn.Close(websocket.StatusGoingAway, "")
 		defer close(ch)
 
+		decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageBinary))
 		for {
-			_, message, err := conn.Read(ctx)
+			var node *tailnet.Node
+			err = decoder.Decode(node)
 			if err != nil {
 				break
 			}
-
-			var msg peerwg.Handshake
-			err = msg.UnmarshalText(message)
-			if err != nil {
-				logger.Error(ctx, "unmarshal wireguard peer message", slog.Error(err))
-				continue
-			}
-
-			ch <- msg
+			ch <- node
 		}
 	}()
 
 	return ch, func() { _ = conn.Close(websocket.StatusGoingAway, "") }, nil
-}
-
-// UploadWorkspaceAgentKeys uploads the public keys of the workspace agent that
-// were generated on startup. These keys are used by clients to communicate with
-// the workspace agent over the wireguard interface.
-func (c *Client) UploadWorkspaceAgentKeys(ctx context.Context, keys agent.WireguardPublicKeys) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/keys", keys)
-	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
-	}
-	return nil
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.

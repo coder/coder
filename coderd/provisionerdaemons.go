@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -23,15 +24,14 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet"
 )
 
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
@@ -744,6 +744,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		agentID := uuid.New()
+		ip := tailnet.IP().As16()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   agentID,
 			CreatedAt:            database.Now(),
@@ -760,9 +761,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
-			WireguardNodePublicKey:  dbtypes.NodePublic{},
-			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
+			// Generate a new random IP!
+			IPAddresses: []pqtype.Inet{{
+				Valid: true,
+				IPNet: net.IPNet{
+					IP:   ip[:],
+					Mask: net.CIDRMask(128, 128),
+				},
+			}},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

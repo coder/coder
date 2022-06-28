@@ -2851,7 +2851,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2881,16 +2881,18 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.NodePublicKey,
+		&i.DiscoPublicKey,
+		pq.Array(&i.IPAddresses),
+		&i.DERP,
+		&i.DERPLatency,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2918,16 +2920,18 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.NodePublicKey,
+		&i.DiscoPublicKey,
+		pq.Array(&i.IPAddresses),
+		&i.DERP,
+		&i.DERPLatency,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2957,16 +2961,18 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.NodePublicKey,
+		&i.DiscoPublicKey,
+		pq.Array(&i.IPAddresses),
+		&i.DERP,
+		&i.DERPLatency,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -3000,9 +3006,11 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
-			&i.WireguardNodeIPv6,
-			&i.WireguardNodePublicKey,
-			&i.WireguardDiscoPublicKey,
+			&i.NodePublicKey,
+			&i.DiscoPublicKey,
+			pq.Array(&i.IPAddresses),
+			&i.DERP,
+			&i.DERPLatency,
 		); err != nil {
 			return nil, err
 		}
@@ -3018,7 +3026,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -3048,9 +3056,11 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
-			&i.WireguardNodeIPv6,
-			&i.WireguardNodePublicKey,
-			&i.WireguardDiscoPublicKey,
+			&i.NodePublicKey,
+			&i.DiscoPublicKey,
+			pq.Array(&i.IPAddresses),
+			&i.DERP,
+			&i.DERPLatency,
 		); err != nil {
 			return nil, err
 		}
@@ -3082,32 +3092,28 @@ INSERT INTO
 		directory,
 		instance_metadata,
 		resource_metadata,
-		wireguard_node_ipv6,
-		wireguard_node_public_key,
-		wireguard_disco_public_key
+		ip_addresses
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
 `
 
 type InsertWorkspaceAgentParams struct {
-	ID                      uuid.UUID             `db:"id" json:"id"`
-	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
-	Name                    string                `db:"name" json:"name"`
-	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture            string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
-	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
-	Directory               string                `db:"directory" json:"directory"`
-	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	Name                 string                `db:"name" json:"name"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture         string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	Directory            string                `db:"directory" json:"directory"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	IPAddresses          []pqtype.Inet         `db:"ip_addresses" json:"ip_addresses"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -3126,9 +3132,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.Directory,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
-		arg.WireguardNodeIPv6,
-		arg.WireguardNodePublicKey,
-		arg.WireguardDiscoPublicKey,
+		pq.Array(arg.IPAddresses),
 	)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -3149,9 +3153,11 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.NodePublicKey,
+		&i.DiscoPublicKey,
+		pq.Array(&i.IPAddresses),
+		&i.DERP,
+		&i.DERPLatency,
 	)
 	return i, err
 }
@@ -3185,25 +3191,37 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
-const updateWorkspaceAgentKeysByID = `-- name: UpdateWorkspaceAgentKeysByID :exec
+const updateWorkspaceAgentNetworkByID = `-- name: UpdateWorkspaceAgentNetworkByID :exec
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
-	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3
+	updated_at = $2,
+	node_public_key = $3,
+	disco_public_key = $4,
+	derp = $5,
+	derp_latency = $6
 WHERE
 	id = $1
 `
 
-type UpdateWorkspaceAgentKeysByIDParams struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	WireguardNodePublicKey  dbtypes.NodePublic  `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+type UpdateWorkspaceAgentNetworkByIDParams struct {
+	ID             uuid.UUID           `db:"id" json:"id"`
+	UpdatedAt      time.Time           `db:"updated_at" json:"updated_at"`
+	NodePublicKey  string              `db:"node_public_key" json:"node_public_key"`
+	DiscoPublicKey string              `db:"disco_public_key" json:"disco_public_key"`
+	DERP           string              `db:"derp" json:"derp"`
+	DERPLatency    dbtypes.DERPLatency `db:"derp_latency" json:"derp_latency"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentKeysByID, arg.ID, arg.WireguardNodePublicKey, arg.WireguardDiscoPublicKey)
+func (q *sqlQuerier) UpdateWorkspaceAgentNetworkByID(ctx context.Context, arg UpdateWorkspaceAgentNetworkByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentNetworkByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.NodePublicKey,
+		arg.DiscoPublicKey,
+		arg.DERP,
+		arg.DERPLatency,
+	)
 	return err
 }
 

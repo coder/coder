@@ -395,6 +395,11 @@ func TestAgent(t *testing.T) {
 		require.ErrorContains(t, err, "no such file")
 		require.Nil(t, netConn)
 	})
+
+	t.Run("Tailscale", func(t *testing.T) {
+		t.Parallel()
+
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {

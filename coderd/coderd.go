@@ -19,6 +19,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
+	"tailscale.com/derp"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -34,6 +38,7 @@ import (
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
+	"github.com/coder/coder/tailnet"
 )
 
 // Options are requires parameters for Coder to start.
@@ -63,6 +68,8 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+
+	DERPMap *tailcfg.DERPMap
 }
 
 // New constructs a Coder API handler.
@@ -103,6 +110,7 @@ func New(options *Options) *API {
 		siteHandler: site.Handler(site.FS(), binFS),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
+	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -131,6 +139,8 @@ func New(options *Options) *API {
 	// other applications might not as well.
 	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Get("/derp", derphttp.Handler(api.derpServer).ServeHTTP)
+	r.Get("/derpmap", api.derpMap)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -312,9 +322,14 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
-				r.Get("/wireguardlisten", api.workspaceAgentWireguardListener)
-				r.Post("/keys", api.postWorkspaceAgentKeys)
 				r.Get("/derp", api.derpMap)
+
+				// Posting map under "me" sets the agents node map.
+
+				// On the agent side, "map" is a WebSocket that sends
+				// updates via marshalled JSON and recieves networking
+				// messages on the other end.
+				r.Get("/netmap", api.workspaceAgentSelfNetmap)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -323,12 +338,15 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 				r.Get("/derp", api.derpMap)
+
+				// Specific to Tailscale networking:
+				r.Post("/netmap")
+				r.Get("/tail-dial", api.workspaceAgentTailnetDial)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
@@ -384,6 +402,8 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+
+	derpServer *derp.Server
 
 	Handler             chi.Router
 	siteHandler         http.Handler

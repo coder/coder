@@ -14,6 +14,9 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // Required until https://github.com/briandowns/spinner/pull/136 is merged.
 replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e
 
+// Required until is merged.
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220630165752-6bb3c86a84ae
+
 // Required until https://github.com/storj/drpc/pull/31 is merged.
 replace storj.io/drpc => github.com/kylecarbs/drpc v0.0.31-0.20220424193521-8ebbaf48bdff
 
@@ -130,11 +133,11 @@ require (
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
-	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
+	inet.af/netaddr v0.0.0-20220617031823-097006376321
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
-	tailscale.com v1.26.0
+	tailscale.com v1.1.1-0.20220628235937-06aa14163254
 )
 
 require github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
@@ -277,7 +280,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	golang.zx2c4.com/wireguard/windows v0.4.10 // indirect
@@ -285,6 +288,6 @@ require (
 	google.golang.org/genproto v0.0.0-20220617124728-180714bec0ad // indirect
 	google.golang.org/grpc v1.47.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gvisor.dev/gvisor v0.0.0-20220407223209-21871174d445 // indirect
+	gvisor.dev/gvisor v0.0.0-20220407223209-21871174d445
 	howett.net/plist v1.0.0 // indirect
 )

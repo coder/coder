@@ -28,14 +28,14 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
-	"tailscale.com/types/key"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/pty"
+	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -47,30 +47,28 @@ const (
 
 type Options struct {
 	EnableWireguard        bool
-	UploadWireguardKeys    UploadWireguardKeys
-	ListenWireguardPeers   ListenWireguardPeers
+	UpdateTailscaleNode    UpdateTailscaleNode
+	ListenTailscaleNodes   ListenTailscaleNodes
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
 type Metadata struct {
-	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
-	OwnerEmail           string             `json:"owner_email"`
-	OwnerUsername        string             `json:"owner_username"`
-	EnvironmentVariables map[string]string  `json:"environment_variables"`
-	StartupScript        string             `json:"startup_script"`
-	Directory            string             `json:"directory"`
-}
+	TailscaleAddresses []netaddr.IPPrefix `json:"tailscale_addresses"`
+	TailscaleDERPMap   *tailcfg.DERPMap   `json:"tailscale_derpmap"`
 
-type WireguardPublicKeys struct {
-	Public key.NodePublic  `json:"public"`
-	Disco  key.DiscoPublic `json:"disco"`
+	OwnerEmail           string            `json:"owner_email"`
+	OwnerUsername        string            `json:"owner_username"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	StartupScript        string            `json:"startup_script"`
+	Directory            string            `json:"directory"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
-type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
-type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
+
+type UpdateTailscaleNode func(ctx context.Context, node *tailnet.Node) error
+type ListenTailscaleNodes func(ctx context.Context, logger slog.Logger) (<-chan *tailnet.Node, func(), error)
 
 func New(dialer Dialer, options *Options) io.Closer {
 	if options == nil {
@@ -88,8 +86,8 @@ func New(dialer Dialer, options *Options) io.Closer {
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
 		enableWireguard:        options.EnableWireguard,
-		postKeys:               options.UploadWireguardKeys,
-		listenWireguardPeers:   options.ListenWireguardPeers,
+		updateTailscaleNode:    options.UpdateTailscaleNode,
+		listenTailscaleNodes:   options.ListenTailscaleNodes,
 	}
 	server.init(ctx)
 	return server
@@ -114,9 +112,9 @@ type agent struct {
 	sshServer     *ssh.Server
 
 	enableWireguard      bool
-	network              *peerwg.Network
-	postKeys             UploadWireguardKeys
-	listenWireguardPeers ListenWireguardPeers
+	network              *tailnet.Server
+	updateTailscaleNode  UpdateTailscaleNode
+	listenTailscaleNodes ListenTailscaleNodes
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -160,8 +158,9 @@ func (a *agent) run(ctx context.Context) {
 		}()
 	}
 
-	if a.enableWireguard {
-		err = a.startWireguard(ctx, metadata.WireguardAddresses)
+	// We don't want to reinitialize the network if it already exists.
+	if a.enableWireguard && a.network == nil {
+		err = a.startWireguard(ctx, metadata.TailscaleAddresses, metadata.TailscaleDERPMap)
 		if err != nil {
 			a.logger.Error(ctx, "start wireguard", slog.Error(err))
 		}
@@ -666,6 +665,71 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 		}
 	}
+}
+
+func (a *agent) startWireguard(ctx context.Context, addresses []netaddr.IPPrefix, derpMap *tailcfg.DERPMap) error {
+	var err error
+	a.network, err = tailnet.New(&tailnet.Options{
+		Addresses: addresses,
+		DERPMap:   derpMap,
+		Logger:    a.logger.Named("tailnet"),
+	})
+	if err != nil {
+		return err
+	}
+	a.network.SetNodeCallback(func(node *tailnet.Node) {
+		err := a.updateTailscaleNode(ctx, node)
+		if err != nil {
+			a.logger.Error(ctx, "update tailscale node", slog.Error(err))
+		}
+	})
+	go func() {
+		for {
+			var nodes <-chan *tailnet.Node
+			var err error
+			var listenClose func()
+			for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+				nodes, listenClose, err = a.listenTailscaleNodes(ctx, a.logger)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
+					a.logger.Warn(ctx, "listen for tailscale nodes", slog.Error(err))
+					continue
+				}
+				defer listenClose()
+				a.logger.Info(context.Background(), "listening for tailscale nodes")
+				break
+			}
+			for {
+				var node *tailnet.Node
+				select {
+				case <-ctx.Done():
+				case node = <-nodes:
+				}
+				if node == nil {
+					// The channel ended!
+					break
+				}
+				a.network.UpdateNodes([]*tailnet.Node{node})
+			}
+		}
+	}()
+
+	sshListener, err := a.network.Listen("tcp", ":12212")
+	if err != nil {
+		return xerrors.Errorf("listen for ssh: %w", err)
+	}
+	go func() {
+		for {
+			conn, err := sshListener.Accept()
+			if err != nil {
+				return
+			}
+			go a.sshServer.HandleConn(conn)
+		}
+	}()
+	return nil
 }
 
 // dialResponse is written to datachannels with protocol "dial" by the agent as

@@ -54,12 +54,10 @@ INSERT INTO
 		directory,
 		instance_metadata,
 		resource_metadata,
-		wireguard_node_ipv6,
-		wireguard_node_public_key,
-		wireguard_disco_public_key
+		ip_addresses
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -72,12 +70,14 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAgentKeysByID :exec
+-- name: UpdateWorkspaceAgentNetworkByID :exec
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
-	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3
+	updated_at = $2,
+	node_public_key = $3,
+	disco_public_key = $4,
+	derp = $5,
+	derp_latency = $6
 WHERE
 	id = $1;

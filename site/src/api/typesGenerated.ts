@@ -399,15 +399,17 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly directory?: string
   readonly apps: WorkspaceApp[]
+  // Named type "inet.af/netaddr.IP" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly ip_addresses: any[]
   // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly wireguard_public_key: any
+  readonly node_public_key: any
   // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly disco_public_key: any
-  // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ipv6: any
+  readonly derp: string
+  readonly latency: Record<string, number>
 }
 
 // From codersdk/workspaceagents.go:48:6
@@ -415,7 +417,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:63:6
+// From codersdk/workspaceresources.go:70:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -428,7 +430,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:55:6
+// From codersdk/workspaceresources.go:62:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number

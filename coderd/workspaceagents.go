@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,25 +16,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
+	"go4.org/mem"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/tailnet"
 )
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
@@ -162,7 +165,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.WireguardNodeIPv6.IPNet)
+	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.IPAddresses.IPNet)
 	if !ok {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Workspace agent has an invalid ipv6 address.",
@@ -172,7 +175,8 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		WireguardAddresses:   []netaddr.IPPrefix{ipp},
+		TailscaleAddresses: []netaddr.IPPrefix{ipp},
+
 		OwnerEmail:           owner.Email,
 		OwnerUsername:        owner.Username,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
@@ -468,92 +472,51 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-func (*API) derpMap(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusOK, peerwg.DerpMap)
-}
-
-type WorkspaceKeysRequest struct {
-	Public key.NodePublic  `json:"public"`
-	Disco  key.DiscoPublic `json:"disco"`
-}
-
-func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx            = r.Context()
-		workspaceAgent = httpmw.WorkspaceAgent(r)
-		keys           WorkspaceKeysRequest
-	)
-	if !httpapi.Read(rw, r, &keys) {
-		return
+func (a *API) derpMap(rw http.ResponseWriter, _ *http.Request) {
+	var derpPort int
+	rawPort := a.AccessURL.Port()
+	if rawPort == "" {
+		if a.AccessURL.Scheme == "https" {
+			derpPort = 443
+		} else {
+			derpPort = 80
+		}
+	} else {
+		var err error
+		derpPort, err = strconv.Atoi(a.AccessURL.Port())
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Get ",
+			})
+			return
+		}
 	}
 
-	err := api.Database.UpdateWorkspaceAgentKeysByID(ctx, database.UpdateWorkspaceAgentKeysByIDParams{
-		ID:                      workspaceAgent.ID,
-		WireguardNodePublicKey:  dbtypes.NodePublic(keys.Public),
-		WireguardDiscoPublicKey: dbtypes.DiscoPublic(keys.Disco),
+	httpapi.Write(rw, http.StatusOK, &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: &tailcfg.DERPRegion{
+				RegionID:   1,
+				RegionCode: "coder",
+				RegionName: "Coder",
+				Nodes: []*tailcfg.DERPNode{{
+					Name:     "1a",
+					RegionID: 1,
+					HostName: a.AccessURL.Hostname(),
+					DERPPort: derpPort,
+					STUNPort: -1,
+				}},
+			},
+		},
 	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error setting agent keys.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) postWorkspaceAgentWireguardPeer(rw http.ResponseWriter, r *http.Request) {
-	var (
-		req            peerwg.Handshake
-		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
-	)
-
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	if !httpapi.Read(rw, r, &req) {
-		return
-	}
-
-	if req.Recipient != workspaceAgent.ID {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "Invalid recipient.",
-		})
-		return
-	}
-
-	raw, err := req.MarshalText()
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error marshaling wireguard peer message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	err = api.Pubsub.Publish("wireguard_peers", raw)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Internal error publishing wireguard peer message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.Request) {
+// workspaceAgentSelfNetmap accepts a WebSocket that reads
+// node updates and sends new node connection info.
+func (api *API) workspaceAgentSelfNetmap(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
-
-	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
 	conn, err := websocket.Accept(rw, r, nil)
@@ -565,24 +528,21 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-
+	ctx, nc := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
 	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
-	subCancel, err := api.Pubsub.Subscribe("wireguard_peers", func(ctx context.Context, message []byte) {
+	subCancel, err := api.Pubsub.Subscribe("tailnet_dial", func(ctx context.Context, message []byte) {
 		// Since we subscribe to all peer broadcasts, we do a light check to
 		// make sure we're the intended recipient without fully decoding the
 		// message.
-		hint, err := peerwg.HandshakeRecipientHint(agentIDBytes, message)
-		if err != nil {
-			api.Logger.Error(ctx, "invalid wireguard peer message", slog.Error(err))
+		if len(message) < len(agentIDBytes) {
+			api.Logger.Error(ctx, "wireguard peer message too short", slog.F("got", len(message)))
 			return
 		}
-
 		// We aren't the intended recipient.
-		if !hint {
+		if !bytes.Equal(message[:len(agentIDBytes)-1], agentIDBytes) {
 			return
 		}
-
-		_ = conn.Write(ctx, websocket.MessageBinary, message)
+		_, _ = nc.Write(message)
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "pubsub listen", slog.Error(err))
@@ -590,9 +550,45 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 	}
 	defer subCancel()
 
-	// Wait for the connection to close or the client to send a message.
-	//nolint:dogsled
-	_, _, _ = conn.Reader(ctx)
+	decoder := json.NewDecoder(nc)
+	for {
+		var node tailnet.Node
+		err = decoder.Decode(&node)
+		if err != nil {
+			return
+		}
+		err := api.Database.UpdateWorkspaceAgentNetworkByID(ctx, database.UpdateWorkspaceAgentNetworkByIDParams{
+			ID:                    workspaceAgent.ID,
+			NodePublicKey:         node.Key.String(),
+			DERPLatency: ,
+			TailnetNodePublicKey:  node.Key.String(),
+			TailnetDiscoPublicKey: node.DiscoKey.String(),
+			TailnetNodeDERP:       node.DERP,
+			UpdatedAt:             database.Now(),
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Internal error setting agent keys.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		nodeData, err := json.Marshal(node)
+		if err != nil {
+			return
+		}
+		id, _ := workspaceAgent.ID.MarshalText()
+		msg := base64.StdEncoding.EncodeToString(nodeData)
+		err = api.Pubsub.Publish("tailnet_listen", append(id, msg...))
+		if err != nil {
+			conn.Close(websocket.StatusAbnormalClosure, err.Error())
+			return
+		}
+	}
+}
+
+func (api *API) workspaceAgentNetmap(r *http.Request, rw http.ResponseWriter) {
+
 }
 
 // dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
@@ -697,7 +693,21 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-
+	nodePublicKey, err := key.ParseNodePublicUntyped(mem.S(dbAgent.NodePublicKey))
+	if err != nil {
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse node public key: %w", err)
+	}
+	var discoPublicKey key.DiscoPublic
+	err = discoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey))
+	if err != nil {
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse disco public key: %w", err)
+	}
+	ips := make([]netaddr.IP, 0)
+	for _, ip := range dbAgent.IPAddresses {
+		var ipData [16]byte
+		copy(ipData[:], []byte(ip.IPNet.IP))
+		ips = append(ips, netaddr.IPFrom16(ipData))
+	}
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                   dbAgent.ID,
 		CreatedAt:            dbAgent.CreatedAt,
@@ -711,9 +721,11 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
-		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
-		WireguardPublicKey:   key.NodePublic(dbAgent.WireguardNodePublicKey),
-		DiscoPublicKey:       key.DiscoPublic(dbAgent.WireguardDiscoPublicKey),
+		NodePublicKey:        nodePublicKey,
+		DiscoPublicKey:       discoPublicKey,
+		DERP:                 dbAgent.DERP,
+		DERPLatency:          dbAgent.DERPLatency,
+		IPAddresses:          ips,
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

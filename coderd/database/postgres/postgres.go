@@ -75,7 +75,7 @@ func Open() (string, func(), error) {
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
-		Tag:        "13",
+		Tag:        "11",
 		Env: []string{
 			"POSTGRES_PASSWORD=postgres",
 			"POSTGRES_USER=postgres",
@@ -134,16 +134,21 @@ func Open() (string, func(), error) {
 		if err != nil {
 			return xerrors.Errorf("ping postgres: %w", err)
 		}
-		err = database.MigrateUp(db)
-		if err != nil {
-			return xerrors.Errorf("migrate db: %w", err)
-		}
-
 		return nil
 	})
 	if err != nil {
 		return "", nil, err
 	}
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return "", nil, xerrors.Errorf("open postgres: %w", err)
+	}
+	defer db.Close()
+	err = database.MigrateUp(db)
+	if err != nil {
+		return "", nil, xerrors.Errorf("migrate db: %w", err)
+	}
+
 	return dbURL, func() {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)

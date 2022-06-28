@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
+	"tailscale.com/tailcfg"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -21,6 +26,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet"
 )
 
 func TestMain(m *testing.M) {
@@ -473,4 +479,72 @@ func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNam
 
 func (f *fakeAuthorizer) reset() {
 	f.Called = nil
+}
+
+func TestDERP(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	derpPort, err := strconv.Atoi(client.URL.Port())
+	require.NoError(t, err)
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID:   1,
+				RegionCode: "cdr",
+				RegionName: "Coder",
+				Nodes: []*tailcfg.DERPNode{{
+					Name:         "1a",
+					RegionID:     1,
+					HostName:     client.URL.Hostname(),
+					DERPPort:     derpPort,
+					STUNPort:     -1,
+					HTTPForTests: true,
+				}},
+			},
+		},
+	}
+	w1IP := tailnet.IP()
+	w1, err := tailnet.New(&tailnet.Options{
+		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(w1IP, 128)},
+		Logger:    logger.Named("w1"),
+		DERPMap:   derpMap,
+	})
+	require.NoError(t, err)
+
+	w2, err := tailnet.New(&tailnet.Options{
+		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(tailnet.IP(), 128)},
+		Logger:    logger.Named("w2"),
+		DERPMap:   derpMap,
+	})
+	require.NoError(t, err)
+	w1.SetNodeCallback(func(node *tailnet.Node) {
+		w2.UpdateNodes([]*tailnet.Node{node})
+	})
+	w2.SetNodeCallback(func(node *tailnet.Node) {
+		w1.UpdateNodes([]*tailnet.Node{node})
+	})
+
+	conn := make(chan struct{})
+	go func() {
+		listener, err := w1.Listen("tcp", ":35565")
+		assert.NoError(t, err)
+		defer listener.Close()
+		conn <- struct{}{}
+		nc, err := listener.Accept()
+		assert.NoError(t, err)
+		_ = nc.Close()
+		conn <- struct{}{}
+	}()
+
+	<-conn
+	nc, err := w2.DialContextTCP(context.Background(), netaddr.IPPortFrom(w1IP, 35565))
+	require.NoError(t, err)
+	_ = nc.Close()
+	<-conn
+
+	w1.Close()
+	w2.Close()
 }
