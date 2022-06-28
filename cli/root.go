@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,12 +42,12 @@ const (
 	varForceTty        = "force-tty"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
-	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
+	noVersionCheckFlag = "no-version-warning"
+	envNoVersionCheck  = "CODER_NO_VERSION_WARNING"
 )
 
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
-	varSuppressVersion = false
 	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
@@ -60,6 +61,8 @@ func init() {
 }
 
 func Root() *cobra.Command {
+	var varSuppressVersion bool
+
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
@@ -127,7 +130,7 @@ func Root() *cobra.Command {
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
-	cliflag.BoolVarP(cmd.Flags(), &varSuppressVersion, "no-version-warning", "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, noVersionCheckFlag, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
@@ -364,7 +367,8 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 }
 
 func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
-	if varSuppressVersion {
+	flag := cmd.Flag("no-version-warning")
+	if suppress, _ := strconv.ParseBool(flag.Value.String()); suppress {
 		return nil
 	}
 
