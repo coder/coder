@@ -164,9 +164,14 @@ resource "docker_container" "workspace" {
 
 #### Using updated images when rebuilding a workspace
 
-To ensure that Coder uses an updated image when rebuilding a workspace, set the
-`imagePullPolicy` to `Always` in your Terraform template; when set, Coder will
-check `image:tag` on every build and update if necessary:
+To ensure that Coder uses an updated image when rebuilding a workspace, we
+suggest that admins update the tag in the template (e.g., `my-image:v0.4.2` ->
+`my-image:v0.4.3`) or digest (`my-image@sha256:[digest]` ->
+`my-image@sha256:[new_digest]`).
+
+Alternatively, if you're willing to wait for longer start times from Coder, you
+can set the `imagePullPolicy` to `Always` in your Terraform template; when set,
+Coder will check `image:tag` on every build and update if necessary:
 
 ```tf
 resource "kubernetes_pod" "podName" {
