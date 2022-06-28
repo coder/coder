@@ -3,6 +3,7 @@ package buildinfo
 import (
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,9 @@ func Version() string {
 // disregarded. If it detects that either version is a developer build it
 // returns true.
 func VersionsMatch(v1, v2 string) bool {
-	if semver.Prerelease(v1) == "-devel" || semver.Prerelease(v2) == "-devel" {
+	// Developer versions are disregarded...hopefully they know what they are
+	// doing.
+	if strings.HasPrefix(v1, develPrefix) || strings.HasPrefix(v2, develPrefix) {
 		return true
 	}
 

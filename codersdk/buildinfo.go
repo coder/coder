@@ -19,10 +19,12 @@ type BuildInfoResponse struct {
 	Version string `json:"version"`
 }
 
-// TrimmedVersion trims build information from the version.
+// CanonicalVersion trims build information from the version.
 // E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
-func (b BuildInfoResponse) TrimmedVersion() string {
-	trimmed := strings.ReplaceAll(b.Version, "-devel", "+devel")
+func (b BuildInfoResponse) CanonicalVersion() string {
+	// We do a little hack here to massage the string into a form
+	// that works well with semver.
+	trimmed := strings.ReplaceAll(b.Version, "-devel+", "+devel-")
 	return semver.Canonical(trimmed)
 }
 
