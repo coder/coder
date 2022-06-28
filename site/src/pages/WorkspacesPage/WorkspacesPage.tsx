@@ -1,26 +1,15 @@
 import { useMachine } from "@xstate/react"
-import { FC, useEffect } from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet"
 import { useSearchParams } from "react-router-dom"
 import { pageTitle } from "../../util/page"
-import { workspaceFilterQuery } from "../../util/workspace"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine)
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [_, setSearchParams] = useSearchParams()
   const { workspaceRefs } = workspacesState.context
-
-  useEffect(() => {
-    const filter = searchParams.get("filter")
-    const query = filter !== null ? filter : workspaceFilterQuery.me
-
-    send({
-      type: "GET_WORKSPACES",
-      query,
-    })
-  }, [searchParams, send])
 
   return (
     <>
@@ -33,8 +22,11 @@ const WorkspacesPage: FC = () => {
         loading={workspacesState.hasTag("loading")}
         workspaceRefs={workspaceRefs}
         onFilter={(query) => {
-          searchParams.set("filter", query)
-          setSearchParams(searchParams)
+          setSearchParams({ filter: query })
+          send({
+            type: "GET_WORKSPACES",
+            query,
+          })
         }}
       />
     </>
