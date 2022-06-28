@@ -8,6 +8,7 @@ import TextField from "@material-ui/core/TextField"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
 import { useState } from "react"
+import { getValidationErrorMessage } from "../../api/errors"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
@@ -20,6 +21,7 @@ export interface SearchBarWithFilterProps {
   filter?: string
   onFilter: (query: string) => void
   presetFilters?: PresetFilter[]
+  error?: unknown
 }
 
 export interface PresetFilter {
@@ -37,6 +39,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   filter,
   onFilter,
   presetFilters,
+  error,
 }) => {
   const styles = useStyles()
 
@@ -68,69 +71,76 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
     handleClose()
   }
 
+  const errorMessage = getValidationErrorMessage(error)
+
   return (
-    <Stack direction="row" spacing={0} className={styles.filterContainer}>
-      {presetFilters && presetFilters.length > 0 && (
-        <Button
-          aria-controls="filter-menu"
-          aria-haspopup="true"
-          onClick={handleClick}
-          className={styles.buttonRoot}
-        >
-          {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
-        </Button>
-      )}
+    <Stack spacing={1} className={styles.root}>
+      <Stack direction="row" spacing={0} className={styles.filterContainer}>
+        {presetFilters && presetFilters.length > 0 && (
+          <Button
+            aria-controls="filter-menu"
+            aria-haspopup="true"
+            onClick={handleClick}
+            className={styles.buttonRoot}
+          >
+            {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
+          </Button>
+        )}
 
-      <form onSubmit={form.handleSubmit} className={styles.filterForm}>
-        <TextField
-          {...getFieldHelpers("query")}
-          className={styles.textFieldRoot}
-          onChange={onChangeTrimmed(form)}
-          fullWidth
-          variant="outlined"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
-        />
-      </form>
+        <form onSubmit={form.handleSubmit} className={styles.filterForm}>
+          <TextField
+            {...getFieldHelpers("query")}
+            className={styles.textFieldRoot}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            variant="outlined"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </form>
 
-      {presetFilters && presetFilters.length > 0 && (
-        <Menu
-          id="filter-menu"
-          anchorEl={anchorEl}
-          keepMounted
-          open={Boolean(anchorEl)}
-          onClose={handleClose}
-          TransitionComponent={Fade}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "left",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "left",
-          }}
-        >
-          {presetFilters.map((presetFilter) => (
-            <MenuItem key={presetFilter.name} onClick={setPresetFilter(presetFilter.query)}>
-              {presetFilter.name}
-            </MenuItem>
-          ))}
-        </Menu>
-      )}
+        {presetFilters && presetFilters.length > 0 && (
+          <Menu
+            id="filter-menu"
+            anchorEl={anchorEl}
+            keepMounted
+            open={Boolean(anchorEl)}
+            onClose={handleClose}
+            TransitionComponent={Fade}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "left",
+            }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "left",
+            }}
+          >
+            {presetFilters.map((presetFilter) => (
+              <MenuItem key={presetFilter.name} onClick={setPresetFilter(presetFilter.query)}>
+                {presetFilter.name}
+              </MenuItem>
+            ))}
+          </Menu>
+        )}
+      </Stack>
+      {errorMessage && <Stack className={styles.errorRoot}>{errorMessage}</Stack>}
     </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
+  root: {
+    marginBottom: theme.spacing(2),
+  },
   filterContainer: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
-    marginBottom: theme.spacing(2),
   },
   filterForm: {
     width: "100%",
@@ -145,5 +155,8 @@ const useStyles = makeStyles((theme) => ({
     "& fieldset": {
       border: "none",
     },
+  },
+  errorRoot: {
+    color: theme.palette.error.dark,
   },
 }))

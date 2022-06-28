@@ -1,4 +1,4 @@
-import { isApiError, mapApiErrorToFieldErrors } from "./errors"
+import { getValidationErrorMessage, isApiError, mapApiErrorToFieldErrors } from "./errors"
 
 describe("isApiError", () => {
   it("returns true when the object is an API Error", () => {
@@ -34,5 +34,59 @@ describe("mapApiErrorToFieldErrors", () => {
     ).toEqual({
       username: "Username is already in use",
     })
+  })
+})
+
+describe("getValidationErrorMessage", () => {
+  it("returns multiple validation messages", () => {
+    expect(
+      getValidationErrorMessage({
+        response: {
+          data: {
+            message: "Invalid user search query.",
+            validations: [
+              {
+                field: "status",
+                detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+              },
+              {
+                field: "q",
+                detail: `Query element "role:a:e" can only contain 1 ':'`,
+              },
+            ],
+          },
+        },
+        isAxiosError: true,
+      }),
+    ).toEqual(
+      `Query param "status" has invalid value: "inactive" is not a valid user status\nQuery element "role:a:e" can only contain 1 ':'`,
+    )
+  })
+
+  it("non-API error returns empty validation message", () => {
+    expect(
+      getValidationErrorMessage({
+        response: {
+          data: {
+            error: "Invalid user search query.",
+          },
+        },
+        isAxiosError: true,
+      }),
+    ).toEqual("")
+  })
+
+  it("no validations field returns empty validation message", () => {
+    expect(
+      getValidationErrorMessage({
+        response: {
+          data: {
+            message: "Invalid user search query.",
+            detail: `Query element "role:a:e" can only contain 1 ':'`,
+          },
+        },
+        isAxiosError: true,
+      }),
+    ).toEqual("")
   })
 })

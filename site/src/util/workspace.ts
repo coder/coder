@@ -296,15 +296,3 @@ export const defaultWorkspaceExtension = (
     deadline: fourHoursFromNow.format(),
   }
 }
-
-export const workspaceQueryToFilter = (query?: string): TypesGen.WorkspaceFilter => {
-  const preparedQuery = query?.trim().replace(/  +/g, " ")
-  return {
-    q: preparedQuery,
-  }
-}
-
-export const workspaceFilterQuery = {
-  me: "owner:me",
-  all: "",
-}

@@ -1,5 +1,5 @@
 import axios from "axios"
-import { getApiKey, getWorkspacesURL, login, logout } from "./api"
+import { getApiKey, getURLWithSearchParams, login, logout } from "./api"
 import * as TypesGen from "./typesGenerated"
 
 describe("api.ts", () => {
@@ -114,16 +114,26 @@ describe("api.ts", () => {
     })
   })
 
-  describe("getWorkspacesURL", () => {
-    it.each<[TypesGen.WorkspaceFilter | undefined, string]>([
-      [undefined, "/api/v2/workspaces"],
+  describe("getURLWithSearchParams - workspaces", () => {
+    it.each<[string, TypesGen.WorkspaceFilter | undefined, string]>([
+      ["/api/v2/workspaces", undefined, "/api/v2/workspaces"],
 
-      [{ q: "" }, "/api/v2/workspaces"],
-      [{ q: "owner:1" }, "/api/v2/workspaces?q=owner%3A1"],
+      ["/api/v2/workspaces", { q: "" }, "/api/v2/workspaces"],
+      ["/api/v2/workspaces", { q: "owner:1" }, "/api/v2/workspaces?q=owner%3A1"],
 
-      [{ q: "owner:me" }, "/api/v2/workspaces?q=owner%3Ame"],
-    ])(`getWorkspacesURL(%p) returns %p`, (filter, expected) => {
-      expect(getWorkspacesURL(filter)).toBe(expected)
+      ["/api/v2/workspaces", { q: "owner:me" }, "/api/v2/workspaces?q=owner%3Ame"],
+    ])(`Workspaces - getURLWithSearchParams(%p, %p) returns %p`, (basePath, filter, expected) => {
+      expect(getURLWithSearchParams(basePath, filter)).toBe(expected)
+    })
+  })
+
+  describe("getURLWithSearchParams - users", () => {
+    it.each<[string, TypesGen.UsersRequest | undefined, string]>([
+      ["/api/v2/users", undefined, "/api/v2/users"],
+      ["/api/v2/users", { q: "status:active" }, "/api/v2/users?q=status%3Aactive"],
+      ["/api/v2/users", { q: "" }, "/api/v2/users"],
+    ])(`Users - getURLWithSearchParams(%p, %p) returns %p`, (basePath, filter, expected) => {
+      expect(getURLWithSearchParams(basePath, filter)).toBe(expected)
     })
   })
 })
