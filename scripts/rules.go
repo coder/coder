@@ -159,18 +159,19 @@ func HttpAPIReturn(m dsl.Matcher) {
 	// Manually enumerate the httpapi function rather then a 'Where' condition
 	// as this is a bit more efficient.
 	m.Match(`
-	if err != nil {
-		httpapi.Write($*_)
+	if $*_ {
+		httpapi.Write($*a)
 	}
 	`, `
-	if err != nil {
-		httpapi.Forbidden($*_)
+	if $*_ {
+		httpapi.Forbidden($*a)
 	}
 	`, `
-	if err != nil {
-		httpapi.ResourceNotFound($*_)
+	if $*_ {
+		httpapi.ResourceNotFound($*a)
 	}
-	`).Report("Forgot to return early after the httpapi.Write call")
+	`).At(m["a"]).
+		Report("Forgot to return early after the httpapi.Write call")
 }
 
 // ProperRBACReturn ensures we always write to the response writer after a

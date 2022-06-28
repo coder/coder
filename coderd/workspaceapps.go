@@ -80,6 +80,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "No agents exist.",
 		})
+		return
 	}
 
 	agent := agents[0]
