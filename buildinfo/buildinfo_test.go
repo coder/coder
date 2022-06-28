@@ -48,13 +48,6 @@ func TestBuildInfo(t *testing.T) {
 				v2:          "v1.2.3",
 				expectMatch: true,
 			},
-			// Test that we return false if a version is malformed.
-			{
-				name:        "MalformedIgnored",
-				v1:          "v1.2.3",
-				v2:          "v1.2",
-				expectMatch: false,
-			},
 			// Test that we return true if a developer version is detected.
 			// Developers do not need to be warned of mismatched versions.
 			{
@@ -86,10 +79,6 @@ func TestBuildInfo(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			// It's very important to do this since we're running the tests
-			// in parallel. Otherwise you will likely get the last element
-			// in the list since the goroutines will likely start executing
-			// after the for loop has completed.
 			c := c
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()

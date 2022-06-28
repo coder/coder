@@ -1,10 +1,12 @@
 package codersdk
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 // BuildInfoResponse contains build information for this instance of Coder.
@@ -20,13 +22,8 @@ type BuildInfoResponse struct {
 // TrimmedVersion trims build information from the version.
 // E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
 func (b BuildInfoResponse) TrimmedVersion() string {
-	// Linter doesn't like strings.Index...
-	idx := bytes.Index([]byte(b.Version), []byte("-devel"))
-	if idx < 0 {
-		return b.Version
-	}
-
-	return b.Version[:idx]
+	trimmed := strings.ReplaceAll(b.Version, "-devel", "+devel")
+	return semver.Canonical(trimmed)
 }
 
 // BuildInfo returns build information for this instance of Coder.
