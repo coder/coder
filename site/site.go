@@ -256,7 +256,6 @@ const (
 	CSPFrameAncestors       = "frame-ancestors"
 )
 
-// cspHeaders adds
 func cspHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -278,17 +277,18 @@ func cspHeaders(next http.Handler) http.Handler {
 			CSPDirectiveManifestSrc: {"'self' blob:"},
 			CSPDirectiveFrameSrc:    {"'self'"},
 			// data: for loading base64 encoded icons for generic applications.
-			CSPDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
+			// https: allows loading images from external sources. This is not ideal
+			// 	but is required for the templates page that renders readmes.
+			//	We should find a better solution in the future.
+			CSPDirectiveImgSrc:     {"'self' https: https://cdn.coder.com data:"},
 			CSPDirectiveFormAction: {"'self'"},
 			CSPDirectiveMediaSrc:   {"'self'"},
 			// Report all violations back to the server to log
-			CSPDirectiveReportURI: {"/api/private/csp/reports"},
+			CSPDirectiveReportURI: {"/api/v2/csp/reports"},
 			CSPFrameAncestors:     {"'none'"},
 
 			// Only scripts can manipulate the dom. This prevents someone from
 			// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
-			// TODO: @emyrk we need to make FE changes to enable this. We get 'TrustedHTML' and 'TrustedURL' errors
-			//		that require FE changes to work.
 			// "require-trusted-types-for" : []string{"'script'"},
 		}
 
