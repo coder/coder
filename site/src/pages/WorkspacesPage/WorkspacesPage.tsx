@@ -2,8 +2,8 @@ import { useMachine } from "@xstate/react"
 import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useSearchParams } from "react-router-dom"
+import { workspaceFilterQuery } from "../../util/filters"
 import { pageTitle } from "../../util/page"
-import { workspaceFilterQuery } from "../../util/workspace"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
@@ -15,8 +15,7 @@ const WorkspacesPage: FC = () => {
   // On page load, populate the table with workspaces
   useEffect(() => {
     const filter = searchParams.get("filter")
-    const query = filter !== null ? filter : workspaceFilterQuery.me
-    // const query = workspaceFilterQuery.me
+    const query = filter ?? workspaceFilterQuery.me
 
     send({
       type: "GET_WORKSPACES",

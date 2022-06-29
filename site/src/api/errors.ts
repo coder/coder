@@ -71,3 +71,15 @@ export const getErrorMessage = (
     : error instanceof Error
     ? error.message
     : defaultMessage
+
+/**
+ *
+ * @param error
+ * @returns a combined validation error message if the error is an ApiError
+ * and contains validation messages for different form fields.
+ */
+export const getValidationErrorMessage = (error: Error | ApiError | unknown): string => {
+  const validationErrors =
+    isApiError(error) && error.response.data.validations ? error.response.data.validations : []
+  return validationErrors.map((error) => error.detail).join("\n")
+}
