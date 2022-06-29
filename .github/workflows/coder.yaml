@@ -216,6 +216,15 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
+      - uses: codecov/codecov-action@v3
+        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./gotests.coverage
+          flags: unittest-go-${{ matrix.os }}
+          # this flakes and sometimes fails the build
+          fail_ci_if_error: false
+
   test-go-postgres:
     name: "test/go/postgres"
     runs-on: ubuntu-latest
