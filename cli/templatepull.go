@@ -17,7 +17,7 @@ func templatePull() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
-		Args:  cobra.MaximumNArgs(2),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
 				ctx          = cmd.Context()

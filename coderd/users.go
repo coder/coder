@@ -663,6 +663,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error.",
 		})
+		return
 	}
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
@@ -815,6 +816,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}
+	bitlen := len(ip) * 8
 	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
@@ -822,7 +824,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   ip,
-				Mask: ip.DefaultMask(),
+				Mask: net.CIDRMask(bitlen, bitlen),
 			},
 			Valid: true,
 		},

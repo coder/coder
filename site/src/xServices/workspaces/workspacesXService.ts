@@ -3,7 +3,7 @@ import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displayMsg, displaySuccess } from "../../components/GlobalSnackbar/utils"
-import { workspaceQueryToFilter } from "../../util/workspace"
+import { queryToFilter } from "../../util/filters"
 
 /**
  * Workspace item machine
@@ -318,7 +318,7 @@ export const workspacesMachine = createMachine(
       }),
     },
     services: {
-      getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
+      getWorkspaces: (context) => API.getWorkspaces(queryToFilter(context.filter)),
     },
   },
 )

@@ -72,8 +72,9 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
-export const getUsers = async (): Promise<TypesGen.User[]> => {
-  const response = await axios.get<TypesGen.User[]>("/api/v2/users?q=status:active,suspended")
+export const getUsers = async (filter?: TypesGen.UsersRequest): Promise<TypesGen.User[]> => {
+  const url = getURLWithSearchParams("/api/v2/users", filter)
+  const response = await axios.get<TypesGen.User[]>(url)
   return response.data
 }
 
@@ -144,8 +145,10 @@ export const getWorkspace = async (
   return response.data
 }
 
-export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
-  const basePath = "/api/v2/workspaces"
+export const getURLWithSearchParams = (
+  basePath: string,
+  filter?: TypesGen.WorkspaceFilter | TypesGen.UsersRequest,
+): string => {
   const searchParams = new URLSearchParams()
 
   if (filter?.q && filter.q !== "") {
@@ -160,7 +163,7 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
 export const getWorkspaces = async (
   filter?: TypesGen.WorkspaceFilter,
 ): Promise<TypesGen.Workspace[]> => {
-  const url = getWorkspacesURL(filter)
+  const url = getURLWithSearchParams("/api/v2/workspaces", filter)
   const response = await axios.get<TypesGen.Workspace[]>(url)
   return response.data
 }
