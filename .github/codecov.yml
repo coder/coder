@@ -34,3 +34,7 @@ ignore:
   - scripts
   - site/.storybook
   - rules.go
+  # Packages used for writing tests.
+  - cli/clitest
+  - coderd/coderdtest
+  - pty/ptytest
