@@ -2,9 +2,9 @@
  * @fileoverview workspaceScheduleBanner is an xstate machine backing a form,
  * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
+import dayjs from "dayjs"
 import { createMachine } from "xstate"
 import * as API from "../../api/api"
-import dayjs from "dayjs"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
@@ -12,7 +12,11 @@ export const Language = {
   successExtension: "Successfully extended workspace deadline.",
 }
 
-export type WorkspaceScheduleBannerEvent = { type: "UPDATE_DEADLINE"; workspaceId: string, newDeadline: dayjs.Dayjs }
+export type WorkspaceScheduleBannerEvent = {
+  type: "UPDATE_DEADLINE"
+  workspaceId: string
+  newDeadline: dayjs.Dayjs
+}
 
 export const workspaceScheduleBannerMachine = createMachine(
   {
@@ -57,7 +61,7 @@ export const workspaceScheduleBannerMachine = createMachine(
 
     services: {
       updateDeadline: async (_, event) => {
-        await API.putWorkspaceExtension(event.workspaceId, event.newDeadline )
+        await API.putWorkspaceExtension(event.workspaceId, event.newDeadline)
       },
     },
   },

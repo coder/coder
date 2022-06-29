@@ -1,8 +1,8 @@
 import axios, { AxiosRequestHeaders } from "axios"
+import dayjs from "dayjs"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
-import dayjs from "dayjs"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
