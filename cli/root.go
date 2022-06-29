@@ -379,10 +379,8 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 		return xerrors.Errorf("build info: %w", err)
 	}
 
-	fmtWarningText := `client/server versions do not match
-client version: %s
-server version: %s
-to download the appropriate version run 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
+	fmtWarningText := `version mismatch: client %s, server %s
+download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
 `
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
