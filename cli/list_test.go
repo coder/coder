@@ -37,7 +37,7 @@ func TestList(t *testing.T) {
 			close(done)
 		}()
 		pty.ExpectMatch(workspace.Name)
-		pty.ExpectMatch("Running")
+		pty.ExpectMatch("Started")
 		cancelFunc()
 		<-done
 	})
