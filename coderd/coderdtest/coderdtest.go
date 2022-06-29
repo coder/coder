@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -265,13 +266,26 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
+
 	user, err := client.CreateUser(context.Background(), req)
+	var apiError *codersdk.Error
+	// If the user already exists by username or email conflict, try again up to "retries" times.
+	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+		if apiError.StatusCode() == http.StatusConflict {
+			retries--
+			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+		}
+	}
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
