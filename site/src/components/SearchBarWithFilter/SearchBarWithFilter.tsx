@@ -3,8 +3,8 @@ import Fade from "@material-ui/core/Fade"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
+import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
 import debounce from "just-debounce-it"
@@ -93,7 +93,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 
   return (
     <Stack spacing={1} className={styles.root}>
-      <Stack direction="row" spacing={0} className={styles.filterContainer}>
+      <Stack direction="row" spacing={0}>
         {presetFilters && presetFilters.length > 0 && (
           <Button
             aria-controls="filter-menu"
@@ -106,19 +106,15 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
         )}
 
         <form onSubmit={form.handleSubmit} className={styles.filterForm}>
-          <TextField
+          <OutlinedInput
             {...getFieldHelpers("query")}
-            className={styles.textFieldRoot}
-            onChange={form.handleChange}
             fullWidth
-            variant="outlined"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
+            className={styles.inputStyles}
+            startAdornment={
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            }
           />
         </form>
 
@@ -156,25 +152,28 @@ const useStyles = makeStyles((theme) => ({
   root: {
     marginBottom: theme.spacing(2),
   },
-  filterContainer: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
-  },
+  // necessary to expand the textField
+  // the length of the page (within the bordered filterContainer)
   filterForm: {
     width: "100%",
   },
   buttonRoot: {
-    border: "none",
-    borderRight: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRight: "0px",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
-  },
-  textFieldRoot: {
-    margin: "0px",
-    "& fieldset": {
-      border: "none",
-    },
   },
   errorRoot: {
     color: theme.palette.error.dark,
+  },
+  inputStyles: {
+    height: "100%",
+    width: "100%",
+    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    color: theme.palette.primary.contrastText,
+    backgroundColor: theme.palette.background.paper,
+
+    "& fieldset": {
+      borderColor: theme.palette.divider,
+    },
   },
 }))
