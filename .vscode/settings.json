@@ -117,7 +117,9 @@
   "go.coverOnSave": true,
   // The codersdk is used by coderd another other packages extensively.
   // To reduce redundancy in tests, it's covered by other packages.
-  "go.testFlags": ["-short", "-coverpkg=./.,github.com/coder/coder/codersdk"],
+  // Since package coverage pairing can't be defined, all packages cover
+  // all other packages.
+  "go.testFlags": ["-short", "-coverpkg=./..."],
   "go.coverageDecorator": {
     "type": "gutter",
     "coveredHighlightColor": "rgba(64,128,128,0.5)",

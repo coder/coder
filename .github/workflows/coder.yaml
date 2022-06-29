@@ -204,7 +204,7 @@ jobs:
         shell: bash
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
-          -coverpkg=./...,github.com/coder/coder/codersdk
+          -coverpkg=./...
           -timeout=5m -short -failfast
 
       - name: Upload DataDog Trace
