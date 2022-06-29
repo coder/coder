@@ -96,7 +96,6 @@ func server() *cobra.Command {
 		tunnel                           bool
 		stunServers                      []string
 		traceEnable                      bool
-		traceEnableOld                   bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
@@ -112,9 +111,6 @@ func server() *cobra.Command {
 			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
-
-			// Enable tracing if either the new or old flags are set.
-			traceEnable = traceEnableOld || traceEnable
 
 			var (
 				tracerProvider trace.TracerProvider
@@ -566,8 +562,6 @@ func server() *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &traceEnableOld, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
-	_ = root.Flags().MarkHidden("trace") // deprecated, use trace-enable instead
 	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace-enable", "", "CODER_TRACE_ENABLE", false, "Specifies if application tracing data is collected")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
