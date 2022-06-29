@@ -32,6 +32,14 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "Owner/NameWithSpaces",
+			Query: "     Foo/Bar     ",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsername: "foo",
+				Name:          "bar",
+			},
+		},
+		{
 			Name:  "Name",
 			Query: "workspace-name",
 			Expected: database.GetWorkspacesParams{
