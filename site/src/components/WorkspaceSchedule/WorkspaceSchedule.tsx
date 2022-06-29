@@ -91,7 +91,11 @@ export const shouldDisplayPlusMins = (workspace: Workspace): boolean => {
   return deadline.year() > 1
 }
 
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  workspace,
+  onDeadlineMinus,
+  onDeadlinePlus,
+}) => {
   const styles = useStyles()
 
   return (
@@ -115,10 +119,10 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
         </div>
         <div>
           <Stack direction="row">
-            <Button className={styles.editDeadline}>
+            <Button className={styles.editDeadline} onClick={onDeadlineMinus}>
               <span className={styles.scheduleLabel}>{Language.editDeadlineMinus}</span>
             </Button>
-            <Button className={styles.editDeadline}>
+            <Button className={styles.editDeadline} onClick={onDeadlinePlus}>
               <span className={styles.scheduleLabel}>{Language.editDeadlinePlus}</span>
             </Button>
           </Stack>

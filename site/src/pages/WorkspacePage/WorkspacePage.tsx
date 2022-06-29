@@ -1,4 +1,6 @@
 import { useMachine, useSelector } from "@xstate/react"
+import dayjs from "dayjs"
+import minMax from "dayjs/plugin/minMax"
 import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
@@ -12,6 +14,8 @@ import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
+
+dayjs.extend(minMax)
 
 export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
@@ -56,15 +60,33 @@ export const WorkspacePage: React.FC = () => {
           bannerProps={{
             isLoading: bannerState.hasTag("loading"),
             onExtend: () => {
-              bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
+              bannerSend({
+                type: "UPDATE_DEADLINE",
+                workspaceId: workspace.id,
+                newDeadline: dayjs().utc().add(4, "hours"),
+              })
             },
           }}
           scheduleProps={{
             onDeadlineMinus: () => {
-              console.log("not implemented")
+              bannerSend({
+                type: "UPDATE_DEADLINE",
+                workspaceId: workspace.id,
+                newDeadline: boundedDeadline(
+                  dayjs(workspace.latest_build.deadline).utc().add(-1, "hours"),
+                  dayjs(),
+                ),
+              })
             },
             onDeadlinePlus: () => {
-              console.log("not implemented")
+              bannerSend({
+                type: "UPDATE_DEADLINE",
+                workspaceId: workspace.id,
+                newDeadline: boundedDeadline(
+                  dayjs(workspace.latest_build.deadline).utc().add(1, "hours"),
+                  dayjs(),
+                ),
+              })
             },
           }}
           workspace={workspace}
@@ -88,4 +110,10 @@ export const WorkspacePage: React.FC = () => {
       </>
     )
   }
+}
+
+export const boundedDeadline = (newDeadline: dayjs.Dayjs, now: dayjs.Dayjs): dayjs.Dayjs => {
+  const minDeadline = now.add(30, "minutes")
+  const maxDeadline = now.add(24, "hours")
+  return dayjs.min(dayjs.max(minDeadline, newDeadline), maxDeadline)
 }

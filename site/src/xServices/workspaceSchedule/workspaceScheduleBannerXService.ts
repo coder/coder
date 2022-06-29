@@ -1,18 +1,18 @@
 /**
  * @fileoverview workspaceScheduleBanner is an xstate machine backing a form,
- * presented as an Alert/banner, for reactively extending a workspace schedule.
+ * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
 import { createMachine } from "xstate"
 import * as API from "../../api/api"
+import dayjs from "dayjs"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
-import { defaultWorkspaceExtension } from "../../util/workspace"
 
 export const Language = {
   errorExtension: "Failed to extend workspace deadline.",
   successExtension: "Successfully extended workspace deadline.",
 }
 
-export type WorkspaceScheduleBannerEvent = { type: "EXTEND_DEADLINE_DEFAULT"; workspaceId: string }
+export type WorkspaceScheduleBannerEvent = { type: "UPDATE_DEADLINE"; workspaceId: string, newDeadline: dayjs.Dayjs }
 
 export const workspaceScheduleBannerMachine = createMachine(
   {
@@ -25,13 +25,13 @@ export const workspaceScheduleBannerMachine = createMachine(
     states: {
       idle: {
         on: {
-          EXTEND_DEADLINE_DEFAULT: "extendingDeadline",
+          UPDATE_DEADLINE: "updatingDeadline",
         },
       },
-      extendingDeadline: {
+      updatingDeadline: {
         invoke: {
-          src: "extendDeadlineDefault",
-          id: "extendDeadlineDefault",
+          src: "updateDeadline",
+          id: "updateDeadline",
           onDone: {
             target: "idle",
             actions: "displaySuccessMessage",
@@ -56,8 +56,8 @@ export const workspaceScheduleBannerMachine = createMachine(
     },
 
     services: {
-      extendDeadlineDefault: async (_, event) => {
-        await API.putWorkspaceExtension(event.workspaceId, defaultWorkspaceExtension())
+      updateDeadline: async (_, event) => {
+        await API.putWorkspaceExtension(event.workspaceId, event.newDeadline )
       },
     },
   },

@@ -2,6 +2,7 @@ import axios, { AxiosRequestHeaders } from "axios"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
+import dayjs from "dayjs"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
@@ -339,7 +340,7 @@ export const getWorkspaceBuildLogs = async (
 
 export const putWorkspaceExtension = async (
   workspaceId: string,
-  extendWorkspaceRequest: TypesGen.PutExtendWorkspaceRequest,
+  newDeadline: dayjs.Dayjs,
 ): Promise<void> => {
-  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, extendWorkspaceRequest)
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
 }
