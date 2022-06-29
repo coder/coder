@@ -97,6 +97,18 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
   onDeadlinePlus,
 }) => {
   const styles = useStyles()
+  const editDeadlineButtons = shouldDisplayPlusMins(workspace) ? (
+    <div>
+      <Stack direction="row">
+        <Button className={styles.editDeadline} onClick={onDeadlineMinus}>
+          <span className={styles.scheduleLabel}>{Language.editDeadlineMinus}</span>
+        </Button>
+        <Button className={styles.editDeadline} onClick={onDeadlinePlus}>
+          <span className={styles.scheduleLabel}>{Language.editDeadlinePlus}</span>
+        </Button>
+      </Stack>
+    </div>
+  ) : null
 
   return (
     <div className={styles.schedule}>
@@ -117,16 +129,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
             {Language.autoStopDisplay(workspace)}
           </span>
         </div>
-        <div>
-          <Stack direction="row">
-            <Button className={styles.editDeadline} onClick={onDeadlineMinus}>
-              <span className={styles.scheduleLabel}>{Language.editDeadlineMinus}</span>
-            </Button>
-            <Button className={styles.editDeadline} onClick={onDeadlinePlus}>
-              <span className={styles.scheduleLabel}>{Language.editDeadlinePlus}</span>
-            </Button>
-          </Stack>
-        </div>
+        {editDeadlineButtons}
         <div>
           <Link
             className={styles.scheduleAction}
