@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -40,7 +42,13 @@ const (
 	varForceTty        = "force-tty"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
-	envSessionToken = "CODER_SESSION_TOKEN"
+	noVersionCheckFlag = "no-version-warning"
+	envNoVersionCheck  = "CODER_NO_VERSION_WARNING"
+)
+
+var (
+	errUnauthenticated = xerrors.New(notLoggedInMessage)
+	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
 func init() {
@@ -53,12 +61,47 @@ func init() {
 }
 
 func Root() *cobra.Command {
+	var varSuppressVersion bool
+
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			err := func() error {
+				if varSuppressVersion {
+					return nil
+				}
+
+				// Login handles checking the versions itself since it
+				// has a handle to an unauthenticated client.
+				// Server is skipped for obvious reasons.
+				if cmd.Name() == "login" || cmd.Name() == "server" {
+					return nil
+				}
+
+				client, err := createClient(cmd)
+				// If the client is unauthenticated we can ignore the check.
+				// The child commands should handle an unauthenticated client.
+				if xerrors.Is(err, errUnauthenticated) {
+					return nil
+				}
+				if err != nil {
+					return xerrors.Errorf("create client: %w", err)
+				}
+				return checkVersions(cmd, client)
+			}()
+			if err != nil {
+				// Just log the error here. We never want to fail a command
+				// due to a pre-run.
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+					cliui.Styles.Warn.Render("check versions error: %s"), err)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+			}
+		},
+
 		Example: `  Start a Coder server.
   ` + cliui.Styles.Code.Render("$ coder server") + `
 
@@ -97,6 +140,7 @@ func Root() *cobra.Command {
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
+	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, noVersionCheckFlag, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
@@ -142,7 +186,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -157,7 +201,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -330,4 +374,31 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 func FormatCobraError(err error, cmd *cobra.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
 	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
+}
+
+func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
+	flag := cmd.Flag("no-version-warning")
+	if suppress, _ := strconv.ParseBool(flag.Value.String()); suppress {
+		return nil
+	}
+
+	clientVersion := buildinfo.Version()
+
+	info, err := client.BuildInfo(cmd.Context())
+	if err != nil {
+		return xerrors.Errorf("build info: %w", err)
+	}
+
+	fmtWarningText := `version mismatch: client %s, server %s
+download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
+`
+
+	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
+		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
+		// Trim the leading 'v', our install.sh script does not handle this case well.
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	}
+
+	return nil
 }
