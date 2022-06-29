@@ -48,6 +48,7 @@ export const getFormHelpers =
 export const onChangeTrimmed =
   <T>(form: FormikContextType<T>) =>
   (event: ChangeEvent<HTMLInputElement>): void => {
+    event.target.value = event.target.value.trim()
     form.handleChange(event)
   }
 
