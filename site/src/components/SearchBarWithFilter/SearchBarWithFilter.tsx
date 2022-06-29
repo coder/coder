@@ -10,7 +10,6 @@ import { FormikErrors, useFormik } from "formik"
 import debounce from "just-debounce-it"
 import { useCallback, useEffect, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
-import { getFormHelpers } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
 
@@ -71,8 +70,6 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
     return () => debouncedOnFilter.cancel()
   }, [debouncedOnFilter, form.values.query])
 
-  const getFieldHelpers = getFormHelpers<FilterFormValues>(form)
-
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -107,9 +104,11 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 
         <form onSubmit={form.handleSubmit} className={styles.filterForm}>
           <OutlinedInput
-            {...getFieldHelpers("query")}
-            fullWidth
+            id="query"
+            name="query"
+            error={!!error}
             className={styles.inputStyles}
+            onChange={form.handleChange}
             startAdornment={
               <InputAdornment position="start">
                 <SearchIcon fontSize="small" />
