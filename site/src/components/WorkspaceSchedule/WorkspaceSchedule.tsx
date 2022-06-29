@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
@@ -66,6 +67,8 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
+  editDeadlineMinus: "[-1 hour]",
+  editDeadlinePlus: "[+1 hour]",
   scheduleHeader: (workspace: Workspace): string => {
     const tz = workspace.autostart_schedule
       ? extractTimezone(workspace.autostart_schedule)
@@ -76,6 +79,16 @@ export const Language = {
 
 export interface WorkspaceScheduleProps {
   workspace: Workspace
+  onDeadlinePlus: () => void
+  onDeadlineMinus: () => void
+}
+
+export const shouldDisplayPlusMins = (workspace: Workspace): boolean => {
+  if (!isWorkspaceOn(workspace)) {
+    return false
+  }
+  const deadline = dayjs(workspace.latest_build.deadline).utc()
+  return deadline.year() > 1
 }
 
 export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
@@ -99,6 +112,16 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
           <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
             {Language.autoStopDisplay(workspace)}
           </span>
+        </div>
+        <div>
+          <Stack direction="row">
+            <Button className={styles.editDeadline}>
+              <span className={styles.scheduleLabel}>{Language.editDeadlineMinus}</span>
+            </Button>
+            <Button className={styles.editDeadline}>
+              <span className={styles.scheduleLabel}>{Language.editDeadlinePlus}</span>
+            </Button>
+          </Stack>
         </div>
         <div>
           <Link
@@ -145,5 +168,13 @@ const useStyles = makeStyles((theme) => ({
   },
   scheduleAction: {
     cursor: "pointer",
+  },
+  editDeadline: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    display: "inline-block",
+    fontWeight: 600,
+    color: theme.palette.text.secondary,
+    margin: theme.spacing(0),
   },
 }))

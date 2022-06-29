@@ -59,6 +59,14 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({ type: "EXTEND_DEADLINE_DEFAULT", workspaceId: workspace.id })
             },
           }}
+          scheduleProps={{
+            onDeadlineMinus: () => {
+              console.log("not implemented")
+            },
+            onDeadlinePlus: () => {
+              console.log("not implemented")
+            },
+          }}
           workspace={workspace}
           handleStart={() => workspaceSend("START")}
           handleStop={() => workspaceSend("STOP")}
