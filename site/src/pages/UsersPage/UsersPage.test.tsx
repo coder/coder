@@ -5,7 +5,7 @@ import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
-import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
+import { Language as UsersTableBodyLanguage } from "../../components/UsersTable/UsersTableBody"
 import {
   MockAuditorRole,
   MockUser,
@@ -31,7 +31,7 @@ const suspendUser = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const suspendButton = within(menu).getByText(UsersTableLanguage.suspendMenuItem)
+  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
   fireEvent.click(suspendButton)
 
   // Check if the confirm message is displayed
@@ -60,7 +60,7 @@ const activateUser = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const activateButton = within(menu).getByText(UsersTableLanguage.activateMenuItem)
+  const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
   fireEvent.click(activateButton)
 
   // Check if the confirm message is displayed
@@ -89,7 +89,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const resetPasswordButton = within(menu).getByText(UsersTableLanguage.resetPasswordMenuItem)
+  const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
   fireEvent.click(resetPasswordButton)
 
   // Check if the confirm message is displayed

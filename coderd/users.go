@@ -663,6 +663,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error.",
 		})
+		return
 	}
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
@@ -717,6 +718,34 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
+}
+
+func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	keyID := chi.URLParam(r, "keyid")
+	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertAPIKey(key))
 }
 
 // Clear the user's session cookie.
@@ -787,6 +816,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}
+	bitlen := len(ip) * 8
 	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
@@ -794,7 +824,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   ip,
-				Mask: ip.DefaultMask(),
+				Mask: net.CIDRMask(bitlen, bitlen),
 			},
 			Valid: true,
 		},
@@ -1007,4 +1037,17 @@ func parseUserStatus(v string) ([]database.UserStatus, error) {
 		}
 	}
 	return statuses, nil
+}
+
+func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	return codersdk.APIKey{
+		ID:              k.ID,
+		UserID:          k.UserID,
+		LastUsed:        k.LastUsed,
+		ExpiresAt:       k.ExpiresAt,
+		CreatedAt:       k.CreatedAt,
+		UpdatedAt:       k.UpdatedAt,
+		LoginType:       codersdk.LoginType(k.LoginType),
+		LifetimeSeconds: k.LifetimeSeconds,
+	}
 }

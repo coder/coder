@@ -74,12 +74,31 @@ type Options struct {
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _ := NewWithAPI(t, options)
+	client, _ := newWithCloser(t, options)
 	return client
 }
 
-// NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
+// NewWithProvisionerCloser returns a client as well as a handle to close
+// the provisioner. This is a temporary function while work is done to
+// standardize how provisioners are registered with coderd. The option
+// to include a provisioner is set to true for convenience.
+func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+	if options == nil {
+		options = &Options{}
+	}
+	options.IncludeProvisionerD = true
+	client, closer := newWithCloser(t, options)
+	return client, closer
+}
+
+// newWithCloser constructs a codersdk client connected to an in-memory API instance.
+// The returned closer closes a provisioner if it was provided
+// The API is intentionally not returned here because coderd tests should not
+// require a handle to the API. Do not expose the API or wrath shall descend
+// upon thee. Even the io.Closer that is exposed here shouldn't be exposed
+// and is a temporary measure while the API to register provisioners is ironed
+// out.
+func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -169,17 +188,21 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		Telemetry:            telemetry.NewNoop(),
 	})
 	srv.Config.Handler = coderAPI.Handler
+
+	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerD {
-		_ = NewProvisionerDaemon(t, coderAPI)
+		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
 		_ = coderAPI.Close()
+		_ = provisionerCloser.Close()
 	})
 
-	return codersdk.New(serverURL), coderAPI
+	return codersdk.New(serverURL), provisionerCloser
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -648,3 +671,7 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
+
+type nopcloser struct{}
+
+func (nopcloser) Close() error { return nil }

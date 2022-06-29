@@ -2,8 +2,14 @@ package coderd_test
 
 import (
 	"context"
+	"crypto/x509"
+	"database/sql"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,10 +20,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -39,13 +58,96 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	var (
+		ctx        = context.Background()
+		authorizer = &fakeAuthorizer{}
+	)
 
-	authorizer := &fakeAuthorizer{}
-	client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Authorizer:          authorizer,
-		IncludeProvisionerD: true,
-	})
+	// This function was taken from coderdtest.newWithAPI. It is intentionally
+	// copied to avoid exposing the API to other tests in coderd. Tests should
+	// not need a reference to coderd.API...this test is an exception.
+	newClient := func(authorizer rbac.Authorizer) (*codersdk.Client, *coderd.API) {
+		// This can be hotswapped for a live database instance.
+		db := databasefake.New()
+		pubsub := database.NewPubsubInMemory()
+		if os.Getenv("DB") != "" {
+			connectionURL, closePg, err := postgres.Open()
+			require.NoError(t, err)
+			t.Cleanup(closePg)
+			sqlDB, err := sql.Open("postgres", connectionURL)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = sqlDB.Close()
+			})
+			err = database.MigrateUp(sqlDB)
+			require.NoError(t, err)
+			db = database.New(sqlDB)
+
+			pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = pubsub.Close()
+			})
+		}
+
+		tickerCh := make(chan time.Time)
+		t.Cleanup(func() { close(tickerCh) })
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		lifecycleExecutor := executor.New(
+			ctx,
+			db,
+			slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+			tickerCh,
+		).WithStatsChannel(nil)
+		lifecycleExecutor.Run()
+
+		srv := httptest.NewUnstartedServer(nil)
+		srv.Config.BaseContext = func(_ net.Listener) context.Context {
+			return ctx
+		}
+		srv.Start()
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		turnServer, err := turnconn.New(nil)
+		require.NoError(t, err)
+
+		validator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
+		require.NoError(t, err)
+
+		// We set the handler after server creation for the access URL.
+		coderAPI := coderd.New(&coderd.Options{
+			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+			AccessURL:                      serverURL,
+			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			Database:                       db,
+			Pubsub:                         pubsub,
+
+			AWSCertificates:      nil,
+			AzureCertificates:    x509.VerifyOptions{},
+			GithubOAuth2Config:   nil,
+			GoogleTokenValidator: validator,
+			SSHKeygenAlgorithm:   gitsshkey.AlgorithmEd25519,
+			TURNServer:           turnServer,
+			APIRateLimit:         0,
+			Authorizer:           authorizer,
+			Telemetry:            telemetry.NewNoop(),
+		})
+		srv.Config.Handler = coderAPI.Handler
+
+		_ = coderdtest.NewProvisionerDaemon(t, coderAPI)
+		t.Cleanup(func() {
+			cancelFunc()
+			_ = turnServer.Close()
+			srv.Close()
+			_ = coderAPI.Close()
+		})
+
+		return codersdk.New(serverURL), coderAPI
+	}
+
+	client, api := newClient(authorizer)
 	admin := coderdtest.CreateFirstUser(t, client)
 	// The provisioner will call to coderd and register itself. This is async,
 	// so we wait for it to occur.

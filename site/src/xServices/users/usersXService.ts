@@ -10,9 +10,11 @@ import {
 } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { queryToFilter } from "../../util/filters"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
+  getUsersError: "Error getting users.",
   createUserSuccess: "Successfully created user.",
   createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
@@ -28,6 +30,7 @@ export const Language = {
 export interface UsersContext {
   // Get users
   users?: TypesGen.User[]
+  filter?: string
   getUsersError?: Error | unknown
   createUserErrorMessage?: string
   createUserFormErrors?: FieldErrors
@@ -47,7 +50,7 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  | { type: "GET_USERS" }
+  | { type: "GET_USERS"; query: string }
   | { type: "CREATE"; user: TypesGen.CreateUserRequest }
   | { type: "CANCEL_CREATE_USER" }
   // Suspend events
@@ -97,7 +100,10 @@ export const usersMachine = createMachine(
     states: {
       idle: {
         on: {
-          GET_USERS: "gettingUsers",
+          GET_USERS: {
+            actions: "assignFilter",
+            target: "gettingUsers",
+          },
           CREATE: "creatingUser",
           CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
           SUSPEND_USER: {
@@ -119,18 +125,19 @@ export const usersMachine = createMachine(
         },
       },
       gettingUsers: {
+        entry: "clearGetUsersError",
         invoke: {
           src: "getUsers",
           id: "getUsers",
           onDone: [
             {
               target: "#usersState.idle",
-              actions: ["assignUsers", "clearGetUsersError"],
+              actions: "assignUsers",
             },
           ],
           onError: [
             {
-              actions: "assignGetUsersError",
+              actions: ["clearUsers", "assignGetUsersError", "displayGetUsersErrorMessage"],
               target: "#usersState.error",
             },
           ],
@@ -242,7 +249,10 @@ export const usersMachine = createMachine(
       },
       error: {
         on: {
-          GET_USERS: "gettingUsers",
+          GET_USERS: {
+            actions: "assignFilter",
+            target: "gettingUsers",
+          },
         },
       },
     },
@@ -252,7 +262,7 @@ export const usersMachine = createMachine(
       // Passing API.getUsers directly does not invoke the function properly
       // when it is mocked. This happen in the UsersPage tests inside of the
       // "shows a success message and refresh the page" test case.
-      getUsers: () => API.getUsers(),
+      getUsers: (context) => API.getUsers(queryToFilter(context.filter)),
       createUser: (_, event) => API.createUser(event.user),
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {
@@ -297,6 +307,9 @@ export const usersMachine = createMachine(
       assignUsers: assign({
         users: (_, event) => event.data,
       }),
+      assignFilter: assign({
+        filter: (_, event) => event.query,
+      }),
       assignGetUsersError: assign({
         getUsersError: (_, event) => event.data,
       }),
@@ -336,6 +349,10 @@ export const usersMachine = createMachine(
       assignUpdateRolesError: assign({
         updateUserRolesError: (_, event) => event.data,
       }),
+      clearUsers: assign((context: UsersContext) => ({
+        ...context,
+        users: undefined,
+      })),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
         createUserErrorMessage: undefined,
@@ -353,6 +370,10 @@ export const usersMachine = createMachine(
       clearUpdateUserRolesError: assign({
         updateUserRolesError: (_) => undefined,
       }),
+      displayGetUsersErrorMessage: (context) => {
+        const message = getErrorMessage(context.getUsersError, Language.getUsersError)
+        displayError(message)
+      },
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
       },
