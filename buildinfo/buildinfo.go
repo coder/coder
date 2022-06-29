@@ -3,7 +3,6 @@ package buildinfo
 import (
 	"fmt"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,11 +24,6 @@ var (
 	tag string
 )
 
-const (
-	// develPrefix is prefixed to developer versions of the application.
-	develPrefix = "v0.0.0-devel"
-)
-
 // Version returns the semantic version of the build.
 // Use golang.org/x/mod/semver to compare versions.
 func Version() string {
@@ -41,7 +35,7 @@ func Version() string {
 		if tag == "" {
 			// This occurs when the tag hasn't been injected,
 			// like when using "go run".
-			version = develPrefix + revision
+			version = "v0.0.0-devel" + revision
 			return
 		}
 		version = "v" + tag
@@ -52,20 +46,6 @@ func Version() string {
 		}
 	})
 	return version
-}
-
-// VersionsMatch compares the two versions. It assumes the versions match if
-// the major and the minor versions are equivalent. Patch versions are
-// disregarded. If it detects that either version is a developer build it
-// returns true.
-func VersionsMatch(v1, v2 string) bool {
-	// Developer versions are disregarded...hopefully they know what they are
-	// doing.
-	if strings.HasPrefix(v1, develPrefix) || strings.HasPrefix(v2, develPrefix) {
-		return true
-	}
-
-	return semver.MajorMinor(v1) == semver.MajorMinor(v2)
 }
 
 // ExternalURL returns a URL referencing the current Coder version.

@@ -67,15 +67,6 @@ func login() *cobra.Command {
 			}
 
 			client := codersdk.New(serverURL)
-
-			// Try to check the version of the server prior to logging in.
-			// It may be useful to warn the user if they are trying to login
-			// on a very old client.
-			err = checkVersions(cmd, client)
-			if err != nil {
-				return xerrors.Errorf("check versions: %w", err)
-			}
-
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
 				return xerrors.Errorf("has initial user: %w", err)
