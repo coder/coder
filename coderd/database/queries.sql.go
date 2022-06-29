@@ -2063,7 +2063,8 @@ const updateTemplateActiveVersionByID = `-- name: UpdateTemplateActiveVersionByI
 UPDATE
 	templates
 SET
-	active_version_id = $2
+	active_version_id = $2,
+	updated_at = $3
 WHERE
 	id = $1
 `
@@ -2071,10 +2072,11 @@ WHERE
 type UpdateTemplateActiveVersionByIDParams struct {
 	ID              uuid.UUID `db:"id" json:"id"`
 	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateActiveVersionByID, arg.ID, arg.ActiveVersionID)
+	_, err := q.db.ExecContext(ctx, updateTemplateActiveVersionByID, arg.ID, arg.ActiveVersionID, arg.UpdatedAt)
 	return err
 }
 
@@ -2082,18 +2084,20 @@ const updateTemplateDeletedByID = `-- name: UpdateTemplateDeletedByID :exec
 UPDATE
 	templates
 SET
-	deleted = $2
+	deleted = $2,
+	updated_at = $3
 WHERE
 	id = $1
 `
 
 type UpdateTemplateDeletedByIDParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Deleted   bool      `db:"deleted" json:"deleted"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateDeletedByID, arg.ID, arg.Deleted)
+	_, err := q.db.ExecContext(ctx, updateTemplateDeletedByID, arg.ID, arg.Deleted, arg.UpdatedAt)
 	return err
 }
 

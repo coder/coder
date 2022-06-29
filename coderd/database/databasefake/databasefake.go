@@ -1830,6 +1830,7 @@ func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg dat
 			continue
 		}
 		template.ActiveVersionID = arg.ActiveVersionID
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
@@ -1845,6 +1846,7 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 			continue
 		}
 		template.Deleted = arg.Deleted
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
