@@ -9,12 +9,14 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine)
-  const [_, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { workspaceRefs } = workspacesState.context
 
   // On page load, populate the table with workspaces
   useEffect(() => {
-    const query = workspaceFilterQuery.me
+    const filter = searchParams.get("filter")
+    const query = filter !== null ? filter : workspaceFilterQuery.me
+    // const query = workspaceFilterQuery.me
 
     send({
       type: "GET_WORKSPACES",
