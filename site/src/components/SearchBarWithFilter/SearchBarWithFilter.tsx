@@ -9,7 +9,7 @@ import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
 import { useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
 
@@ -91,7 +91,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
           <TextField
             {...getFieldHelpers("query")}
             className={styles.textFieldRoot}
-            onChange={onChangeTrimmed(form)}
+            onChange={form.handleChange}
             fullWidth
             variant="outlined"
             InputProps={{
