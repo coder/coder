@@ -7,7 +7,8 @@ import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
-import { useState } from "react"
+import debounce from "just-debounce-it"
+import { useCallback, useEffect, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
 import { getFormHelpers } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
@@ -52,6 +53,23 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
       onFilter(query)
     },
   })
+
+  // debounce query string entry by user
+  // we want the dependency array empty here
+  // as we don't need to redefine the function
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedOnFilter = useCallback(
+    debounce((debouncedQueryString: string) => {
+      onFilter(debouncedQueryString)
+    }, 300),
+    [],
+  )
+
+  // update the query params while typing
+  useEffect(() => {
+    debouncedOnFilter(form.values.query)
+    return () => debouncedOnFilter.cancel()
+  }, [debouncedOnFilter, form.values.query])
 
   const getFieldHelpers = getFormHelpers<FilterFormValues>(form)
 

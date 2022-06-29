@@ -12,6 +12,7 @@ const WorkspacesPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { workspaceRefs } = workspacesState.context
 
+  // On page load, populate the table with workspaces
   useEffect(() => {
     const filter = searchParams.get("filter")
     const query = filter ?? workspaceFilterQuery.me
@@ -20,7 +21,8 @@ const WorkspacesPage: FC = () => {
       type: "GET_WORKSPACES",
       query,
     })
-  }, [searchParams, send])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
@@ -33,8 +35,11 @@ const WorkspacesPage: FC = () => {
         loading={workspacesState.hasTag("loading")}
         workspaceRefs={workspaceRefs}
         onFilter={(query) => {
-          searchParams.set("filter", query)
-          setSearchParams(searchParams)
+          setSearchParams({ filter: query })
+          send({
+            type: "GET_WORKSPACES",
+            query,
+          })
         }}
       />
     </>

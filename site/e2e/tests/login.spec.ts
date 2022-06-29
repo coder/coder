@@ -10,7 +10,7 @@ test("Login takes user to /workspaces", async ({ baseURL, page }) => {
   const signInPage = new SignInPage(baseURL, page)
   await signInPage.submitBuiltInAuthentication(email, password)
 
-  const workspacesPage = new WorkspacesPage(baseURL, page)
+  const workspacesPage = new WorkspacesPage(baseURL, page, "?filter=owner%3Ame")
   await waitForClientSideNavigation(page, { to: workspacesPage.url })
 
   await page.waitForSelector("text=Workspaces")
