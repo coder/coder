@@ -282,6 +282,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
+			UpdatedAt:        database.Now(),
 		})
 		if err != nil {
 			return err
@@ -491,6 +492,7 @@ func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) 
 		ID:                      workspaceAgent.ID,
 		WireguardNodePublicKey:  dbtypes.NodePublic(keys.Public),
 		WireguardDiscoPublicKey: dbtypes.DiscoPublic(keys.Disco),
+		UpdatedAt:               database.Now(),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
