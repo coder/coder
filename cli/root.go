@@ -69,27 +69,37 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if varSuppressVersion {
-				return nil
-			}
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			err := func() error {
+				if varSuppressVersion {
+					return nil
+				}
 
-			// Login handles checking the versions itself since it
-			// has a handle to an unauthenticated client.
-			if cmd.Name() == "login" {
-				return nil
-			}
+				// Login handles checking the versions itself since it
+				// has a handle to an unauthenticated client.
+				// Server is skipped for obvious reasons.
+				if cmd.Name() == "login" || cmd.Name() == "server" {
+					return nil
+				}
 
-			client, err := createClient(cmd)
-			// If the client is unauthenticated we can ignore the check.
-			// The child commands should handle an unauthenticated client.
-			if xerrors.Is(err, errUnauthenticated) {
-				return nil
-			}
+				client, err := createClient(cmd)
+				// If the client is unauthenticated we can ignore the check.
+				// The child commands should handle an unauthenticated client.
+				if xerrors.Is(err, errUnauthenticated) {
+					return nil
+				}
+				if err != nil {
+					return xerrors.Errorf("create client: %w", err)
+				}
+				return checkVersions(cmd, client)
+			}()
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				// Just log the error here. We never want to fail a command
+				// due to a pre-run.
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+					cliui.Styles.Warn.Render("check versions error: %s"), err)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
-			return checkVersions(cmd, client)
 		},
 
 		Example: `  Start a Coder server.
