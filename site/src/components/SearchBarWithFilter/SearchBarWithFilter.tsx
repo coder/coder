@@ -5,6 +5,7 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
+import { Theme } from "@material-ui/core/styles/createMuiTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
 import debounce from "just-debounce-it"
@@ -41,7 +42,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   presetFilters,
   error,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({ error })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -147,7 +148,11 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  error?: unknown
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     marginBottom: theme.spacing(2),
   },
@@ -173,6 +178,9 @@ const useStyles = makeStyles((theme) => ({
 
     "& fieldset": {
       borderColor: theme.palette.divider,
+      "&MuiOutlinedInput-root:hover, &MuiOutlinedInput-notchedOutline": {
+        borderColor: (props) => props.error && theme.palette.error.contrastText,
+      },
     },
   },
 }))
