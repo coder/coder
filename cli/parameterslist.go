@@ -74,7 +74,7 @@ func parameterList() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "source_scheme", "destination_scheme"},
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "scope", "destination_scheme"},
 		"Specify a column to filter in the table.")
 	return cmd
 }
