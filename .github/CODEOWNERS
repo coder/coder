@@ -1,1 +1,3 @@
 site/ @coder/frontend
+docs/ @coder/docs
+README.md @coder/docs
