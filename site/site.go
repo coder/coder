@@ -256,48 +256,70 @@ const (
 	CSPFrameAncestors       = "frame-ancestors"
 )
 
+func cspHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
+		// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
+		// If we ever want to render something like a PDF, we need to adjust "object-src"
+		//
+		//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
+		cspSrcs := CSPDirectives{
+			// All omitted fetch csp srcs default to this.
+			CSPDirectiveDefaultSrc: {"'self'"},
+			CSPDirectiveConnectSrc: {"'self'"},
+			CSPDirectiveChildSrc:   {"'self'"},
+			CSPDirectiveScriptSrc:  {"'self'"},
+			CSPDirectiveFontSrc:    {"'self'"},
+			CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
+			// object-src is needed to support code-server
+			CSPDirectiveObjectSrc: {"'self'"},
+			// blob: for loading the pwa manifest for code-server
+			CSPDirectiveManifestSrc: {"'self' blob:"},
+			CSPDirectiveFrameSrc:    {"'self'"},
+			// data: for loading base64 encoded icons for generic applications.
+			// https: allows loading images from external sources. This is not ideal
+			// 	but is required for the templates page that renders readmes.
+			//	We should find a better solution in the future.
+			CSPDirectiveImgSrc:     {"'self' data:"},
+			CSPDirectiveFormAction: {"'self'"},
+			CSPDirectiveMediaSrc:   {"'self'"},
+			// Report all violations back to the server to log
+			CSPDirectiveReportURI: {"/api/v2/csp/reports"},
+			CSPFrameAncestors:     {"'none'"},
+
+			// Only scripts can manipulate the dom. This prevents someone from
+			// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
+			// "require-trusted-types-for" : []string{"'script'"},
+		}
+
+		// This extra connect-src addition is required to support old webkit
+		// based browsers (Safari).
+		// See issue: https://github.com/w3c/webappsec-csp/issues/7
+		// Once webkit browsers support 'self' on connect-src, we can remove this.
+		// When we remove this, the csp header can be static, as opposed to being
+		// dynamically generated for each request.
+		host := r.Host
+		// It is important r.Host is not an empty string.
+		if host != "" {
+			// We can add both ws:// and wss:// as browsers do not let https
+			// pages to connect to non-tls websocket connections. So this
+			// supports both http & https webpages.
+			cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
+		}
+
+		var csp strings.Builder
+		for src, vals := range cspSrcs {
+			_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+		}
+
+		w.Header().Set("Content-Security-Policy", csp.String())
+		next.ServeHTTP(w, r)
+	})
+}
+
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.
 func secureHeaders(next http.Handler) http.Handler {
-	// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
-	// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
-	// If we ever want to render something like a PDF, we need to adjust "object-src"
-	//
-	//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
-	cspSrcs := CSPDirectives{
-		// All omitted fetch csp srcs default to this.
-		CSPDirectiveDefaultSrc: {"'self'"},
-		CSPDirectiveConnectSrc: {"'self' ws: wss:"},
-		CSPDirectiveChildSrc:   {"'self'"},
-		CSPDirectiveScriptSrc:  {"'self'"},
-		CSPDirectiveFontSrc:    {"'self'"},
-		CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
-		// object-src is needed to support code-server
-		CSPDirectiveObjectSrc: {"'self'"},
-		// blob: for loading the pwa manifest for code-server
-		CSPDirectiveManifestSrc: {"'self' blob:"},
-		CSPDirectiveFrameSrc:    {"'self'"},
-		// data: for loading base64 encoded icons for generic applications.
-		// https: allows loading images from external sources. This is not ideal
-		// 	but is required for the templates page that renders readmes.
-		//	We should find a better solution in the future.
-		CSPDirectiveImgSrc:     {"'self' https: https://cdn.coder.com data:"},
-		CSPDirectiveFormAction: {"'self'"},
-		CSPDirectiveMediaSrc:   {"'self'"},
-		// Report all violations back to the server to log
-		CSPDirectiveReportURI: {"/api/v2/csp/reports"},
-		CSPFrameAncestors:     {"'none'"},
-
-		// Only scripts can manipulate the dom. This prevents someone from
-		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
-		// "require-trusted-types-for" : []string{"'script'"},
-	}
-
-	var csp strings.Builder
-	for src, vals := range cspSrcs {
-		_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
-	}
-
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
 	// This can prevent an embedded iframe from accessing these features.
 	// If we support arbitrary iframes such as generic applications, we might need to add permissions
@@ -322,15 +344,11 @@ func secureHeaders(next http.Handler) http.Handler {
 	}, ", ")
 
 	return secure.New(secure.Options{
-		// Set to ContentSecurityPolicyReportOnly for testing, as all errors are printed to the console log
-		// but are not enforced.
-		ContentSecurityPolicy: csp.String(),
-
 		PermissionsPolicy: permissions,
 
 		// Prevent the browser from sending Referer header with requests
 		ReferrerPolicy: "no-referrer",
-	}).Handler(next)
+	}).Handler(cspHeaders(next))
 }
 
 // htmlFiles recursively walks the file system passed finding all *.html files.
