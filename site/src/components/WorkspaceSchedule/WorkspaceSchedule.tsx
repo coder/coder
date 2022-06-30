@@ -116,7 +116,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
     <Stack direction="row" spacing={0}>
       <IconButton
         size="small"
-        disabled={deadlineMinusDisabled(workspace, now ? now : dayjs())}
+        disabled={deadlineMinusDisabled(workspace, now ?? dayjs())}
         className={styles.editDeadline}
         onClick={onDeadlineMinus}
       >
@@ -126,7 +126,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
       </IconButton>
       <IconButton
         size="small"
-        disabled={deadlinePlusDisabled(workspace, now ? now : dayjs())}
+        disabled={deadlinePlusDisabled(workspace, now ?? dayjs())}
         className={styles.editDeadline}
         onClick={onDeadlinePlus}
       >
