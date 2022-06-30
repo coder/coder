@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.coder.service.type }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: https
+      protocol: TCP
+  selector:
+    {{- include "coder.selectorLabels" . | nindent 4 }}

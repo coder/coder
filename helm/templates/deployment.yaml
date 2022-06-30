@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coder
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.coder.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "coder.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 300
+      containers:
+        - name: coder
+          image: "{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: CODER_ADDRESS
+              value: "0.0.0.0:80"
+            {{- if .Values.coder.tls.secretName }}
+            - name: CODER_TLS_ENABLE
+              value: "true"
+            - name: CODER_TLS_CERT_FILE
+              value: /etc/ssl/certs/coder/tls.crt
+            - name: CODER_TLS_KEY_FILE
+              value: /etc/ssl/certs/coder/tls.key
+            {{- end }}
+            {{- with .Values.coder.env -}}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http

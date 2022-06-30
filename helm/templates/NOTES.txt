@@ -1,0 +1,16 @@
+{{- if not (semverCompare ">= 1.21.0-0" .Capabilities.KubeVersion.Version) -}}
+============================== KUBERNETES SUPPORT ==============================
+
+NOTICE: Coder follows the Kubernetes upstream version support policy, and the
+latest stable release version of Coder supports the previous two minor releases
+as well as the current release of Kubernetes at time of publication.
+
+Your Kubernetes version is: {{ .Capabilities.KubeVersion }}
+
+Coder {{ .Chart.AppVersion }} requires Kubernetes >= 1.21
+
+Coder cannot provide any guarantees of compatibility nor technical support for
+this version of Kubernetes.
+
+============================== KUBERNETES SUPPORT ==============================
+{{- end -}}
