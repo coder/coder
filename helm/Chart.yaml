@@ -8,13 +8,11 @@ type: application
 version: "0.1.0"
 appVersion: "0.1.0"
 
-# Coder has a hard requirement on Kubernetes 1.19, as this version
-# introduced the networking.k8s.io/v1 API for the Ingress and
-# NetworkPolicy resources.
+# Coder has a hard requirement on Kubernetes 1.19, as this version introduced
+# the networking.k8s.io/v1 API for the Ingress and NetworkPolicy resources.
 #
-# Additionally, the NOTES.txt file emits a warning if the cluster
-# version is outside our soft requirement, in accordance with our
-# official support policy.
+# Additionally, the NOTES.txt file emits a warning if the cluster version is
+# outside our soft requirement, in accordance with our official support policy.
 kubeVersion: ">= 1.19.0-0"
 
 keywords:
