@@ -3,14 +3,14 @@ import Fade from "@material-ui/core/Fade"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
+import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import { Theme } from "@material-ui/core/styles/createMuiTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
 import debounce from "just-debounce-it"
 import { useCallback, useEffect, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
-import { getFormHelpers } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
 
@@ -42,7 +42,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   presetFilters,
   error,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({ error })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -71,8 +71,6 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
     return () => debouncedOnFilter.cancel()
   }, [debouncedOnFilter, form.values.query])
 
-  const getFieldHelpers = getFormHelpers<FilterFormValues>(form)
-
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -93,7 +91,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 
   return (
     <Stack spacing={1} className={styles.root}>
-      <Stack direction="row" spacing={0} className={styles.filterContainer}>
+      <Stack direction="row" spacing={0}>
         {presetFilters && presetFilters.length > 0 && (
           <Button
             aria-controls="filter-menu"
@@ -106,19 +104,18 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
         )}
 
         <form onSubmit={form.handleSubmit} className={styles.filterForm}>
-          <TextField
-            {...getFieldHelpers("query")}
-            className={styles.textFieldRoot}
+          <OutlinedInput
+            id="query"
+            name="query"
+            value={form.values.query}
+            error={!!error}
+            className={styles.inputStyles}
             onChange={form.handleChange}
-            fullWidth
-            variant="outlined"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
+            startAdornment={
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            }
           />
         </form>
 
@@ -152,29 +149,39 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  error?: unknown
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     marginBottom: theme.spacing(2),
   },
-  filterContainer: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
-  },
+  // necessary to expand the textField
+  // the length of the page (within the bordered filterContainer)
   filterForm: {
     width: "100%",
   },
   buttonRoot: {
-    border: "none",
-    borderRight: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRight: "0px",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
-  },
-  textFieldRoot: {
-    margin: "0px",
-    "& fieldset": {
-      border: "none",
-    },
   },
   errorRoot: {
     color: theme.palette.error.dark,
+  },
+  inputStyles: {
+    height: "100%",
+    width: "100%",
+    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    color: theme.palette.primary.contrastText,
+    backgroundColor: theme.palette.background.paper,
+
+    "& fieldset": {
+      borderColor: theme.palette.divider,
+      "&MuiOutlinedInput-root:hover, &MuiOutlinedInput-notchedOutline": {
+        borderColor: (props) => props.error && theme.palette.error.contrastText,
+      },
+    },
   },
 }))
