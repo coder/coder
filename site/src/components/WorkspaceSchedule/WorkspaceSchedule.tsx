@@ -1,7 +1,10 @@
-import Button from "@material-ui/core/Button"
+import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import Tooltip from "@material-ui/core/Tooltip"
 import Typography from "@material-ui/core/Typography"
+import AddBoxIcon from "@material-ui/icons/AddBox"
+import IndeterminateCheckBoxIcon from "@material-ui/icons/IndeterminateCheckBox"
 import ScheduleIcon from "@material-ui/icons/Schedule"
 import cronstrue from "cronstrue"
 import dayjs from "dayjs"
@@ -67,8 +70,8 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
-  editDeadlineMinus: "[-1 hour]",
-  editDeadlinePlus: "[+1 hour]",
+  editDeadlineMinus: "Subtract one hour",
+  editDeadlinePlus: "Add one hour",
   scheduleHeader: (workspace: Workspace): string => {
     const tz = workspace.autostart_schedule
       ? extractTimezone(workspace.autostart_schedule)
@@ -98,16 +101,18 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
 }) => {
   const styles = useStyles()
   const editDeadlineButtons = shouldDisplayPlusMins(workspace) ? (
-    <div>
-      <Stack direction="row">
-        <Button className={styles.editDeadline} onClick={onDeadlineMinus}>
-          <span className={styles.scheduleLabel}>{Language.editDeadlineMinus}</span>
-        </Button>
-        <Button className={styles.editDeadline} onClick={onDeadlinePlus}>
-          <span className={styles.scheduleLabel}>{Language.editDeadlinePlus}</span>
-        </Button>
-      </Stack>
-    </div>
+    <Stack direction="row" spacing={0}>
+      <IconButton size="small" className={styles.editDeadline} onClick={onDeadlineMinus}>
+        <Tooltip title={Language.editDeadlineMinus}>
+          <IndeterminateCheckBoxIcon />
+        </Tooltip>
+      </IconButton>
+      <IconButton size="small" className={styles.editDeadline} onClick={onDeadlinePlus}>
+        <Tooltip title={Language.editDeadlinePlus}>
+          <AddBoxIcon />
+        </Tooltip>
+      </IconButton>
+    </Stack>
   ) : null
 
   return (
@@ -125,11 +130,13 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
         </div>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStopLabel}</span>
-          <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
-            {Language.autoStopDisplay(workspace)}
-          </span>
+          <Stack direction="row">
+            <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
+              {Language.autoStopDisplay(workspace)}
+            </span>
+            {editDeadlineButtons}
+          </Stack>
         </div>
-        {editDeadlineButtons}
         <div>
           <Link
             className={styles.scheduleAction}
@@ -168,8 +175,8 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
   scheduleValue: {
-    fontSize: 16,
-    marginTop: theme.spacing(0.25),
+    fontSize: 14,
+    marginTop: theme.spacing(0.75),
     display: "inline-block",
     color: theme.palette.text.secondary,
   },
@@ -177,11 +184,6 @@ const useStyles = makeStyles((theme) => ({
     cursor: "pointer",
   },
   editDeadline: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    display: "inline-block",
-    fontWeight: 600,
     color: theme.palette.text.secondary,
-    margin: theme.spacing(0),
   },
 }))
