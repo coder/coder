@@ -47,7 +47,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
     return <TableLoader />
   }
 
-  if (!users || users.length === 0) {
+  if (!users || !users.length) {
     return (
       <TableRow>
         <TableCell colSpan={999}>
