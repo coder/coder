@@ -63,7 +63,7 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: dayjs().utc().add(4, "hours"),
+                newDeadline: dayjs(workspace.latest_build.deadline).utc().add(4, "hours"),
               })
             },
           }}

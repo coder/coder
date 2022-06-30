@@ -81,6 +81,7 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleProps {
+  now?: dayjs.Dayjs
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
@@ -94,7 +95,18 @@ export const shouldDisplayPlusMins = (workspace: Workspace): boolean => {
   return deadline.year() > 1
 }
 
+export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta <= 30 * 60 * 1000
+}
+
+export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta > 23 * 59 * 59 * 1000
+}
+
 export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  now,
   workspace,
   onDeadlineMinus,
   onDeadlinePlus,
@@ -102,12 +114,22 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
   const styles = useStyles()
   const editDeadlineButtons = shouldDisplayPlusMins(workspace) ? (
     <Stack direction="row" spacing={0}>
-      <IconButton size="small" className={styles.editDeadline} onClick={onDeadlineMinus}>
+      <IconButton
+        size="small"
+        disabled={deadlineMinusDisabled(workspace, now ? now : dayjs())}
+        className={styles.editDeadline}
+        onClick={onDeadlineMinus}
+      >
         <Tooltip title={Language.editDeadlineMinus}>
           <IndeterminateCheckBoxIcon />
         </Tooltip>
       </IconButton>
-      <IconButton size="small" className={styles.editDeadline} onClick={onDeadlinePlus}>
+      <IconButton
+        size="small"
+        disabled={deadlinePlusDisabled(workspace, now ? now : dayjs())}
+        className={styles.editDeadline}
+        onClick={onDeadlinePlus}
+      >
         <Tooltip title={Language.editDeadlinePlus}>
           <AddBoxIcon />
         </Tooltip>

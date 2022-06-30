@@ -8,8 +8,8 @@ import * as API from "../../api/api"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
-  errorExtension: "Failed to extend workspace deadline.",
-  successExtension: "Successfully extended workspace deadline.",
+  errorExtension: "Failed to update workspace shutdown time.",
+  successExtension: "Updated workspace shutdown time.",
 }
 
 export type WorkspaceScheduleBannerEvent = {
