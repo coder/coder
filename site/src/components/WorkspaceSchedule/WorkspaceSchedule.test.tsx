@@ -58,6 +58,20 @@ describe("WorkspaceSchedule", () => {
       // Then: deadlineMinusDisabled should be truthy
       expect(deadlineMinusDisabled(workspace, now)).toBeTruthy()
     })
+
+    it("should be true if the deadline is in the past", () => {
+      // Given: a workspace with a deadline set to 1 minute in the past
+      const workspace: TypesGen.Workspace = {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: now.add(-1, "minutes").utc().format(),
+        },
+      }
+
+      // Then: deadlineMinusDisabled should be truthy
+      expect(deadlineMinusDisabled(workspace, now)).toBeTruthy()
+    })
   })
 
   describe("deadlinePlusDisabled", () => {
@@ -87,6 +101,20 @@ describe("WorkspaceSchedule", () => {
 
       // Then: deadlinePlusDisabled should be truthy
       expect(deadlinePlusDisabled(workspace, now)).toBeTruthy()
+    })
+
+    it("should be false if the deadline is in the past", () => {
+      // Given: a workspace with a deadline set to 1 minute in the past
+      const workspace: TypesGen.Workspace = {
+        ...Mocks.MockWorkspace,
+        latest_build: {
+          ...Mocks.MockWorkspaceBuild,
+          deadline: now.add(-1, "minute").utc().format(),
+        },
+      }
+
+      // Then: deadlinePlusDisabled should be falsy
+      expect(deadlinePlusDisabled(workspace, now)).toBeFalsy()
     })
   })
 })
