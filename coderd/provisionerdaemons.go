@@ -380,7 +380,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(logs)
+		data, err := json.Marshal(provisionerJobLogsMessage{Logs: logs})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal job log: %w", err)
 		}
@@ -549,6 +549,16 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
+
+	data, err := json.Marshal(provisionerJobLogsMessage{EndOfLogs: true})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal job log: %w", err)
+	}
+	err = server.Pubsub.Publish(provisionerJobLogsChannel(jobID), data)
+	if err != nil {
+		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		return nil, xerrors.Errorf("publish end of job logs: %w", err)
+	}
 	return &proto.Empty{}, nil
 }
 
@@ -709,6 +719,16 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	default:
 		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
 			reflect.TypeOf(completed.Type).String())
+	}
+
+	data, err := json.Marshal(provisionerJobLogsMessage{EndOfLogs: true})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal job log: %w", err)
+	}
+	err = server.Pubsub.Publish(provisionerJobLogsChannel(jobID), data)
+	if err != nil {
+		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
 
 	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
