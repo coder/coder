@@ -29,17 +29,9 @@ const (
 	MissingParameterErrorText = "missing parameter"
 )
 
-type jobRunner interface {
-	start()
-	cancel()
-	isDone() <-chan any
-	fail(ctx context.Context, f *proto.FailedJob) error
-	forceStop()
-}
-
-type runner struct {
+type Runner struct {
 	job                 *proto.AcquiredJob
-	sender              messageSender
+	sender              JobUpdater
 	logger              slog.Logger
 	filesystem          afero.Fs
 	workDirectory       string
@@ -47,51 +39,52 @@ type runner struct {
 	updateInterval      time.Duration
 	forceCancelInterval time.Duration
 
-	// mutex controls access to all the following variables.
-	mutex *sync.Mutex
-	// used to wait for the failedJob or completedJob to be populated
-	cond *sync.Cond
-	// closed when the job ends.
-	done         chan any
-	failedJob    *proto.FailedJob
-	completedJob *proto.CompletedJob
+	// closed when the Runner is finished sending any updates/failed/complete.
+	done chan any
 	// active as long as we are not canceled
 	gracefulContext context.Context
 	cancelFunc      context.CancelFunc
 	// active as long as we haven't been force stopped
 	forceStopContext context.Context
 	forceStopFunc    context.CancelFunc
+
+	// mutex controls access to all the following variables.
+	mutex *sync.Mutex
+	// used to wait for the failedJob or completedJob to be populated
+	cond         *sync.Cond
+	failedJob    *proto.FailedJob
+	completedJob *proto.CompletedJob
 	// setting this false signals that no more messages about this job should be sent.  Usually this means that a
 	// terminal message like FailedJob or CompletedJob has been sent, but if we are force canceled, we may set this
 	// false and not send one.
 	okToSend bool
 }
 
-type messageSender interface {
-	updateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
-	failJob(ctx context.Context, in *proto.FailedJob) error
-	completeJob(ctx context.Context, in *proto.CompletedJob) error
+type JobUpdater interface {
+	UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
+	FailJob(ctx context.Context, in *proto.FailedJob) error
+	CompleteJob(ctx context.Context, in *proto.CompletedJob) error
 }
 
-func newRunner(
+func NewRunner(
 	job *proto.AcquiredJob,
-	sender messageSender,
+	updater JobUpdater,
 	logger slog.Logger,
 	filesystem afero.Fs,
 	workDirectory string,
 	provisioner sdkproto.DRPCProvisionerClient,
 	updateInterval time.Duration,
-	forceCancelInterval time.Duration) jobRunner {
+	forceCancelInterval time.Duration) *Runner {
 	m := new(sync.Mutex)
 
-	// we need to create our contexts here in case a call to cancel() comes immediately.
+	// we need to create our contexts here in case a call to Cancel() comes immediately.
 	logCtx := slog.With(context.Background(), slog.F("job_id", job.JobId))
 	forceStopContext, forceStopFunc := context.WithCancel(logCtx)
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
-	return &runner{
+	return &Runner{
 		job:                 job,
-		sender:              sender,
+		sender:              updater,
 		logger:              logger,
 		filesystem:          filesystem,
 		workDirectory:       workDirectory,
@@ -109,16 +102,16 @@ func newRunner(
 	}
 }
 
-func (r *runner) start() {
+func (r *Runner) Start() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	defer r.forceStopFunc()
 
 	// the idea here is to run two goroutines to work on the job: run and heartbeat, then use the `r.cond` to wait until
 	// the job is either complete or failed.  This function then sends the complete or failed message --- the exception
-	// to this is if something calls fail() on the runner; either something external, like the server getting closed,
-	// or the heartbeat goroutine timing out after attempting to gracefully cancel.  If something calls fail(), then
-	// the failure is sent on that goroutine on the context passed into fail(), and it marks okToSend false to signal
+	// to this is if something calls Fail() on the Runner; either something external, like the server getting closed,
+	// or the heartbeat goroutine timing out after attempting to gracefully cancel.  If something calls Fail(), then
+	// the failure is sent on that goroutine on the context passed into Fail(), and it marks okToSend false to signal
 	// us here that this function should not also send a terminal message.
 	go r.run()
 	go r.heartbeat()
@@ -131,14 +124,14 @@ func (r *runner) start() {
 	}
 	if r.failedJob != nil {
 		r.logger.Debug(r.forceStopContext, "sending FailedJob")
-		err := r.sender.failJob(r.forceStopContext, r.failedJob)
+		err := r.sender.FailJob(r.forceStopContext, r.failedJob)
 		if err != nil {
 			r.logger.Error(r.forceStopContext, "send FailJob", slog.Error(err))
 		}
 		r.logger.Info(r.forceStopContext, "sent FailedJob")
 	} else {
 		r.logger.Debug(r.forceStopContext, "sending CompletedJob")
-		err := r.sender.completeJob(r.forceStopContext, r.completedJob)
+		err := r.sender.CompleteJob(r.forceStopContext, r.completedJob)
 		if err != nil {
 			r.logger.Error(r.forceStopContext, "send CompletedJob", slog.Error(err))
 		}
@@ -148,35 +141,35 @@ func (r *runner) start() {
 	r.okToSend = false
 }
 
-// cancel initiates a cancel on the job, but allows it to keep running to do so gracefully.  Read from isDone() to
+// Cancel initiates a Cancel on the job, but allows it to keep running to do so gracefully.  Read from Done() to
 // be notified when the job completes.
-func (r *runner) cancel() {
+func (r *Runner) Cancel() {
 	r.cancelFunc()
 }
 
-func (r *runner) isDone() <-chan any {
+func (r *Runner) Done() <-chan any {
 	return r.done
 }
 
-// fail immediately halts updates and, if the job is not complete sends FailJob to the coder server.  Running goroutines
+// Fail immediately halts updates and, if the job is not complete sends FailJob to the coder server.  Running goroutines
 // are canceled but complete asynchronously (although they are prevented from further updating the job to the coder
 // server).  The provided context sets how long to keep trying to send the FailJob.
-func (r *runner) fail(ctx context.Context, f *proto.FailedJob) error {
+func (r *Runner) Fail(ctx context.Context, f *proto.FailedJob) error {
 	f.JobId = r.job.JobId
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
 		return nil // already done
 	}
-	r.cancel()
+	r.Cancel()
 	if r.failedJob == nil {
 		r.failedJob = f
 		r.cond.Signal()
 	}
 	// here we keep the original failed reason if there already was one, but we hadn't yet sent it.  It is likely more
 	// informative of the job failing due to some problem running it, whereas this function is used to externally
-	// force a fail.
-	err := r.sender.failJob(ctx, r.failedJob)
+	// force a Fail.
+	err := r.sender.FailJob(ctx, r.failedJob)
 	r.okToSend = false
 	r.forceStopFunc()
 	close(r.done)
@@ -184,7 +177,7 @@ func (r *runner) fail(ctx context.Context, f *proto.FailedJob) error {
 }
 
 // setComplete is an internal function to set the job to completed.  This does not send the completedJob.
-func (r *runner) setComplete(c *proto.CompletedJob) {
+func (r *Runner) setComplete(c *proto.CompletedJob) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if r.completedJob == nil {
@@ -194,7 +187,7 @@ func (r *runner) setComplete(c *proto.CompletedJob) {
 }
 
 // setFail is an internal function to set the job to failed.  This does not send the failedJob.
-func (r *runner) setFail(f *proto.FailedJob) {
+func (r *Runner) setFail(f *proto.FailedJob) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if r.failedJob == nil {
@@ -204,8 +197,8 @@ func (r *runner) setFail(f *proto.FailedJob) {
 	}
 }
 
-// forceStop signals all goroutines to stop and prevents any further API calls back to coder server for this job
-func (r *runner) forceStop() {
+// ForceStop signals all goroutines to stop and prevents any further API calls back to coder server for this job
+func (r *Runner) ForceStop() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.forceStopFunc()
@@ -215,21 +208,21 @@ func (r *runner) forceStop() {
 	r.okToSend = false
 	close(r.done)
 	// doesn't matter what we put here, since it won't get sent! Just need something to satisfy the condition in
-	// start()
+	// Start()
 	r.failedJob = &proto.FailedJob{}
 	r.cond.Signal()
 }
 
-func (r *runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
 		return nil, xerrors.New("update skipped; job complete or failed")
 	}
-	return r.sender.updateJob(ctx, u)
+	return r.sender.UpdateJob(ctx, u)
 }
 
-func (r *runner) run() {
+func (r *Runner) run() {
 	// push the fail/succeed write onto the defer stack before the cleanup, so that cleanup happens before this.
 	// Failures during this function should write to the _local_ failedJob variable, then return.
 	var failedJob *proto.FailedJob
@@ -369,7 +362,7 @@ func (r *runner) run() {
 	}
 }
 
-func (r *runner) heartbeat() {
+func (r *Runner) heartbeat() {
 	ticker := time.NewTicker(r.updateInterval)
 	defer ticker.Stop()
 	for {
@@ -383,7 +376,7 @@ func (r *runner) heartbeat() {
 			JobId: r.job.JobId,
 		})
 		if err != nil {
-			err = r.fail(r.forceStopContext, r.failedJobf("send periodic update: %s", err))
+			err = r.Fail(r.forceStopContext, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
 				r.logger.Error(r.forceStopContext, "failed to call FailJob", slog.Error(err))
 			}
@@ -393,18 +386,18 @@ func (r *runner) heartbeat() {
 			continue
 		}
 		r.logger.Info(r.forceStopContext, "attempting graceful cancelation")
-		r.cancel()
+		r.Cancel()
 		// Hard-cancel the job after a minute of pending cancelation.
 		timer := time.NewTimer(r.forceCancelInterval)
 		select {
 		case <-timer.C:
-			r.logger.Warn(r.forceStopContext, "cancel timed out")
-			err := r.fail(r.forceStopContext, r.failedJobf("cancel timed out"))
+			r.logger.Warn(r.forceStopContext, "Cancel timed out")
+			err := r.Fail(r.forceStopContext, r.failedJobf("Cancel timed out"))
 			if err != nil {
 				r.logger.Warn(r.forceStopContext, "failed to call FailJob", slog.Error(err))
 			}
 			return
-		case <-r.isDone():
+		case <-r.Done():
 			timer.Stop()
 			return
 		case <-r.forceStopContext.Done():
@@ -414,7 +407,7 @@ func (r *runner) heartbeat() {
 	}
 }
 
-func (r *runner) logCleanup(ctx context.Context) {
+func (r *Runner) logCleanup(ctx context.Context) {
 	_, err := r.update(ctx, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
@@ -434,7 +427,7 @@ func (r *runner) logCleanup(ctx context.Context) {
 // versions.
 const ReadmeFile = "README.md"
 
-func (r *runner) runReadmeParse() *proto.FailedJob {
+func (r *Runner) runReadmeParse() *proto.FailedJob {
 	fi, err := afero.ReadFile(r.filesystem, path.Join(r.workDirectory, ReadmeFile))
 	if err != nil {
 		_, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
@@ -469,7 +462,7 @@ func (r *runner) runReadmeParse() *proto.FailedJob {
 	return nil
 }
 
-func (r *runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
+func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	// Parse parameters and update the job with the parameter specs
 	_, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
@@ -502,7 +495,7 @@ func (r *runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", provisionerd.missingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -560,7 +553,7 @@ func (r *runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 }
 
 // Parses parameter schemas from source.
-func (r *runner) runTemplateImportParse() ([]*sdkproto.ParameterSchema, error) {
+func (r *Runner) runTemplateImportParse() ([]*sdkproto.ParameterSchema, error) {
 	stream, err := r.provisioner.Parse(r.forceStopContext, &sdkproto.Parse_Request{
 		Directory: r.workDirectory,
 	})
@@ -608,7 +601,7 @@ func (r *runner) runTemplateImportParse() ([]*sdkproto.ParameterSchema, error) {
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (r *runner) runTemplateImportProvision(values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+func (r *Runner) runTemplateImportProvision(values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
 	var stage string
 	switch metadata.WorkspaceTransition {
 	case sdkproto.WorkspaceTransition_START:
@@ -696,7 +689,7 @@ func (r *runner) runTemplateImportProvision(values []*sdkproto.ParameterValue, m
 	}
 }
 
-func (r *runner) runTemplateDryRun() (
+func (r *Runner) runTemplateDryRun() (
 	*proto.CompletedJob, *proto.FailedJob) {
 	// Ensure all metadata fields are set as they are all optional for dry-run.
 	metadata := r.job.GetTemplateDryRun().GetMetadata()
@@ -745,7 +738,7 @@ func (r *runner) runTemplateDryRun() (
 	}, nil
 }
 
-func (r *runner) runWorkspaceBuild() (
+func (r *Runner) runWorkspaceBuild() (
 	*proto.CompletedJob, *proto.FailedJob) {
 	var stage string
 	switch r.job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
@@ -868,7 +861,7 @@ func (r *runner) runWorkspaceBuild() (
 	}
 }
 
-func (r *runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
+func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
 	return &proto.FailedJob{
 		JobId: r.job.JobId,
 		Error: fmt.Sprintf(format, args...),

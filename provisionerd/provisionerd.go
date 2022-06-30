@@ -87,7 +87,7 @@ type Server struct {
 	closeCancel  context.CancelFunc
 	closeError   error
 	shutdown     chan struct{}
-	activeJob    runner.jobRunner
+	activeJob    *runner.Runner
 }
 
 // Connect establishes a connection to coderd.
@@ -174,7 +174,7 @@ func (p *Server) isRunningJob() bool {
 		return false
 	}
 	select {
-	case <-p.activeJob.isDone():
+	case <-p.activeJob.Done():
 		return false
 	default:
 		return true
@@ -223,7 +223,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	provisioner, ok := p.opts.Provisioners[job.Provisioner]
 	if !ok {
-		err := p.failJob(ctx, &proto.FailedJob{
+		err := p.FailJob(ctx, &proto.FailedJob{
 			JobId: job.JobId,
 			Error: fmt.Sprintf("no provisioner %s", job.Provisioner),
 		})
@@ -233,9 +233,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 		}
 		return
 	}
-	p.activeJob = runner.newRunner(job, p, p.opts.Logger, p.opts.Filesystem, p.opts.WorkDirectory, provisioner,
+	p.activeJob = runner.NewRunner(job, p, p.opts.Logger, p.opts.Filesystem, p.opts.WorkDirectory, provisioner,
 		p.opts.UpdateInterval, p.opts.ForceCancelInterval)
-	go p.activeJob.start()
+	go p.activeJob.Start()
 }
 
 func retryable(err error) bool {
@@ -264,7 +264,7 @@ func (p *Server) clientDoWithRetries(
 	return nil, ctx.Err()
 }
 
-func (p *Server) updateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+func (p *Server) UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	out, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
 		return client.UpdateJob(ctx, in)
 	})
@@ -275,14 +275,14 @@ func (p *Server) updateJob(ctx context.Context, in *proto.UpdateJobRequest) (*pr
 	return out.(*proto.UpdateJobResponse), nil
 }
 
-func (p *Server) failJob(ctx context.Context, in *proto.FailedJob) error {
+func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	_, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
 		return client.FailJob(ctx, in)
 	})
 	return err
 }
 
-func (p *Server) completeJob(ctx context.Context, in *proto.CompletedJob) error {
+func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
 	_, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
 		return client.CompleteJob(ctx, in)
 	})
@@ -323,12 +323,12 @@ func (p *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	// wait for active job
-	p.activeJob.cancel()
+	p.activeJob.Cancel()
 	select {
 	case <-ctx.Done():
 		p.opts.Logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
 		return ctx.Err()
-	case <-p.activeJob.isDone():
+	case <-p.activeJob.Done():
 		p.opts.Logger.Info(ctx, "gracefully shutdown")
 		return nil
 	}
@@ -355,9 +355,9 @@ func (p *Server) closeWithError(err error) error {
 	if p.activeJob != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		failErr := p.activeJob.fail(ctx, &proto.FailedJob{Error: errMsg})
+		failErr := p.activeJob.Fail(ctx, &proto.FailedJob{Error: errMsg})
 		if failErr != nil {
-			p.activeJob.forceStop()
+			p.activeJob.ForceStop()
 		}
 		if err == nil {
 			err = failErr
