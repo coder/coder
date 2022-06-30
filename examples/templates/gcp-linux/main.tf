@@ -77,8 +77,13 @@ resource "google_compute_instance" "dev" {
 #!/usr/bin/env sh
 set -eux pipefail
 
-useradd -m -s /bin/bash "${local.linux_user}"
-echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
+# If user does not exist, create it and set up passwordless sudo
+if ! id -u "${local.linux_user}" >&/dev/null
+then
+  useradd -m -s /bin/bash "${local.linux_user}"
+  echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
+fi
+
 exec sudo -u "${local.linux_user}" sh -c '${coder_agent.dev.init_script}'
 EOMETA
 }
