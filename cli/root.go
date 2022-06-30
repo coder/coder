@@ -78,7 +78,7 @@ func Root() *cobra.Command {
 				// Login handles checking the versions itself since it
 				// has a handle to an unauthenticated client.
 				// Server is skipped for obvious reasons.
-				if cmd.Name() == "login" || cmd.Name() == "server" {
+				if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "gitssh" {
 					return nil
 				}
 
