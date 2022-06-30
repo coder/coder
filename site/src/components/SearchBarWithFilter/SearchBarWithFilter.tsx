@@ -107,6 +107,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
           <OutlinedInput
             id="query"
             name="query"
+            value={form.values.query}
             error={!!error}
             className={styles.inputStyles}
             onChange={form.handleChange}
