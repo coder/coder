@@ -3,12 +3,15 @@ package cli
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func upgrade() *cobra.Command {
@@ -46,6 +49,9 @@ func upgrade() *cobra.Command {
 			dir := filepath.Dir(exe)
 			tmpPath := filepath.Join(dir, fmt.Sprintf(".coder-%v", time.Now().Unix()))
 			tmpFi, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, stat.Mode().Perm())
+			if xerrors.Is(err, fs.ErrPermission) {
+				fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Warn.Render("Unable to write to directory %v, try running "))
+			}
 			if err != nil {
 				return xerrors.Errorf("create temp file %q: %w", tmpPath, err)
 			}
