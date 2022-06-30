@@ -19,6 +19,14 @@ import (
 func TestTemplatePull(t *testing.T) {
 	t.Parallel()
 
+	t.Run("NoName", func(t *testing.T) {
+		t.Parallel()
+
+		cmd, _ := clitest.New(t, "templates", "pull")
+		err := cmd.Execute()
+		require.Error(t, err)
+	})
+
 	// Stdout tests that 'templates pull' pulls down the latest template
 	// and writes it to stdout.
 	t.Run("Stdout", func(t *testing.T) {

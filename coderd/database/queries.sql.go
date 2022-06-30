@@ -2063,7 +2063,8 @@ const updateTemplateActiveVersionByID = `-- name: UpdateTemplateActiveVersionByI
 UPDATE
 	templates
 SET
-	active_version_id = $2
+	active_version_id = $2,
+	updated_at = $3
 WHERE
 	id = $1
 `
@@ -2071,10 +2072,11 @@ WHERE
 type UpdateTemplateActiveVersionByIDParams struct {
 	ID              uuid.UUID `db:"id" json:"id"`
 	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateActiveVersionByID, arg.ID, arg.ActiveVersionID)
+	_, err := q.db.ExecContext(ctx, updateTemplateActiveVersionByID, arg.ID, arg.ActiveVersionID, arg.UpdatedAt)
 	return err
 }
 
@@ -2082,18 +2084,20 @@ const updateTemplateDeletedByID = `-- name: UpdateTemplateDeletedByID :exec
 UPDATE
 	templates
 SET
-	deleted = $2
+	deleted = $2,
+	updated_at = $3
 WHERE
 	id = $1
 `
 
 type UpdateTemplateDeletedByIDParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Deleted   bool      `db:"deleted" json:"deleted"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateDeletedByID, arg.ID, arg.Deleted)
+	_, err := q.db.ExecContext(ctx, updateTemplateDeletedByID, arg.ID, arg.Deleted, arg.UpdatedAt)
 	return err
 }
 
@@ -2404,18 +2408,19 @@ UPDATE
 	template_versions
 SET
 	readme = $2,
-	updated_at = now()
+	updated_at = $3
 WHERE
 	job_id = $1
 `
 
 type UpdateTemplateVersionDescriptionByJobIDParams struct {
-	JobID  uuid.UUID `db:"job_id" json:"job_id"`
-	Readme string    `db:"readme" json:"readme"`
+	JobID     uuid.UUID `db:"job_id" json:"job_id"`
+	Readme    string    `db:"readme" json:"readme"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme)
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
 	return err
 }
 
@@ -3160,10 +3165,10 @@ const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnect
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
 	first_connected_at = $2,
 	last_connected_at = $3,
-	disconnected_at = $4
+	disconnected_at = $4,
+	updated_at = $5
 WHERE
 	id = $1
 `
@@ -3173,6 +3178,7 @@ type UpdateWorkspaceAgentConnectionByIDParams struct {
 	FirstConnectedAt sql.NullTime `db:"first_connected_at" json:"first_connected_at"`
 	LastConnectedAt  sql.NullTime `db:"last_connected_at" json:"last_connected_at"`
 	DisconnectedAt   sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -3181,6 +3187,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.FirstConnectedAt,
 		arg.LastConnectedAt,
 		arg.DisconnectedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
@@ -3189,9 +3196,9 @@ const updateWorkspaceAgentKeysByID = `-- name: UpdateWorkspaceAgentKeysByID :exe
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
 	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3
+	wireguard_disco_public_key = $3,
+	updated_at = $4
 WHERE
 	id = $1
 `
@@ -3200,10 +3207,16 @@ type UpdateWorkspaceAgentKeysByIDParams struct {
 	ID                      uuid.UUID           `db:"id" json:"id"`
 	WireguardNodePublicKey  dbtypes.NodePublic  `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
 	WireguardDiscoPublicKey dbtypes.DiscoPublic `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentKeysByID, arg.ID, arg.WireguardNodePublicKey, arg.WireguardDiscoPublicKey)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentKeysByID,
+		arg.ID,
+		arg.WireguardNodePublicKey,
+		arg.WireguardDiscoPublicKey,
+		arg.UpdatedAt,
+	)
 	return err
 }
 

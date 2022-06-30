@@ -27,7 +27,14 @@ func main() {
 		panic(err)
 	}
 
-	err = database.MigrateUp(db)
+	targetURL := fmt.Sprintf("postgres://postgres:postgres@127.0.0.1:5432/%s?sslmode=disable", dbName)
+	target, err := sql.Open("postgres", targetURL)
+	if err != nil {
+		panic(err)
+	}
+	defer target.Close()
+
+	err = database.MigrateUp(target)
 	if err != nil {
 		panic(err)
 	}

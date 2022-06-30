@@ -34,6 +34,15 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UsernameWithSpaces",
+			Query: "   user-name    ",
+			Expected: database.GetUsersParams{
+				Search:   "user-name",
+				Status:   []database.UserStatus{},
+				RbacRole: []string{},
+			},
+		},
+		{
 			Name:  "Username+Param",
 			Query: "usEr-name stAtus:actiVe",
 			Expected: database.GetUsersParams{

@@ -663,6 +663,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error.",
 		})
+		return
 	}
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether

@@ -17,6 +17,14 @@ Started.args = {
     isLoading: false,
     onExtend: action("extend"),
   },
+  scheduleProps: {
+    onDeadlineMinus: () => {
+      // do nothing, this is just for storybook
+    },
+    onDeadlinePlus: () => {
+      // do nothing, this is just for storybook
+    },
+  },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),
