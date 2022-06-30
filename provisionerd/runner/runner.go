@@ -54,9 +54,10 @@ type Runner struct {
 	cond         *sync.Cond
 	failedJob    *proto.FailedJob
 	completedJob *proto.CompletedJob
-	// setting this false signals that no more messages about this job should be sent.  Usually this means that a
-	// terminal message like FailedJob or CompletedJob has been sent, but if we are force canceled, we may set this
-	// false and not send one.
+	// setting this false signals that no more messages about this job should be sent.  Usually this
+	// means that a terminal message like FailedJob or CompletedJob has been sent, even in the case
+	// of a Cancel().  However, when someone calls Fail() or ForceStop(), we might not send the
+	// terminal message, but okToSend is set to false regardless.
 	okToSend bool
 }
 
