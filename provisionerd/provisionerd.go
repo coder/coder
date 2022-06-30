@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/hashicorp/yamux"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionerd/runner"
@@ -235,7 +236,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	}
 	p.activeJob = runner.NewRunner(job, p, p.opts.Logger, p.opts.Filesystem, p.opts.WorkDirectory, provisioner,
 		p.opts.UpdateInterval, p.opts.ForceCancelInterval)
-	go p.activeJob.Start()
+	go p.activeJob.Run()
 }
 
 func retryable(err error) bool {

@@ -38,11 +38,10 @@ func TestMain(m *testing.M) {
 
 func closedWithin(c chan struct{}, d time.Duration) func() bool {
 	return func() bool {
-		pop := time.After(d)
 		select {
 		case <-c:
 			return true
-		case <-pop:
+		case <-time.After(d):
 			return false
 		}
 	}

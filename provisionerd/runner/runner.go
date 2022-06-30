@@ -42,11 +42,11 @@ type Runner struct {
 	// closed when the Runner is finished sending any updates/failed/complete.
 	done chan any
 	// active as long as we are not canceled
-	gracefulContext context.Context
-	cancelFunc      context.CancelFunc
+	notCanceled context.Context
+	cancel      context.CancelFunc
 	// active as long as we haven't been force stopped
-	forceStopContext context.Context
-	forceStopFunc    context.CancelFunc
+	notStopped context.Context
+	stop       context.CancelFunc
 
 	// mutex controls access to all the following variables.
 	mutex *sync.Mutex
@@ -95,25 +95,28 @@ func NewRunner(
 		cond:                sync.NewCond(m),
 		done:                make(chan any),
 		okToSend:            true,
-		forceStopContext:    forceStopContext,
-		forceStopFunc:       forceStopFunc,
-		gracefulContext:     gracefulContext,
-		cancelFunc:          cancelFunc,
+		notStopped:          forceStopContext,
+		stop:                forceStopFunc,
+		notCanceled:         gracefulContext,
+		cancel:              cancelFunc,
 	}
 }
 
-func (r *Runner) Start() {
+// Run the job.
+//
+// the idea here is to run two goroutines to work on the job: doCleanFinish and heartbeat, then use
+// the `r.cond` to wait until the job is either complete or failed.  This function then sends the
+// complete or failed message --- the exception to this is if something calls Fail() on the Runner;
+// either something external, like the server getting closed, or the heartbeat goroutine timing out
+// after attempting to gracefully cancel.  If something calls Fail(), then the failure is sent on
+// that goroutine on the context passed into Fail(), and it marks okToSend false to signal us here
+// that this function should not also send a terminal message.
+func (r *Runner) Run() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	defer r.forceStopFunc()
+	defer r.stop()
 
-	// the idea here is to run two goroutines to work on the job: run and heartbeat, then use the `r.cond` to wait until
-	// the job is either complete or failed.  This function then sends the complete or failed message --- the exception
-	// to this is if something calls Fail() on the Runner; either something external, like the server getting closed,
-	// or the heartbeat goroutine timing out after attempting to gracefully cancel.  If something calls Fail(), then
-	// the failure is sent on that goroutine on the context passed into Fail(), and it marks okToSend false to signal
-	// us here that this function should not also send a terminal message.
-	go r.run()
+	go r.doCleanFinish()
 	go r.heartbeat()
 	for r.failedJob == nil && r.completedJob == nil {
 		r.cond.Wait()
@@ -123,19 +126,19 @@ func (r *Runner) Start() {
 		return
 	}
 	if r.failedJob != nil {
-		r.logger.Debug(r.forceStopContext, "sending FailedJob")
-		err := r.sender.FailJob(r.forceStopContext, r.failedJob)
+		r.logger.Debug(r.notStopped, "sending FailedJob")
+		err := r.sender.FailJob(r.notStopped, r.failedJob)
 		if err != nil {
-			r.logger.Error(r.forceStopContext, "send FailJob", slog.Error(err))
+			r.logger.Error(r.notStopped, "send FailJob", slog.Error(err))
 		}
-		r.logger.Info(r.forceStopContext, "sent FailedJob")
+		r.logger.Info(r.notStopped, "sent FailedJob")
 	} else {
-		r.logger.Debug(r.forceStopContext, "sending CompletedJob")
-		err := r.sender.CompleteJob(r.forceStopContext, r.completedJob)
+		r.logger.Debug(r.notStopped, "sending CompletedJob")
+		err := r.sender.CompleteJob(r.notStopped, r.completedJob)
 		if err != nil {
-			r.logger.Error(r.forceStopContext, "send CompletedJob", slog.Error(err))
+			r.logger.Error(r.notStopped, "send CompletedJob", slog.Error(err))
 		}
-		r.logger.Info(r.forceStopContext, "sent CompletedJob")
+		r.logger.Info(r.notStopped, "sent CompletedJob")
 	}
 	close(r.done)
 	r.okToSend = false
@@ -144,7 +147,7 @@ func (r *Runner) Start() {
 // Cancel initiates a Cancel on the job, but allows it to keep running to do so gracefully.  Read from Done() to
 // be notified when the job completes.
 func (r *Runner) Cancel() {
-	r.cancelFunc()
+	r.cancel()
 }
 
 func (r *Runner) Done() <-chan any {
@@ -171,7 +174,7 @@ func (r *Runner) Fail(ctx context.Context, f *proto.FailedJob) error {
 	// force a Fail.
 	err := r.sender.FailJob(ctx, r.failedJob)
 	r.okToSend = false
-	r.forceStopFunc()
+	r.stop()
 	close(r.done)
 	return err
 }
@@ -191,7 +194,7 @@ func (r *Runner) setFail(f *proto.FailedJob) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if r.failedJob == nil {
-		f.JobId = r.job.GetJobId()
+		f.JobId = r.job.JobId
 		r.failedJob = f
 		r.cond.Signal()
 	}
@@ -201,7 +204,7 @@ func (r *Runner) setFail(f *proto.FailedJob) {
 func (r *Runner) ForceStop() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	r.forceStopFunc()
+	r.stop()
 	if !r.okToSend {
 		return
 	}
@@ -222,9 +225,10 @@ func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.
 	return r.sender.UpdateJob(ctx, u)
 }
 
-func (r *Runner) run() {
-	// push the fail/succeed write onto the defer stack before the cleanup, so that cleanup happens before this.
-	// Failures during this function should write to the _local_ failedJob variable, then return.
+// doCleanFinish wraps a call to do() with cleaning up the job and setting the terminal messages
+func (r *Runner) doCleanFinish() {
+	// push the fail/succeed write onto the defer stack before the cleanup, so that cleanup happens
+	// before this.
 	var failedJob *proto.FailedJob
 	var completedJob *proto.CompletedJob
 	defer func() {
@@ -236,7 +240,19 @@ func (r *Runner) run() {
 	}()
 
 	defer func() {
-		r.logCleanup(r.forceStopContext)
+		_, err := r.update(r.notStopped, &proto.UpdateJobRequest{
+			JobId: r.job.JobId,
+			Logs: []*proto.Log{{
+				Source:    proto.LogSource_PROVISIONER_DAEMON,
+				Level:     sdkproto.LogLevel_INFO,
+				Stage:     "Cleaning Up",
+				CreatedAt: time.Now().UTC().UnixMilli(),
+			}},
+		})
+		if err != nil {
+			r.logger.Warn(r.notStopped, "failed to log cleanup")
+			return
+		}
 
 		// Cleanup the work directory after execution.
 		for attempt := 0; attempt < 5; attempt++ {
@@ -246,22 +262,26 @@ func (r *Runner) run() {
 				// When the provisioner daemon is shutting down,
 				// it may take a few milliseconds for processes to exit.
 				// See: https://github.com/golang/go/issues/50510
-				r.logger.Debug(r.forceStopContext, "failed to clean work directory; trying again", slog.Error(err))
+				r.logger.Debug(r.notStopped, "failed to clean work directory; trying again", slog.Error(err))
 				time.Sleep(250 * time.Millisecond)
 				continue
 			}
-			r.logger.Debug(r.forceStopContext, "cleaned up work directory", slog.Error(err))
+			r.logger.Debug(r.notStopped, "cleaned up work directory", slog.Error(err))
 			break
 		}
 	}()
 
+	completedJob, failedJob = r.do()
+}
+
+// do actually does the work of running the job
+func (r *Runner) do() (*proto.CompletedJob, *proto.FailedJob) {
 	err := r.filesystem.MkdirAll(r.workDirectory, 0700)
 	if err != nil {
-		failedJob = r.failedJobf("create work directory %q: %s", r.workDirectory, err)
-		return
+		return nil, r.failedJobf("create work directory %q: %s", r.workDirectory, err)
 	}
 
-	_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -271,11 +291,10 @@ func (r *Runner) run() {
 		}},
 	})
 	if err != nil {
-		failedJob = r.failedJobf("write log: %s", err)
-		return
+		return nil, r.failedJobf("write log: %s", err)
 	}
 
-	r.logger.Info(r.forceStopContext, "unpacking template source archive",
+	r.logger.Info(r.notStopped, "unpacking template source archive",
 		slog.F("size_bytes", len(r.job.TemplateSourceArchive)))
 	reader := tar.NewReader(bytes.NewBuffer(r.job.TemplateSourceArchive))
 	for {
@@ -284,14 +303,12 @@ func (r *Runner) run() {
 			break
 		}
 		if err != nil {
-			failedJob = r.failedJobf("read template source archive: %s", err)
-			return
+			return nil, r.failedJobf("read template source archive: %s", err)
 		}
 		// #nosec
 		headerPath := filepath.Join(r.workDirectory, header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(r.workDirectory)) {
-			failedJob = r.failedJobf("tar attempts to target relative upper directory")
-			return
+			return nil, r.failedJobf("tar attempts to target relative upper directory")
 		}
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
@@ -301,15 +318,13 @@ func (r *Runner) run() {
 		case tar.TypeDir:
 			err = r.filesystem.MkdirAll(headerPath, mode)
 			if err != nil {
-				failedJob = r.failedJobf("mkdir %q: %s", headerPath, err)
-				return
+				return nil, r.failedJobf("mkdir %q: %s", headerPath, err)
 			}
 			r.logger.Debug(context.Background(), "extracted directory", slog.F("path", headerPath))
 		case tar.TypeReg:
 			file, err := r.filesystem.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				failedJob = r.failedJobf("create file %q (mode %s): %s", headerPath, mode, err)
-				return
+				return nil, r.failedJobf("create file %q (mode %s): %s", headerPath, mode, err)
 			}
 			// Max file size of 10MiB.
 			size, err := io.CopyN(file, reader, 10<<20)
@@ -318,13 +333,11 @@ func (r *Runner) run() {
 			}
 			if err != nil {
 				_ = file.Close()
-				failedJob = r.failedJobf("copy file %q: %s", headerPath, err)
-				return
+				return nil, r.failedJobf("copy file %q: %s", headerPath, err)
 			}
 			err = file.Close()
 			if err != nil {
-				failedJob = r.failedJobf("close file %q: %s", headerPath, err)
-				return
+				return nil, r.failedJobf("close file %q: %s", headerPath, err)
 			}
 			r.logger.Debug(context.Background(), "extracted file",
 				slog.F("size_bytes", size),
@@ -338,88 +351,74 @@ func (r *Runner) run() {
 	case *proto.AcquiredJob_TemplateImport_:
 		r.logger.Debug(context.Background(), "acquired job is template import")
 
-		failedJob = r.runReadmeParse()
-		if failedJob == nil {
-			completedJob, failedJob = r.runTemplateImport()
+		failedJob := r.runReadmeParse()
+		if failedJob != nil {
+			return nil, failedJob
 		}
+		return r.runTemplateImport()
 	case *proto.AcquiredJob_TemplateDryRun_:
 		r.logger.Debug(context.Background(), "acquired job is template dry-run",
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
 			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
 		)
-		completedJob, failedJob = r.runTemplateDryRun()
+		return r.runTemplateDryRun()
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		r.logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 		)
-
-		completedJob, failedJob = r.runWorkspaceBuild()
+		return r.runWorkspaceBuild()
 	default:
-		failedJob = r.failedJobf("unknown job type %q; ensure your provisioner daemon is up-to-date",
+		return nil, r.failedJobf("unknown job type %q; ensure your provisioner daemon is up-to-date",
 			reflect.TypeOf(r.job.Type).String())
 	}
 }
 
+// heartbeat periodically sends updates on the job, which keeps coder server from assuming the job
+// is stalled, and allows the runner to learn if the job has been canceled by the user.
 func (r *Runner) heartbeat() {
 	ticker := time.NewTicker(r.updateInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-r.gracefulContext.Done():
+		case <-r.notCanceled.Done():
 			return
 		case <-ticker.C:
 		}
 
-		resp, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
+		resp, err := r.update(r.notStopped, &proto.UpdateJobRequest{
 			JobId: r.job.JobId,
 		})
 		if err != nil {
-			err = r.Fail(r.forceStopContext, r.failedJobf("send periodic update: %s", err))
+			err = r.Fail(r.notStopped, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
-				r.logger.Error(r.forceStopContext, "failed to call FailJob", slog.Error(err))
+				r.logger.Error(r.notStopped, "failed to call FailJob", slog.Error(err))
 			}
 			return
 		}
 		if !resp.Canceled {
 			continue
 		}
-		r.logger.Info(r.forceStopContext, "attempting graceful cancelation")
+		r.logger.Info(r.notStopped, "attempting graceful cancelation")
 		r.Cancel()
 		// Hard-cancel the job after a minute of pending cancelation.
 		timer := time.NewTimer(r.forceCancelInterval)
 		select {
 		case <-timer.C:
-			r.logger.Warn(r.forceStopContext, "Cancel timed out")
-			err := r.Fail(r.forceStopContext, r.failedJobf("Cancel timed out"))
+			r.logger.Warn(r.notStopped, "Cancel timed out")
+			err := r.Fail(r.notStopped, r.failedJobf("Cancel timed out"))
 			if err != nil {
-				r.logger.Warn(r.forceStopContext, "failed to call FailJob", slog.Error(err))
+				r.logger.Warn(r.notStopped, "failed to call FailJob", slog.Error(err))
 			}
 			return
 		case <-r.Done():
 			timer.Stop()
 			return
-		case <-r.forceStopContext.Done():
+		case <-r.notStopped.Done():
 			timer.Stop()
 			return
 		}
-	}
-}
-
-func (r *Runner) logCleanup(ctx context.Context) {
-	_, err := r.update(ctx, &proto.UpdateJobRequest{
-		JobId: r.job.JobId,
-		Logs: []*proto.Log{{
-			Source:    proto.LogSource_PROVISIONER_DAEMON,
-			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "Cleaning Up",
-			CreatedAt: time.Now().UTC().UnixMilli(),
-		}},
-	})
-	if err != nil {
-		r.logger.Warn(ctx, "failed to log cleanup")
-		return
 	}
 }
 
@@ -430,7 +429,7 @@ const ReadmeFile = "README.md"
 func (r *Runner) runReadmeParse() *proto.FailedJob {
 	fi, err := afero.ReadFile(r.filesystem, path.Join(r.workDirectory, ReadmeFile))
 	if err != nil {
-		_, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
+		_, err := r.update(r.notStopped, &proto.UpdateJobRequest{
 			JobId: r.job.JobId,
 			Logs: []*proto.Log{{
 				Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -446,7 +445,7 @@ func (r *Runner) runReadmeParse() *proto.FailedJob {
 		return nil
 	}
 
-	_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -464,7 +463,7 @@ func (r *Runner) runReadmeParse() *proto.FailedJob {
 
 func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	// Parse parameters and update the job with the parameter specs
-	_, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err := r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -480,7 +479,7 @@ func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
-	updateResponse, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	updateResponse, err := r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId:            r.job.JobId,
 		ParameterSchemas: parameterSchemas,
 	})
@@ -500,7 +499,7 @@ func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	}
 
 	// Determine persistent resources
-	_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -521,7 +520,7 @@ func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	}
 
 	// Determine ephemeral resources.
-	_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -554,7 +553,7 @@ func (r *Runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 
 // Parses parameter schemas from source.
 func (r *Runner) runTemplateImportParse() ([]*sdkproto.ParameterSchema, error) {
-	stream, err := r.provisioner.Parse(r.forceStopContext, &sdkproto.Parse_Request{
+	stream, err := r.provisioner.Parse(r.notStopped, &sdkproto.Parse_Request{
 		Directory: r.workDirectory,
 	})
 	if err != nil {
@@ -573,7 +572,7 @@ func (r *Runner) runTemplateImportParse() ([]*sdkproto.ParameterSchema, error) {
 				slog.F("output", msgType.Log.Output),
 			)
 
-			_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+			_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 				JobId: r.job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -609,18 +608,18 @@ func (r *Runner) runTemplateImportProvision(values []*sdkproto.ParameterValue, m
 	case sdkproto.WorkspaceTransition_STOP:
 		stage = "Detecting ephemeral resources"
 	}
-	// use the forceStopContext so that if we attempt to gracefully cancel, the stream will still be available for us
+	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
 	// to send the cancel to the provisioner
-	stream, err := r.provisioner.Provision(r.forceStopContext)
+	stream, err := r.provisioner.Provision(r.notStopped)
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
 	go func() {
 		select {
-		case <-r.forceStopContext.Done():
+		case <-r.notStopped.Done():
 			return
-		case <-r.gracefulContext.Done():
+		case <-r.notCanceled.Done():
 			_ = stream.Send(&sdkproto.Provision_Request{
 				Type: &sdkproto.Provision_Request_Cancel{
 					Cancel: &sdkproto.Provision_Cancel{},
@@ -653,7 +652,7 @@ func (r *Runner) runTemplateImportProvision(values []*sdkproto.ParameterValue, m
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
-			_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+			_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 				JobId: r.job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -750,7 +749,7 @@ func (r *Runner) runWorkspaceBuild() (
 		stage = "Destroying workspace"
 	}
 
-	_, err := r.update(r.forceStopContext, &proto.UpdateJobRequest{
+	_, err := r.update(r.notStopped, &proto.UpdateJobRequest{
 		JobId: r.job.JobId,
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -763,18 +762,18 @@ func (r *Runner) runWorkspaceBuild() (
 		return nil, r.failedJobf("write log: %s", err)
 	}
 
-	// use the forceStopContext so that if we attempt to gracefully cancel, the stream will still be available for us
+	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
 	// to send the cancel to the provisioner
-	stream, err := r.provisioner.Provision(r.forceStopContext)
+	stream, err := r.provisioner.Provision(r.notStopped)
 	if err != nil {
 		return nil, r.failedJobf("provision: %s", err)
 	}
 	defer stream.Close()
 	go func() {
 		select {
-		case <-r.forceStopContext.Done():
+		case <-r.notStopped.Done():
 			return
-		case <-r.gracefulContext.Done():
+		case <-r.notCanceled.Done():
 			_ = stream.Send(&sdkproto.Provision_Request{
 				Type: &sdkproto.Provision_Request_Cancel{
 					Cancel: &sdkproto.Provision_Cancel{},
@@ -809,7 +808,7 @@ func (r *Runner) runWorkspaceBuild() (
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
-			_, err = r.update(r.forceStopContext, &proto.UpdateJobRequest{
+			_, err = r.update(r.notStopped, &proto.UpdateJobRequest{
 				JobId: r.job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
