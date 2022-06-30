@@ -564,6 +564,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		err = store.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
 			ID:              template.ID,
 			ActiveVersionID: req.ID,
+			UpdatedAt:       database.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("update active version: %w", err)

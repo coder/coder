@@ -89,6 +89,6 @@ UPDATE
 	template_versions
 SET
 	readme = $2,
-	updated_at = now()
+	updated_at = $3
 WHERE
 	job_id = $1;
