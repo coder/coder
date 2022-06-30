@@ -97,12 +97,12 @@ export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
 
 export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
   const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return Math.abs(delta) <= 30 * 60 * 1000 // 30 minutes
+  return delta <= 30 * 60 * 1000 // 30 minutes
 }
 
 export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
   const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return Math.abs(delta) >= 24 * 60 * 60 * 1000 // 24 hours
+  return delta >= 24 * 60 * 60 * 1000 // 24 hours
 }
 
 export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
