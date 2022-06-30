@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/provisionerd/runner"
+
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -245,8 +247,8 @@ func TestProvisionerd(t *testing.T) {
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt":              "content",
-							provisionerd.ReadmeFile: "# A cool template 😎\n",
+							"test.txt":        "content",
+							runner.ReadmeFile: "# A cool template 😎\n",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{

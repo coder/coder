@@ -1,4 +1,4 @@
-package provisionerd
+package runner
 
 import (
 	"archive/tar"
@@ -23,6 +23,10 @@ import (
 
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
+)
+
+const (
+	MissingParameterErrorText = "missing parameter"
 )
 
 type jobRunner interface {
@@ -498,7 +502,7 @@ func (r *runner) runTemplateImport() (*proto.CompletedJob, *proto.FailedJob) {
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", provisionerd.missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 

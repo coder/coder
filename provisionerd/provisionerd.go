@@ -9,26 +9,23 @@ import (
 	"sync"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/hashicorp/yamux"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionerd/runner"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
-)
-
-const (
-	missingParameterErrorText = "missing parameter"
 )
 
 // IsMissingParameterError returns whether the error message provided
 // is a missing parameter error. This can indicate to consumers that
 // they should check parameters.
 func IsMissingParameterError(err string) bool {
-	return strings.Contains(err, missingParameterErrorText)
+	return strings.Contains(err, runner.MissingParameterErrorText)
 }
 
 // Dialer represents the function to create a daemon client connection.
@@ -90,7 +87,7 @@ type Server struct {
 	closeCancel  context.CancelFunc
 	closeError   error
 	shutdown     chan struct{}
-	activeJob    jobRunner
+	activeJob    runner.jobRunner
 }
 
 // Connect establishes a connection to coderd.
@@ -236,7 +233,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		}
 		return
 	}
-	p.activeJob = newRunner(job, p, p.opts.Logger, p.opts.Filesystem, p.opts.WorkDirectory, provisioner,
+	p.activeJob = runner.newRunner(job, p, p.opts.Logger, p.opts.Filesystem, p.opts.WorkDirectory, provisioner,
 		p.opts.UpdateInterval, p.opts.ForceCancelInterval)
 	go p.activeJob.start()
 }
