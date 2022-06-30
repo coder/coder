@@ -12,13 +12,13 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-type TunnelRegion struct {
+type Region struct {
 	ID           int
 	LocationName string
-	Nodes        []TunnelNode
+	Nodes        []Node
 }
 
-type TunnelNode struct {
+type Node struct {
 	ID                int    `json:"id"`
 	HostnameHTTPS     string `json:"hostname_https"`
 	HostnameWireguard string `json:"hostname_wireguard"`
@@ -27,11 +27,11 @@ type TunnelNode struct {
 	AvgLatency time.Duration `json:"avg_latency"`
 }
 
-var TunnelRegions = []TunnelRegion{
+var Regions = []Region{
 	{
 		ID:           1,
 		LocationName: "US East Pittsburgh",
-		Nodes: []TunnelNode{
+		Nodes: []Node{
 			{
 				ID:                1,
 				HostnameHTTPS:     "pit-1.try.coder.app",
@@ -42,14 +42,14 @@ var TunnelRegions = []TunnelRegion{
 	},
 }
 
-func PickTunnelNode() (TunnelNode, error) {
-	nodes := []TunnelNode{}
+func FindClosestNode() (Node, error) {
+	nodes := []Node{}
 
-	for _, region := range TunnelRegions {
+	for _, region := range Regions {
 		// Pick a random node from each region.
 		i, err := cryptorand.Intn(len(region.Nodes))
 		if err != nil {
-			return TunnelNode{}, err
+			return Node{}, err
 		}
 		nodes = append(nodes, region.Nodes[i])
 	}
@@ -85,10 +85,10 @@ func PickTunnelNode() (TunnelNode, error) {
 
 	err := eg.Wait()
 	if err != nil {
-		return TunnelNode{}, err
+		return Node{}, err
 	}
 
-	slices.SortFunc(nodes, func(i, j TunnelNode) bool {
+	slices.SortFunc(nodes, func(i, j Node) bool {
 		return i.AvgLatency < j.AvgLatency
 	})
 	return nodes[0], nil

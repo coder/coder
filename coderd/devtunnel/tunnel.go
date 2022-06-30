@@ -23,6 +23,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/cryptorand"
 )
 
 var (
@@ -43,7 +44,7 @@ type Config struct {
 	PrivateKey device.NoisePrivateKey `json:"private_key"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
-	Tunnel TunnelNode `json:"tunnel"`
+	Tunnel Node `json:"tunnel"`
 }
 type configExt struct {
 	Version    int                    `json:"-"`
@@ -51,7 +52,7 @@ type configExt struct {
 	PrivateKey device.NoisePrivateKey `json:"-"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
-	Tunnel TunnelNode `json:"-"`
+	Tunnel Node `json:"-"`
 }
 
 // NewWithConfig calls New with the given config. For documentation, see New.
@@ -272,7 +273,7 @@ func readOrGenerateConfig() (Config, error) {
 	}
 
 	if cfg.Version == 0 {
-		cfg.Tunnel = TunnelNode{
+		cfg.Tunnel = Node{
 			ID:                0,
 			HostnameHTTPS:     "wg-tunnel.coder.app",
 			HostnameWireguard: "wg-tunnel-udp.coder.app",
@@ -290,9 +291,13 @@ func GenerateConfig() (Config, error) {
 	}
 	pub := priv.PublicKey()
 
-	node, err := PickTunnelNode()
+	node, err := FindClosestNode()
 	if err != nil {
-		return Config{}, xerrors.Errorf("pick tunnel node: %w", err)
+		region := Regions[0]
+		n, _ := cryptorand.Intn(len(region.Nodes))
+		node = region.Nodes[n]
+		_, _ = fmt.Println("Error picking closest dev tunnel:", err)
+		_, _ = fmt.Println("Defaulting to", Regions[0].LocationName)
 	}
 
 	return Config{
