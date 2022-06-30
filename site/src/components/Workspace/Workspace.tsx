@@ -19,6 +19,10 @@ export interface WorkspaceProps {
     isLoading?: boolean
     onExtend: () => void
   }
+  scheduleProps: {
+    onDeadlinePlus: () => void
+    onDeadlineMinus: () => void
+  }
   handleStart: () => void
   handleStop: () => void
   handleDelete: () => void
@@ -36,6 +40,7 @@ export interface WorkspaceProps {
  */
 export const Workspace: FC<WorkspaceProps> = ({
   bannerProps,
+  scheduleProps,
   handleStart,
   handleStop,
   handleDelete,
@@ -99,7 +104,11 @@ export const Workspace: FC<WorkspaceProps> = ({
         </Stack>
 
         <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}>
-          <WorkspaceSchedule workspace={workspace} />
+          <WorkspaceSchedule
+            workspace={workspace}
+            onDeadlineMinus={scheduleProps.onDeadlineMinus}
+            onDeadlinePlus={scheduleProps.onDeadlinePlus}
+          />
         </Stack>
       </Stack>
     </Margins>

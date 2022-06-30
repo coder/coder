@@ -1,6 +1,10 @@
+import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import Tooltip from "@material-ui/core/Tooltip"
 import Typography from "@material-ui/core/Typography"
+import AddBoxIcon from "@material-ui/icons/AddBox"
+import IndeterminateCheckBoxIcon from "@material-ui/icons/IndeterminateCheckBox"
 import ScheduleIcon from "@material-ui/icons/Schedule"
 import cronstrue from "cronstrue"
 import dayjs from "dayjs"
@@ -66,6 +70,8 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
+  editDeadlineMinus: "Subtract one hour",
+  editDeadlinePlus: "Add one hour",
   scheduleHeader: (workspace: Workspace): string => {
     const tz = workspace.autostart_schedule
       ? extractTimezone(workspace.autostart_schedule)
@@ -75,11 +81,61 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleProps {
+  now?: dayjs.Dayjs
   workspace: Workspace
+  onDeadlinePlus: () => void
+  onDeadlineMinus: () => void
 }
 
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
+export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
+  if (!isWorkspaceOn(workspace)) {
+    return false
+  }
+  const deadline = dayjs(workspace.latest_build.deadline).utc()
+  return deadline.year() > 1
+}
+
+export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta <= 30 * 60 * 1000 // 30 minutes
+}
+
+export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta >= 24 * 60 * 60 * 1000 // 24 hours
+}
+
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  now,
+  workspace,
+  onDeadlineMinus,
+  onDeadlinePlus,
+}) => {
   const styles = useStyles()
+  const editDeadlineButtons = shouldDisplayPlusMinus(workspace) ? (
+    <Stack direction="row" spacing={0}>
+      <IconButton
+        size="small"
+        disabled={deadlineMinusDisabled(workspace, now ?? dayjs())}
+        className={styles.editDeadline}
+        onClick={onDeadlineMinus}
+      >
+        <Tooltip title={Language.editDeadlineMinus}>
+          <IndeterminateCheckBoxIcon />
+        </Tooltip>
+      </IconButton>
+      <IconButton
+        size="small"
+        disabled={deadlinePlusDisabled(workspace, now ?? dayjs())}
+        className={styles.editDeadline}
+        onClick={onDeadlinePlus}
+      >
+        <Tooltip title={Language.editDeadlinePlus}>
+          <AddBoxIcon />
+        </Tooltip>
+      </IconButton>
+    </Stack>
+  ) : null
 
   return (
     <div className={styles.schedule}>
@@ -96,9 +152,12 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
         </div>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStopLabel}</span>
-          <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
-            {Language.autoStopDisplay(workspace)}
-          </span>
+          <Stack direction="row">
+            <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
+              {Language.autoStopDisplay(workspace)}
+            </span>
+            {editDeadlineButtons}
+          </Stack>
         </div>
         <div>
           <Link
@@ -138,12 +197,15 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
   scheduleValue: {
-    fontSize: 16,
-    marginTop: theme.spacing(0.25),
+    fontSize: 14,
+    marginTop: theme.spacing(0.75),
     display: "inline-block",
     color: theme.palette.text.secondary,
   },
   scheduleAction: {
     cursor: "pointer",
+  },
+  editDeadline: {
+    color: theme.palette.text.secondary,
   },
 }))
