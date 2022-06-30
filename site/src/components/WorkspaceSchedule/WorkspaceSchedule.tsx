@@ -87,7 +87,7 @@ export interface WorkspaceScheduleProps {
   onDeadlineMinus: () => void
 }
 
-export const shouldDisplayPlusMins = (workspace: Workspace): boolean => {
+export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
     return false
   }
@@ -97,12 +97,12 @@ export const shouldDisplayPlusMins = (workspace: Workspace): boolean => {
 
 export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
   const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta <= 30 * 60 * 1000
+  return Math.abs(delta) <= 30 * 60 * 1000 // 30 minutes
 }
 
 export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
   const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta > 23 * 59 * 59 * 1000
+  return Math.abs(delta) >= 24 * 60 * 60 * 1000 // 24 hours
 }
 
 export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
@@ -112,7 +112,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
   onDeadlinePlus,
 }) => {
   const styles = useStyles()
-  const editDeadlineButtons = shouldDisplayPlusMins(workspace) ? (
+  const editDeadlineButtons = shouldDisplayPlusMinus(workspace) ? (
     <Stack direction="row" spacing={0}>
       <IconButton
         size="small"
