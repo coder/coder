@@ -13,7 +13,7 @@ import { WorkspacesRow } from "./WorkspacesRow"
 
 export const Language = {
   emptyCreateWorkspaceMessage: "Create your first workspace",
-  emptyCreateWorkspaceDescription: "Start editing your source code and building your software",
+  emptyCreateWorkspaceDescription: "Start editing your source code and building your software.",
   createFromTemplateButton: "Create from template",
   emptyResultsMessage: "No results matched your search",
 }
