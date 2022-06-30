@@ -78,8 +78,7 @@ resource "google_compute_instance" "dev" {
 set -eux pipefail
 
 # If user does not exist, create it and set up passwordless sudo
-if ! id -u "${local.linux_user}" >&/dev/null
-then
+if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "${local.linux_user}"
   echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
 fi
