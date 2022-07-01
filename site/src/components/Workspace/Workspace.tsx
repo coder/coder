@@ -64,6 +64,7 @@ export const Workspace: FC<WorkspaceProps> = ({
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
               workspace={workspace}

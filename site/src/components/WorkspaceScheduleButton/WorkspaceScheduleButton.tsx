@@ -54,12 +54,14 @@ export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
+  canUpdateWorkspace: boolean
 }
 
 export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = ({
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
+  canUpdateWorkspace,
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -74,7 +76,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
     <div className={styles.wrapper}>
       <div className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
-        {shouldDisplayPlusMinus(workspace) && (
+        {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
           <Stack direction="row" spacing={0}>
             <IconButton
               className={styles.iconButton}
@@ -124,7 +126,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             horizontal: "right",
           }}
         >
-          <WorkspaceSchedule workspace={workspace} />
+          <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} />
         </Popover>
       </div>
     </div>

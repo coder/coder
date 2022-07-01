@@ -33,9 +33,13 @@ export const Language = {
 
 export interface WorkspaceScheduleProps {
   workspace: Workspace
+  canUpdateWorkspace: boolean
 }
 
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  workspace,
+  canUpdateWorkspace,
+}) => {
   const styles = useStyles()
   const timezone = workspace.autostart_schedule
     ? extractTimezone(workspace.autostart_schedule)
@@ -62,15 +66,17 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => 
             </span>
           </Stack>
         </div>
-        <div>
-          <Link
-            className={styles.scheduleAction}
-            component={RouterLink}
-            to={`/@${workspace.owner_name}/${workspace.name}/schedule`}
-          >
-            {Language.editScheduleLink}
-          </Link>
-        </div>
+        {canUpdateWorkspace && (
+          <div>
+            <Link
+              className={styles.scheduleAction}
+              component={RouterLink}
+              to={`/@${workspace.owner_name}/${workspace.name}/schedule`}
+            >
+              {Language.editScheduleLink}
+            </Link>
+          </div>
+        )}
       </Stack>
     </div>
   )
