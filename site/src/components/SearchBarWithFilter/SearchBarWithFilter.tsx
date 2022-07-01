@@ -112,7 +112,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
             className={styles.inputStyles}
             onChange={form.handleChange}
             startAdornment={
-              <InputAdornment position="start">
+              <InputAdornment position="start" className={styles.searchIcon}>
                 <SearchIcon fontSize="small" />
               </InputAdornment>
             }
@@ -183,5 +183,8 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
         borderColor: (props) => props.error && theme.palette.error.contrastText,
       },
     },
+  },
+  searchIcon: {
+    color: theme.palette.text.secondary,
   },
 }))
