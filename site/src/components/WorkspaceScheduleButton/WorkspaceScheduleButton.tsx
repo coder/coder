@@ -110,7 +110,6 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           Schedule
         </Button>
         <Popover
-          //className={styles.popover}
           classes={{ paper: styles.popoverPaper }}
           id={id}
           open={isOpen}
