@@ -44,7 +44,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	var bufferedLogs chan database.ProvisionerJobLog
 	if follow {
 		bl, closeFollow, err := api.followLogs(job.ID)
-		defer closeFollow()
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: "Internal error watching provisioner logs.",
@@ -52,6 +51,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			})
 			return
 		}
+		defer closeFollow()
 		bufferedLogs = bl
 
 		// Next query the job itself to see if it is complete.  If so, the historical query to the database will return
