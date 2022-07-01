@@ -104,13 +104,6 @@ export const getOverrides = (palette: PaletteOptions) => {
           borderColor: (palette.primary as SimplePaletteColorOptions).light,
         },
       },
-
-      input: {
-        paddingTop: "inherit",
-        paddingBottom: "inherit",
-        // The same as the button
-        minHeight: 42,
-      },
     },
     MuiLink: {
       root: {

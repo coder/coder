@@ -110,6 +110,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
             value={form.values.query}
             error={!!error}
             className={styles.inputStyles}
+            classNames={{ OutlinedInput: styles.outlinedInput }}
             onChange={form.handleChange}
             startAdornment={
               <InputAdornment position="start" className={styles.searchIcon}>
@@ -182,6 +183,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
       "&MuiOutlinedInput-root:hover, &MuiOutlinedInput-notchedOutline": {
         borderColor: (props) => props.error && theme.palette.error.contrastText,
       },
+    },
+
+    "& .MuiInputBase-input": {
+      paddingTop: "inherit",
+      paddingBottom: "inherit",
+      // The same as the button
+      minHeight: 42,
     },
   },
   searchIcon: {
