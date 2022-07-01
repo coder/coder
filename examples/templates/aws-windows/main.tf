@@ -36,6 +36,22 @@ variable "region" {
   }
 }
 
+variable "instance_type" {
+  description = "What instance type should your workspace use?"
+  default     = "2C/1G: t3.micro"
+  validation {
+    condition = contains([
+      "2C/1G: t3.micro",
+      "2C/2G: t3.small",
+      "2C/4G: t3.medium",
+      "2C/8G: t3.large",
+      "4C/16G: t3.xlarge",
+      "8C/32G: t3.2xlarge",
+    ], var.instance_type)
+    error_message = "Invalid instance type!"
+  }
+}
+
 provider "aws" {
   region = var.region
 }
@@ -83,7 +99,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.windows.id
   availability_zone = "${var.region}a"
-  instance_type     = "t3.micro"
+  instance_type     = split(": ", "${var.instance_type}")[1]
   count             = 1
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
