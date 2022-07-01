@@ -58,7 +58,7 @@ done
 # Check dependencies
 dependencies go
 if [[ $compress != 0 ]]; then
-	dependencies tar zstd
+	dependencies shasum tar zstd
 
 	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
 		error "Invalid value for compress, must in in the range of [1, 22]"
@@ -110,10 +110,24 @@ for f in ./coder-slim_*; do
 done
 
 if [[ $compress != 0 ]]; then
-	log "--- Compressing coder-slim binaries using zstd level $compress ($dest_dir/coder.tar.zst)"
 	pushd "$dest_dir"
-	tar cf coder.tar coder-*
+	sha_file=coder.sha1
+	sha_dest="$dest_dir/$sha_file"
+	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
+	shasum -b -a 1 coder-* | tee $sha_file
+	echo "$sha_dest"
+	log
+	log
+
+	tar_name=coder.tar.zst
+	tar_dest="$dest_dir/$tar_name"
+	log "--- Compressing coder-slim binaries using zstd level $compress ($tar_dest)"
+	tar cf coder.tar $sha_file coder-*
 	rm coder-*
-	zstd --force --ultra --long -"${compress}" --rm --no-progress coder.tar -o coder.tar.zst
+	zstd --force --ultra --long -"${compress}" --rm --no-progress coder.tar -o $tar_name
+	echo "$tar_dest"
+	log
+	log
+
 	popd
 fi

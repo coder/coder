@@ -135,7 +135,9 @@ export const SignInForm: FC<SignInFormProps> = ({
           variant="outlined"
         />
         {authErrorMessage && <FormHelperText error>{authErrorMessage}</FormHelperText>}
-        {methodsErrorMessage && <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>}
+        {methodsErrorMessage && (
+          <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>
+        )}
         <div className={styles.submitBtn}>
           <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
             {isLoading ? "" : Language.passwordSignIn}
@@ -153,7 +155,9 @@ export const SignInForm: FC<SignInFormProps> = ({
           <div>
             <Link
               underline="none"
-              href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(redirectTo)}`}
+              href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+                redirectTo,
+              )}`}
             >
               <Button
                 startIcon={<GitHubIcon className={styles.buttonIcon} />}

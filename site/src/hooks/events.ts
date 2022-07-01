@@ -7,7 +7,10 @@ import { CustomEventListener } from "../util/events"
  * @param eventType a unique name defining the type of the event. e.g. `"coder:workspace:ready"`
  * @param listener a custom event listener.
  */
-export const useCustomEvent = <T, E extends string = string>(eventType: E, listener: CustomEventListener<T>): void => {
+export const useCustomEvent = <T, E extends string = string>(
+  eventType: E,
+  listener: CustomEventListener<T>,
+): void => {
   useEffect(() => {
     const handleEvent: CustomEventListener<T> = (event) => {
       listener(event)

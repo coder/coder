@@ -25,10 +25,22 @@ export const TableRowMenu = <T,>({ data, menuItems }: TableRowMenuProps<T>): JSX
 
   return (
     <>
-      <IconButton size="small" aria-label="more" aria-controls="long-menu" aria-haspopup="true" onClick={handleClick}>
+      <IconButton
+        size="small"
+        aria-label="more"
+        aria-controls="long-menu"
+        aria-haspopup="true"
+        onClick={handleClick}
+      >
         <MoreVertIcon />
       </IconButton>
-      <Menu id="simple-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
+      <Menu
+        id="simple-menu"
+        anchorEl={anchorEl}
+        keepMounted
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      >
         {menuItems.map((item) => (
           <MenuItem
             key={item.label}

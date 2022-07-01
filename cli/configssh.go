@@ -57,13 +57,6 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	return slices.Equal(opt1, opt2)
 }
 
-func (o sshConfigOptions) asArgs() (args []string) {
-	for _, opt := range o.sshOptions {
-		args = append(args, "--ssh-option", fmt.Sprintf("%q", opt))
-	}
-	return args
-}
-
 func (o sshConfigOptions) asList() (list []string) {
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
@@ -140,11 +133,9 @@ func configSSH() *cobra.Command {
 		sshConfigOpts    sshConfigOptions
 		usePreviousOpts  bool
 		coderConfigFile  string
-		showDiff         bool
+		dryRun           bool
 		skipProxyCommand bool
-
-		// Diff should exit with status 1 when files differ.
-		filesDiffer bool
+		wireguard        bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -156,14 +147,9 @@ func configSSH() *cobra.Command {
 
     ` + cliui.Styles.Code.Render("$ coder config-ssh -o ForwardAgent=yes") + `
 
-  - You can use -D (or --diff) to display the changes that will be made.
+  - You can use --dry-run (or -n) to see the changes that would be made.
 
-    ` + cliui.Styles.Code.Render("$ coder config-ssh --diff"),
-		PostRun: func(cmd *cobra.Command, args []string) {
-			if showDiff && filesDiffer {
-				os.Exit(1) //nolint: revive
-			}
-		},
+    ` + cliui.Styles.Code.Render("$ coder config-ssh --dry-run"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -173,7 +159,9 @@ func configSSH() *cobra.Command {
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(cmd.Context(), client)
 
 			out := cmd.OutOrStdout()
-			if showDiff {
+			if dryRun {
+				// Print everything except diff to stderr so
+				// that it's possible to capture the diff.
 				out = cmd.OutOrStderr()
 			}
 			binaryFile, err := currentBinPath(out)
@@ -186,7 +174,6 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("user home dir failed: %w", err)
 			}
 
-			sshConfigFileOrig := sshConfigFile
 			if strings.HasPrefix(sshConfigFile, "~/") {
 				sshConfigFile = filepath.Join(homedir, sshConfigFile[2:])
 			}
@@ -221,7 +208,7 @@ func configSSH() *cobra.Command {
 			// or when a previous config does not exist.
 			if usePreviousOpts && lastConfig != nil {
 				sshConfigOpts = *lastConfig
-			} else if !showDiff && lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
+			} else if lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
@@ -244,7 +231,10 @@ func configSSH() *cobra.Command {
 					// Selecting "no" will use the last config.
 					sshConfigOpts = *lastConfig
 				}
-				_, _ = fmt.Fprint(out, "\n")
+				// Only print when prompts are shown.
+				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+					_, _ = fmt.Fprint(out, "\n")
+				}
 			}
 
 			configModified := configRaw
@@ -298,7 +288,11 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+						if !wireguard {
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+						} else {
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --wireguard --stdio %s", binaryFile, root, hostname))
+						}
 					}
 
 					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
@@ -316,15 +310,25 @@ func configSSH() *cobra.Command {
 				configModified = buf.Bytes()
 			}
 
-			if showDiff {
-				if len(changes) > 0 {
-					// Write to stderr to avoid dirtying the diff output.
-					_, _ = fmt.Fprint(out, "The following changes will be made to your SSH configuration:\n\n")
-					for _, change := range changes {
-						_, _ = fmt.Fprintf(out, "  * %s\n", change)
-					}
+			if len(changes) > 0 {
+				dryRunDisclaimer := ""
+				if dryRun {
+					dryRunDisclaimer = " (dry-run, no changes will be made)"
 				}
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?%s", strings.Join(changes, "\n    * "), dryRunDisclaimer),
+					IsConfirm: true,
+				})
+				if err != nil {
+					return nil
+				}
+				// Only print when prompts are shown.
+				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+					_, _ = fmt.Fprint(out, "\n")
+				}
+			}
 
+			if dryRun {
 				color := isTTYOut(cmd)
 				diffFns := []func() ([]byte, error){
 					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified, color) },
@@ -340,34 +344,11 @@ func configSSH() *cobra.Command {
 						return xerrors.Errorf("diff failed: %w", err)
 					}
 					if len(diff) > 0 {
-						filesDiffer = true
-						// Always write to stdout.
+						// Write diff to stdout.
 						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%s", diff)
 					}
 				}
-
-				return nil
-			}
-
-			if len(changes) > 0 {
-				// In diff mode we don't prompt re-using the previous
-				// configuration, so we output the entire command.
-				var args []string
-				if sshConfigFileOrig != sshDefaultConfigFileName {
-					args = append(args, "--ssh-config-file", sshConfigFileOrig)
-				}
-				args = append(args, sshConfigOpts.asArgs()...)
-				args = append(args, "--diff")
-				diffCommand := fmt.Sprintf("$ %s %s", cmd.CommandPath(), strings.Join(args, " "))
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  To see changes, run diff:\n\n    %s\n\n  Continue?", strings.Join(changes, "\n    * "), diffCommand),
-					IsConfirm: true,
-				})
-				if err != nil {
-					return nil
-				}
-				_, _ = fmt.Fprint(out, "\n")
-
+			} else {
 				if !bytes.Equal(configRaw, configModified) {
 					err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
 					if err != nil {
@@ -394,10 +375,12 @@ func configSSH() *cobra.Command {
 	}
 	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
 	cmd.Flags().StringArrayVarP(&sshConfigOpts.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
-	cmd.Flags().BoolVarP(&showDiff, "diff", "D", false, "Show diff of changes that will be made.")
+	cmd.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "Perform a trial run with no changes made, showing a diff at the end.")
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
+	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
+	_ = cmd.Flags().MarkHidden("wireguard")
 
 	// Deprecated: Remove after migration period.
 	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
@@ -563,7 +546,7 @@ func currentBinPath(w io.Writer) (string, error) {
 		_, _ = fmt.Fprint(w, "\n")
 	}
 
-	return binName, nil
+	return exePath, nil
 }
 
 // diffBytes takes two byte slices and diffs them as if they were in a
@@ -575,7 +558,7 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 	if color {
 		opts = append(opts, write.TerminalColor())
 	}
-	err := diff.Text(name, name+".new", b1, b2, &buf, opts...)
+	err := diff.Text(name, name, b1, b2, &buf, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +567,7 @@ func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 	//
 	// Example:
 	// 	--- /home/user/.ssh/config
-	// 	+++ /home/user/.ssh/config.new
+	// 	+++ /home/user/.ssh/config
 	if bytes.Count(b, []byte{'\n'}) == 2 {
 		b = nil
 	}

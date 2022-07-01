@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -401,6 +402,41 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
 		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
+	})
+
+	t.Run("RemoteIPUpdates", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = databasefake.New()
+			id, secret = randomAPIKeyParts()
+			hashed     = sha256.Sum256([]byte(secret))
+			r          = httptest.NewRequest("GET", "/", nil)
+			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
+		)
+		r.RemoteAddr = "1.1.1.1:3555"
+		r.AddCookie(&http.Cookie{
+			Name:  httpmw.SessionTokenKey,
+			Value: fmt.Sprintf("%s-%s", id, secret),
+		})
+
+		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+			ID:           id,
+			HashedSecret: hashed[:],
+			LastUsed:     database.Now().AddDate(0, 0, -1),
+			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
+		})
+		require.NoError(t, err)
+		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		require.NoError(t, err)
+
+		require.Equal(t, net.ParseIP("1.1.1.1"), gotAPIKey.IPAddress.IPNet.IP)
 	})
 }
 

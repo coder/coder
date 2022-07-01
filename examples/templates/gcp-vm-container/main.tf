@@ -58,7 +58,7 @@ module "gce-container" {
 resource "google_compute_instance" "dev" {
   zone         = var.zone
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   machine_type = "e2-medium"
   network_interface {
     network = "default"

@@ -162,7 +162,8 @@ const useButtonStyles = makeStyles((theme) => ({
     },
   },
   confirmDialogCancelButton: (props: StyleProps) => {
-    const color = props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
+    const color =
+      props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
     return {
       background: fade(color, 0.15),
       color,
@@ -299,7 +300,10 @@ const useButtonStyles = makeStyles((theme) => ({
   },
 }))
 
-export type DialogSearchProps = Omit<OutlinedInputProps, "className" | "fullWidth" | "labelWidth" | "startAdornment">
+export type DialogSearchProps = Omit<
+  OutlinedInputProps,
+  "className" | "fullWidth" | "labelWidth" | "startAdornment"
+>
 
 /**
  * Formats a search bar right below the title of a Dialog. Passes all props

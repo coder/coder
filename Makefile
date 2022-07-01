@@ -20,7 +20,9 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 
 	mkdir -p ./dist
 	rm -rf ./dist/coder-slim_*
+	rm -f ./site/out/bin/coder*
 	./scripts/build_go_slim.sh \
+		--compress 6 \
 		--version "$(VERSION)" \
 		--output ./dist/ \
 		linux:amd64,armv7,arm64 \
@@ -31,6 +33,7 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	rm -rf ./dist
 	mkdir -p ./dist
+	rm -f ./site/out/bin/coder*
 
 	# build slim artifacts and copy them to the site output directory
 	./scripts/build_go_slim.sh \
@@ -57,11 +60,12 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
 
 # Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
+# This target is deprecated, as GNU make has issues passing signals to subprocesses.
 dev:
-	./scripts/develop.sh
+	@echo Please run ./scripts/develop.sh manually.
 .PHONY: dev
 
 fmt/prettier:
@@ -167,14 +171,15 @@ test: test-clean
 	gotestsum -- -v -short ./...
 .PHONY: test
 
-test-postgres: test-clean
-	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
-          -coverpkg=./...,github.com/coder/coder/codersdk \
-          -count=1 -race -failfast
+test-postgres: test-clean test-postgres-docker
+	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+		-covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
+		-coverpkg=./...,github.com/coder/coder/codersdk \
+		-count=2 -race -failfast
 .PHONY: test-postgres
 
 test-postgres-docker:
+	docker rm -f test-postgres-docker || true
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -185,12 +190,17 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart no \
 		--detach \
-		postgres:11 \
+		postgres:13 \
 		-c shared_buffers=1GB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off
+	while ! pg_isready -h 127.0.0.1
+	do
+		echo "$(date) - waiting for database to start"
+		sleep 0.5
+	done
 .PHONY: test-postgres-docker
 
 test-clean:

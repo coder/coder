@@ -8,7 +8,11 @@ import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TemplateResourcesTable } from "../../components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "../../components/TemplateStats/TemplateStats"
@@ -27,7 +31,11 @@ export interface TemplatePageViewProps {
   templateResources: WorkspaceResource[]
 }
 
-export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTemplateVersion, templateResources }) => {
+export const TemplatePageView: FC<TemplatePageViewProps> = ({
+  template,
+  activeTemplateVersion,
+  templateResources,
+}) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
 
@@ -39,7 +47,11 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTe
     <Margins>
       <PageHeader
         actions={
-          <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
+          <Link
+            underline="none"
+            component={RouterLink}
+            to={`/templates/${template.name}/workspace`}
+          >
             <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
           </Link>
         }
@@ -52,10 +64,16 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({ template, activeTe
 
       <Stack spacing={3}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-        <WorkspaceSection title={Language.resourcesTitle} contentsProps={{ className: styles.resourcesTableContents }}>
+        <WorkspaceSection
+          title={Language.resourcesTitle}
+          contentsProps={{ className: styles.resourcesTableContents }}
+        >
           <TemplateResourcesTable resources={getStartedResources(templateResources)} />
         </WorkspaceSection>
-        <WorkspaceSection title={Language.readmeTitle} contentsProps={{ className: styles.readmeContents }}>
+        <WorkspaceSection
+          title={Language.readmeTitle}
+          contentsProps={{ className: styles.readmeContents }}
+        >
           <div className={styles.markdownWrapper}>
             <ReactMarkdown
               components={{
@@ -83,6 +101,12 @@ export const useStyles = makeStyles((theme) => {
     markdownWrapper: {
       background: theme.palette.background.paper,
       padding: theme.spacing(3.5),
+
+      // Adds text wrapping to <pre> tag added by ReactMarkdown
+      "& pre": {
+        whiteSpace: "pre-wrap",
+        wordWrap: "break-word",
+      },
     },
     resourcesTableContents: {
       margin: 0,

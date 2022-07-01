@@ -28,14 +28,24 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormFooter: FC<FormFooterProps> = ({ onCancel, isLoading, submitLabel = Language.defaultSubmitLabel }) => {
+export const FormFooter: FC<FormFooterProps> = ({
+  onCancel,
+  isLoading,
+  submitLabel = Language.defaultSubmitLabel,
+}) => {
   const styles = useStyles()
   return (
     <div className={styles.footer}>
       <Button type="button" className={styles.button} onClick={onCancel} variant="outlined">
         {Language.cancelLabel}
       </Button>
-      <LoadingButton loading={isLoading} className={styles.button} variant="contained" color="primary" type="submit">
+      <LoadingButton
+        loading={isLoading}
+        className={styles.button}
+        variant="contained"
+        color="primary"
+        type="submit"
+      >
         {submitLabel}
       </LoadingButton>
     </div>

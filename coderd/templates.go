@@ -96,8 +96,9 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = api.Database.UpdateTemplateDeletedByID(r.Context(), database.UpdateTemplateDeletedByIDParams{
-		ID:      template.ID,
-		Deleted: true,
+		ID:        template.ID,
+		Deleted:   true,
+		UpdatedAt: database.Now(),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

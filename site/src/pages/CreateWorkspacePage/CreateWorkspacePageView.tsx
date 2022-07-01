@@ -36,37 +36,38 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
   useStyles()
 
-  const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
-    initialValues: {
-      name: "",
-      template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
-    },
-    enableReinitialize: true,
-    validationSchema,
-    onSubmit: (request) => {
-      if (!props.templateSchema) {
-        throw new Error("No template schema loaded")
-      }
-
-      const createRequests: TypesGen.CreateParameterRequest[] = []
-      props.templateSchema.forEach((schema) => {
-        let value = schema.default_source_value
-        if (schema.name in parameterValues) {
-          value = parameterValues[schema.name]
+  const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
+    useFormik<TypesGen.CreateWorkspaceRequest>({
+      initialValues: {
+        name: "",
+        template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
+      },
+      enableReinitialize: true,
+      validationSchema,
+      onSubmit: (request) => {
+        if (!props.templateSchema) {
+          throw new Error("No template schema loaded")
         }
-        createRequests.push({
-          name: schema.name,
-          destination_scheme: schema.default_destination_scheme,
-          source_scheme: schema.default_source_scheme,
-          source_value: value,
+
+        const createRequests: TypesGen.CreateParameterRequest[] = []
+        props.templateSchema.forEach((schema) => {
+          let value = schema.default_source_value
+          if (schema.name in parameterValues) {
+            value = parameterValues[schema.name]
+          }
+          createRequests.push({
+            name: schema.name,
+            destination_scheme: schema.default_destination_scheme,
+            source_scheme: schema.default_source_scheme,
+            source_value: value,
+          })
         })
-      })
-      return props.onSubmit({
-        ...request,
-        parameter_values: createRequests,
-      })
-    },
-  })
+        return props.onSubmit({
+          ...request,
+          parameter_values: createRequests,
+        })
+      },
+    })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(form)
 
   return (

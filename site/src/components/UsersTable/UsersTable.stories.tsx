@@ -28,3 +28,13 @@ Empty.args = {
   users: [],
   roles: MockSiteRoles,
 }
+
+export const Loading = Template.bind({})
+Loading.args = {
+  users: [],
+  roles: MockSiteRoles,
+  isLoading: true,
+}
+Loading.parameters = {
+  chromatic: { pauseAnimationAtEnd: true },
+}

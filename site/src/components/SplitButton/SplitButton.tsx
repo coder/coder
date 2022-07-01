@@ -75,7 +75,12 @@ export const SplitButton = <T,>({
   return (
     <>
       <ButtonGroup aria-label="split button" color={color} ref={anchorRef} variant="contained">
-        <Button disabled={disabled} onClick={handleClick} startIcon={startIcon} style={{ textTransform }}>
+        <Button
+          disabled={disabled}
+          onClick={handleClick}
+          startIcon={startIcon}
+          style={{ textTransform }}
+        >
           {displayedLabel}
         </Button>
         <Button

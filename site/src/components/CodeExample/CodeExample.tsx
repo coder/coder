@@ -37,7 +37,12 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(0.5),
   },
   code: {
-    padding: `${theme.spacing(0.5)}px  ${theme.spacing(0.75)}px ${theme.spacing(0.5)}px ${theme.spacing(2)}px`,
+    padding: `
+      ${theme.spacing(0.5)}px
+      ${theme.spacing(0.75)}px
+      ${theme.spacing(0.5)}px
+      ${theme.spacing(2)}px
+    `,
     whiteSpace: "nowrap",
     width: "100%",
     overflowX: "auto",

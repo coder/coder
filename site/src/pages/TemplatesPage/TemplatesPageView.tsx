@@ -15,7 +15,11 @@ import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
 import { TableCellLink } from "../../components/TableCellLink/TableCellLink"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
@@ -36,7 +40,8 @@ export const Language = {
   nameLabel: "Name",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
-  emptyViewNoPerms: "Contact your Coder administrator to create a template. You can share the code below.",
+  emptyViewNoPerms:
+    "Contact your Coder administrator to create a template. You can share the code below.",
   emptyMessage: "Create your first template",
   emptyDescription: (
     <>
@@ -48,7 +53,8 @@ export const Language = {
     </>
   ),
   templateTooltipTitle: "What is template?",
-  templateTooltipText: "With templates you can create a common configuration for your workspaces using Terraform.",
+  templateTooltipText:
+    "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
   createdByLabel: "Created by",
 }
@@ -108,7 +114,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
               <TableCell colSpan={999}>
                 <EmptyState
                   message={Language.emptyMessage}
-                  description={props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms}
+                  description={
+                    props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms
+                  }
                   descriptionClassName={styles.emptyDescription}
                   cta={<CodeExample code="coder template init" />}
                 />

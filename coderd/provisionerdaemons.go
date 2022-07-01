@@ -23,10 +23,12 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -383,8 +385,9 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 
 	if len(request.Readme) > 0 {
 		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
-			JobID:  job.ID,
-			Readme: string(request.Readme),
+			JobID:     job.ID,
+			Readme:    string(request.Readme),
+			UpdatedAt: database.Now(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)
@@ -714,17 +717,17 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
-	for _, agent := range protoResource.Agents {
+	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
-		if agent.GetInstanceId() != "" {
+		if prAgent.GetInstanceId() != "" {
 			instanceID = sql.NullString{
-				String: agent.GetInstanceId(),
+				String: prAgent.GetInstanceId(),
 				Valid:  true,
 			}
 		}
 		var env pqtype.NullRawMessage
-		if agent.Env != nil {
-			data, err := json.Marshal(agent.Env)
+		if prAgent.Env != nil {
+			data, err := json.Marshal(prAgent.Env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
@@ -734,36 +737,40 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 		authToken := uuid.New()
-		if agent.GetToken() != "" {
-			authToken, err = uuid.Parse(agent.GetToken())
+		if prAgent.GetToken() != "" {
+			authToken, err = uuid.Parse(prAgent.GetToken())
 			if err != nil {
 				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
 			}
 		}
 
+		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                   uuid.New(),
+			ID:                   agentID,
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
-			Name:                 agent.Name,
+			Name:                 prAgent.Name,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,
-			Architecture:         agent.Architecture,
+			Architecture:         prAgent.Architecture,
 			EnvironmentVariables: env,
-			Directory:            agent.Directory,
-			OperatingSystem:      agent.OperatingSystem,
+			Directory:            prAgent.Directory,
+			OperatingSystem:      prAgent.OperatingSystem,
 			StartupScript: sql.NullString{
-				String: agent.StartupScript,
-				Valid:  agent.StartupScript != "",
+				String: prAgent.StartupScript,
+				Valid:  prAgent.StartupScript != "",
 			},
+			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
+			WireguardNodePublicKey:  dbtypes.NodePublic{},
+			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
-		for _, app := range agent.Apps {
+		for _, app := range prAgent.Apps {
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),

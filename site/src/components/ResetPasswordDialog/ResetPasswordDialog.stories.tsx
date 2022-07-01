@@ -11,7 +11,9 @@ export default {
   },
 }
 
-const Template: Story<ResetPasswordDialogProps> = (args: ResetPasswordDialogProps) => <ResetPasswordDialog {...args} />
+const Template: Story<ResetPasswordDialogProps> = (args: ResetPasswordDialogProps) => (
+  <ResetPasswordDialog {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

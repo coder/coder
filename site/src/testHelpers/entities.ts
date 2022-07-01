@@ -226,7 +226,10 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
 }
-export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
+export const MockDeletedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildDelete,
+}
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
@@ -247,6 +250,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
+  wireguard_public_key: "",
+  disco_public_key: "",
+  ipv6: "",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

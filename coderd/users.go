@@ -6,13 +6,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -117,34 +120,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
-	var (
-		searchName    = r.URL.Query().Get("search")
-		statusFilters = r.URL.Query().Get("status")
-	)
-
-	statuses := make([]database.UserStatus, 0)
-
-	if statusFilters != "" {
-		// Split on commas if present to account for it being a list
-		for _, filter := range strings.Split(statusFilters, ",") {
-			switch database.UserStatus(filter) {
-			case database.UserStatusSuspended, database.UserStatusActive:
-				statuses = append(statuses, database.UserStatus(filter))
-			default:
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("%q is not a valid user status.", filter),
-					Validations: []httpapi.Error{
-						{Field: "status", Detail: "invalid status"},
-					},
-				})
-				return
-			}
-		}
-	}
-
-	// Reading all users across the site.
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
-		httpapi.Forbidden(rw)
+	query := r.URL.Query().Get("q")
+	params, errs := userSearchQuery(query)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message:     "Invalid user search query.",
+			Validations: errs,
+		})
 		return
 	}
 
@@ -157,8 +139,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		AfterID:   paginationParams.AfterID,
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
-		Search:    searchName,
-		Status:    statuses,
+		Search:    params.Search,
+		Status:    params.Status,
+		RbacRole:  params.RbacRole,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
@@ -172,6 +155,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	users = AuthorizeFilter(api, r, rbac.ActionRead, users)
 	userIDs := make([]uuid.UUID, 0, len(users))
 	for _, user := range users {
 		userIDs = append(userIDs, user.ID)
@@ -679,6 +663,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: "Internal error.",
 		})
+		return
 	}
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
@@ -733,6 +718,34 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
+}
+
+func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	keyID := chi.URLParam(r, "keyid")
+	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertAPIKey(key))
 }
 
 // Clear the user's session cookie.
@@ -798,10 +811,23 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		}
 	}
 
-	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ip = net.IPv4(0, 0, 0, 0)
+	}
+	bitlen := len(ip) * 8
+	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
 		LifetimeSeconds: params.LifetimeSeconds,
+		IPAddress: pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(bitlen, bitlen),
+			},
+			Valid: true,
+		},
 		// Make sure in UTC time for common time zone
 		ExpiresAt:         params.ExpiresAt.UTC(),
 		CreatedAt:         database.Now(),
@@ -820,6 +846,10 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 		})
 		return "", false
 	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(key)},
+	})
 
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
@@ -953,4 +983,71 @@ func findUser(id uuid.UUID, users []database.User) *database.User {
 		}
 	}
 	return nil
+}
+
+func userSearchQuery(query string) (database.GetUsersParams, []httpapi.Error) {
+	searchParams := make(url.Values)
+	if query == "" {
+		// No filter
+		return database.GetUsersParams{}, nil
+	}
+	query = strings.ToLower(query)
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	for _, element := range elements {
+		parts := splitQueryParameterByDelimiter(element, ':', false)
+		switch len(parts) {
+		case 1:
+			// No key:value pair.
+			searchParams.Set("search", parts[0])
+		case 2:
+			searchParams.Set(parts[0], parts[1])
+		default:
+			return database.GetUsersParams{}, []httpapi.Error{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
+		}
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetUsersParams{
+		Search:   parser.String(searchParams, "", "search"),
+		Status:   httpapi.ParseCustom(parser, searchParams, []database.UserStatus{}, "status", parseUserStatus),
+		RbacRole: parser.Strings(searchParams, []string{}, "role"),
+	}
+
+	return filter, parser.Errors
+}
+
+// parseUserStatus ensures proper enums are used for user statuses
+func parseUserStatus(v string) ([]database.UserStatus, error) {
+	var statuses []database.UserStatus
+	if v == "" {
+		return statuses, nil
+	}
+	parts := strings.Split(v, ",")
+	for _, part := range parts {
+		switch database.UserStatus(part) {
+		case database.UserStatusActive, database.UserStatusSuspended:
+			statuses = append(statuses, database.UserStatus(part))
+		default:
+			return []database.UserStatus{}, xerrors.Errorf("%q is not a valid user status", part)
+		}
+	}
+	return statuses, nil
+}
+
+func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	return codersdk.APIKey{
+		ID:              k.ID,
+		UserID:          k.UserID,
+		LastUsed:        k.LastUsed,
+		ExpiresAt:       k.ExpiresAt,
+		CreatedAt:       k.CreatedAt,
+		UpdatedAt:       k.UpdatedAt,
+		LoginType:       codersdk.LoginType(k.LoginType),
+		LifetimeSeconds: k.LifetimeSeconds,
+	}
 }

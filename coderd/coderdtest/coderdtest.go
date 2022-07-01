@@ -25,19 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/afero"
-
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/ptr"
-
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -50,7 +46,10 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -76,12 +75,31 @@ type Options struct {
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _ := NewWithAPI(t, options)
+	client, _ := newWithCloser(t, options)
 	return client
 }
 
-// NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
+// NewWithProvisionerCloser returns a client as well as a handle to close
+// the provisioner. This is a temporary function while work is done to
+// standardize how provisioners are registered with coderd. The option
+// to include a provisioner is set to true for convenience.
+func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+	if options == nil {
+		options = &Options{}
+	}
+	options.IncludeProvisionerD = true
+	client, closer := newWithCloser(t, options)
+	return client, closer
+}
+
+// newWithCloser constructs a codersdk client connected to an in-memory API instance.
+// The returned closer closes a provisioner if it was provided
+// The API is intentionally not returned here because coderd tests should not
+// require a handle to the API. Do not expose the API or wrath shall descend
+// upon thee. Even the io.Closer that is exposed here shouldn't be exposed
+// and is a temporary measure while the API to register provisioners is ironed
+// out.
+func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -115,8 +133,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
-		err = database.MigrateUp(sqlDB)
-		require.NoError(t, err)
 		db = database.New(sqlDB)
 
 		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
@@ -154,6 +170,9 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+		// Force a long disconnection timeout to ensure
+		// agents are not marked as disconnected during slow tests.
+		AgentInactiveDisconnectTimeout: 5 * time.Second,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
@@ -170,17 +189,21 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		Telemetry:            telemetry.NewNoop(),
 	})
 	srv.Config.Handler = coderAPI.Handler
+
+	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerD {
-		_ = NewProvisionerDaemon(t, coderAPI)
+		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
 		_ = coderAPI.Close()
+		_ = provisionerCloser.Close()
 	})
 
-	return codersdk.New(serverURL), coderAPI
+	return codersdk.New(serverURL), provisionerCloser
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -243,13 +266,26 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
+
 	user, err := client.CreateUser(context.Background(), req)
+	var apiError *codersdk.Error
+	// If the user already exists by username or email conflict, try again up to "retries" times.
+	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+		if apiError.StatusCode() == http.StatusConflict {
+			retries--
+			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+		}
+	}
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -398,7 +434,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 5*time.Second, 25*time.Millisecond)
+	}, 15*time.Second, 50*time.Millisecond)
 	return resources
 }
 
@@ -649,3 +685,7 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
+
+type nopcloser struct{}
+
+func (nopcloser) Close() error { return nil }

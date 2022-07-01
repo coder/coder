@@ -104,11 +104,22 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 }
 
 func (e executor) version(ctx context.Context) (*version.Version, error) {
+	return versionFromBinaryPath(ctx, e.binaryPath)
+}
+
+func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
 	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, "version", "-json")
+	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		select {
+		// `exec` library throws a `signal: killed`` error instead of the canceled context.
+		// Since we know the cause for the killed signal, we are throwing the relevant error here.
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return nil, err
+		}
 	}
 	vj := tfjson.VersionOutput{}
 	err = json.Unmarshal(out, &vj)

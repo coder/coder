@@ -13,6 +13,7 @@ node_modules
 vendor
 .eslintcache
 yarn-error.log
+gotests.coverage
 .idea
 .DS_Store
 
@@ -39,3 +40,4 @@ site/out/
 
 .vscode/*.log
 **/*.swp
+.coderv2/*

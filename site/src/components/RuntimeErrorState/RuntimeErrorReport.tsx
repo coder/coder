@@ -71,7 +71,13 @@ export const RuntimeErrorReport = ({ error, mappedStack }: ReportState): ReactEl
   }
 
   const formattedStackTrace = createFormattedStackTrace(error, mappedStack)
-  return <CodeBlock lines={formattedStackTrace} className={styles.codeBlock} ctas={createCtas(formattedStackTrace)} />
+  return (
+    <CodeBlock
+      lines={formattedStackTrace}
+      className={styles.codeBlock}
+      ctas={createCtas(formattedStackTrace)}
+    />
+  )
 }
 
 const useStyles = makeStyles(() => ({

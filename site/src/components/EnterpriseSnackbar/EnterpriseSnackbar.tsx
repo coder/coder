@@ -80,7 +80,12 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderLeft: `4px solid ${theme.palette.primary.main}`,
     borderRadius: theme.shape.borderRadius,
-    padding: `${theme.spacing(1)}px ${theme.spacing(3)}px ${theme.spacing(1)}px ${theme.spacing(2)}px`,
+    padding: `
+      ${theme.spacing(1)}px
+      ${theme.spacing(3)}px
+      ${theme.spacing(1)}px
+      ${theme.spacing(2)}px
+    `,
     boxShadow: theme.shadows[6],
     alignItems: "inherit",
     backgroundColor: theme.palette.background.paper,

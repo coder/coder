@@ -5,7 +5,7 @@ on your preferred clouds and servers.
 
 By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
 
-> ⚠️ Coder v2 is in **alpha** state and is not ready for production use. For
+> ⚠️ Coder OSS is in **alpha** state and is not ready for production use. For
 > production environments, please consider [Coder v1](https://coder.com/docs) or
 > [code-server](https://github.com/cdr/code-server).
 
@@ -63,7 +63,7 @@ several benefits, including:
 
 ## Why Coder
 
-The key difference between Coder v2 and other remote IDE platforms is the added
+The key difference between Coder OSS and other remote IDE platforms is the added
 layer of infrastructure control. This additional layer allows admins to:
 
 - Support ARM, Windows, Linux, and macOS workspaces
@@ -74,7 +74,7 @@ layer of infrastructure control. This additional layer allows admins to:
 - Enable persistent workspaces, which are like local machines, but faster and
   hosted by a cloud service
 
-Coder includes [production-ready templates](../examples/templates/README.md) for use with AWS EC2,
+Coder includes [production-ready templates](https://github.com/coder/coder/tree/c6b1daabc5a7aa67bfbb6c89966d728919ba7f80/examples/templates) for use with AWS EC2,
 Azure, Google Cloud, Kubernetes, and more.
 
 ## What Coder is _not_

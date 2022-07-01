@@ -3,7 +3,7 @@ import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displayMsg, displaySuccess } from "../../components/GlobalSnackbar/utils"
-import { workspaceQueryToFilter } from "../../util/workspace"
+import { queryToFilter } from "../../util/filters"
 
 /**
  * Workspace item machine
@@ -190,7 +190,9 @@ interface WorkspacesContext {
   getWorkspacesError?: Error | unknown
 }
 
-type WorkspacesEvent = { type: "GET_WORKSPACES"; query: string } | { type: "UPDATE_VERSION"; workspaceId: string }
+type WorkspacesEvent =
+  | { type: "GET_WORKSPACES"; query: string }
+  | { type: "UPDATE_VERSION"; workspaceId: string }
 
 export const workspacesMachine = createMachine(
   {
@@ -307,7 +309,7 @@ export const workspacesMachine = createMachine(
               }
 
               // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id === ref.id)
+              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id !== ref.id)
             }
           }
 
@@ -316,7 +318,7 @@ export const workspacesMachine = createMachine(
       }),
     },
     services: {
-      getWorkspaces: (context) => API.getWorkspaces(workspaceQueryToFilter(context.filter)),
+      getWorkspaces: (context) => API.getWorkspaces(queryToFilter(context.filter)),
     },
   },
 )

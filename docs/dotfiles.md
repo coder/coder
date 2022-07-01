@@ -24,7 +24,7 @@ variable "dotfiles_uri" {
 
 resource "coder_agent" "dev" {
   ...
-  startup_script = var.dotfiles_uri != "" ? "/tmp/tmp.coder*/coder dotfiles -y ${var.dotfiles_uri}" : null
+  startup_script = var.dotfiles_uri != "" ? "coder dotfiles -y ${var.dotfiles_uri}" : null
 }
 ```
 

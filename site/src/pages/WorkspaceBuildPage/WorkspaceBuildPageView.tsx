@@ -8,16 +8,17 @@ import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/Workspac
 import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
-  return [...logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  return [...logs].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
 }
 
 export interface WorkspaceBuildPageViewProps {
   logs: ProvisionerJobLog[] | undefined
   build: WorkspaceBuild | undefined
-  isWaitingForLogs: boolean
 }
 
-export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build, isWaitingForLogs }) => {
+export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build }) => {
   return (
     <Margins>
       <PageHeader>
@@ -27,7 +28,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, 
       <Stack>
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
-        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} isWaitingForLogs={isWaitingForLogs} />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}
       </Stack>
     </Margins>
   )
