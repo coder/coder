@@ -1,11 +1,5 @@
-import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import Typography from "@material-ui/core/Typography"
-import AddBoxIcon from "@material-ui/icons/AddBox"
-import IndeterminateCheckBoxIcon from "@material-ui/icons/IndeterminateCheckBox"
-import ScheduleIcon from "@material-ui/icons/Schedule"
 import cronstrue from "cronstrue"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
@@ -37,8 +31,8 @@ export const Language = {
       return "Manual"
     }
   },
-  autoStartLabel: "START",
-  autoStopLabel: "SHUTDOWN",
+  autoStartLabel: "Starts at",
+  autoStopLabel: "Stops at",
   autoStopDisplay: (workspace: Workspace): string => {
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
@@ -70,80 +64,26 @@ export const Language = {
     }
   },
   editScheduleLink: "Edit schedule",
-  editDeadlineMinus: "Subtract one hour",
-  editDeadlinePlus: "Add one hour",
-  scheduleHeader: (workspace: Workspace): string => {
-    const tz = workspace.autostart_schedule
-      ? extractTimezone(workspace.autostart_schedule)
-      : dayjs.tz.guess()
-    return `Schedule (${tz})`
-  },
+  timezoneLabel: "Timezone",
 }
 
 export interface WorkspaceScheduleProps {
-  now?: dayjs.Dayjs
   workspace: Workspace
-  onDeadlinePlus: () => void
-  onDeadlineMinus: () => void
 }
 
-export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
-  if (!isWorkspaceOn(workspace)) {
-    return false
-  }
-  const deadline = dayjs(workspace.latest_build.deadline).utc()
-  return deadline.year() > 1
-}
-
-export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta <= 30 * 60 * 1000 // 30 minutes
-}
-
-export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta >= 24 * 60 * 60 * 1000 // 24 hours
-}
-
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
-  now,
-  workspace,
-  onDeadlineMinus,
-  onDeadlinePlus,
-}) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace }) => {
   const styles = useStyles()
-  const editDeadlineButtons = shouldDisplayPlusMinus(workspace) ? (
-    <Stack direction="row" spacing={0}>
-      <IconButton
-        size="small"
-        disabled={deadlineMinusDisabled(workspace, now ?? dayjs())}
-        className={styles.editDeadline}
-        onClick={onDeadlineMinus}
-      >
-        <Tooltip title={Language.editDeadlineMinus}>
-          <IndeterminateCheckBoxIcon />
-        </Tooltip>
-      </IconButton>
-      <IconButton
-        size="small"
-        disabled={deadlinePlusDisabled(workspace, now ?? dayjs())}
-        className={styles.editDeadline}
-        onClick={onDeadlinePlus}
-      >
-        <Tooltip title={Language.editDeadlinePlus}>
-          <AddBoxIcon />
-        </Tooltip>
-      </IconButton>
-    </Stack>
-  ) : null
+  const timezone = workspace.autostart_schedule
+    ? extractTimezone(workspace.autostart_schedule)
+    : dayjs.tz.guess()
 
   return (
     <div className={styles.schedule}>
       <Stack spacing={2}>
-        <Typography variant="body1" className={styles.title}>
-          <ScheduleIcon className={styles.scheduleIcon} />
-          {Language.scheduleHeader(workspace)}
-        </Typography>
+        <div>
+          <span className={styles.scheduleLabel}>{Language.timezoneLabel}</span>
+          <span className={styles.scheduleValue}>{timezone}</span>
+        </div>
         <div>
           <span className={styles.scheduleLabel}>{Language.autoStartLabel}</span>
           <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
@@ -156,7 +96,6 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
             <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
               {Language.autoStopDisplay(workspace)}
             </span>
-            {editDeadlineButtons}
           </Stack>
         </div>
         <div>
@@ -177,18 +116,6 @@ const useStyles = makeStyles((theme) => ({
   schedule: {
     fontFamily: MONOSPACE_FONT_FAMILY,
   },
-  title: {
-    fontWeight: 600,
-
-    fontFamily: "inherit",
-    display: "flex",
-    alignItems: "center",
-  },
-  scheduleIcon: {
-    width: 16,
-    height: 16,
-    marginRight: theme.spacing(1),
-  },
   scheduleLabel: {
     fontSize: 12,
     textTransform: "uppercase",
@@ -198,14 +125,11 @@ const useStyles = makeStyles((theme) => ({
   },
   scheduleValue: {
     fontSize: 14,
-    marginTop: theme.spacing(0.75),
+    marginTop: theme.spacing(0.5),
     display: "inline-block",
     color: theme.palette.text.secondary,
   },
   scheduleAction: {
     cursor: "pointer",
-  },
-  editDeadline: {
-    color: theme.palette.text.secondary,
   },
 }))
