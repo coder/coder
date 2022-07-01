@@ -110,7 +110,6 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
             value={form.values.query}
             error={!!error}
             className={styles.inputStyles}
-            classNames={{ OutlinedInput: styles.outlinedInput }}
             onChange={form.handleChange}
             startAdornment={
               <InputAdornment position="start" className={styles.searchIcon}>
