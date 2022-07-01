@@ -44,6 +44,14 @@ export const getOverrides = (palette: PaletteOptions) => {
         marginRight: 12,
       },
     },
+    MuiIconButton: {
+      sizeSmall: {
+        "& .MuiSvgIcon-root": {
+          width: 20,
+          height: 20,
+        },
+      },
+    },
     MuiTableHead: {
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,
