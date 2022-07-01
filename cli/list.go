@@ -58,7 +58,7 @@ func list() *cobra.Command {
 
 			now := time.Now()
 			for _, workspace := range workspaces {
-				status := workspaceStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
+				status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
 
 				lastBuilt := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"
