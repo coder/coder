@@ -42,7 +42,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   presetFilters,
   error,
 }) => {
-  const styles = useStyles({ error })
+  const styles = useStyles({ error: !!error })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -119,7 +119,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
           />
         </form>
 
-        {presetFilters && presetFilters.length > 0 && (
+        {presetFilters && presetFilters.length && (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}
@@ -150,7 +150,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 }
 
 interface StyleProps {
-  error?: unknown
+  error?: boolean
 }
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
