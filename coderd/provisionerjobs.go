@@ -28,6 +28,7 @@ import (
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+	logger := api.Logger.With(slog.F("job_id", job.ID))
 	follow := r.URL.Query().Has("follow")
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
@@ -41,7 +42,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
 	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
 	// of processed IDs.
-	var bufferedLogs chan database.ProvisionerJobLog
+	var bufferedLogs <-chan database.ProvisionerJobLog
 	if follow {
 		bl, closeFollow, err := api.followLogs(job.ID)
 		if err != nil {
@@ -129,7 +130,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 
 	if !follow {
-		api.Logger.Debug(r.Context(), "Finished non-follow job logs", slog.F("job_id", job.ID))
+		logger.Debug(r.Context(), "Finished non-follow job logs")
 		httpapi.Write(rw, http.StatusOK, convertProvisionerJobLogs(logs))
 		return
 	}
@@ -170,20 +171,18 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	for {
 		select {
 		case <-ctx.Done():
-			api.Logger.Debug(context.Background(), "job logs context canceled", slog.F("job_id", job.ID))
+			logger.Debug(context.Background(), "job logs context canceled")
 			return
 		case log, ok := <-bufferedLogs:
 			if !ok {
-				api.Logger.Debug(context.Background(), "done with published logs", slog.F("job_id", job.ID))
+				logger.Debug(context.Background(), "done with published logs")
 				return
 			}
 			if logIdsDone[log.ID] {
-				api.Logger.Debug(r.Context(), "subscribe duplicated log",
-					slog.F("job_id", job.ID),
+				logger.Debug(r.Context(), "subscribe duplicated log",
 					slog.F("stage", log.Stage))
 			} else {
-				api.Logger.Debug(r.Context(), "subscribe encoding log",
-					slog.F("job_id", job.ID),
+				logger.Debug(r.Context(), "subscribe encoding log",
 					slog.F("stage", log.Stage))
 				err = encoder.Encode(convertProvisionerJobLog(log))
 				if err != nil {
@@ -345,34 +344,31 @@ type provisionerJobLogsMessage struct {
 	Logs      []database.ProvisionerJobLog `json:"logs,omitempty"`
 }
 
-func (api *API) followLogs(jobID uuid.UUID) (chan database.ProvisionerJobLog, func(), error) {
+func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
+	logger := api.Logger.With(slog.F("job_id", jobID))
 	bufferedLogs := make(chan database.ProvisionerJobLog, 128)
 	closeSubscribe, err := api.Pubsub.Subscribe(provisionerJobLogsChannel(jobID),
 		func(ctx context.Context, message []byte) {
 			jlMsg := provisionerJobLogsMessage{}
 			err := json.Unmarshal(message, &jlMsg)
 			if err != nil {
-				api.Logger.Warn(ctx,
-					fmt.Sprintf("invalid provisioner job log on channel %q: %s",
-						provisionerJobLogsChannel(jobID),
-						err.Error()))
+				logger.Warn(ctx, "invalid provisioner job log on channel", slog.Error(err))
 				return
 			}
 
 			for _, log := range jlMsg.Logs {
 				select {
 				case bufferedLogs <- log:
-					api.Logger.Debug(ctx, "subscribe buffered log",
-						slog.F("job_id", jobID),
-						slog.F("stage", log.Stage))
+					logger.Debug(ctx, "subscribe buffered log", slog.F("stage", log.Stage))
 				default:
 					// If this overflows users could miss logs streaming. This can happen
-					// if a database request takes a long amount of time, and we get a lot of logs.
-					api.Logger.Warn(ctx, "provisioner job log overflowing channel")
+					// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
+					// so just drop them.
+					logger.Warn(ctx, "provisioner job log overflowing channel")
 				}
 			}
 			if jlMsg.EndOfLogs {
-				api.Logger.Debug(ctx, "got End of Logs", slog.F("job_id", jobID))
+				logger.Debug(ctx, "got End of Logs")
 				close(bufferedLogs)
 			}
 		})
