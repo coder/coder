@@ -102,15 +102,16 @@ export const Resources: FC<ResourcesProps> = ({
 
                     <TableCell className={styles.agentColumn}>
                       {agent.name}
-                      <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                      <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
+                      <div className={styles.agentInfo}>
+                        <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                        <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
+                      </div>
                     </TableCell>
                     {canUpdateWorkspace && (
                       <TableCell>
-                        <Stack>
+                        <div className={styles.accessLinks}>
                           {agent.status === "connected" && (
                             <TerminalLink
-                              className={styles.accessLink}
                               workspaceName={workspace.name}
                               agentName={agent.name}
                               userName={workspace.owner_name}
@@ -126,7 +127,7 @@ export const Resources: FC<ResourcesProps> = ({
                                 workspaceName={workspace.name}
                               />
                             ))}
-                        </Stack>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -165,23 +166,22 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: `${theme.spacing(2)}px !important`,
   },
 
-  accessLink: {
-    color: theme.palette.text.secondary,
+  agentInfo: {
     display: "flex",
-    alignItems: "center",
-
-    "& svg": {
-      width: 16,
-      height: 16,
-      marginRight: theme.spacing(1.5),
-    },
-  },
-
-  operatingSystem: {
+    gap: theme.spacing(1.5),
     fontSize: 14,
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.5),
+  },
+
+  operatingSystem: {
     display: "block",
     textTransform: "capitalize",
+  },
+
+  accessLinks: {
+    display: "flex",
+    gap: theme.spacing(0.5),
+    flexWrap: "wrap",
   },
 }))
