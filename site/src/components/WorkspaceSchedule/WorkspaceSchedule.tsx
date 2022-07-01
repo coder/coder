@@ -36,7 +36,10 @@ export interface WorkspaceScheduleProps {
   canUpdateWorkspace: boolean
 }
 
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({ workspace, canUpdateWorkspace }) => {
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  workspace,
+  canUpdateWorkspace,
+}) => {
   const styles = useStyles()
   const timezone = workspace.autostart_schedule
     ? extractTimezone(workspace.autostart_schedule)
