@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
@@ -44,25 +45,15 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
         window.open(href, Language.terminalTitle(generateRandomString(12)), "width=900,height=600")
       }}
     >
-      <ComputerIcon className={styles.icon} />
-      {Language.linkText}
+      <Button startIcon={<ComputerIcon />} size="small">
+        {Language.linkText}
+      </Button>
     </Link>
   )
 }
 
-// Replicating these from accessLink style from Resources component until we
-// define if we want these styles coming from the parent or having a
-// ResourceLink component for that
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   link: {
-    color: theme.palette.text.secondary,
-    display: "flex",
-    alignItems: "center",
-  },
-
-  icon: {
-    width: 16,
-    height: 16,
-    marginRight: theme.spacing(1.5),
+    textDecoration: "none !important",
   },
 }))
