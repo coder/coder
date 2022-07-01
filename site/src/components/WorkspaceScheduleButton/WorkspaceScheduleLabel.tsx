@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Workspace } from "../../api/typesGenerated"
+import { combineClasses } from "../../util/combineClasses"
 import { autoStartDisplay, autoStopDisplay, isShuttingDown, Language } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 
@@ -12,7 +13,7 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
 
     // If it is shutting down, we don't need to display the auto stop label
     return (
-      <span className={styles.labelText}>
+      <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
         {shouldDisplayStrongLabel && (
           <strong className={styles.labelStrong}>{Language.autoStopLabel}</strong>
         )}
@@ -22,7 +23,7 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
   }
 
   return (
-    <span className={styles.labelText}>
+    <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
       <strong className={styles.labelStrong}>{Language.autoStartLabel}</strong>
       {autoStartDisplay(workspace.autostart_schedule)}
     </span>
