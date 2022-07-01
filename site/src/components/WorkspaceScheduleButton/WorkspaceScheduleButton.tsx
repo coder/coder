@@ -129,14 +129,14 @@ const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace 
   )
 }
 
-interface WorkspaceScheduleProps {
+export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
   now?: dayjs.Dayjs
 }
 
-export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleProps> = ({
+export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = ({
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
@@ -227,6 +227,8 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
+    // It is from the button props
+    minHeight: 42,
   },
 
   labelText: {
@@ -234,7 +236,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   labelStrong: {
-    marginRight: theme.spacing(0.25),
+    marginRight: theme.spacing(0.5),
   },
 
   iconButton: {
