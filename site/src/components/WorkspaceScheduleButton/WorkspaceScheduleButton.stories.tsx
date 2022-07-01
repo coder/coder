@@ -115,3 +115,17 @@ WorkspaceOffLong.args = {
     ttl_ms: 2 * 365 * 24 * 60 * 60 * 1000, // 2 years
   },
 }
+
+export const CannotEdit = Template.bind({})
+CannotEdit.args = {
+  workspace: {
+    ...Mocks.MockWorkspace,
+
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      transition: "stop",
+    },
+    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
+  },
+  canUpdateWorkspace: false,
+}
