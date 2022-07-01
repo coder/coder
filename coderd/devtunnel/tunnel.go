@@ -23,14 +23,14 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/cryptorand"
 )
 
-const (
-	EndpointWireguard = "wg-tunnel-udp.coder.app"
-	EndpointHTTPS     = "wg-tunnel.coder.app"
+var (
+	v0EndpointHTTPS = "wg-tunnel.coder.app"
 
-	ServerPublicKey = "+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="
-	ServerUUID      = "fcad0000-0000-4000-8000-000000000001"
+	v0ServerPublicKey = "+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="
+	v0ServerIP        = netip.AddrFrom16(uuid.MustParse("fcad0000-0000-4000-8000-000000000001"))
 )
 
 type Tunnel struct {
@@ -39,25 +39,31 @@ type Tunnel struct {
 }
 
 type Config struct {
+	Version    int                    `json:"version"`
 	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"private_key"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
+
+	Tunnel Node `json:"tunnel"`
 }
 type configExt struct {
+	Version    int                    `json:"-"`
 	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"-"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
+
+	Tunnel Node `json:"-"`
 }
 
 // NewWithConfig calls New with the given config. For documentation, see New.
 func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel, <-chan error, error) {
-	routineEnd, err := startUpdateRoutine(ctx, logger, cfg)
+	server, routineEnd, err := startUpdateRoutine(ctx, logger, cfg)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("start update routine: %w", err)
 	}
 
 	tun, tnet, err := netstack.CreateNetTUN(
-		[]netip.Addr{netip.AddrFrom16(cfg.ID)},
+		[]netip.Addr{server.ClientIP},
 		[]netip.Addr{netip.AddrFrom4([4]byte{1, 1, 1, 1})},
 		1280,
 	)
@@ -65,7 +71,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 		return nil, nil, xerrors.Errorf("create net TUN: %w", err)
 	}
 
-	wgip, err := net.ResolveIPAddr("ip", EndpointWireguard)
+	wgip, err := net.ResolveIPAddr("ip", cfg.Tunnel.HostnameWireguard)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("resolve endpoint: %w", err)
 	}
@@ -73,13 +79,14 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
-endpoint=%s:55555
+endpoint=%s:%d
 persistent_keepalive_interval=21
 allowed_ip=%s/128`,
 		hex.EncodeToString(cfg.PrivateKey[:]),
-		encodeBase64ToHex(ServerPublicKey),
+		server.ServerPublicKey,
 		wgip.IP.String(),
-		netip.AddrFrom16(uuid.MustParse(ServerUUID)).String(),
+		cfg.Tunnel.WireguardPort,
+		server.ServerIP.String(),
 	))
 	if err != nil {
 		return nil, nil, xerrors.Errorf("configure wireguard ipc: %w", err)
@@ -110,7 +117,7 @@ allowed_ip=%s/128`,
 	}()
 
 	return &Tunnel{
-		URL:      fmt.Sprintf("https://%s.%s", cfg.ID, EndpointHTTPS),
+		URL:      fmt.Sprintf("https://%s", server.Hostname),
 		Listener: wgListen,
 	}, ch, nil
 }
@@ -129,11 +136,11 @@ func New(ctx context.Context, logger slog.Logger) (*Tunnel, <-chan error, error)
 	return NewWithConfig(ctx, logger, cfg)
 }
 
-func startUpdateRoutine(ctx context.Context, logger slog.Logger, cfg Config) (<-chan struct{}, error) {
+func startUpdateRoutine(ctx context.Context, logger slog.Logger, cfg Config) (ServerResponse, <-chan struct{}, error) {
 	// Ensure we send the first config before spawning in the background.
-	_, err := sendConfigToServer(ctx, cfg)
+	res, err := sendConfigToServer(ctx, cfg)
 	if err != nil {
-		return nil, xerrors.Errorf("send config to server: %w", err)
+		return ServerResponse{}, nil, xerrors.Errorf("send config to server: %w", err)
 	}
 
 	endCh := make(chan struct{})
@@ -156,29 +163,67 @@ func startUpdateRoutine(ctx context.Context, logger slog.Logger, cfg Config) (<-
 			}
 		}
 	}()
-	return endCh, nil
+	return res, endCh, nil
 }
 
-func sendConfigToServer(ctx context.Context, cfg Config) (created bool, err error) {
+type ServerResponse struct {
+	Hostname        string     `json:"hostname"`
+	ServerIP        netip.Addr `json:"server_ip"`
+	ServerPublicKey string     `json:"server_public_key"` // hex
+	ClientIP        netip.Addr `json:"client_ip"`
+}
+
+func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error) {
 	raw, err := json.Marshal(configExt(cfg))
 	if err != nil {
-		return false, xerrors.Errorf("marshal config: %w", err)
+		return ServerResponse{}, xerrors.Errorf("marshal config: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+EndpointHTTPS+"/tun", bytes.NewReader(raw))
-	if err != nil {
-		return false, xerrors.Errorf("new request: %w", err)
+	var req *http.Request
+	switch cfg.Version {
+	case 0:
+		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+v0EndpointHTTPS+"/tun", bytes.NewReader(raw))
+		if err != nil {
+			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
+		}
+
+	case 1:
+		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+cfg.Tunnel.HostnameHTTPS+"/tun", bytes.NewReader(raw))
+		if err != nil {
+			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
+		}
+
+	default:
+		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
 	}
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return false, xerrors.Errorf("do request: %w", err)
+		return ServerResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+
+	var resp ServerResponse
+	switch cfg.Version {
+	case 0:
+		_, _ = io.Copy(io.Discard, res.Body)
+		resp.Hostname = fmt.Sprintf("%s.%s", cfg.ID, v0EndpointHTTPS)
+		resp.ServerIP = v0ServerIP
+		resp.ServerPublicKey = encodeBase64ToHex(v0ServerPublicKey)
+		resp.ClientIP = netip.AddrFrom16(cfg.ID)
+
+	case 1:
+		err := json.NewDecoder(res.Body).Decode(&resp)
+		if err != nil {
+			return ServerResponse{}, xerrors.Errorf("decode response: %w", err)
+		}
+
+	default:
+		_, _ = io.Copy(io.Discard, res.Body)
+		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
 	}
 
-	_, _ = io.Copy(io.Discard, res.Body)
-	_ = res.Body.Close()
-
-	return res.StatusCode == http.StatusCreated, nil
+	return resp, nil
 }
 
 func cfgPath() (string, error) {
@@ -227,6 +272,15 @@ func readOrGenerateConfig() (Config, error) {
 		return Config{}, xerrors.Errorf("unmarshal config: %w", err)
 	}
 
+	if cfg.Version == 0 {
+		cfg.Tunnel = Node{
+			ID:                0,
+			HostnameHTTPS:     "wg-tunnel.coder.app",
+			HostnameWireguard: "wg-tunnel-udp.coder.app",
+			WireguardPort:     55555,
+		}
+	}
+
 	return cfg, nil
 }
 
@@ -235,23 +289,23 @@ func GenerateConfig() (Config, error) {
 	if err != nil {
 		return Config{}, xerrors.Errorf("generate private key: %w", err)
 	}
-
 	pub := priv.PublicKey()
 
+	node, err := FindClosestNode()
+	if err != nil {
+		region := Regions[0]
+		n, _ := cryptorand.Intn(len(region.Nodes))
+		node = region.Nodes[n]
+		_, _ = fmt.Println("Error picking closest dev tunnel:", err)
+		_, _ = fmt.Println("Defaulting to", Regions[0].LocationName)
+	}
+
 	return Config{
-		ID:         newUUID(),
+		Version:    1,
 		PrivateKey: device.NoisePrivateKey(priv),
 		PublicKey:  device.NoisePublicKey(pub),
+		Tunnel:     node,
 	}, nil
-}
-
-func newUUID() uuid.UUID {
-	u := uuid.New()
-	// 0xfc is the IPV6 prefix for internal networks.
-	u[0] = 0xfc
-	u[1] = 0xca
-
-	return u
 }
 
 func writeConfig(cfg Config) error {

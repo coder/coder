@@ -67,6 +67,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/httprate v0.5.3
 	github.com/go-chi/render v1.0.1
+	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.1
 	github.com/gohugoio/hugo v0.101.0
