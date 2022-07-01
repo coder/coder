@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import React, { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -13,6 +13,12 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+
+// The WorkspaceScheduleButton does some calculation to display the date labels
+// so to avoid doing that every seconds - because of the workspace pooling - we
+// are memoizing this component. More details:
+// https://github.com/coder/coder/pull/2775#discussion_r912080377
+const MemoizedWorkspaceScheduleButton = React.memo(WorkspaceScheduleButton)
 
 export interface WorkspaceProps {
   bannerProps: {
@@ -60,7 +66,7 @@ export const Workspace: FC<WorkspaceProps> = ({
       <PageHeader
         actions={
           <Stack direction="row" spacing={1}>
-            <WorkspaceScheduleButton
+            <MemoizedWorkspaceScheduleButton
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
