@@ -27,7 +27,7 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const Language = {
-  forbiddenError: "403: Workspace schedule update forbidden.",
+  forbiddenError: "You don't have permissions to update the schedule for this workspace.",
 }
 
 export const formValuesToAutoStartRequest = (
