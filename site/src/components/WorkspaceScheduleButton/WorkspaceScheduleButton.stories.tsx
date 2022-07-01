@@ -16,6 +16,11 @@ const THIRTY = 30
 export default {
   title: "components/WorkspaceScheduleButton",
   component: WorkspaceScheduleButton,
+  argTypes: {
+    canUpdateWorkspace: {
+      defaultValue: true,
+    },
+  },
 }
 
 const Template: Story<WorkspaceScheduleButtonProps> = (args) => (
