@@ -1,5 +1,5 @@
 import cronstrue from "cronstrue"
-import dayjs from "dayjs"
+import dayjs, { Dayjs } from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -71,6 +71,15 @@ export const autoStartDisplay = (schedule: string | undefined): string => {
   }
 }
 
+export const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
+  if (!deadline) {
+    deadline = dayjs(workspace.latest_build.deadline).utc()
+  }
+  const hasDeadline = deadline.year() > 1
+  const now = dayjs().utc()
+  return isWorkspaceOn(workspace) && hasDeadline && now.isAfter(deadline)
+}
+
 export const autoStopDisplay = (workspace: Workspace): string => {
   const deadline = dayjs(workspace.latest_build.deadline).utc()
   // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
@@ -84,8 +93,8 @@ export const autoStopDisplay = (workspace: Workspace): string => {
     // running and depending on system semantics, the deadline may still
     // represent the previously defined ttl. Thus, we always derive from the
     // deadline as the source of truth.
-    const now = dayjs().utc()
-    if (now.isAfter(deadline)) {
+
+    if (isShuttingDown(workspace, deadline)) {
       return Language.workspaceShuttingDownLabel
     } else {
       return deadline.tz(dayjs.tz.guess()).format("MMM D, YYYY h:mm A")
