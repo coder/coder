@@ -369,7 +369,8 @@ jobs:
           ./scripts/build_go_matrix.sh \
             --output ./dist/ \
             --package-linux \
-            linux:amd64
+            linux:amd64 \
+            windows:amd64
 
       - name: Install Release
         run: |
