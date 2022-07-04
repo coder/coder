@@ -11,7 +11,8 @@ import (
 
 func session() *cobra.Command {
 	return &cobra.Command{
-		Use: "session",
+		Use:   "session",
+		Short: "Print out information about your current session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
