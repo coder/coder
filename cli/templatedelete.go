@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -68,6 +69,16 @@ func templateDelete() *cobra.Command {
 				}
 
 				templates = append(templates, template)
+			}
+
+			// Confirm deletion of the template.
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
+				IsConfirm: true,
+				Default:   "no",
+			})
+			if err != nil {
+				return err
 			}
 
 			for _, template := range templates {
