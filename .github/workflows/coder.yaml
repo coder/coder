@@ -371,6 +371,11 @@ jobs:
             --package-linux \
             linux:amd64
 
+          # build windows amd64 packages
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            windows:amd64
+
       - name: Install Release
         run: |
           gcloud config set project coder-dogfood
