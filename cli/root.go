@@ -130,6 +130,7 @@ func Root() *cobra.Command {
 		state(),
 		stop(),
 		templates(),
+		token(),
 		update(),
 		users(),
 		versionCmd(),
