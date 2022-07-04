@@ -9,9 +9,9 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func token() *cobra.Command {
+func session() *cobra.Command {
 	return &cobra.Command{
-		Use: "token",
+		Use: "session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
