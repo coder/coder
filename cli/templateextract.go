@@ -68,10 +68,8 @@ func templateExport() *cobra.Command {
 			// Stat the destination to ensure nothing exists already.
 			stat, err := os.Stat(templateName)
 			if stat != nil {
-				return xerrors.Errorf("template file/directory already exists: %w", err)
+				return xerrors.Errorf("template file/directory already exists: %s", err)
 			}
-			fmt.Println("err = ", err)
-			fmt.Println("templateName = ", templateName)
 
 			return tarBytesToTree(templateName, raw)
 		},
