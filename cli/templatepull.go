@@ -13,66 +13,70 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+func fetchTemplateArchiveBytes(cmd *cobra.Command, templateName string) ([]byte, error) {
+	ctx := cmd.Context()
+	client, err := createClient(cmd)
+	if err != nil {
+		return nil, xerrors.Errorf("create client: %w", err)
+	}
+
+	// TODO(JonA): Do we need to add a flag for organization?
+	organization, err := currentOrganization(cmd, client)
+	if err != nil {
+		return nil, xerrors.Errorf("current organization: %w", err)
+	}
+
+	template, err := client.TemplateByName(ctx, organization.ID, templateName)
+	if err != nil {
+		return nil, xerrors.Errorf("template by name: %w", err)
+	}
+
+	// Pull the versions for the template. We'll find the latest
+	// one and download the source.
+	versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("template versions by template: %w", err)
+	}
+
+	if len(versions) == 0 {
+		return nil, xerrors.Errorf("no template versions for template %q", templateName)
+	}
+
+	// Sort the slice from newest to oldest template.
+	sort.SliceStable(versions, func(i, j int) bool {
+		return versions[i].CreatedAt.After(versions[j].CreatedAt)
+	})
+
+	latest := versions[0]
+
+	// Download the tar archive.
+	raw, ctype, err := client.Download(ctx, latest.Job.StorageSource)
+	if err != nil {
+		return nil, xerrors.Errorf("download template: %w", err)
+	}
+
+	if ctype != codersdk.ContentTypeTar {
+		return nil, xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
+	}
+	return raw, nil
+}
+
 func templatePull() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var (
-				ctx          = cmd.Context()
-				templateName = args[0]
-				dest         string
-			)
+			raw, err := fetchTemplateArchiveBytes(cmd, args[0])
+			if err != nil {
+				return err
+			}
 
+			var dest string
 			if len(args) > 1 {
 				dest = args[1]
-			}
-
-			client, err := createClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
-
-			// TODO(JonA): Do we need to add a flag for organization?
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
-			}
-
-			template, err := client.TemplateByName(ctx, organization.ID, templateName)
-			if err != nil {
-				return xerrors.Errorf("template by name: %w", err)
-			}
-
-			// Pull the versions for the template. We'll find the latest
-			// one and download the source.
-			versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
-				TemplateID: template.ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("template versions by template: %w", err)
-			}
-
-			if len(versions) == 0 {
-				return xerrors.Errorf("no template versions for template %q", templateName)
-			}
-
-			// Sort the slice from newest to oldest template.
-			sort.SliceStable(versions, func(i, j int) bool {
-				return versions[i].CreatedAt.After(versions[j].CreatedAt)
-			})
-
-			latest := versions[0]
-
-			// Download the tar archive.
-			raw, ctype, err := client.Download(ctx, latest.Job.StorageSource)
-			if err != nil {
-				return xerrors.Errorf("download template: %w", err)
-			}
-
-			if ctype != codersdk.ContentTypeTar {
-				return xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
 			}
 
 			// If the destination is empty then we write to stdout

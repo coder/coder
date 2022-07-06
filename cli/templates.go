@@ -32,6 +32,7 @@ func templates() *cobra.Command {
 	cmd.AddCommand(
 		templateCreate(),
 		templateEdit(),
+		templateExport(),
 		templateInit(),
 		templateList(),
 		templatePlan(),
