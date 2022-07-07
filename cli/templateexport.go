@@ -35,7 +35,6 @@ func tarBytesToTree(templateName string, raw []byte) error {
 			if err != nil {
 				return xerrors.Errorf("unable to create archived file: %w", err)
 			}
-			fmt.Println("created file " + filename)
 
 			_, err = io.Copy(f, archiveReader)
 			if err != nil {
