@@ -1,123 +1,81 @@
 package cli
 
 import (
+	"archive/tar"
+	"bytes"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
-	"sort"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 )
 
-func fetchTemplateArchiveBytes(cmd *cobra.Command, templateName string) ([]byte, error) {
-	ctx := cmd.Context()
-	client, err := createClient(cmd)
-	if err != nil {
-		return nil, xerrors.Errorf("create client: %w", err)
+func TarBytesToTree(destination string, raw []byte) error {
+	err := os.Mkdir(destination, 0700)
+
+	archiveReader := tar.NewReader(bytes.NewReader(raw))
+	hdr, err := archiveReader.Next()
+	for err != io.EOF {
+		if hdr == nil { //	some blog post indicated this could happen sometimes
+			continue
+		}
+		filename := filepath.FromSlash(fmt.Sprintf("%s/%s", destination, hdr.Name))
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			err = os.Mkdir(filename, 0700)
+			if err != nil {
+				return xerrors.Errorf("pulling template directory: %w", err)
+			}
+		case tar.TypeReg:
+			f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0600)
+			if err != nil {
+				return xerrors.Errorf("unable to create template file: %w", err)
+			}
+
+			_, err = io.Copy(f, archiveReader)
+			if err != nil {
+				f.Close() // is this necessary?
+				return xerrors.Errorf("error writing template file: %w", err)
+			}
+			f.Close()
+		}
+
+		hdr, err = archiveReader.Next()
 	}
-
-	// TODO(JonA): Do we need to add a flag for organization?
-	organization, err := currentOrganization(cmd, client)
-	if err != nil {
-		return nil, xerrors.Errorf("current organization: %w", err)
-	}
-
-	template, err := client.TemplateByName(ctx, organization.ID, templateName)
-	if err != nil {
-		return nil, xerrors.Errorf("template by name: %w", err)
-	}
-
-	// Pull the versions for the template. We'll find the latest
-	// one and download the source.
-	versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
-		TemplateID: template.ID,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("template versions by template: %w", err)
-	}
-
-	if len(versions) == 0 {
-		return nil, xerrors.Errorf("no template versions for template %q", templateName)
-	}
-
-	// Sort the slice from newest to oldest template.
-	sort.SliceStable(versions, func(i, j int) bool {
-		return versions[i].CreatedAt.After(versions[j].CreatedAt)
-	})
-
-	latest := versions[0]
-
-	// Download the tar archive.
-	raw, ctype, err := client.Download(ctx, latest.Job.StorageSource)
-	if err != nil {
-		return nil, xerrors.Errorf("download template: %w", err)
-	}
-
-	if ctype != codersdk.ContentTypeTar {
-		return nil, xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
-	}
-	return raw, nil
+	return nil
 }
 
 func templatePull() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "pull <name> [destination]",
-		Short: "Download the latest version of a template to a path.",
+		Use:   "pull <template name> [destination]",
+		Short: "Download the named template's contents into a subdirectory.",
+		Long:  "Download the named template's contents and extract them into a subdirectory named according to the destination or <template name> if no destination is specified.",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := fetchTemplateArchiveBytes(cmd, args[0])
+			templateName := args[0]
+			var destination string
+			if len(args) > 1 {
+				destination = args[1]
+			} else {
+				destination = templateName
+			}
+
+			raw, err := fetchTemplateArchiveBytes(cmd, templateName)
 			if err != nil {
 				return err
 			}
 
-			var dest string
-			if len(args) > 1 {
-				dest = args[1]
-			}
-
-			// If the destination is empty then we write to stdout
-			// and bail early.
-			if dest == "" {
-				_, err = cmd.OutOrStdout().Write(raw)
-				if err != nil {
-					return xerrors.Errorf("write stdout: %w", err)
-				}
-				return nil
-			}
-
 			// Stat the destination to ensure nothing exists already.
-			fi, err := os.Stat(dest)
-			if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
-				return xerrors.Errorf("stat destination: %w", err)
+			stat, err := os.Stat(destination)
+			if stat != nil {
+				return xerrors.Errorf("template file/directory already exists: %s", destination)
 			}
 
-			if fi != nil && fi.IsDir() {
-				// If the destination is a directory we just bail.
-				return xerrors.Errorf("%q already exists.", dest)
-			}
-
-			// If a file exists at the destination prompt the user
-			// to ensure we don't overwrite something valuable.
-			if fi != nil {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("%q already exists, do you want to overwrite it?", dest),
-					IsConfirm: true,
-				})
-				if err != nil {
-					return xerrors.Errorf("parse prompt: %w", err)
-				}
-			}
-
-			err = os.WriteFile(dest, raw, 0600)
-			if err != nil {
-				return xerrors.Errorf("write to path: %w", err)
-			}
-
-			return nil
+			return TarBytesToTree(destination, raw)
 		},
 	}
 

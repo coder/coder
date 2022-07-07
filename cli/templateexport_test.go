@@ -16,18 +16,18 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-func TestTemplatePull(t *testing.T) {
+func TestTemplateExport(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoName", func(t *testing.T) {
 		t.Parallel()
 
-		cmd, _ := clitest.New(t, "templates", "pull")
+		cmd, _ := clitest.New(t, "templates", "export")
 		err := cmd.Execute()
 		require.Error(t, err)
 	})
 
-	// Stdout tests that 'templates pull' pulls down the latest template
+	// Stdout tests that 'templates export' pulls down the latest template
 	// and writes it to stdout.
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
@@ -53,7 +53,7 @@ func TestTemplatePull(t *testing.T) {
 		// are being sorted correctly.
 		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name)
+		cmd, root := clitest.New(t, "templates", "export", template.Name)
 		clitest.SetupConfig(t, client, root)
 
 		var buf bytes.Buffer
@@ -65,7 +65,7 @@ func TestTemplatePull(t *testing.T) {
 		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
 	})
 
-	// ToFile tests that 'templates pull' pulls down the latest template
+	// ToFile tests that 'templates export' pulls down the latest template
 	// and writes it to the correct directory.
 	t.Run("ToFile", func(t *testing.T) {
 		t.Parallel()
@@ -101,7 +101,7 @@ func TestTemplatePull(t *testing.T) {
 		require.NoError(t, err)
 		_ = fi.Close()
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name, dest)
+		cmd, root := clitest.New(t, "templates", "export", template.Name, dest)
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
