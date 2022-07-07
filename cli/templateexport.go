@@ -52,8 +52,8 @@ func tarBytesToTree(templateName string, raw []byte) error {
 
 func templateExport() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "export <name>",
-		Short: "Create a subdirectory named <name> and download the current template contents into it.",
+		Use:   "export <template name>",
+		Short: "Create download the named template's contents and extract them into a subdirectory named <template name>.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
