@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func tarBytesToTree(templateName string, raw []byte) error {
-	err := os.Mkdir(templateName, 0700)
+func tarBytesToTree(destination string, raw []byte) error {
+	err := os.Mkdir(destination, 0700)
 
 	archiveReader := tar.NewReader(bytes.NewReader(raw))
 	hdr, err := archiveReader.Next()
@@ -23,7 +23,7 @@ func tarBytesToTree(templateName string, raw []byte) error {
 		if hdr == nil { //	some blog post indicated this could happen sometimes
 			continue
 		}
-		filename := filepath.FromSlash(fmt.Sprintf("%s/%s", templateName, hdr.Name))
+		filename := filepath.FromSlash(fmt.Sprintf("%s/%s", destination, hdr.Name))
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			err = os.Mkdir(filename, 0700)
@@ -51,13 +51,18 @@ func tarBytesToTree(templateName string, raw []byte) error {
 
 func templateExport() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "export <template name>",
-		Short: "Create download the named template's contents and extract them into a subdirectory named <template name>.",
-		Args:  cobra.ExactArgs(1),
+		Use:   "export <template name> [destination]",
+		Short: "Download the named template's contents into a subdirectory.",
+		Long:  "Download the named template's contents and extract them into a subdirectory named according to the destination or <template name> if no destination is specified.",
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var (
-				templateName = args[0]
-			)
+			templateName := args[0]
+			var destination string
+			if len(args) > 1 {
+				destination = args[1]
+			} else {
+				destination = templateName
+			}
 
 			raw, err := fetchTemplateArchiveBytes(cmd, templateName)
 			if err != nil {
@@ -65,12 +70,12 @@ func templateExport() *cobra.Command {
 			}
 
 			// Stat the destination to ensure nothing exists already.
-			stat, err := os.Stat(templateName)
+			stat, err := os.Stat(destination)
 			if stat != nil {
-				return xerrors.Errorf("template file/directory already exists: %s", err)
+				return xerrors.Errorf("template file/directory already exists: %s", destination)
 			}
 
-			return tarBytesToTree(templateName, raw)
+			return tarBytesToTree(destination, raw)
 		},
 	}
 
