@@ -7,19 +7,19 @@ The easiest way to install Coder is to use our [install script](https://github.c
 To install, run:
 
 ```bash
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 You can preview what occurs during the install process:
 
 ```bash
-curl -L https://coder.com/install.sh | sh -s -- --dry-run
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
 ```
 
 You can modify the installation process by including flags. Run the help command for reference:
 
 ```bash
-curl -L https://coder.com/install.sh | sh -s -- --help
+curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ```
 
 ## System packages
@@ -39,6 +39,20 @@ sudo vim /etc/coder.d/coder.env
 sudo systemctl enable --now coder
 # View the logs to ensure a successful start
 journalctl -u coder.service -b
+```
+
+> If you plan on allowing developers to create workspaces as containers on a Docker host, you need to add the `coder` user, that starts the `Coder.service`, to the docker group. By default, the Docker socket that the Docker daemon is listening to, requires either root permission or docker group membership. In case the Coder install script does not perform this action (e.g., you have a Coder deployment before the coder user change was made to the project), you can manually perform this task, verify the coder user is added to the group, and restart Coder.
+
+```sh
+sudo usermod -aG docker coder
+grep /etc/group -e "docker"
+sudo systemctl restart coder.service
+```
+
+If the coder user is not in the docker group, you will get a permissions error creating the Coder template with the Coder CLI.
+
+```sh
+Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
 ```
 
 ## docker-compose

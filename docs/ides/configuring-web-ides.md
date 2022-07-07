@@ -65,6 +65,8 @@ resource "coder_app" "code-server" {
 }
 ```
 
+> If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, refresh the browser, or clear your browser cache.
+
 ## VNC Desktop
 
 ![VNC Desktop in Coder](../images/vnc-desktop.png)
@@ -136,6 +138,78 @@ resource "coder_app" "portainer" {
   relative_path = true
 }
 ```
+
+## SSH port forwarding of browser IDEs
+
+Coder OSS currently does not have dev URL functionality required to open certain web IDEs,e.g.,  JupyterLab, RStudio or Airflow, so developers can either use `coder port-forward <workspace name> --tcp <port>:<port>` or `ssh -L <port>:localhost:<port> coder.<workspace name>` to open the IDEs from `http://localhost:<port>`
+
+> You must install JupyterLab, RStudio, or Airflow in the image first. Note the JupyterLab and Airflow examples that install the IDEs in the `coder_script`
+
+### JupyterLab
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# install and start jupyterlab
+pip3 install jupyterlab
+jupyter lab --ServerApp.token='' --ServerApp.ip='*' &
+EOT
+}
+```
+
+From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+```console
+ssh -L 8888:localhost:8888 coder.<JupyterLab workspace name>
+```
+
+### RStudio
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# start rstudio
+/usr/lib/rstudio-server/bin/rserver --server-daemonize=1 --auth-none=1 &
+EOT
+}
+```
+
+From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+```console
+ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
+```
+
+As a starting point, see a [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for creating an RStudio image.
+
+### Airflow
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# install and start airflow
+pip3 install apache-airflow 2>&1 | tee airflow-install.log
+/home/coder/.local/bin/airflow standalone  2>&1 | tee airflow-run.log &
+EOT
+}
+```
+
+From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+```console
+ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
+```
+
+
 
 > The full `coder_app` schema is described in the 
 > [Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app).
