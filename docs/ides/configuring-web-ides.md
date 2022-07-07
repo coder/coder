@@ -166,6 +166,8 @@ From your local machine, enter a terminal and start the ssh port forwarding and 
 ssh -L 8888:localhost:8888 coder.<JupyterLab workspace name>
 ```
 
+![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
+
 ### RStudio
 
 ```hcl
@@ -188,6 +190,8 @@ ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
 
 As a starting point, see a [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for creating an RStudio image.
 
+![RStudio in Coder](../images/rstudio-port-forward.png)
+
 ### Airflow
 
 ```hcl
@@ -209,6 +213,7 @@ From your local machine, enter a terminal and start the ssh port forwarding and 
 ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
 ```
 
+![Airflow in Coder](../images/airflow-port-forward.png)
 
 
 > The full `coder_app` schema is described in the 
