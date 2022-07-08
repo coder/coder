@@ -106,7 +106,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.11.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
