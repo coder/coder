@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -23,9 +24,11 @@ type GithubOAuth2Config struct {
 	AuthenticatedUser           func(ctx context.Context, client *http.Client) (*github.User, error)
 	ListEmails                  func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
 	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
+	ListTeams                   func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error)
 
 	AllowSignups       bool
 	AllowOrganizations []string
+	AllowTeams         []string
 }
 
 func (api *API) userAuthMethods(rw http.ResponseWriter, _ *http.Request) {
@@ -62,6 +65,49 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "You aren't a member of the authorized Github organizations!",
 		})
 		return
+	}
+
+	// The default if no teams are specified is to allow all.
+	if len(api.GithubOAuth2Config.AllowTeams) > 0 {
+		teams, err := api.GithubOAuth2Config.ListTeams(r.Context(), oauthClient, *selectedMembership.Organization.Login)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: "Failed to fetch teams from GitHub.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		var allowedTeam *github.Team
+		for _, team := range teams {
+			for _, organizationAndTeam := range api.GithubOAuth2Config.AllowTeams {
+				parts := strings.SplitN(organizationAndTeam, "/", 2)
+				if len(parts) != 2 {
+					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+						Message: "Team allowlist isn't formatted correctly.",
+						Detail:  fmt.Sprintf("Got %s, wanted <organization>/<team>", organizationAndTeam),
+					})
+					return
+				}
+				if parts[0] != *selectedMembership.Organization.Login {
+					// This needs to continue because multiple organizations
+					// could exist in the allow/team listings.
+					continue
+				}
+				if parts[1] != *team.Slug {
+					continue
+				}
+				allowedTeam = team
+				break
+			}
+		}
+
+		if allowedTeam == nil {
+			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+				Message: fmt.Sprintf("You aren't a member of an authorized team in the %s Github organization!", *selectedMembership.Organization.Login),
+			})
+			return
+		}
 	}
 
 	emails, err := api.GithubOAuth2Config.ListEmails(r.Context(), oauthClient)
