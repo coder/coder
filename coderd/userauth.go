@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -18,6 +17,12 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// GithubOAuth2Team represents a team scoped to an organization.
+type GithubOAuth2Team struct {
+	Organization string
+	Slug         string
+}
+
 // GithubOAuth2Provider exposes required functions for the Github authentication flow.
 type GithubOAuth2Config struct {
 	httpmw.OAuth2Config
@@ -28,7 +33,7 @@ type GithubOAuth2Config struct {
 
 	AllowSignups       bool
 	AllowOrganizations []string
-	AllowTeams         []string
+	AllowTeams         []GithubOAuth2Team
 }
 
 func (api *API) userAuthMethods(rw http.ResponseWriter, _ *http.Request) {
@@ -80,21 +85,13 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 		var allowedTeam *github.Team
 		for _, team := range teams {
-			for _, organizationAndTeam := range api.GithubOAuth2Config.AllowTeams {
-				parts := strings.SplitN(organizationAndTeam, "/", 2)
-				if len(parts) != 2 {
-					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: "Team allowlist isn't formatted correctly.",
-						Detail:  fmt.Sprintf("Got %s, wanted <organization>/<team>", organizationAndTeam),
-					})
-					return
-				}
-				if parts[0] != *selectedMembership.Organization.Login {
+			for _, allowTeam := range api.GithubOAuth2Config.AllowTeams {
+				if allowTeam.Organization != *selectedMembership.Organization.Login {
 					// This needs to continue because multiple organizations
 					// could exist in the allow/team listings.
 					continue
 				}
-				if parts[1] != *team.Slug {
+				if allowTeam.Slug != *team.Slug {
 					continue
 				}
 				allowedTeam = team

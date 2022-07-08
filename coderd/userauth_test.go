@@ -78,7 +78,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				AllowOrganizations: []string{"coder"},
-				AllowTeams:         []string{"another/something", "coder/frontend"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"another", "something"}, {"coder", "frontend"}},
 				OAuth2Config:       &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
@@ -214,7 +214,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				AllowSignups:       true,
 				AllowOrganizations: []string{"coder"},
-				AllowTeams:         []string{"coder/frontend"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"coder", "frontend"}},
 				OAuth2Config:       &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{

@@ -722,10 +722,21 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	return tls.NewListener(listener, tlsConfig), nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, allowTeams []string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
+	for _, rawTeam := range rawTeams {
+		parts := strings.SplitN(rawTeam, "/", 2)
+		if len(parts) != 2 {
+			return nil, xerrors.Errorf("github team allowlist is formatted incorrectly. got %s; wanted <organization>/<team>", rawTeam)
+		}
+		allowTeams = append(allowTeams, coderd.GithubOAuth2Team{
+			Organization: parts[0],
+			Slug:         parts[1],
+		})
 	}
 	return &coderd.GithubOAuth2Config{
 		OAuth2Config: &oauth2.Config{
