@@ -388,6 +388,7 @@ jobs:
           name: coder
           path: |
             ./dist/*.zip
+            ./dist/*.exe
             ./dist/*.tar.gz
             ./dist/*.apk
             ./dist/*.deb
