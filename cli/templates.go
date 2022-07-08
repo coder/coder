@@ -32,7 +32,6 @@ func templates() *cobra.Command {
 	cmd.AddCommand(
 		templateCreate(),
 		templateEdit(),
-		templateExport(),
 		templateInit(),
 		templateList(),
 		templatePlan(),
@@ -40,6 +39,7 @@ func templates() *cobra.Command {
 		templateVersions(),
 		templateDelete(),
 		templatePull(),
+		templateCheckout(),
 	)
 
 	return cmd
