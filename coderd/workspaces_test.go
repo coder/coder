@@ -343,6 +343,9 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 // to run various filters against for testing.
 func TestWorkspaceFilter(t *testing.T) {
 	t.Parallel()
+	// Manual tests still occur below, so this is safe to disable.
+	t.Skip("This test is slow and flaky. See: https://github.com/coder/coder/issues/2854")
+	// nolint:unused
 	type coderUser struct {
 		*codersdk.Client
 		User codersdk.User
