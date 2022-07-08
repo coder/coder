@@ -108,7 +108,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.5
 	github.com/tabbed/pqtype v0.1.1
-	github.com/unrolled/secure v1.10.0
+	github.com/unrolled/secure v1.11.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0
 	go.uber.org/atomic v1.9.0
