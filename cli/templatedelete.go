@@ -12,7 +12,7 @@ import (
 )
 
 func templateDelete() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,4 +95,7 @@ func templateDelete() *cobra.Command {
 			return nil
 		},
 	}
+
+	cliui.AllowSkipPrompt(cmd)
+	return cmd
 }
