@@ -962,6 +962,14 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners p
 // Creates a provisionerd protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestServer) proto.DRPCProvisionerDaemonClient {
+	if server.failJob == nil {
+		// Default to asserting the error from the failure, otherwise
+		// it can be lost in tests!
+		server.failJob = func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+			assert.Fail(t, job.Error)
+			return &proto.Empty{}, nil
+		}
+	}
 	clientPipe, serverPipe := provisionersdk.TransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
