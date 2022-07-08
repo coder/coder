@@ -39,7 +39,6 @@ func templateDelete() *cobra.Command {
 					if err != nil {
 						return xerrors.Errorf("get template by name: %w", err)
 					}
-
 					templates = append(templates, template)
 				}
 
