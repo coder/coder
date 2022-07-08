@@ -22,7 +22,7 @@ behavior, and configuration for applications in your workspace.
 
 ```sh
 # edit your template
-cd your-template/ 
+cd your-template/
 vim main.tf
 ```
 
@@ -48,7 +48,7 @@ FROM codercom/enterprise-base:ubuntu
 RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
 
 # pre-install versions
-RUN code-server --install-extension eamodio.gitlens 
+RUN code-server --install-extension eamodio.gitlens
 
 # directly start code-server with the agent's startup_script (see above),
 # or use a proccess manager like supervisord
@@ -65,13 +65,15 @@ resource "coder_app" "code-server" {
 }
 ```
 
-> If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, refresh the browser, or clear your browser cache.
+<blockquote class="warning">
+If the `code-server` integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, refresh the browser, or clear your browser cache.
+</blockquote>
 
 ## VNC Desktop
 
 ![VNC Desktop in Coder](../images/vnc-desktop.png)
 
-You may want a full desktop environment to develop with/preview specialized software. 
+You may want a full desktop environment to develop with/preview specialized software.
 
 Workspace requirements:
 
@@ -87,7 +89,7 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 - Ubuntu 20.04
 - TigerVNC server
 - noVNC client
-- XFCE Desktop 
+- XFCE Desktop
 
 ## JetBrains Projector
 
@@ -125,7 +127,7 @@ As long as the process is running on the specified port inside your resource, yo
 
 ```sh
 # edit your template
-cd your-template/ 
+cd your-template/
 vim main.tf
 ```
 
@@ -141,7 +143,7 @@ resource "coder_app" "portainer" {
 
 ## SSH port forwarding of browser IDEs
 
-Coder OSS currently does not have dev URL functionality required to open certain web IDEs,e.g.,  JupyterLab, RStudio or Airflow, so developers can either use `coder port-forward <workspace name> --tcp <port>:<port>` or `ssh -L <port>:localhost:<port> coder.<workspace name>` to open the IDEs from `http://localhost:<port>`
+Coder OSS currently does not have dev URL functionality required to open certain web IDEs,e.g., JupyterLab, RStudio or Airflow, so developers can either use `coder port-forward <workspace name> --tcp <port>:<port>` or `ssh -L <port>:localhost:<port> coder.<workspace name>` to open the IDEs from `http://localhost:<port>`
 
 > You must install JupyterLab, RStudio, or Airflow in the image first. Note the JupyterLab and Airflow examples that install the IDEs in the `coder_script`
 
@@ -162,6 +164,7 @@ EOT
 ```
 
 From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+
 ```console
 ssh -L 8888:localhost:8888 coder.<JupyterLab workspace name>
 ```
@@ -184,6 +187,7 @@ EOT
 ```
 
 From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+
 ```console
 ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
 ```
@@ -209,14 +213,14 @@ EOT
 ```
 
 From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+
 ```console
 ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
 ```
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
 
-
-> The full `coder_app` schema is described in the 
+> The full `coder_app` schema is described in the
 > [Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app).
 
 ```sh

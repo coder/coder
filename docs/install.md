@@ -41,15 +41,20 @@ sudo systemctl enable --now coder
 journalctl -u coder.service -b
 ```
 
-> If you plan on allowing developers to create workspaces as containers on a Docker host, you need to add the `coder` user, that starts the `Coder.service`, to the docker group. By default, the Docker socket that the Docker daemon is listening to, requires either root permission or docker group membership. In case the Coder install script does not perform this action (e.g., you have a Coder deployment before the coder user change was made to the project), you can manually perform this task, verify the coder user is added to the group, and restart Coder.
+## Docker
+
+The default docker socket only permits connections from `root` or members of the `docker`
+group. If you're using Docker as your workspace backend, you must can add the user running
+coder to the Docker group like so:
 
 ```sh
+# replace "coder" with user running coderd
 sudo usermod -aG docker coder
 grep /etc/group -e "docker"
 sudo systemctl restart coder.service
 ```
 
-If the coder user is not in the docker group, you will get a permissions error creating the Coder template with the Coder CLI.
+If the user is not in the Docker group, you will see the following error:
 
 ```sh
 Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
@@ -115,13 +120,13 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
 1. Start a Coder server
 
-    ```sh
-    # Automatically sets up an external access URL on *.try.coder.app
-    coder server --tunnel
+   ```sh
+   # Automatically sets up an external access URL on *.try.coder.app
+   coder server --tunnel
 
-    # Requires a PostgreSQL instance and external access URL
-    coder server --postgres-url <url> --access-url <url>
-    ```
+   # Requires a PostgreSQL instance and external access URL
+   coder server --postgres-url <url> --access-url <url>
+   ```
 
 ## Next steps
 
