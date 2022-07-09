@@ -11,8 +11,19 @@ It's common to also let developers to connect via web IDEs.
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-resources in the template. This gives you full control over the version,
-behavior, and configuration for applications in your workspace.
+resources in the template. With our generic model, any web application can
+be used as a Coder application. For example:
+
+```hcl
+# Give template users the portainer.io web UI
+resource "coder_app" "portainer" {
+  agent_id      = coder_agent.dev.id
+  name          = "portainer"
+  icon          = "https://simpleicons.org/icons/portainer.svg"
+  url           = "http://localhost:8000"
+  relative_path = true
+}
+```
 
 ## code-server
 
@@ -22,7 +33,7 @@ behavior, and configuration for applications in your workspace.
 
 ```sh
 # edit your template
-cd your-template/ 
+cd your-template/
 vim main.tf
 ```
 
@@ -48,7 +59,7 @@ FROM codercom/enterprise-base:ubuntu
 RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
 
 # pre-install versions
-RUN code-server --install-extension eamodio.gitlens 
+RUN code-server --install-extension eamodio.gitlens
 
 # directly start code-server with the agent's startup_script (see above),
 # or use a proccess manager like supervisord
@@ -65,11 +76,15 @@ resource "coder_app" "code-server" {
 }
 ```
 
+<blockquote class="warning">
+If the `code-server` integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
+</blockquote>
+
 ## VNC Desktop
 
 ![VNC Desktop in Coder](../images/vnc-desktop.png)
 
-You may want a full desktop environment to develop with/preview specialized software. 
+You may want a full desktop environment to develop with/preview specialized software.
 
 Workspace requirements:
 
@@ -85,7 +100,7 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 - Ubuntu 20.04
 - TigerVNC server
 - noVNC client
-- XFCE Desktop 
+- XFCE Desktop
 
 ## JetBrains Projector
 
@@ -117,30 +132,87 @@ As a starting point, see the [projector-container](https://github.com/bpmct/code
 - WebStorm
 - ➕ code-server (just in case!)
 
-## Custom IDEs and applications
+## JupyterLab
 
-As long as the process is running on the specified port inside your resource, you support any application.
-
-```sh
-# edit your template
-cd your-template/ 
-vim main.tf
-```
+Configure your agent and `coder_app` like so to use Jupyter:
 
 ```hcl
-resource "coder_app" "portainer" {
-  agent_id      = coder_agent.dev.id
-  name          = "portainer"
-  icon          = "https://simpleicons.org/icons/portainer.svg"
-  url           = "http://localhost:8000"
-  relative_path = true
+data "coder_workspace" "me" {}
+
+## The name of the app must always be equal to the "/apps/<name>"
+## string in the base_url. This caveat is unique to Jupyter.
+
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/coder"
+  startup_script = <<-EOF
+pip3 install jupyterlab
+jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/ --ServerApp.token='' --ip='*'
+EOF
+}
+
+resource "coder_app" "jupyter" {
+  agent_id = coder_agent.coder.id
+  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter"
+  icon = "/icon/jupyter.svg"
 }
 ```
 
-> The full `coder_app` schema is described in the 
-> [Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app).
+![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
 
-```sh
-# update your template
-coder templates update your-template
+## SSH Fallback
+
+Certain Web IDEs don't support URL base path adjustment and thus can't be exposed with
+`coder_app`. In these cases you can use [SSH](../ides.md#ssh).
+
+### RStudio
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# start rstudio
+/usr/lib/rstudio-server/bin/rserver --server-daemonize=1 --auth-none=1 &
+EOT
+}
 ```
+
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8787.
+
+```console
+ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
+```
+
+Check out this [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for a starting point to creating a template.
+
+![RStudio in Coder](../images/rstudio-port-forward.png)
+
+### Airflow
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# install and start airflow
+pip3 install apache-airflow 2>&1 | tee airflow-install.log
+/home/coder/.local/bin/airflow standalone  2>&1 | tee airflow-run.log &
+EOT
+}
+```
+
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8080.
+
+```console
+ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
+```
+
+![Airflow in Coder](../images/airflow-port-forward.png)
