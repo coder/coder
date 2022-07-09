@@ -83,7 +83,7 @@ variable "docker_image" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
 }
 
 resource "docker_container" "workspace" {
@@ -95,8 +95,14 @@ resource "docker_container" "workspace" {
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
-  command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  command = [
+    "sh", "-c",
+    <<EOT
+    trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
+    ${replace(coder_agent.dev.init_script, "localhost", "host.docker.internal")}
+    EOT
+  ]
+  env = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
