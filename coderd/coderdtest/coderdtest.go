@@ -181,11 +181,17 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
-						HostName:         serverURL.Host,
+						IPv4:             "127.0.0.1",
 						DERPPort:         derpPort,
 						STUNPort:         -1,
 						InsecureForTests: true,
 						HTTPForTests:     true,
+					}, {
+						Name:     "1b",
+						RegionID: 1,
+						STUNOnly: true,
+						HostName: "stun.l.google.com",
+						STUNPort: 19302,
 					}},
 				},
 			},

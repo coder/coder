@@ -15,11 +15,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
-	"go4.org/mem"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
-	"tailscale.com/types/key"
+	"nhooyr.io/websocket/wsjson"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
@@ -549,7 +548,6 @@ func (api *API) workspaceAgentNode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	ctx, nc := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
 	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
 	subCancel, err := api.Pubsub.Subscribe("tailnet", func(ctx context.Context, message []byte) {
 		// Since we subscribe to all peer broadcasts, we do a light check to
@@ -560,25 +558,24 @@ func (api *API) workspaceAgentNode(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// We aren't the intended recipient.
-		if !bytes.Equal(message[:len(agentIDBytes)-1], agentIDBytes) {
+		if !bytes.Equal(message[:len(agentIDBytes)], agentIDBytes) {
 			return
 		}
-		_, _ = nc.Write(message)
+		_ = conn.Write(ctx, websocket.MessageText, message[len(agentIDBytes):])
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "pubsub listen", slog.Error(err))
+		api.Logger.Error(context.Background(), "pubsub listen", slog.Error(err))
 		return
 	}
 	defer subCancel()
 
-	decoder := json.NewDecoder(nc)
 	for {
 		var node tailnet.Node
-		err = decoder.Decode(&node)
+		err = wsjson.Read(r.Context(), conn, &node)
 		if err != nil {
 			return
 		}
-		err := api.Database.UpdateWorkspaceAgentNetworkByID(ctx, database.UpdateWorkspaceAgentNetworkByIDParams{
+		err := api.Database.UpdateWorkspaceAgentNetworkByID(r.Context(), database.UpdateWorkspaceAgentNetworkByIDParams{
 			ID: workspaceAgent.ID,
 			NodePublicKey: sql.NullString{
 				String: node.Key.String(),
@@ -623,7 +620,8 @@ func (api *API) postWorkspaceAgentNode(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	data = append(workspaceAgent.ID[:], data...)
+	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
+	data = append(agentIDBytes, data...)
 	err = api.Pubsub.Publish("tailnet", data)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -696,15 +694,13 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 	}
 
 	if dbAgent.NodePublicKey.Valid {
-		var err error
-		workspaceAgent.NodePublicKey, err = key.ParseNodePublicUntyped(mem.S(dbAgent.NodePublicKey.String))
+		err := workspaceAgent.NodePublicKey.UnmarshalText([]byte(dbAgent.NodePublicKey.String))
 		if err != nil {
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse node public key: %w", err)
 		}
 	}
 	if dbAgent.DiscoPublicKey.Valid {
-		var err error
-		err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey.String))
+		err := workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey.String))
 		if err != nil {
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse disco public key: %w", err)
 		}

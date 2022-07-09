@@ -7,14 +7,17 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
 
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker/proto"
+	"github.com/coder/coder/tailnet"
 )
 
 // ReconnectingPTYRequest is sent from the client to the server
@@ -129,4 +132,54 @@ func (c *WebRTCConn) DialContext(ctx context.Context, network string, addr strin
 func (c *WebRTCConn) Close() error {
 	_ = c.Negotiator.DRPCConn().Close()
 	return c.Conn.Close()
+}
+
+type TailnetConn struct {
+	Target netaddr.IP
+	*tailnet.Server
+}
+
+func (c *TailnetConn) Closed() <-chan struct{} {
+	return nil
+}
+
+func (c *TailnetConn) Ping() (time.Duration, error) {
+	return 0, nil
+}
+
+func (c *TailnetConn) CloseWithError(err error) error {
+	return c.Close()
+}
+
+func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func (c *TailnetConn) SSH() (net.Conn, error) {
+	return c.DialContextTCP(context.Background(), netaddr.IPPortFrom(c.Target, 12212))
+}
+
+// SSHClient calls SSH to create a client that uses a weak cipher
+// for high throughput.
+func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
+	netConn, err := c.SSH()
+	if err != nil {
+		return nil, xerrors.Errorf("ssh: %w", err)
+	}
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
+		// SSH host validation isn't helpful, because obtaining a peer
+		// connection already signifies user-intent to dial a workspace.
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ssh conn: %w", err)
+	}
+	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	_, rawPort, _ := net.SplitHostPort(addr)
+	port, _ := strconv.Atoi(rawPort)
+	return c.Server.DialContextTCP(ctx, netaddr.IPPortFrom(c.Target, uint16(port)))
 }

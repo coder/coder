@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -251,6 +252,68 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	})
 	_, err = conn.Ping()
 	require.NoError(t, err)
+}
+
+func TestWorkspaceAgentTailnet(t *testing.T) {
+	t.Parallel()
+	client, coderAPI := coderdtest.NewWithAPI(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata: agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
+		EnableTailnet: true,
+		NodeDialer:    agentClient.WorkspaceAgentNodeBroker,
+		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	time.Sleep(3 * time.Second)
+
+	conn, err := client.DialWorkspaceAgentTailnet(context.Background(), resources[0].Agents[0].ID, slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+	sshClient, err := conn.SSHClient()
+	require.NoError(t, err)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	output, err := session.CombinedOutput("echo test")
+	require.NoError(t, err)
+	fmt.Printf("Output: %s\n", output)
 }
 
 func TestWorkspaceAgentPTY(t *testing.T) {

@@ -865,6 +865,9 @@ func (a *agent) Close() error {
 	}
 	close(a.closed)
 	a.closeCancel()
+	if a.network != nil {
+		_ = a.network.Close()
+	}
 	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
 	return nil

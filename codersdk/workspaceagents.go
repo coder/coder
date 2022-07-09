@@ -15,8 +15,10 @@ import (
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 
@@ -302,6 +304,67 @@ func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker
 	return &workspaceAgentNodeBroker{conn}, nil
 }
 
+func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUID, logger slog.Logger) (agent.Conn, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/derpmap", agentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var derpMap tailcfg.DERPMap
+	err = json.NewDecoder(res.Body).Decode(&derpMap)
+	if err != nil {
+		return nil, xerrors.Errorf("decode derpmap: %w", err)
+	}
+	ip := tailnet.IP()
+
+	server, err := tailnet.New(&tailnet.Options{
+		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(ip, 128)},
+		DERPMap:   &derpMap,
+		Logger:    logger,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create tailnet: %w", err)
+	}
+	server.SetNodeCallback(func(node *tailnet.Node) {
+		res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/node", agentID), node)
+		if err != nil {
+			logger.Error(ctx, "update node", slog.Error(err), slog.F("node", node))
+			return
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			logger.Error(ctx, "update node", slog.F("status_code", res.StatusCode), slog.F("node", node))
+		}
+	})
+	workspaceAgent, err := c.WorkspaceAgent(ctx, agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agent: %w", err)
+	}
+	ipRanges := make([]netaddr.IPPrefix, 0, len(workspaceAgent.IPAddresses))
+	for _, address := range workspaceAgent.IPAddresses {
+		ipRanges = append(ipRanges, netaddr.IPPrefixFrom(address, 128))
+	}
+	agentNode := &tailnet.Node{
+		Key:           workspaceAgent.NodePublicKey,
+		DiscoKey:      workspaceAgent.DiscoPublicKey,
+		PreferredDERP: workspaceAgent.PreferredDERP,
+		Addresses:     ipRanges,
+		AllowedIPs:    ipRanges,
+	}
+	logger.Debug(ctx, "adding agent node", slog.F("node", agentNode))
+	err = server.UpdateNodes([]*tailnet.Node{agentNode})
+	if err != nil {
+		return nil, xerrors.Errorf("update nodes: %w", err)
+	}
+	return &agent.TailnetConn{
+		Target: workspaceAgent.IPAddresses[0],
+		Server: server,
+	}, nil
+}
+
 // DialWorkspaceAgent creates a connection to the specified resource.
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
@@ -447,9 +510,9 @@ type workspaceAgentNodeBroker struct {
 }
 
 func (w *workspaceAgentNodeBroker) Read(ctx context.Context) (*tailnet.Node, error) {
-	var node *tailnet.Node
-	err := wsjson.Read(ctx, w.conn, node)
-	return node, err
+	var node tailnet.Node
+	err := wsjson.Read(ctx, w.conn, &node)
+	return &node, err
 }
 
 func (w *workspaceAgentNodeBroker) Write(ctx context.Context, node *tailnet.Node) error {
