@@ -161,8 +161,6 @@ resource "coder_app" "jupyter" {
 
 ![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
 
-[See a full working template with Jupyter on Kubernetes.](https://github.com/coder/coder/tree/main/examples/templates/jupyter)
-
 ## SSH Fallback
 
 Certain Web IDEs don't support URL base path adjustment and thus can't be exposed with
