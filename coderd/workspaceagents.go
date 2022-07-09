@@ -19,7 +19,6 @@ import (
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
-	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
@@ -164,17 +163,9 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.IPAddresses.IPNet)
-	// if !ok {
-	// 	httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-	// 		Message: "Workspace agent has an invalid ipv6 address.",
-	// 		Detail:  workspaceAgent.WireguardNodeIPv6.IPNet.String(),
-	// 	})
-	// 	return
-	// }
-
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		TailscaleAddresses: []netaddr.IPPrefix{},
+		IPAddresses: apiAgent.IPAddresses,
+		DERPMap:     api.DERPMap,
 
 		OwnerEmail:           owner.Email,
 		OwnerUsername:        owner.Username,
@@ -539,52 +530,6 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}, nil
 }
 
-func (a *API) derpMap(rw http.ResponseWriter, _ *http.Request) {
-	var derpPort int
-	rawPort := a.AccessURL.Port()
-	if rawPort == "" {
-		if a.AccessURL.Scheme == "https" {
-			derpPort = 443
-		} else {
-			derpPort = 80
-		}
-	} else {
-		var err error
-		derpPort, err = strconv.Atoi(a.AccessURL.Port())
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: "Failed to convert access URL port.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
-	httpapi.Write(rw, http.StatusOK, &tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{
-			1: {
-				RegionID:   1,
-				RegionCode: "coder",
-				RegionName: "Coder",
-				Nodes: []*tailcfg.DERPNode{{
-					Name:         "1a",
-					RegionID:     1,
-					HostName:     a.AccessURL.Hostname(),
-					DERPPort:     derpPort,
-					STUNPort:     -1,
-					HTTPForTests: a.AccessURL.Scheme == "http:",
-				}, {
-					Name:     "1b",
-					RegionID: 1,
-					HostName: "stun.l.google.com",
-					STUNOnly: true,
-					STUNPort: 19302,
-				}},
-			},
-		},
-	})
-}
-
 // workspaceAgentNode accepts a WebSocket that reads node network updates.
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
@@ -634,12 +579,18 @@ func (api *API) workspaceAgentNode(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err := api.Database.UpdateWorkspaceAgentNetworkByID(ctx, database.UpdateWorkspaceAgentNetworkByIDParams{
-			ID:             workspaceAgent.ID,
-			NodePublicKey:  node.Key.String(),
-			DERPLatency:    node.DERPLatency,
-			DiscoPublicKey: node.DiscoKey.String(),
-			PreferredDERP:  int32(node.PreferredDERP),
-			UpdatedAt:      database.Now(),
+			ID: workspaceAgent.ID,
+			NodePublicKey: sql.NullString{
+				String: node.Key.String(),
+				Valid:  true,
+			},
+			DERPLatency: node.DERPLatency,
+			DiscoPublicKey: sql.NullString{
+				String: node.DiscoKey.String(),
+				Valid:  true,
+			},
+			PreferredDERP: int32(node.PreferredDERP),
+			UpdatedAt:     database.Now(),
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -720,15 +671,6 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-	nodePublicKey, err := key.ParseNodePublicUntyped(mem.S(dbAgent.NodePublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse node public key: %w", err)
-	}
-	var discoPublicKey key.DiscoPublic
-	err = discoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey))
-	if err != nil {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse disco public key: %w", err)
-	}
 	ips := make([]netaddr.IP, 0)
 	for _, ip := range dbAgent.IPAddresses {
 		var ipData [16]byte
@@ -748,11 +690,24 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
-		NodePublicKey:        nodePublicKey,
-		DiscoPublicKey:       discoPublicKey,
 		PreferredDERP:        int(dbAgent.PreferredDERP),
 		DERPLatency:          dbAgent.DERPLatency,
 		IPAddresses:          ips,
+	}
+
+	if dbAgent.NodePublicKey.Valid {
+		var err error
+		workspaceAgent.NodePublicKey, err = key.ParseNodePublicUntyped(mem.S(dbAgent.NodePublicKey.String))
+		if err != nil {
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse node public key: %w", err)
+		}
+	}
+	if dbAgent.DiscoPublicKey.Valid {
+		var err error
+		err = workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey.String))
+		if err != nil {
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse disco public key: %w", err)
+		}
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

@@ -441,10 +441,14 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
-		listener, err := peerbroker.Listen(server, nil)
-		return metadata, listener, err
-	}, &agent.Options{
+	closer := agent.New(agent.Options{
+		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
+			return metadata, nil
+		},
+		WebRTCDialer: func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
+			listener, err := peerbroker.Listen(server, nil)
+			return listener, err
+		},
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})

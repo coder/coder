@@ -140,7 +140,6 @@ func New(options *Options) *API {
 	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
 	r.Get("/derp", derphttp.Handler(api.derpServer).ServeHTTP)
-	r.Get("/derpmap", api.derpMap)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -325,7 +324,6 @@ func New(options *Options) *API {
 
 				// Everything below this is Tailnet.
 				r.Get("/node", api.workspaceAgentNode)
-				r.Get("/derpmap", api.derpMap)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -339,7 +337,9 @@ func New(options *Options) *API {
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
-				r.Get("/derpmap", api.derpMap)
+				r.Get("/derpmap", func(w http.ResponseWriter, r *http.Request) {
+					httpapi.Write(w, http.StatusOK, options.DERPMap)
+				})
 				r.Post("/node", api.postWorkspaceAgentNode)
 			})
 		})

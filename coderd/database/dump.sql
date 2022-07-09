@@ -293,9 +293,9 @@ CREATE TABLE workspace_agents (
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    node_public_key character varying(128) DEFAULT 'nodekey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
-    disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
     ip_addresses inet[] DEFAULT ARRAY[]::inet[] NOT NULL,
+    node_public_key character varying(128),
+    disco_public_key character varying(128),
     preferred_derp integer DEFAULT 0 NOT NULL,
     derp_latency jsonb DEFAULT '{}'::jsonb NOT NULL
 );

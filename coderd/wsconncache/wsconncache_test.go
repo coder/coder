@@ -141,14 +141,17 @@ func TestCache(t *testing.T) {
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
-		listener, err := peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
-			return nil, &peer.ConnOptions{
-				Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
-			}, nil
-		})
-		return metadata, listener, err
-	}, &agent.Options{
+	closer := agent.New(agent.Options{
+		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
+			return metadata, nil
+		},
+		WebRTCDialer: func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
+			return peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+				return nil, &peer.ConnOptions{
+					Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+				}, nil
+			})
+		},
 		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})

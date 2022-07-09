@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 
 	"cdr.dev/slog"
 
@@ -177,16 +178,30 @@ func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (Worksp
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// WorkspaceAgentMetadata fetches metadata for the currently authenticated workspace agent.
+func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (agent.Metadata, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+	if err != nil {
+		return agent.Metadata{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return agent.Metadata{}, readBodyAsError(res)
+	}
+	var agentMetadata agent.Metadata
+	return agentMetadata, json.NewDecoder(res.Body).Decode(&agentMetadata)
+}
+
 // ListenWorkspaceAgent connects as a workspace agent identifying with the session token.
 // On each inbound connection request, connection info is fetched.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
+func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/listen")
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("parse url: %w", err)
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  httpmw.SessionTokenKey,
@@ -202,17 +217,17 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	})
 	if err != nil {
 		if res == nil {
-			return agent.Metadata{}, nil, err
+			return nil, err
 		}
-		return agent.Metadata{}, nil, readBodyAsError(res)
+		return nil, readBodyAsError(res)
 	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("multiplex client: %w", err)
+		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	listener, err := peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
 		// This can be cached if it adds to latency too much.
 		res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
 		if err != nil {
@@ -238,37 +253,6 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 			Logger:        logger,
 		}, nil
 	})
-	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("listen peerbroker: %w", err)
-	}
-	res, err = c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
-	if err != nil {
-		return agent.Metadata{}, nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return agent.Metadata{}, nil, readBodyAsError(res)
-	}
-	var agentMetadata agent.Metadata
-	return agentMetadata, listener, json.NewDecoder(res.Body).Decode(&agentMetadata)
-}
-
-// PostWireguardPeer announces your public keys and IPv6 address to the
-// specified recipient.
-func (c *Client) UpdateTailscaleNode(ctx context.Context, agentID string, node *tailnet.Node) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer",
-		agentID,
-	), node)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
-	}
-
-	_, _ = io.Copy(io.Discard, res.Body)
-	return nil
 }
 
 // UpdateWorkspaceAgentNode publishes a node update for the provided agent.
@@ -287,22 +271,14 @@ func (c *Client) UpdateWorkspaceAgentNode(ctx context.Context, agentID uuid.UUID
 	return nil
 }
 
-//
-func (c *Client) ListenWorkspaceAgentNode(ctx context.Context, onNode func(node *tailnet.Node)) {
-
-}
-
-// ListenTailscaleNodes listens for Tailscale node updates. Peer messages are
-// sent when a new client wants to connect. Once receiving a peer message, the
-// peer should be added to the NetworkMap of the wireguard interface.
-func (c *Client) ListenTailscaleNodes(ctx context.Context, logger slog.Logger) (<-chan *tailnet.Node, func(), error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/wireguardlisten")
+func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker, error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/node")
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse url: %w", err)
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  httpmw.SessionTokenKey,
@@ -319,28 +295,11 @@ func (c *Client) ListenTailscaleNodes(ctx context.Context, logger slog.Logger) (
 	})
 	if err != nil {
 		if res == nil {
-			return nil, nil, xerrors.Errorf("websocket dial: %w", err)
+			return nil, xerrors.Errorf("websocket dial: %w", err)
 		}
-		return nil, nil, readBodyAsError(res)
+		return nil, readBodyAsError(res)
 	}
-
-	ch := make(chan *tailnet.Node, 1)
-	go func() {
-		defer conn.Close(websocket.StatusGoingAway, "")
-		defer close(ch)
-
-		decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageBinary))
-		for {
-			var node *tailnet.Node
-			err = decoder.Decode(node)
-			if err != nil {
-				break
-			}
-			ch <- node
-		}
-	}()
-
-	return ch, func() { _ = conn.Close(websocket.StatusGoingAway, "") }, nil
+	return &workspaceAgentNodeBroker{conn}, nil
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.
@@ -479,4 +438,24 @@ func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, p
 		}
 		return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 	})
+}
+
+// workspaceAgentNodeBroker is used to listen for node updates
+// and write them.
+type workspaceAgentNodeBroker struct {
+	conn *websocket.Conn
+}
+
+func (w *workspaceAgentNodeBroker) Read(ctx context.Context) (*tailnet.Node, error) {
+	var node *tailnet.Node
+	err := wsjson.Read(ctx, w.conn, node)
+	return node, err
+}
+
+func (w *workspaceAgentNodeBroker) Write(ctx context.Context, node *tailnet.Node) error {
+	return wsjson.Write(ctx, w.conn, node)
+}
+
+func (w *workspaceAgentNodeBroker) Close() error {
+	return w.conn.Close(websocket.StatusGoingAway, "")
 }

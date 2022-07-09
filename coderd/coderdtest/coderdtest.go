@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -139,6 +141,9 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
+	derpPort, err := strconv.Atoi(serverURL.Port())
+	require.NoError(t, err)
+
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
@@ -167,6 +172,24 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
+		DERPMap: &tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {
+					RegionID:   1,
+					RegionCode: "coder",
+					RegionName: "Coder",
+					Nodes: []*tailcfg.DERPNode{{
+						Name:             "1a",
+						RegionID:         1,
+						HostName:         serverURL.Host,
+						DERPPort:         derpPort,
+						STUNPort:         -1,
+						InsecureForTests: true,
+						HTTPForTests:     true,
+					}},
+				},
+			},
+		},
 	})
 	srv.Config.Handler = coderAPI.Handler
 	if options.IncludeProvisionerD {

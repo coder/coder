@@ -104,8 +104,10 @@ func TestConfigSSH(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata: agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
+		Logger:        slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

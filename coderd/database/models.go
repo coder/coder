@@ -521,9 +521,9 @@ type WorkspaceAgent struct {
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory            string                `db:"directory" json:"directory"`
-	NodePublicKey        string                `db:"node_public_key" json:"node_public_key"`
-	DiscoPublicKey       string                `db:"disco_public_key" json:"disco_public_key"`
 	IPAddresses          []pqtype.Inet         `db:"ip_addresses" json:"ip_addresses"`
+	NodePublicKey        sql.NullString        `db:"node_public_key" json:"node_public_key"`
+	DiscoPublicKey       sql.NullString        `db:"disco_public_key" json:"disco_public_key"`
 	PreferredDERP        int32                 `db:"preferred_derp" json:"preferred_derp"`
 	DERPLatency          dbtypes.DERPLatency   `db:"derp_latency" json:"derp_latency"`
 }

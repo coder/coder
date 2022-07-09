@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -171,18 +170,17 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
-				Logger: logger,
+			closer := agent.New(agent.Options{
+				FetchMetadata: client.WorkspaceAgentMetadata,
+				WebRTCDialer:  client.ListenWorkspaceAgent,
+				Logger:        logger,
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				EnableWireguard: wireguard,
-				UpdateTailscaleNode: func(ctx context.Context, node *tailnet.Node) error {
-					return client.UpdateTailscaleNode(ctx, "me", node)
-				},
-				ListenTailscaleNodes: client.ListenTailscaleNodes,
+				EnableTailnet: wireguard,
+				NodeDialer:    client.WorkspaceAgentNodeBroker,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

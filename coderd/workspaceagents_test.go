@@ -104,8 +104,10 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata: agentClient.WorkspaceAgentMetadata,
+			WebRTCDialer:  agentClient.ListenWorkspaceAgent,
+			Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		t.Cleanup(func() {
 			_ = agentCloser.Close()
@@ -188,7 +190,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 
-		_, _, err = agentClient.ListenWorkspaceAgent(ctx, slogtest.Make(t, nil))
+		_, err = agentClient.ListenWorkspaceAgent(ctx, slogtest.Make(t, nil))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "build is outdated")
 	})
@@ -228,8 +230,10 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata: agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
+		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
@@ -289,8 +293,10 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata: agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
+		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

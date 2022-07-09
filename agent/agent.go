@@ -46,17 +46,19 @@ const (
 )
 
 type Options struct {
-	EnableWireguard        bool
-	UpdateTailscaleNode    UpdateTailscaleNode
-	ListenTailscaleNodes   ListenTailscaleNodes
+	EnableTailnet bool
+	NodeDialer    NodeDialer
+	WebRTCDialer  WebRTCDialer
+	FetchMetadata FetchMetadata
+
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
 type Metadata struct {
-	TailscaleAddresses []netaddr.IPPrefix `json:"tailscale_addresses"`
-	TailscaleDERPMap   *tailcfg.DERPMap   `json:"tailscale_derpmap"`
+	IPAddresses []netaddr.IP     `json:"ip_addresses"`
+	DERPMap     *tailcfg.DERPMap `json:"derpmap"`
 
 	OwnerEmail           string            `json:"owner_email"`
 	OwnerUsername        string            `json:"owner_username"`
@@ -65,37 +67,47 @@ type Metadata struct {
 	Directory            string            `json:"directory"`
 }
 
-type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
+type WebRTCDialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
 
-type UpdateTailscaleNode func(ctx context.Context, node *tailnet.Node) error
-type ListenTailscaleNodes func(ctx context.Context, logger slog.Logger) (<-chan *tailnet.Node, func(), error)
+// NodeBroker handles the exchange of node information.
+type NodeBroker interface {
+	io.Closer
+	// Read will be a constant stream of incoming connection requests.
+	Read(ctx context.Context) (*tailnet.Node, error)
+	// Write should be called with the listening agent node information.
+	Write(ctx context.Context, node *tailnet.Node) error
+}
 
-func New(dialer Dialer, options *Options) io.Closer {
-	if options == nil {
-		options = &Options{}
-	}
+// NodeDialer is a function that constructs a new broker.
+// A dialer must be passed in to allow for reconnects.
+type NodeDialer func(ctx context.Context) (NodeBroker, error)
+
+// FetchMetadata is a function to obtain metadata for the agent.
+type FetchMetadata func(ctx context.Context) (Metadata, error)
+
+func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		dialer:                 dialer,
+		webrtcDialer:           options.WebRTCDialer,
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
-		enableWireguard:        options.EnableWireguard,
-		updateTailscaleNode:    options.UpdateTailscaleNode,
-		listenTailscaleNodes:   options.ListenTailscaleNodes,
+		enableTailnet:          options.EnableTailnet,
+		nodeDialer:             options.NodeDialer,
+		fetchMetadata:          options.FetchMetadata,
 	}
 	server.init(ctx)
 	return server
 }
 
 type agent struct {
-	dialer Dialer
-	logger slog.Logger
+	webrtcDialer WebRTCDialer
+	logger       slog.Logger
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -108,23 +120,21 @@ type agent struct {
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
 	metadata      atomic.Value
-	startupScript atomic.Bool
+	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	enableWireguard      bool
-	network              *tailnet.Server
-	updateTailscaleNode  UpdateTailscaleNode
-	listenTailscaleNodes ListenTailscaleNodes
+	enableTailnet bool
+	network       *tailnet.Server
+	nodeDialer    NodeDialer
 }
 
 func (a *agent) run(ctx context.Context) {
 	var metadata Metadata
-	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		metadata, peerListener, err = a.dialer(ctx, a.logger)
+		metadata, err = a.fetchMetadata(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -135,7 +145,7 @@ func (a *agent) run(ctx context.Context) {
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		a.logger.Info(context.Background(), "connected")
+		a.logger.Info(context.Background(), "fetched metadata")
 		break
 	}
 	select {
@@ -145,25 +155,131 @@ func (a *agent) run(ctx context.Context) {
 	}
 	a.metadata.Store(metadata)
 
-	if a.startupScript.CAS(false, true) {
-		// The startup script has not ran yet!
-		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
+	// The startup script has not ran yet!
+	go func() {
+		err := a.runStartupScript(ctx, metadata.StartupScript)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+		}
+	}()
+
+	go a.runWebRTCNetworking(ctx)
+	if a.enableTailnet {
+		go a.runTailnet(ctx, metadata.IPAddresses, metadata.DERPMap)
+	}
+}
+
+func (a *agent) runTailnet(ctx context.Context, addresses []netaddr.IP, derpMap *tailcfg.DERPMap) {
+	ipRanges := make([]netaddr.IPPrefix, 0, len(addresses))
+	for _, address := range addresses {
+		ipRanges = append(ipRanges, netaddr.IPPrefixFrom(address, 128))
+	}
+	var err error
+	a.network, err = tailnet.New(&tailnet.Options{
+		Addresses: ipRanges,
+		DERPMap:   derpMap,
+		Logger:    a.logger.Named("tailnet"),
+	})
+	if err != nil {
+		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
+		return
+	}
+	go a.runNodeBroker(ctx)
+
+	sshListener, err := a.network.Listen("tcp", ":12212")
+	if err != nil {
+		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := sshListener.Accept()
+			if err != nil {
+				return
+			}
+			go a.sshServer.HandleConn(conn)
+		}
+	}()
+}
+
+// runNodeBroker listens for nodes and updates the self-node as it changes.
+func (a *agent) runNodeBroker(ctx context.Context) {
+	var nodeBroker NodeBroker
+	var err error
+	// An exponential back-off occurs when the connection is failing to dial.
+	// This is to prevent server spam in case of a coderd outage.
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		nodeBroker, err = a.nodeDialer(ctx)
+		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+			if a.isClosed() {
+				return
 			}
-		}()
+			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			continue
+		}
+		a.logger.Info(context.Background(), "connected to node broker")
+		break
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
 	}
 
-	// We don't want to reinitialize the network if it already exists.
-	if a.enableWireguard && a.network == nil {
-		err = a.startWireguard(ctx, metadata.TailscaleAddresses, metadata.TailscaleDERPMap)
+	a.network.SetNodeCallback(func(node *tailnet.Node) {
+		err := nodeBroker.Write(ctx, node)
 		if err != nil {
-			a.logger.Error(ctx, "start wireguard", slog.Error(err))
+			a.logger.Warn(context.Background(), "write node", slog.Error(err), slog.F("node", node))
 		}
+	})
+
+	for {
+		node, err := nodeBroker.Read(ctx)
+		if err != nil {
+			if a.isClosed() {
+				return
+			}
+			a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
+			a.runNodeBroker(ctx)
+			return
+		}
+		err = a.network.UpdateNodes([]*tailnet.Node{node})
+		if err != nil {
+			a.logger.Error(ctx, "update tailnet nodes", slog.Error(err), slog.F("node", node))
+		}
+	}
+}
+
+func (a *agent) runWebRTCNetworking(ctx context.Context) {
+	var peerListener *peerbroker.Listener
+	var err error
+	// An exponential back-off occurs when the connection is failing to dial.
+	// This is to prevent server spam in case of a coderd outage.
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		peerListener, err = a.webrtcDialer(ctx, a.logger)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if a.isClosed() {
+				return
+			}
+			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			continue
+		}
+		a.logger.Info(context.Background(), "connected to webrtc broker")
+		break
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
 	}
 
 	for {
@@ -173,7 +289,7 @@ func (a *agent) run(ctx context.Context) {
 				return
 			}
 			a.logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			a.run(ctx)
+			a.runWebRTCNetworking(ctx)
 			return
 		}
 		a.closeMutex.Lock()
@@ -665,71 +781,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 		}
 	}
-}
-
-func (a *agent) startWireguard(ctx context.Context, addresses []netaddr.IPPrefix, derpMap *tailcfg.DERPMap) error {
-	var err error
-	a.network, err = tailnet.New(&tailnet.Options{
-		Addresses: addresses,
-		DERPMap:   derpMap,
-		Logger:    a.logger.Named("tailnet"),
-	})
-	if err != nil {
-		return err
-	}
-	a.network.SetNodeCallback(func(node *tailnet.Node) {
-		err := a.updateTailscaleNode(ctx, node)
-		if err != nil {
-			a.logger.Error(ctx, "update tailscale node", slog.Error(err))
-		}
-	})
-	go func() {
-		for {
-			var nodes <-chan *tailnet.Node
-			var err error
-			var listenClose func()
-			for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-				nodes, listenClose, err = a.listenTailscaleNodes(ctx, a.logger)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					a.logger.Warn(ctx, "listen for tailscale nodes", slog.Error(err))
-					continue
-				}
-				defer listenClose()
-				a.logger.Info(context.Background(), "listening for tailscale nodes")
-				break
-			}
-			for {
-				var node *tailnet.Node
-				select {
-				case <-ctx.Done():
-				case node = <-nodes:
-				}
-				if node == nil {
-					// The channel ended!
-					break
-				}
-				a.network.UpdateNodes([]*tailnet.Node{node})
-			}
-		}
-	}()
-
-	sshListener, err := a.network.Listen("tcp", ":12212")
-	if err != nil {
-		return xerrors.Errorf("listen for ssh: %w", err)
-	}
-	go func() {
-		for {
-			conn, err := sshListener.Accept()
-			if err != nil {
-				return
-			}
-			go a.sshServer.HandleConn(conn)
-		}
-	}()
-	return nil
 }
 
 // dialResponse is written to datachannels with protocol "dial" by the agent as
