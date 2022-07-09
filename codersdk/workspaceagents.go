@@ -303,7 +303,7 @@ func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (*agent.Conn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -368,7 +368,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("dial peer: %w", err)
 	}
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: client,
 		Conn:       peerConn,
 	}, nil

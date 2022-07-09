@@ -37,7 +37,7 @@ func TestCache(t *testing.T) {
 	t.Parallel()
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, 0)
 		t.Cleanup(func() {
@@ -52,7 +52,7 @@ func TestCache(t *testing.T) {
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
 		called := atomic.NewInt32(0)
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (agent.Conn, error) {
 			called.Add(1)
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
@@ -71,7 +71,7 @@ func TestCache(t *testing.T) {
 	})
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
 		t.Cleanup(func() {
@@ -103,7 +103,7 @@ func TestCache(t *testing.T) {
 		})
 		go server.Serve(random)
 
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
 		t.Cleanup(func() {
@@ -139,7 +139,7 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
+func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
@@ -171,7 +171,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		_ = conn.Close()
 	})
 
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: api,
 		Conn:       conn,
 	}

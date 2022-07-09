@@ -439,7 +439,7 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
+func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
@@ -468,7 +468,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		_ = conn.Close()
 	})
 
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: api,
 		Conn:       conn,
 	}
