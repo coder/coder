@@ -11,6 +11,8 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"inet.af/netaddr"
+	"tailscale.com/hostinfo"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
@@ -239,11 +241,11 @@ func (s *Server) SetNodeCallback(callback func(node *Node)) {
 		fmt.Printf("\n\n\n\nNetwork status: %+v %s\n\n\n\n", s, err)
 	})
 
-	s.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
-		fmt.Printf("\n\n\n\nNetwork map: %+v\n\n\n\n", nm)
-	})
+	// s.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
+	// 	fmt.Printf("\n\n\n\nNetwork map: %+v\n\n\n\n", nm)
+	// })
 	s.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-		fmt.Printf("\n\n\n\n\nUpdating network information: %+v\n\n\n\n\n", ni)
+		// fmt.Printf("\n\n\n\n\nUpdating network information: %+v\n\n\n\n\n", ni)
 		callback(&Node{
 			ID:            s.netMap.SelfNode.ID,
 			Key:           s.netMap.SelfNode.Key,
@@ -255,16 +257,6 @@ func (s *Server) SetNodeCallback(callback func(node *Node)) {
 		})
 	})
 }
-
-// Once the client disconnects, why not just reset the connection?
-// When the agent reconnects it will update itself, in which case
-// we should do a `SetNetInfoCallback` to get the personal node info
-// again to send on the wire.
-//
-// On disconnect, we should continually poll the workspace agent to
-// update the node to reestablish a connection.
-//
-// How do we know if we're disconnected?
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
 // and peers will continually be reconnected as necessary.
@@ -283,6 +275,7 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 			Addresses:  node.Addresses,
 			AllowedIPs: node.AllowedIPs,
 			DERP:       fmt.Sprintf("%s:%d", magicsock.DerpMagicIP, node.PreferredDERP),
+			Hostinfo:   hostinfo.New().View(),
 		}
 	}
 	s.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
@@ -300,6 +293,10 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 	netMapCopy := *s.netMap
 	s.wireguardEngine.SetNetworkMap(&netMapCopy)
 	return nil
+}
+
+func (s *Server) Ping(ip netaddr.IP, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
+	s.wireguardEngine.Ping(ip, pingType, cb)
 }
 
 // Close shuts down the Wireguard connection.
