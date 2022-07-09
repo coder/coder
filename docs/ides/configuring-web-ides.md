@@ -11,8 +11,19 @@ It's common to also let developers to connect via web IDEs.
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-resources in the template. This gives you full control over the version,
-behavior, and configuration for applications in your workspace.
+resources in the template. With our generic model, any web application can
+be used as a Coder application. For example:
+
+```hcl
+# Give template users the portainer.io web UI
+resource "coder_app" "portainer" {
+  agent_id      = coder_agent.dev.id
+  name          = "portainer"
+  icon          = "https://simpleicons.org/icons/portainer.svg"
+  url           = "http://localhost:8000"
+  relative_path = true
+}
+```
 
 ## code-server
 
@@ -66,7 +77,7 @@ resource "coder_app" "code-server" {
 ```
 
 <blockquote class="warning">
-If the `code-server` integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, refresh the browser, or clear your browser cache.
+If the `code-server` integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
 </blockquote>
 
 ## VNC Desktop
@@ -121,55 +132,38 @@ As a starting point, see the [projector-container](https://github.com/bpmct/code
 - WebStorm
 - ➕ code-server (just in case!)
 
-## Custom IDEs and applications
+## JupyterLab
 
-As long as the process is running on the specified port inside your resource, you support any application.
-
-```sh
-# edit your template
-cd your-template/
-vim main.tf
-```
+Configure your agent and `coder_app` like so to use Jupyter:
 
 ```hcl
-resource "coder_app" "portainer" {
-  agent_id      = coder_agent.dev.id
-  name          = "portainer"
-  icon          = "https://simpleicons.org/icons/portainer.svg"
-  url           = "http://localhost:8000"
-  relative_path = true
-}
-```
+data "coder_workspace" "me" {}
 
-## SSH port forwarding of browser IDEs
-
-Coder OSS currently does not have dev URL functionality required to open certain web IDEs,e.g., JupyterLab, RStudio or Airflow, so developers can either use `coder port-forward <workspace name> --tcp <port>:<port>` or `ssh -L <port>:localhost:<port> coder.<workspace name>` to open the IDEs from `http://localhost:<port>`
-
-> You must install JupyterLab, RStudio, or Airflow in the image first. Note the JupyterLab and Airflow examples that install the IDEs in the `coder_script`
-
-### JupyterLab
-
-```hcl
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
-  dir = "/home/coder"
-  startup_script = <<EOT
-#!/bin/bash
-# install and start jupyterlab
+  dir  = "/home/coder"
+  startup_script = <<-EOF
 pip3 install jupyterlab
-jupyter lab --ServerApp.token='' --ServerApp.ip='*' &
-EOT
+jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter/ --ServerApp.token='' --ip='*'
+EOF
+}
+
+resource "coder_app" "Jupyter" {
+  agent_id = coder_agent.coder.id
+  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter"
+  icon = "/icon/jupyter.svg"
 }
 ```
 
-From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
-
-```console
-ssh -L 8888:localhost:8888 coder.<JupyterLab workspace name>
-```
-
 ![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
+
+[See a full working template with Jupyter on Kubernetes.](https://github.com/coder/coder/tree/main/examples/templates/jupyter)
+
+## SSH Fallback
+
+Certain Web IDEs don't support URL base path adjustment and thus can't be exposed with
+`coder_app`. In these cases you can use [SSH](../ides.md#ssh).
 
 ### RStudio
 
@@ -186,13 +180,14 @@ EOT
 }
 ```
 
-From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8787.
 
 ```console
 ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
 ```
 
-As a starting point, see a [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for creating an RStudio image.
+Check out this [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for a starting point to creating a template.
 
 ![RStudio in Coder](../images/rstudio-port-forward.png)
 
@@ -212,18 +207,11 @@ EOT
 }
 ```
 
-From your local machine, enter a terminal and start the ssh port forwarding and open localhost with the specified port.
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8080.
 
 ```console
 ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
 ```
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
-
-> The full `coder_app` schema is described in the
-> [Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app).
-
-```sh
-# update your template
-coder templates update your-template
-```

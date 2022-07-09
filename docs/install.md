@@ -44,7 +44,7 @@ journalctl -u coder.service -b
 ## Docker
 
 The default docker socket only permits connections from `root` or members of the `docker`
-group. If you're using Docker as your workspace backend, you must can add the user running
+group. If you're using Docker as your workspace backend, you must add the user running
 coder to the Docker group like so:
 
 ```sh
