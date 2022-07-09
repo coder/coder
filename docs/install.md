@@ -41,25 +41,6 @@ sudo systemctl enable --now coder
 journalctl -u coder.service -b
 ```
 
-## Docker
-
-The default docker socket only permits connections from `root` or members of the `docker`
-group. If you're using Docker as your workspace backend, you must add the user running
-coder to the Docker group like so:
-
-```sh
-# replace "coder" with user running coderd
-sudo usermod -aG docker coder
-grep /etc/group -e "docker"
-sudo systemctl restart coder.service
-```
-
-If the user is not in the Docker group, you will see the following error:
-
-```sh
-Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
-```
-
 ## docker-compose
 
 Before proceeding, please ensure that you have both Docker and the [latest version of
@@ -102,6 +83,24 @@ Coder](https://github.com/coder/coder/releases) installed.
    ```
 
 3. Follow the on-screen instructions to create your first template and workspace
+
+---
+
+If the user is not in the Docker group, you will see the following error:
+
+```sh
+Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
+```
+
+The default docker socket only permits connections from `root` or members of the `docker`
+group. Remedy like this:
+
+```sh
+# replace "coder" with user running coderd
+sudo usermod -aG docker coder
+grep /etc/group -e "docker"
+sudo systemctl restart coder.service
+```
 
 ## Manual
 
