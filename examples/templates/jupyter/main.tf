@@ -7,11 +7,23 @@ terraform {
   }
 }
 
+variable "cluster_project" {
+  type        = string
+  sensitive   = true
+  description = "The Google Cloud project containing the Kubernetes cluster"
+}
+
+variable "cluster_name" {
+  type        = string
+  sensitive   = true
+  description = "The cluster name in Google Cloud"
+}
+
 data "google_client_config" "provider" {}
 
 data "google_container_cluster" "my_cluster" {
-  project  = "coder-dogfood"
-  name     = "master"
+  project  = var.cluster_project
+  name     = var.cluster_name
   location = "us-central1-a"
 }
 
@@ -19,15 +31,15 @@ provider "kubernetes" {
   host  = "https://${data.google_container_cluster.my_cluster.endpoint}"
   token = data.google_client_config.provider.access_token
   cluster_ca_certificate = base64decode(
-  data.google_container_cluster.my_cluster.master_auth[0].cluster_ca_certificate,
+    data.google_container_cluster.my_cluster.master_auth[0].cluster_ca_certificate,
   )
 }
 
 data "coder_workspace" "me" {}
 resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/coder"
+  os             = "linux"
+  arch           = "amd64"
+  dir            = "/home/coder"
   startup_script = <<-EOF
 jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter/ --ServerApp.token='' --ip='*'
 EOF
@@ -35,8 +47,8 @@ EOF
 
 resource "coder_app" "Jupyter" {
   agent_id = coder_agent.coder.id
-  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter"
-  icon = "/icon/jupyter.svg"
+  url      = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter"
+  icon     = "/icon/jupyter.svg"
 }
 
 resource "kubernetes_deployment" "coder" {

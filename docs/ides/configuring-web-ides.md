@@ -139,19 +139,22 @@ Configure your agent and `coder_app` like so to use Jupyter:
 ```hcl
 data "coder_workspace" "me" {}
 
+## The name of the app must always be equal to the "/apps/<name>"
+## string in the base_url. This caveat is unique to Jupyter.
+
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
   startup_script = <<-EOF
 pip3 install jupyterlab
-jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter/ --ServerApp.token='' --ip='*'
+jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/ --ServerApp.token='' --ip='*'
 EOF
 }
 
-resource "coder_app" "Jupyter" {
+resource "coder_app" "jupyter" {
   agent_id = coder_agent.coder.id
-  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/Jupyter"
+  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter"
   icon = "/icon/jupyter.svg"
 }
 ```
