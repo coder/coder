@@ -52,8 +52,8 @@ type WorkspaceAgent struct {
 	IPAddresses    []netaddr.IP    `json:"ip_addresses"`
 	NodePublicKey  key.NodePublic  `json:"node_public_key"`
 	DiscoPublicKey key.DiscoPublic `json:"disco_public_key"`
-	// DERP represents the connected region.
-	DERP string `json:"derp"`
+	// PreferredDERP represents the connected region.
+	PreferredDERP int `json:"preferred_derp"`
 	// Maps DERP region to MS latency.
 	// Fetch the DERP mapping to extract region names!
 	DERPLatency map[string]float64 `json:"latency"`

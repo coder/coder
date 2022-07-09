@@ -271,6 +271,27 @@ func (c *Client) UpdateTailscaleNode(ctx context.Context, agentID string, node *
 	return nil
 }
 
+// UpdateWorkspaceAgentNode publishes a node update for the provided agent.
+// This should be used to negotiate a connection.
+func (c *Client) UpdateWorkspaceAgentNode(ctx context.Context, agentID uuid.UUID, node *tailnet.Node) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/node",
+		agentID,
+	), node)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+//
+func (c *Client) ListenWorkspaceAgentNode(ctx context.Context, onNode func(node *tailnet.Node)) {
+
+}
+
 // ListenTailscaleNodes listens for Tailscale node updates. Peer messages are
 // sent when a new client wants to connect. Once receiving a peer message, the
 // peer should be added to the NetworkMap of the wireguard interface.

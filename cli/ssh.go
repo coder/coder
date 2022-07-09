@@ -18,18 +18,13 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
-	tslogger "tailscale.com/types/logger"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/peer/peerwg"
 )
 
 var workspacePollInterval = time.Minute
@@ -122,59 +117,59 @@ func ssh() *cobra.Command {
 				}
 			} else {
 				// TODO: more granual control of Tailscale logging.
-				peerwg.Logf = tslogger.Discard
+				// peerwg.Logf = tslogger.Discard
 
-				ipv6 := peerwg.UUIDToNetaddr(uuid.New())
-				wgn, err := peerwg.New(
-					slog.Make(sloghuman.Sink(os.Stderr)),
-					[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
-				)
-				if err != nil {
-					return xerrors.Errorf("create wireguard network: %w", err)
-				}
+				// ipv6 := peerwg.UUIDToNetaddr(uuid.New())
+				// wgn, err := peerwg.New(
+				// 	slog.Make(sloghuman.Sink(os.Stderr)),
+				// 	[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
+				// )
+				// if err != nil {
+				// 	return xerrors.Errorf("create wireguard network: %w", err)
+				// }
 
-				err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
-					Recipient:      workspaceAgent.ID,
-					NodePublicKey:  wgn.NodePrivateKey.Public(),
-					DiscoPublicKey: wgn.DiscoPublicKey,
-					IPv6:           ipv6,
-				})
-				if err != nil {
-					return xerrors.Errorf("post wireguard peer: %w", err)
-				}
+				// err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
+				// 	Recipient:      workspaceAgent.ID,
+				// 	NodePublicKey:  wgn.NodePrivateKey.Public(),
+				// 	DiscoPublicKey: wgn.DiscoPublicKey,
+				// 	IPv6:           ipv6,
+				// })
+				// if err != nil {
+				// 	return xerrors.Errorf("post wireguard peer: %w", err)
+				// }
 
-				err = wgn.AddPeer(peerwg.Handshake{
-					Recipient:      workspaceAgent.ID,
-					DiscoPublicKey: workspaceAgent.DiscoPublicKey,
-					NodePublicKey:  workspaceAgent.WireguardPublicKey,
-					IPv6:           workspaceAgent.IPv6.IP(),
-				})
-				if err != nil {
-					return xerrors.Errorf("add workspace agent as peer: %w", err)
-				}
+				// err = wgn.AddPeer(peerwg.Handshake{
+				// 	Recipient:      workspaceAgent.ID,
+				// 	DiscoPublicKey: workspaceAgent.DiscoPublicKey,
+				// 	NodePublicKey:  workspaceAgent.WireguardPublicKey,
+				// 	IPv6:           workspaceAgent.IPv6.IP(),
+				// })
+				// if err != nil {
+				// 	return xerrors.Errorf("add workspace agent as peer: %w", err)
+				// }
 
-				if stdio {
-					rawSSH, err := wgn.SSH(cmd.Context(), workspaceAgent.IPv6.IP())
-					if err != nil {
-						return err
-					}
+				// if stdio {
+				// 	rawSSH, err := wgn.SSH(cmd.Context(), workspaceAgent.IPv6.IP())
+				// 	if err != nil {
+				// 		return err
+				// 	}
 
-					go func() {
-						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
-					}()
-					_, _ = io.Copy(rawSSH, cmd.InOrStdin())
-					return nil
-				}
+				// 	go func() {
+				// 		_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+				// 	}()
+				// 	_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				// 	return nil
+				// }
 
-				sshClient, err = wgn.SSHClient(cmd.Context(), workspaceAgent.IPv6.IP())
-				if err != nil {
-					return err
-				}
+				// sshClient, err = wgn.SSHClient(cmd.Context(), workspaceAgent.IPv6.IP())
+				// if err != nil {
+				// 	return err
+				// }
 
-				sshSession, err = sshClient.NewSession()
-				if err != nil {
-					return err
-				}
+				// sshSession, err = sshClient.NewSession()
+				// if err != nil {
+				// 	return err
+				// }
 			}
 
 			if identityAgent == "" {

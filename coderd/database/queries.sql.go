@@ -2851,7 +2851,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2884,7 +2884,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.NodePublicKey,
 		&i.DiscoPublicKey,
 		pq.Array(&i.IPAddresses),
-		&i.DERP,
+		&i.PreferredDERP,
 		&i.DERPLatency,
 	)
 	return i, err
@@ -2892,7 +2892,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2923,7 +2923,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.NodePublicKey,
 		&i.DiscoPublicKey,
 		pq.Array(&i.IPAddresses),
-		&i.DERP,
+		&i.PreferredDERP,
 		&i.DERPLatency,
 	)
 	return i, err
@@ -2931,7 +2931,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -2964,7 +2964,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.NodePublicKey,
 		&i.DiscoPublicKey,
 		pq.Array(&i.IPAddresses),
-		&i.DERP,
+		&i.PreferredDERP,
 		&i.DERPLatency,
 	)
 	return i, err
@@ -2972,7 +2972,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency
 FROM
 	workspace_agents
 WHERE
@@ -3009,7 +3009,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.NodePublicKey,
 			&i.DiscoPublicKey,
 			pq.Array(&i.IPAddresses),
-			&i.DERP,
+			&i.PreferredDERP,
 			&i.DERPLatency,
 		); err != nil {
 			return nil, err
@@ -3026,7 +3026,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -3059,7 +3059,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.NodePublicKey,
 			&i.DiscoPublicKey,
 			pq.Array(&i.IPAddresses),
-			&i.DERP,
+			&i.PreferredDERP,
 			&i.DERPLatency,
 		); err != nil {
 			return nil, err
@@ -3095,7 +3095,7 @@ INSERT INTO
 		ip_addresses
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, derp, derp_latency
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, node_public_key, disco_public_key, ip_addresses, preferred_derp, derp_latency
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -3156,7 +3156,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.NodePublicKey,
 		&i.DiscoPublicKey,
 		pq.Array(&i.IPAddresses),
-		&i.DERP,
+		&i.PreferredDERP,
 		&i.DERPLatency,
 	)
 	return i, err
@@ -3198,7 +3198,7 @@ SET
 	updated_at = $2,
 	node_public_key = $3,
 	disco_public_key = $4,
-	derp = $5,
+	preferred_derp = $5,
 	derp_latency = $6
 WHERE
 	id = $1
@@ -3209,7 +3209,7 @@ type UpdateWorkspaceAgentNetworkByIDParams struct {
 	UpdatedAt      time.Time           `db:"updated_at" json:"updated_at"`
 	NodePublicKey  string              `db:"node_public_key" json:"node_public_key"`
 	DiscoPublicKey string              `db:"disco_public_key" json:"disco_public_key"`
-	DERP           string              `db:"derp" json:"derp"`
+	PreferredDERP  int32               `db:"preferred_derp" json:"preferred_derp"`
 	DERPLatency    dbtypes.DERPLatency `db:"derp_latency" json:"derp_latency"`
 }
 
@@ -3219,7 +3219,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentNetworkByID(ctx context.Context, arg Up
 		arg.UpdatedAt,
 		arg.NodePublicKey,
 		arg.DiscoPublicKey,
-		arg.DERP,
+		arg.PreferredDERP,
 		arg.DERPLatency,
 	)
 	return err

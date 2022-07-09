@@ -33,5 +33,5 @@ rename:
   rbac_roles: RBACRoles
   ip_address: IPAddress
   ip_addresses: IPAddresses
-  derp: DERP
+  preferred_derp: PreferredDERP
   derp_latency: DERPLatency

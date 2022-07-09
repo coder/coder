@@ -322,14 +322,10 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
-				r.Get("/derp", api.derpMap)
 
-				// Posting map under "me" sets the agents node map.
-
-				// On the agent side, "map" is a WebSocket that sends
-				// updates via marshalled JSON and recieves networking
-				// messages on the other end.
-				r.Get("/netmap", api.workspaceAgentSelfNetmap)
+				// Everything below this is Tailnet.
+				r.Get("/node", api.workspaceAgentNode)
+				r.Get("/derpmap", api.derpMap)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -342,11 +338,9 @@ func New(options *Options) *API {
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
-				r.Get("/derp", api.derpMap)
 
-				// Specific to Tailscale networking:
-				r.Post("/netmap")
-				r.Get("/tail-dial", api.workspaceAgentTailnetDial)
+				r.Get("/derpmap", api.derpMap)
+				r.Post("/node", api.postWorkspaceAgentNode)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {

@@ -77,7 +77,7 @@ SET
 	updated_at = $2,
 	node_public_key = $3,
 	disco_public_key = $4,
-	derp = $5,
+	preferred_derp = $5,
 	derp_latency = $6
 WHERE
 	id = $1;

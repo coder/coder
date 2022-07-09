@@ -4,20 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"os/signal"
 	"strconv"
 	"sync"
-	"syscall"
 
-	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	coderagent "github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -94,81 +88,82 @@ func wireguardPortForward() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			ipv6 := peerwg.UUIDToNetaddr(uuid.New())
-			wgn, err := peerwg.New(
-				slog.Make(sloghuman.Sink(os.Stderr)),
-				[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
-			)
-			if err != nil {
-				return xerrors.Errorf("create wireguard network: %w", err)
-			}
+			// ipv6 := peerwg.UUIDToNetaddr(uuid.New())
+			// wgn, err := peerwg.New(
+			// 	slog.Make(sloghuman.Sink(os.Stderr)),
+			// 	[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
+			// )
+			// if err != nil {
+			// 	return xerrors.Errorf("create wireguard network: %w", err)
+			// }
 
-			err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
-				Recipient:      workspaceAgent.ID,
-				NodePublicKey:  wgn.NodePrivateKey.Public(),
-				DiscoPublicKey: wgn.DiscoPublicKey,
-				IPv6:           ipv6,
-			})
-			if err != nil {
-				return xerrors.Errorf("post wireguard peer: %w", err)
-			}
+			// err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
+			// 	Recipient:      workspaceAgent.ID,
+			// 	NodePublicKey:  wgn.NodePrivateKey.Public(),
+			// 	DiscoPublicKey: wgn.DiscoPublicKey,
+			// 	IPv6:           ipv6,
+			// })
+			// if err != nil {
+			// 	return xerrors.Errorf("post wireguard peer: %w", err)
+			// }
 
-			err = wgn.AddPeer(peerwg.Handshake{
-				Recipient:      workspaceAgent.ID,
-				DiscoPublicKey: workspaceAgent.DiscoPublicKey,
-				NodePublicKey:  workspaceAgent.WireguardPublicKey,
-				IPv6:           workspaceAgent.IPv6.IP(),
-			})
-			if err != nil {
-				return xerrors.Errorf("add workspace agent as peer: %w", err)
-			}
+			// err = wgn.AddPeer(peerwg.Handshake{
+			// 	Recipient:      workspaceAgent.ID,
+			// 	DiscoPublicKey: workspaceAgent.DiscoPublicKey,
+			// 	NodePublicKey:  workspaceAgent.WireguardPublicKey,
+			// 	IPv6:           workspaceAgent.IPv6.IP(),
+			// })
+			// if err != nil {
+			// 	return xerrors.Errorf("add workspace agent as peer: %w", err)
+			// }
 
-			// Start all listeners.
-			var (
-				ctx, cancel       = context.WithCancel(cmd.Context())
-				wg                = new(sync.WaitGroup)
-				listeners         = make([]net.Listener, len(specs))
-				closeAllListeners = func() {
-					for _, l := range listeners {
-						if l == nil {
-							continue
-						}
-						_ = l.Close()
-					}
-				}
-			)
-			defer cancel()
-			for i, spec := range specs {
-				l, err := listenAndPortForwardWireguard(ctx, cmd, wgn, wg, spec, workspaceAgent.IPv6.IP())
-				if err != nil {
-					closeAllListeners()
-					return err
-				}
-				listeners[i] = l
-			}
+			// // Start all listeners.
+			// var (
+			// 	ctx, cancel       = context.WithCancel(cmd.Context())
+			// 	wg                = new(sync.WaitGroup)
+			// 	listeners         = make([]net.Listener, len(specs))
+			// 	closeAllListeners = func() {
+			// 		for _, l := range listeners {
+			// 			if l == nil {
+			// 				continue
+			// 			}
+			// 			_ = l.Close()
+			// 		}
+			// 	}
+			// )
+			// defer cancel()
+			// for i, spec := range specs {
+			// 	l, err := listenAndPortForwardWireguard(ctx, cmd, wgn, wg, spec, workspaceAgent.IPv6.IP())
+			// 	if err != nil {
+			// 		closeAllListeners()
+			// 		return err
+			// 	}
+			// 	listeners[i] = l
+			// }
 
-			// Wait for the context to be canceled or for a signal and close
-			// all listeners.
-			var closeErr error
-			go func() {
-				sigs := make(chan os.Signal, 1)
-				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			// // Wait for the context to be canceled or for a signal and close
+			// // all listeners.
+			// var closeErr error
+			// go func() {
+			// 	sigs := make(chan os.Signal, 1)
+			// 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-				select {
-				case <-ctx.Done():
-					closeErr = ctx.Err()
-				case <-sigs:
-					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
-					closeErr = xerrors.New("signal received")
-				}
+			// 	select {
+			// 	case <-ctx.Done():
+			// 		closeErr = ctx.Err()
+			// 	case <-sigs:
+			// 		_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
+			// 		closeErr = xerrors.New("signal received")
+			// 	}
 
-				cancel()
-				closeAllListeners()
-			}()
+			// 	cancel()
+			// 	closeAllListeners()
+			// }()
 
-			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
-			wg.Wait()
-			return closeErr
+			// _, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
+			// wg.Wait()
+			// return closeErr
+			return nil
 		},
 	}
 

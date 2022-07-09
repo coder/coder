@@ -237,15 +237,7 @@ type Server struct {
 // renegotiation may be required. Clients should constantly be emitting
 // node changes.
 func (s *Server) SetNodeCallback(callback func(node *Node)) {
-	s.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
-		fmt.Printf("\n\n\n\nNetwork status: %+v %s\n\n\n\n", s, err)
-	})
-
-	// s.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
-	// 	fmt.Printf("\n\n\n\nNetwork map: %+v\n\n\n\n", nm)
-	// })
 	s.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-		// fmt.Printf("\n\n\n\n\nUpdating network information: %+v\n\n\n\n\n", ni)
 		callback(&Node{
 			ID:            s.netMap.SelfNode.ID,
 			Key:           s.netMap.SelfNode.Key,
@@ -295,6 +287,7 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 	return nil
 }
 
+// Ping sends a ping to the Wireguard engine.
 func (s *Server) Ping(ip netaddr.IP, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
 	s.wireguardEngine.Ping(ip, pingType, cb)
 }

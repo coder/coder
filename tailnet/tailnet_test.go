@@ -3,12 +3,10 @@ package tailnet_test
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,9 +14,11 @@ import (
 	"inet.af/netaddr"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
+	"tailscale.com/types/nettype"
 
 	"github.com/coder/coder/tailnet"
 
@@ -42,18 +42,6 @@ func TestTailnet(t *testing.T) {
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
-
-	// When a new connection occurs, we want those nodes to exist for the lifetime of the connection.
-	// As soon as the connection ends, the nodes can be removed.
-
-	// The workspace agent creates a Tailnet on start. It updates keys and
-	// begins listening for connection messages.
-	//
-	// A new connection starts by concurrently sending a POST request with
-	// it's keys, and using a GET request on the workspace agent.
-	//
-	// Internally, the agent WebSocket listens for these messages.
-	// If the agent dies and comes back to life,
 
 	w2, err := tailnet.New(&tailnet.Options{
 		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(tailnet.IP(), 128)},
@@ -88,8 +76,6 @@ func TestTailnet(t *testing.T) {
 	_ = nc.Close()
 	<-conn
 
-	time.Sleep(time.Minute)
-
 	w1.Close()
 	w2.Close()
 }
@@ -101,20 +87,12 @@ func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap)
 	server.Config.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 	server.StartTLS()
 
-	go func() {
-		time.Sleep(5 * time.Second)
-		fmt.Printf("\n\n\n\n\nSHUTTING IT DOWN\n\n\n\n\n")
-		server.CloseClientConnections()
-		server.Close()
-		d.Close()
-	}()
-
-	// stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(func() {
 		server.CloseClientConnections()
 		server.Close()
 		d.Close()
-		// stunCleanup()
+		stunCleanup()
 	})
 
 	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)
@@ -135,7 +113,7 @@ func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap)
 						HostName:         "test-node.dns",
 						IPv4:             "127.0.0.1",
 						IPv6:             "none",
-						STUNPort:         -1,
+						STUNPort:         stunAddr.Port,
 						DERPPort:         tcpAddr.Port,
 						InsecureForTests: true,
 						STUNTestIP:       "127.0.0.1",

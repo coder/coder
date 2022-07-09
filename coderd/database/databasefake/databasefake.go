@@ -1925,7 +1925,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentNetworkByID(_ context.Context, arg dat
 
 		agent.DiscoPublicKey = arg.DiscoPublicKey
 		agent.NodePublicKey = arg.NodePublicKey
-		agent.DERP = arg.DERP
+		agent.PreferredDERP = arg.PreferredDERP
 		agent.DERPLatency = arg.DERPLatency
 		agent.UpdatedAt = database.Now()
 		q.provisionerJobAgents[index] = agent

@@ -524,7 +524,7 @@ type WorkspaceAgent struct {
 	NodePublicKey        string                `db:"node_public_key" json:"node_public_key"`
 	DiscoPublicKey       string                `db:"disco_public_key" json:"disco_public_key"`
 	IPAddresses          []pqtype.Inet         `db:"ip_addresses" json:"ip_addresses"`
-	DERP                 string                `db:"derp" json:"derp"`
+	PreferredDERP        int32                 `db:"preferred_derp" json:"preferred_derp"`
 	DERPLatency          dbtypes.DERPLatency   `db:"derp_latency" json:"derp_latency"`
 }
 
