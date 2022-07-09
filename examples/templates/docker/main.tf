@@ -66,9 +66,23 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "dev" {
-  arch = var.step2_arch
-  os   = "linux"
+  arch           = var.step2_arch
+  os             = "linux"
+  startup_script = <<EOF
+    #!/bin/sh
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh
+    code-server --auth none --port 13337
+    EOF
 }
+
+resource "coder_app" "code-server" {
+  agent_id = coder_agent.dev.id
+  name     = "code-server"
+  url      = "http://localhost:13337/?folder=/home/coder"
+  icon     = "/icon/code.svg"
+}
+
 
 variable "docker_image" {
   description = "Which Docker image would you like to use for your workspace?"
