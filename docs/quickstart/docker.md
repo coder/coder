@@ -1,26 +1,27 @@
 # Docker
 
-Using Coder with Docker has the following advantages:
+Coder with Docker has the following advantages:
 
 - Simple installation (everything is on a single box)
 - Workspace images are easily configured
 - Workspaces share resources for burst operations
 
-Let's dig in.
-
 ## Requirements
 
 - A single MacOS or Linux box
 - A running Docker daemon
-- `docker-compose`
 
 ## Instructions
 
-1.  [Install and launch Coder via docker-compose](../install.md#docker-compose)
+1.  [Install and launch Coder](../install.md)
 
-    You may use `CODER_ACCESS_URL=http://localhost:7080` since we're using Docker
-    workspaces exclusively. The rest of the guide will assume that this is your
+    You may use `CODER_ACCESS_URL=http://localhost:7080` since we're using local
+    Docker workspaces exclusively. The rest of the guide will assume that this is your
     access URL.
+
+    ```bash
+    coder server -a $CODER_ACCESS_URL
+    ```
 
 1.  Run `coder login http://localhost:7080` in a new terminal and follow the
     interactive instructions to create your user.
