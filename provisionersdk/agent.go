@@ -40,7 +40,7 @@ exec ./$BINARY_NAME agent`
 
 	darwinScript = `#!/usr/bin/env sh
 set -eux pipefail
-trap 'echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep 86400' EXIT
+trap 'echo === Agent script exited with non-zero code. Sleeping 24h to preserve logs... && sleep 86400' EXIT
 BINARY_DIR=$(mktemp -d -t coder.XXXXXX)
 BINARY_NAME=coder
 cd $BINARY_DIR
