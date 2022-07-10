@@ -70,7 +70,7 @@ func templateCheckout() *cobra.Command {
 			}
 
 			// Stat the destination to ensure nothing exists already.
-			stat, err := os.Stat(destination)
+			stat, _ := os.Stat(destination)
 			if stat != nil {
 				return xerrors.Errorf("template file/directory already exists: %s", destination)
 			}
