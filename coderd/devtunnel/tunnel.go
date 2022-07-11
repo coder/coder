@@ -277,7 +277,7 @@ func readOrGenerateConfig() (Config, error) {
 	if cfg.Version == 0 {
 		_, _ = fmt.Println()
 		_, _ = fmt.Println(cliui.Styles.Error.Render("You're running a deprecated tunnel version!"))
-		_, _ = fmt.Println(cliui.Styles.Error.Render("Upgrading you to the new version now. You may need to rebuild running workspaces."))
+		_, _ = fmt.Println(cliui.Styles.Error.Render("Upgrading you to the new version now. You will need to rebuild running workspaces."))
 		_, _ = fmt.Println()
 
 		cfg, err := GenerateConfig()
