@@ -98,7 +98,7 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Printf("Updated version!\n")
+			_, _ = fmt.Printf("Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

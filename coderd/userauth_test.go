@@ -73,6 +73,30 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+	t.Run("NotInAllowedTeam", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowOrganizations: []string{"coder"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"another", "something"}, {"coder", "frontend"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
+					return []*github.Team{{
+						Slug: github.String("nope"),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 	t.Run("UnverifiedEmail", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -181,6 +205,43 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowedTeam", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"coder", "frontend"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
+					return []*github.Team{{
+						Slug: github.String("frontend"),
+					}}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("kyle"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})

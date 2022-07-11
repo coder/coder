@@ -41,7 +41,7 @@ func TestLogout(t *testing.T) {
 			assert.NoFileExists(t, string(config.Session()))
 		}()
 
-		pty.ExpectMatch("Are you sure you want to logout?")
+		pty.ExpectMatch("Are you sure you want to log out?")
 		pty.WriteLine("yes")
 		pty.ExpectMatch("You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
@@ -186,7 +186,7 @@ func TestLogout(t *testing.T) {
 			assert.Regexp(t, errRegex, err.Error())
 		}()
 
-		pty.ExpectMatch("Are you sure you want to logout?")
+		pty.ExpectMatch("Are you sure you want to log out?")
 		pty.WriteLine("yes")
 		<-logoutChan
 	})
