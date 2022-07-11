@@ -62,18 +62,18 @@ Coder with Docker has the following advantages:
 1.  Open the dashboard in your browser (http://localhost:7080) to create your
     first workspace:
 
-    <img src="./images/quickstart/docker/login.png">
+    <img src="../images/quickstart/docker/login.png">
 
     Then navigate to `Templates > docker > Create workspace`
 
-    <img src="./images/quickstart/docker/create-workspace.png">
+    <img src="../images/quickstart/docker/create-workspace.png">
 
     Now wait a few moments for the workspace to build... After the first build
     the image is cached and subsequent builds will take a few seconds.
 
 1.  All done!
 
-    <img src="./images/quickstart/docker/ides.png">
+    <img src="../images/quickstart/docker/ides.png">
 
     Open up a web application or [SSH in](../ides.md#ssh-configuration).
 
