@@ -132,7 +132,7 @@ func New(options *Options) *API {
 			apiKeyMiddleware,
 			httpmw.ExtractUserParam(api.Database),
 		)
-		r.Get("/*", api.workspaceAppsProxyPath)
+		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
@@ -296,7 +296,11 @@ func New(options *Options) *API {
 
 					r.Post("/authorization", api.checkPermissions)
 
-					r.Post("/keys", api.postAPIKey)
+					r.Route("/keys", func(r chi.Router) {
+						r.Post("/", api.postAPIKey)
+						r.Get("/{keyid}", api.apiKey)
+					})
+
 					r.Route("/organizations", func(r chi.Router) {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)

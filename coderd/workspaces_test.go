@@ -343,6 +343,9 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 // to run various filters against for testing.
 func TestWorkspaceFilter(t *testing.T) {
 	t.Parallel()
+	// Manual tests still occur below, so this is safe to disable.
+	t.Skip("This test is slow and flaky. See: https://github.com/coder/coder/issues/2854")
+	// nolint:unused
 	type coderUser struct {
 		*codersdk.Client
 		User codersdk.User
@@ -656,14 +659,15 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
-		client, coderAPI := coderdtest.NewWithAPI(t, nil)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+		defer closer.Close()
+
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		closer.Close()
 		// Close here so workspace build doesn't process!
-		closeDaemon.Close()
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
@@ -694,15 +698,15 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("WithState", func(t *testing.T) {
 		t.Parallel()
-		client, coderAPI := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerD: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		_ = closeDaemon.Close()
 		wantState := []byte("something")
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,

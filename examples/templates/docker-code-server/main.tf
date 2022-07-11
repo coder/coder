@@ -44,6 +44,11 @@ resource "coder_agent" "dev" {
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
   url      = "http://localhost:8080/?folder=/home/coder"
+  icon     = "/icon/code.svg"
+}
+
+resource "docker_volume" "home_volume" {
+  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
 }
 
 resource "docker_container" "workspace" {
@@ -59,5 +64,10 @@ resource "docker_container" "workspace" {
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/coder/"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
   }
 }

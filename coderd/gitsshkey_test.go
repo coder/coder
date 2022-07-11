@@ -79,9 +79,10 @@ func TestGitSSHKey(t *testing.T) {
 func TestAgentGitSSHKey(t *testing.T) {
 	t.Parallel()
 
-	client, coderAPI := coderdtest.NewWithAPI(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerD: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -107,7 +108,6 @@ func TestAgentGitSSHKey(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	daemonCloser.Close()
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken

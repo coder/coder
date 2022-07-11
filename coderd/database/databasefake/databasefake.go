@@ -1828,6 +1828,7 @@ func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg dat
 			continue
 		}
 		template.ActiveVersionID = arg.ActiveVersionID
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
@@ -1843,6 +1844,7 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 			continue
 		}
 		template.Deleted = arg.Deleted
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
@@ -1874,7 +1876,7 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 			continue
 		}
 		templateVersion.Readme = arg.Readme
-		templateVersion.UpdatedAt = database.Now()
+		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
 		return nil
 	}
@@ -1908,6 +1910,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.FirstConnectedAt = arg.FirstConnectedAt
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
+		agent.UpdatedAt = arg.UpdatedAt
 		q.provisionerJobAgents[index] = agent
 		return nil
 	}

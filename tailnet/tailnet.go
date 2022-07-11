@@ -238,6 +238,7 @@ type Server struct {
 // node changes.
 func (s *Server) SetNodeCallback(callback func(node *Node)) {
 	s.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+		s.logger.Info(context.Background(), "latency", slog.F("latency", ni.DERPLatency))
 		callback(&Node{
 			ID:            s.netMap.SelfNode.ID,
 			Key:           s.netMap.SelfNode.Key,

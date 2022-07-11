@@ -14,6 +14,8 @@ export const Language = {
   successMessage: "Successfully updated workspace schedule.",
 }
 
+type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
+
 export interface WorkspaceScheduleContext {
   formErrors?: FieldErrors
   getWorkspaceError?: Error | unknown
@@ -23,7 +25,26 @@ export interface WorkspaceScheduleContext {
    * machine is partially influenced by workspaceXService.
    */
   workspace?: TypesGen.Workspace
+  // permissions
+  userId?: string
+  permissions?: Permissions
+  checkPermissionsError?: Error | unknown
 }
+
+export const checks = {
+  updateWorkspace: "updateWorkspace",
+} as const
+
+const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
+  [checks.updateWorkspace]: {
+    object: {
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      owner_id: workspace.owner_id,
+    },
+    action: "update",
+  },
+})
 
 export type WorkspaceScheduleEvent =
   | { type: "GET_WORKSPACE"; username: string; workspaceName: string }
@@ -60,7 +81,7 @@ export const workspaceSchedule = createMachine(
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
-            target: "presentForm",
+            target: "gettingPermissions",
             actions: ["assignWorkspace"],
           },
           onError: {
@@ -69,6 +90,25 @@ export const workspaceSchedule = createMachine(
           },
         },
         tags: "loading",
+      },
+      gettingPermissions: {
+        entry: "clearGetPermissionsError",
+        invoke: {
+          src: "checkPermissions",
+          id: "checkPermissions",
+          onDone: [
+            {
+              actions: ["assignPermissions"],
+              target: "presentForm",
+            },
+          ],
+          onError: [
+            {
+              actions: "assignGetPermissionsError",
+              target: "error",
+            },
+          ],
+        },
       },
       presentForm: {
         on: {
@@ -113,8 +153,19 @@ export const workspaceSchedule = createMachine(
       assignGetWorkspaceError: assign({
         getWorkspaceError: (_, event) => event.data,
       }),
+      assignPermissions: assign({
+        // Setting event.data as Permissions to be more stricted. So we know
+        // what permissions we asked for.
+        permissions: (_, event) => event.data as Permissions,
+      }),
+      assignGetPermissionsError: assign({
+        checkPermissionsError: (_, event) => event.data,
+      }),
+      clearGetPermissionsError: assign({
+        checkPermissionsError: (_) => undefined,
+      }),
       clearContext: () => {
-        assign({ workspace: undefined })
+        assign({ workspace: undefined, permissions: undefined })
       },
       clearGetWorkspaceError: (context) => {
         assign({ ...context, getWorkspaceError: undefined })
@@ -133,6 +184,15 @@ export const workspaceSchedule = createMachine(
     services: {
       getWorkspace: async (_, event) => {
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+      },
+      checkPermissions: async (context) => {
+        if (context.workspace && context.userId) {
+          return await API.checkUserPermissions(context.userId, {
+            checks: permissionsToCheck(context.workspace),
+          })
+        } else {
+          throw Error("Cannot check permissions without both workspace and user id")
+        }
       },
       submitSchedule: async (context, event) => {
         if (!context.workspace?.id) {

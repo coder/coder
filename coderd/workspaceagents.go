@@ -275,6 +275,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
+			UpdatedAt:        database.Now(),
 		})
 		if err != nil {
 			return err

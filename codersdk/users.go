@@ -22,6 +22,13 @@ const (
 	UserStatusSuspended UserStatus = "suspended"
 )
 
+type LoginType string
+
+const (
+	LoginTypePassword LoginType = "password"
+	LoginTypeGithub   LoginType = "github"
+)
+
 type UsersRequest struct {
 	Search string `json:"search,omitempty" typescript:"-"`
 	// Filter users by status.
@@ -42,6 +49,17 @@ type User struct {
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
+}
+
+type APIKey struct {
+	ID              string    `json:"id" validate:"required"`
+	UserID          uuid.UUID `json:"user_id" validate:"required"`
+	LastUsed        time.Time `json:"last_used" validate:"required"`
+	ExpiresAt       time.Time `json:"expires_at" validate:"required"`
+	CreatedAt       time.Time `json:"created_at" validate:"required"`
+	UpdatedAt       time.Time `json:"updated_at" validate:"required"`
+	LoginType       LoginType `json:"login_type" validate:"required"`
+	LifetimeSeconds int64     `json:"lifetime_seconds" validate:"required"`
 }
 
 type CreateFirstUserRequest struct {
@@ -311,6 +329,19 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKey
 		return nil, readBodyAsError(res)
 	}
 	apiKey := &GenerateAPIKeyResponse{}
+	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
+func (c *Client) GetAPIKey(ctx context.Context, user string, id string) (*APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", user, id), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return nil, readBodyAsError(res)
+	}
+	apiKey := &APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 

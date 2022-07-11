@@ -19,3 +19,4 @@ storybook-static/
 test-results/
 
 **/*.swp
+.coderv2/*

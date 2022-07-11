@@ -3,7 +3,7 @@ import { postFirstUser } from "../src/api/api"
 import * as constants from "./constants"
 
 const globalSetup = async (): Promise<void> => {
-  axios.defaults.baseURL = "http://localhost:3000"
+  axios.defaults.baseURL = `http://localhost:${constants.basePort}`
   await postFirstUser({
     email: constants.email,
     organization: constants.organization,

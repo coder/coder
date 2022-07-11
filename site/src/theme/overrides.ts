@@ -32,6 +32,25 @@ export const getOverrides = (palette: PaletteOptions) => {
           backgroundColor: "#000000",
         },
       },
+      sizeSmall: {
+        padding: `0 12px`,
+        fontSize: 14,
+        minHeight: 36,
+      },
+      iconSizeSmall: {
+        width: 16,
+        height: 16,
+        marginLeft: "0 !important",
+        marginRight: 12,
+      },
+    },
+    MuiIconButton: {
+      sizeSmall: {
+        "& .MuiSvgIcon-root": {
+          width: 20,
+          height: 20,
+        },
+      },
     },
     MuiTableHead: {
       root: {

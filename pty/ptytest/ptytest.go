@@ -89,7 +89,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		case <-timer.C:
 		}
 		_ = p.Close()
-		p.t.Errorf("match exceeded deadline: wanted %q; got %q", str, buffer.String())
+		p.t.Errorf("%s match exceeded deadline: wanted %q; got %q", time.Now(), str, buffer.String())
 	}()
 	for {
 		var r rune

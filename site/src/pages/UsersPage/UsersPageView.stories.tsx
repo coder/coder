@@ -22,3 +22,23 @@ Member.args = { ...Admin.args, canCreateUser: false, canEditUsers: false }
 
 export const Empty = Template.bind({})
 Empty.args = { ...Admin.args, users: [] }
+
+export const Error = Template.bind({})
+Error.args = {
+  ...Admin.args,
+  users: undefined,
+  error: {
+    response: {
+      data: {
+        message: "Invalid user search query.",
+        validations: [
+          {
+            field: "status",
+            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+          },
+        ],
+      },
+    },
+    isAxiosError: true,
+  },
+}

@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"testing"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -555,18 +553,30 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
-			client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
+
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{{
-					Type: &proto.Provision_Response_Log{
-						Log: &proto.Log{},
+				Provision: []*proto.Provision_Response{
+					{
+						Type: &proto.Provision_Response_Log{
+							Log: &proto.Log{},
+						}},
+					{
+						Type: &proto.Provision_Response_Complete{
+							Complete: &proto.Provision_Complete{},
+						},
 					},
-				}},
+				},
 			})
-			forceCompleteTemplateVersionJob(t, api.Database, client, version)
 
+			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+			closer.Close()
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{},
@@ -578,7 +588,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobRunning
+				return job.Status == codersdk.ProvisionerJobPending
 			}, 5*time.Second, 25*time.Millisecond)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
@@ -589,7 +599,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				assert.NoError(t, err)
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceled
+				return job.Status == codersdk.ProvisionerJobCanceling
 			}, 5*time.Second, 25*time.Millisecond)
 		})
 
@@ -622,17 +632,29 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("AlreadyCanceled", func(t *testing.T) {
 			t.Parallel()
-			client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{{
-					Type: &proto.Provision_Response_Log{
-						Log: &proto.Log{},
+				Provision: []*proto.Provision_Response{
+					{
+						Type: &proto.Provision_Response_Log{
+							Log: &proto.Log{},
+						}},
+					{
+						Type: &proto.Provision_Response_Complete{
+							Complete: &proto.Provision_Complete{},
+						},
 					},
-				}},
+				},
 			})
-			forceCompleteTemplateVersionJob(t, api.Database, client, version)
+
+			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+			closer.Close()
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
@@ -752,24 +774,4 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			}
 		})
 	}
-}
-
-func forceCompleteTemplateVersionJob(t *testing.T, db database.Store, client *codersdk.Client, version codersdk.TemplateVersion) {
-	t.Helper()
-
-	// HACK: we need the template version job to be finished so the dry-run job
-	// can be created. We do this by canceling the job and then marking it as
-	// successful.
-	err := client.CancelTemplateVersion(context.Background(), version.ID)
-	require.NoError(t, err)
-	err = db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:        version.Job.ID,
-		UpdatedAt: time.Now(),
-		CompletedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Error: sql.NullString{},
-	})
-	require.NoError(t, err)
 }

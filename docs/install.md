@@ -7,19 +7,19 @@ The easiest way to install Coder is to use our [install script](https://github.c
 To install, run:
 
 ```bash
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 You can preview what occurs during the install process:
 
 ```bash
-curl -L https://coder.com/install.sh | sh -s -- --dry-run
+curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
 ```
 
 You can modify the installation process by including flags. Run the help command for reference:
 
 ```bash
-curl -L https://coder.com/install.sh | sh -s -- --help
+curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ```
 
 ## System packages
@@ -84,6 +84,24 @@ Coder](https://github.com/coder/coder/releases) installed.
 
 3. Follow the on-screen instructions to create your first template and workspace
 
+---
+
+If the user is not in the Docker group, you will see the following error:
+
+```sh
+Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
+```
+
+The default docker socket only permits connections from `root` or members of the `docker`
+group. Remedy like this:
+
+```sh
+# replace "coder" with user running coderd
+sudo usermod -aG docker coder
+grep /etc/group -e "docker"
+sudo systemctl restart coder.service
+```
+
 ## Manual
 
 We publish self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder/coder/releases). The archives bundle `coder` binary.
@@ -101,13 +119,13 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
 1. Start a Coder server
 
-    ```sh
-    # Automatically sets up an external access URL on *.try.coder.app
-    coder server --tunnel
+   ```sh
+   # Automatically sets up an external access URL on *.try.coder.app
+   coder server --tunnel
 
-    # Requires a PostgreSQL instance and external access URL
-    coder server --postgres-url <url> --access-url <url>
-    ```
+   # Requires a PostgreSQL instance and external access URL
+   coder server --postgres-url <url> --access-url <url>
+   ```
 
 ## Next steps
 

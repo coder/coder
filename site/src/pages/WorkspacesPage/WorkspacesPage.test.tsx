@@ -1,10 +1,10 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
+import { Language as WorkspacesTableBodyLanguage } from "../../components/WorkspacesTable/WorkspacesTableBody"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import WorkspacesPage from "./WorkspacesPage"
-import { Language } from "./WorkspacesPageView"
 
 describe("WorkspacesPage", () => {
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe("WorkspacesPage", () => {
     render(<WorkspacesPage />)
 
     // Then
-    await screen.findByText(Language.emptyCreateWorkspaceMessage)
+    await screen.findByText(WorkspacesTableBodyLanguage.emptyCreateWorkspaceMessage)
   })
 
   it("renders a filled workspaces page", async () => {

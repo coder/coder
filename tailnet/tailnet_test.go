@@ -14,11 +14,9 @@ import (
 	"inet.af/netaddr"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
-	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
-	"tailscale.com/types/nettype"
 
 	"github.com/coder/coder/tailnet"
 
@@ -87,12 +85,12 @@ func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap)
 	server.Config.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 	server.StartTLS()
 
-	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	// stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(func() {
 		server.CloseClientConnections()
 		server.Close()
 		d.Close()
-		stunCleanup()
+		// stunCleanup()
 	})
 
 	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)
@@ -108,15 +106,21 @@ func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap)
 				RegionName: "Testlandia",
 				Nodes: []*tailcfg.DERPNode{
 					{
-						Name:             "t1",
+						Name:     "t1",
+						RegionID: 1,
+						HostName: "stun.l.google.com",
+						DERPPort: -1,
+						STUNPort: 19302,
+						STUNOnly: true,
+					},
+					{
+						Name:             "t2",
 						RegionID:         1,
-						HostName:         "test-node.dns",
 						IPv4:             "127.0.0.1",
 						IPv6:             "none",
-						STUNPort:         stunAddr.Port,
+						STUNPort:         -1,
 						DERPPort:         tcpAddr.Port,
 						InsecureForTests: true,
-						STUNTestIP:       "127.0.0.1",
 					},
 				},
 			},

@@ -45,7 +45,8 @@ func TestProvisionerJobLogs(t *testing.T) {
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		for {
-			_, ok := <-logs
+			log, ok := <-logs
+			t.Logf("got log: [%s] %s %s", log.Level, log.Stage, log.Output)
 			if !ok {
 				return
 			}

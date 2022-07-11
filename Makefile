@@ -172,10 +172,10 @@ test: test-clean
 .PHONY: test
 
 test-postgres: test-clean test-postgres-docker
-	DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
 		-coverpkg=./...,github.com/coder/coder/codersdk \
-		-count=2 -race -failfast
+		-count=1 -race -failfast
 .PHONY: test-postgres
 
 test-postgres-docker:
