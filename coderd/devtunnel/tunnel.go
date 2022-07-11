@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -28,13 +26,6 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-var (
-	v0EndpointHTTPS = "wg-tunnel.coder.app"
-
-	v0ServerPublicKey = "+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="
-	v0ServerIP        = netip.AddrFrom16(uuid.MustParse("fcad0000-0000-4000-8000-000000000001"))
-)
-
 type Tunnel struct {
 	URL      string
 	Listener net.Listener
@@ -42,7 +33,6 @@ type Tunnel struct {
 
 type Config struct {
 	Version    int                    `json:"version"`
-	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"private_key"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
@@ -50,7 +40,6 @@ type Config struct {
 }
 type configExt struct {
 	Version    int                    `json:"-"`
-	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"-"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
@@ -181,22 +170,9 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 		return ServerResponse{}, xerrors.Errorf("marshal config: %w", err)
 	}
 
-	var req *http.Request
-	switch cfg.Version {
-	case 0:
-		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+v0EndpointHTTPS+"/tun", bytes.NewReader(raw))
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
-		}
-
-	case 1:
-		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+cfg.Tunnel.HostnameHTTPS+"/tun", bytes.NewReader(raw))
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
-		}
-
-	default:
-		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+cfg.Tunnel.HostnameHTTPS+"/tun", bytes.NewReader(raw))
+	if err != nil {
+		return ServerResponse{}, xerrors.Errorf("new request: %w", err)
 	}
 
 	res, err := http.DefaultClient.Do(req)
@@ -206,23 +182,9 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 	defer res.Body.Close()
 
 	var resp ServerResponse
-	switch cfg.Version {
-	case 0:
-		_, _ = io.Copy(io.Discard, res.Body)
-		resp.Hostname = fmt.Sprintf("%s.%s", cfg.ID, v0EndpointHTTPS)
-		resp.ServerIP = v0ServerIP
-		resp.ServerPublicKey = encodeBase64ToHex(v0ServerPublicKey)
-		resp.ClientIP = netip.AddrFrom16(cfg.ID)
-
-	case 1:
-		err := json.NewDecoder(res.Body).Decode(&resp)
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("decode response: %w", err)
-		}
-
-	default:
-		_, _ = io.Copy(io.Discard, res.Body)
-		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return ServerResponse{}, xerrors.Errorf("decode response: %w", err)
 	}
 
 	return resp, nil
