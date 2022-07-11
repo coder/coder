@@ -1,5 +1,5 @@
 # On Windows, VS Code Remote requires a parent process of the
-## executing shell to be named "sshd", otherwise it fails. See:
+# executing shell to be named "sshd", otherwise it fails. See:
 # https://github.com/microsoft/vscode-remote-release/issues/5699
 $ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-${ARCH}.exe -OutFile $env:TEMP\sshd.exe
