@@ -41,7 +41,6 @@ func templateDelete() *cobra.Command {
 					}
 					templates = append(templates, template)
 				}
-
 			} else {
 				allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
 				if err != nil {
