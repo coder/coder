@@ -52,6 +52,7 @@ func TestTemplate(t *testing.T) {
 		build, err := client.CreateWorkspaceBuild(ctx, deletedWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionDelete,
 		})
+		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
 		template, err = client.Template(context.Background(), template.ID)
