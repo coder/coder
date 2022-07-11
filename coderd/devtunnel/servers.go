@@ -20,6 +20,7 @@ type Region struct {
 
 type Node struct {
 	ID                int    `json:"id"`
+	RegionID          int    `json:"region_id"`
 	HostnameHTTPS     string `json:"hostname_https"`
 	HostnameWireguard string `json:"hostname_wireguard"`
 	WireguardPort     uint16 `json:"wireguard_port"`
@@ -29,11 +30,12 @@ type Node struct {
 
 var Regions = []Region{
 	{
-		ID:           1,
+		ID:           0,
 		LocationName: "US East Pittsburgh",
 		Nodes: []Node{
 			{
 				ID:                1,
+				RegionID:          0,
 				HostnameHTTPS:     "pit-1.try.coder.app",
 				HostnameWireguard: "pit-1.try.coder.app",
 				WireguardPort:     55551,

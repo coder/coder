@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wireguard/conn"
@@ -23,6 +24,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -146,7 +148,7 @@ func startUpdateRoutine(ctx context.Context, logger slog.Logger, cfg Config) (Se
 	endCh := make(chan struct{})
 	go func() {
 		defer close(endCh)
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -273,12 +275,22 @@ func readOrGenerateConfig() (Config, error) {
 	}
 
 	if cfg.Version == 0 {
-		cfg.Tunnel = Node{
-			ID:                0,
-			HostnameHTTPS:     "wg-tunnel.coder.app",
-			HostnameWireguard: "wg-tunnel-udp.coder.app",
-			WireguardPort:     55555,
+		_, _ = fmt.Println()
+		_, _ = fmt.Println(cliui.Styles.Error.Render("You're running a deprecated tunnel version!"))
+		_, _ = fmt.Println(cliui.Styles.Error.Render("Upgrading you to the new version now. You may need to rebuild running workspaces."))
+		_, _ = fmt.Println()
+
+		cfg, err := GenerateConfig()
+		if err != nil {
+			return Config{}, xerrors.Errorf("generate config: %w", err)
 		}
+
+		err = writeConfig(cfg)
+		if err != nil {
+			return Config{}, xerrors.Errorf("write config: %w", err)
+		}
+
+		return cfg, nil
 	}
 
 	return cfg, nil
@@ -291,14 +303,26 @@ func GenerateConfig() (Config, error) {
 	}
 	pub := priv.PublicKey()
 
+	spin := spinner.New(spinner.CharSets[39], 350*time.Millisecond)
+	spin.Suffix = " Finding the closest tunnel region..."
+	spin.Start()
+
 	node, err := FindClosestNode()
 	if err != nil {
+		// If we fail to find the closest node, default to US East.
 		region := Regions[0]
 		n, _ := cryptorand.Intn(len(region.Nodes))
 		node = region.Nodes[n]
+		spin.Stop()
 		_, _ = fmt.Println("Error picking closest dev tunnel:", err)
 		_, _ = fmt.Println("Defaulting to", Regions[0].LocationName)
 	}
+
+	spin.Stop()
+	_, _ = fmt.Printf("Found closest tunnel region %s with latency %s.\n",
+		cliui.Styles.Keyword.Render(Regions[node.RegionID].LocationName),
+		cliui.Styles.Code.Render(node.AvgLatency.String()),
+	)
 
 	return Config{
 		Version:    1,
