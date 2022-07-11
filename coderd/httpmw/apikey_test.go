@@ -44,10 +44,26 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("NoCookieRedirects", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = databasefake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		httpmw.ExtractAPIKey(db, nil, true)(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		location, err := res.Location()
+		require.NoError(t, err)
+		require.NotEmpty(t, location.Query().Get("message"))
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
@@ -62,7 +78,7 @@ func TestAPIKey(t *testing.T) {
 			Value: "test-wow-hello",
 		})
 
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -80,7 +96,7 @@ func TestAPIKey(t *testing.T) {
 			Value: "test-wow",
 		})
 
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -98,7 +114,7 @@ func TestAPIKey(t *testing.T) {
 			Value: "testtestid-wow",
 		})
 
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -117,7 +133,7 @@ func TestAPIKey(t *testing.T) {
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -145,7 +161,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -172,7 +188,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -200,7 +216,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
 			httpapi.Write(rw, http.StatusOK, httpapi.Response{
@@ -238,7 +254,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
 			httpapi.Write(rw, http.StatusOK, httpapi.Response{
@@ -273,7 +289,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -308,7 +324,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -344,7 +360,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -391,7 +407,7 @@ func TestAPIKey(t *testing.T) {
 					return token, nil
 				}),
 			},
-		})(successHandler).ServeHTTP(rw, r)
+		}, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -428,7 +444,7 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
