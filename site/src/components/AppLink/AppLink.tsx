@@ -4,6 +4,11 @@ import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { generateRandomString } from "../../util/random"
+
+export const Language = {
+  appTitle: (appName: string, identifier: string): string => `${appName} - ${identifier}`,
+}
 
 export interface AppLinkProps {
   userName: TypesGen.User["username"]
@@ -23,7 +28,11 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
       className={styles.link}
       onClick={(event) => {
         event.preventDefault()
-        window.open(href, appName, "width=900,height=600")
+        window.open(
+          href,
+          Language.appTitle(appName, generateRandomString(12)),
+          "width=900,height=600",
+        )
       }}
     >
       <Button
