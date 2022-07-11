@@ -64,7 +64,7 @@ coder server --tunnel
 # Using a PostgreSQL instance and external access URL
 coder server --postgres-url <url> [--access-url <url>]
 
-# OR using embedded PostgreSQL (not recommended for production)
+# OR using embedded PostgreSQL
 coder server [--access-url <url>]
 ```
 
