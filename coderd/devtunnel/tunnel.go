@@ -3,7 +3,6 @@ package devtunnel
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -311,17 +310,4 @@ func writeConfig(cfg Config) error {
 	}
 
 	return nil
-}
-
-func encodeBase64ToHex(key string) string {
-	decoded, err := base64.StdEncoding.DecodeString(key)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(decoded) != 32 {
-		panic((xerrors.New("key should be 32 bytes: " + key)))
-	}
-
-	return hex.EncodeToString(decoded)
 }
