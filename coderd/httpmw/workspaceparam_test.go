@@ -97,7 +97,7 @@ func TestWorkspaceParam(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractWorkspaceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
