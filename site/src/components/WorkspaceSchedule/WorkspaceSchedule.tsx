@@ -54,16 +54,14 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
         </div>
         <div>
           <span className={styles.scheduleLabel}>{ScheduleLanguage.autoStartLabel}</span>
-          <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
+          <span className={styles.scheduleValue}>
             {autoStartDisplay(workspace.autostart_schedule)}
           </span>
         </div>
         <div>
           <span className={styles.scheduleLabel}>{ScheduleLanguage.autoStopLabel}</span>
           <Stack direction="row">
-            <span className={[styles.scheduleValue, "chromatic-ignore"].join(" ")}>
-              {autoStopDisplay(workspace)}
-            </span>
+            <span className={styles.scheduleValue}>{autoStopDisplay(workspace)}</span>
           </Stack>
         </div>
         {canUpdateWorkspace && (
