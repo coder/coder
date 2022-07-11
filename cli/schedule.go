@@ -103,10 +103,15 @@ func scheduleStart() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
-		Example:     `start my-workspace 9:30AM Mon-Fri Europe/Dublin`,
-		Short:       "Edit workspace start schedule",
-		Long:        scheduleStartDescriptionLong,
-		Args:        cobra.RangeArgs(2, 4),
+		Example: formatExamples(
+			example{
+				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
+				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
+			},
+		),
+		Short: "Edit workspace start schedule",
+		Long:  scheduleStartDescriptionLong,
+		Args:  cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -151,9 +156,13 @@ func scheduleStop() *cobra.Command {
 		Annotations: workspaceCommand,
 		Args:        cobra.ExactArgs(2),
 		Use:         "stop <workspace-name> { <duration> | manual }",
-		Example:     `stop my-workspace 2h30m`,
-		Short:       "Edit workspace stop schedule",
-		Long:        scheduleStopDescriptionLong,
+		Example: formatExamples(
+			example{
+				Command: "coder schedule stop my-workspace 2h30m",
+			},
+		),
+		Short: "Edit workspace stop schedule",
+		Long:  scheduleStopDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -194,9 +203,13 @@ func scheduleOverride() *cobra.Command {
 		Args:        cobra.ExactArgs(2),
 		Annotations: workspaceCommand,
 		Use:         "override-stop <workspace-name> <duration from now>",
-		Example:     "override-stop my-workspace 90m",
-		Short:       "Edit stop time of active workspace",
-		Long:        scheduleOverrideDescriptionLong,
+		Example: formatExamples(
+			example{
+				Command: "coder schedule override-stop my-workspace 90m",
+			},
+		),
+		Short: "Edit stop time of active workspace",
+		Long:  scheduleOverrideDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			overrideDuration, err := parseDuration(args[1])
 			if err != nil {
