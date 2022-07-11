@@ -20,7 +20,6 @@ func stop() *cobra.Command {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
 				IsConfirm: true,
-				Default:   "no",
 			})
 			if err != nil {
 				return err

@@ -28,7 +28,7 @@ func logout() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",
 				IsConfirm: true,
-				Default:   "no",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err

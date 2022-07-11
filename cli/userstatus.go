@@ -16,20 +16,17 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 	var pastVerb string
 	var aliases []string
 	var short string
-	var defaultConfirm string
 	switch sdkStatus {
 	case codersdk.UserStatusActive:
 		verb = "activate"
 		pastVerb = "activated"
 		aliases = []string{"active"}
 		short = "Update a user's status to 'active'. Active users can fully interact with the platform"
-		defaultConfirm = "yes"
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
 		aliases = []string{"rm", "delete"}
 		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
-		defaultConfirm = "no"
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
@@ -74,7 +71,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
-				Default:   defaultConfirm,
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err
