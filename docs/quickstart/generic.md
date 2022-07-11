@@ -35,7 +35,7 @@ deploying Coder (if you're using a temporary deployment and you opted to use
 Coder's tunnel, use the access URL you were provided). Log in with the admin
 credentials provided to you by Coder.
 
-![Coder Web UI with code-server](images/code-server.png)
+![Coder Web UI with code-server](../images/code-server.png)
 
 ## Modifying templates
 
