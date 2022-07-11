@@ -348,12 +348,12 @@ func usageTemplate() string {
 
 {{- if .HasAvailableLocalFlags}}
 {{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{.LocalFlags.FlagUsagesWrapped 100}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
 {{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{.InheritedFlags.FlagUsagesWrapped 100}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}
