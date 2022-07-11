@@ -124,7 +124,7 @@ require (
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.11
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
-	golang.zx2c4.com/wireguard v0.0.0-20220601130007-6a08d81f6bc4
+	golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-00010101000000-000000000000
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
 	google.golang.org/api v0.86.0
@@ -135,7 +135,7 @@ require (
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
-	tailscale.com v1.26.1
+	tailscale.com v1.26.2
 )
 
 require github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
