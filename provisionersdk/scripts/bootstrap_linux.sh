@@ -1,6 +1,10 @@
 #!/usr/bin/env sh
 set -eux pipefail
-trap 'echo === Agent script exited with non-zero code. Sleeping 24h to preserve logs... && sleep 86400' EXIT
+waitonexit() {
+	echo '=== Agent script exited with non-zero code. Sleeping 24h to preserve logs...'
+	sleep 86400
+}
+trap waitonexit EXIT
 BINARY_DIR=$(mktemp -d -t coder.XXXXXX)
 BINARY_NAME=coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
