@@ -41,6 +41,10 @@ replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.202204091
 
 replace golang.zx2c4.com/wireguard/tun/netstack => github.com/coder/wireguard-go/tun/netstack v0.0.0-20220614153727-d82b4ba8619f
 
+// yamux has some unsafe byte slice reads and writes that we fixed in out fork:
+// https://github.com/coder/yamux
+replace github.com/hashicorp/yamux => github.com/coder/yamux v0.0.0-20220711091626-ba57465c315e
+
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.7.0
