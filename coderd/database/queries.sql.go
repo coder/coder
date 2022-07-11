@@ -4058,7 +4058,7 @@ FROM
 	workspaces
 WHERE
 	template_id = ANY($1 :: uuid [ ])
-    -- Ignore deleted workspaces
+	-- Ignore deleted workspaces
 	AND deleted != true
 GROUP BY
 	template_id
