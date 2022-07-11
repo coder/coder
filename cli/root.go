@@ -101,12 +101,16 @@ func Root() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
 		},
-
-		Example: `  Start a Coder server.
-  ` + cliui.Styles.Code.Render("$ coder server") + `
-
-  Get started by creating a template from an example.
-  ` + cliui.Styles.Code.Render("$ coder templates init"),
+		Example: formatExamples(
+			example{
+				Description: "Start a Coder server",
+				Command:     "coder server",
+			},
+			example{
+				Description: "Get started by creating a template from an example",
+				Command:     "coder templates init",
+			},
+		),
 	}
 
 	cmd.AddCommand(
@@ -158,9 +162,8 @@ func Root() *cobra.Command {
 // versionCmd prints the coder version
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "version",
-		Short:   "Show coder version",
-		Example: "coder version",
+		Use:   "version",
+		Short: "Show coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var str strings.Builder
 			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
@@ -368,6 +371,34 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 {{end}}`
+}
+
+// example represents a standard example for command usage, to be used
+// with formatExamples.
+type example struct {
+	Description string
+	Command     string
+}
+
+// formatExamples formats the exampels as width wrapped bulletpoint
+// descriptions with the command underneath.
+func formatExamples(examples ...example) string {
+	wrap := cliui.Styles.Wrap.Copy()
+	wrap.PaddingLeft(4)
+	var sb strings.Builder
+	for i, e := range examples {
+		if len(e.Description) > 0 {
+			_, _ = sb.WriteString("  - " + wrap.Render(e.Description + ":")[4:] + "\n\n    ")
+		}
+		// We add 1 space here because `cliui.Styles.Code` adds an extra
+		// space. This makes the code block align at an even 2 or 6
+		// spaces for symmetry.
+		_, _ = sb.WriteString(" " + cliui.Styles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		if i < len(examples)-1 {
+			_, _ = sb.WriteString("\n\n")
+		}
+	}
+	return sb.String()
 }
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.

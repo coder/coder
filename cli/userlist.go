@@ -9,9 +9,7 @@ import (
 )
 
 func userList() *cobra.Command {
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -35,14 +33,16 @@ func userList() *cobra.Command {
 }
 
 func userSingle() *cobra.Command {
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
-		Use:     "show <username|user_id|'me'>",
-		Short:   "Show a single user. Use 'me' to indicate the currently authenticated user.",
-		Example: "coder users show me",
-		Args:    cobra.ExactArgs(1),
+		Use:   "show <username|user_id|'me'>",
+		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
+		Example: formatExamples(
+			example{
+				Command: "coder users show me",
+			},
+		),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
