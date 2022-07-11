@@ -41,8 +41,17 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
-		opts.Default = "yes"
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+Styles.Bold.Render("yes")+Styles.Placeholder.Render("/no) ")))
+		if len(opts.Default) == 0 {
+			opts.Default = "yes"
+		}
+		renderedYes := Styles.Placeholder.Render("yes")
+		renderedNo := Styles.Placeholder.Render("no")
+		if opts.Default == "yes" {
+			renderedYes = Styles.Bold.Render("yes")
+		} else {
+			renderedNo = Styles.Bold.Render("no")
+		}
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
 	} else if opts.Default != "" {
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
 	}
