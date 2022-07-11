@@ -24,7 +24,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("Consumes $%s", env))
 	})
 
 	t.Run("StringEnvVar", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("Consumes $%s", env))
 	})
 
 	t.Run("StringVarPEnvVar", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.NotContains(t, flagset.FlagUsages(), " - consumes")
+		require.NotContains(t, flagset.FlagUsages(), "Consumes")
 	})
 
 	t.Run("StringArrayDefault", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint8(def), got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("Consumes $%s", env))
 	})
 
 	t.Run("IntEnvVar", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("Consumes $%s", env))
 	})
 
 	t.Run("BoolEnvVar", func(t *testing.T) {
@@ -195,7 +195,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("Consumes $%s", env))
 	})
 
 	t.Run("DurationEnvVar", func(t *testing.T) {
