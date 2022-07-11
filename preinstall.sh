@@ -3,8 +3,12 @@ set -eu
 
 USER="coder"
 
-# Add a Coder user to run as in systemd.
-if ! id -u $USER >/dev/null 2>&1; then
+if id -u $USER >/dev/null 2>&1; then
+	# If the coder user already exists, we don't need to add it.
+	exit 0
+fi
+
+if command -V useradd >/dev/null 2>&1; then
 	useradd \
 		--create-home \
 		--system \
@@ -12,13 +16,14 @@ if ! id -u $USER >/dev/null 2>&1; then
 		--shell /bin/false \
 		$USER
 
-	# Add the Coder user to the Docker group.
-	# Coder is frequently used with Docker, so
-	# this prevents failures when building.
-	#
-	# It's fine if this fails!
 	usermod \
 		--append \
 		--groups docker \
-		$USER 2>/dev/null || true
+		$USER >/dev/null 2>&1 || true
+elif command -V adduser >/dev/null 2>&1; then
+	# On alpine distributions useradd does not exist.
+	# This is a backup!
+	addgroup -S $USER
+	adduser -G coder -S coder
+	adduser coder docker >/dev/null 2>&1 || true
 fi
