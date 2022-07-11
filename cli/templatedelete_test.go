@@ -28,8 +28,21 @@ func TestTemplateDelete(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		cmd, root := clitest.New(t, "templates", "delete", template.Name)
+
 		clitest.SetupConfig(t, client, root)
-		require.NoError(t, cmd.Execute())
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(template.Name)))
+		pty.WriteLine("yes")
+
+		require.NoError(t, <-execDone)
 
 		_, err := client.Template(context.Background(), template.ID)
 		require.Error(t, err, "template should not exist")
@@ -93,12 +106,12 @@ func TestTemplateDelete(t *testing.T) {
 		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))))
 		pty.WriteLine("yes")
 
+		require.NoError(t, <-execDone)
+
 		for _, template := range templates {
 			_, err := client.Template(context.Background(), template.ID)
 			require.Error(t, err, "template should not exist")
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("Selector", func(t *testing.T) {
@@ -122,7 +135,7 @@ func TestTemplateDelete(t *testing.T) {
 			execDone <- cmd.Execute()
 		}()
 
-		pty.WriteLine("docker-local")
+		pty.WriteLine("yes")
 		require.NoError(t, <-execDone)
 
 		_, err := client.Template(context.Background(), template.ID)
