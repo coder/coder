@@ -280,7 +280,7 @@ func cspHeaders(next http.Handler) http.Handler {
 			// https: allows loading images from external sources. This is not ideal
 			// 	but is required for the templates page that renders readmes.
 			//	We should find a better solution in the future.
-			CSPDirectiveImgSrc:     {"'self' data:"},
+			CSPDirectiveImgSrc:     {"'self' https: data:"},
 			CSPDirectiveFormAction: {"'self'"},
 			CSPDirectiveMediaSrc:   {"'self'"},
 			// Report all violations back to the server to log

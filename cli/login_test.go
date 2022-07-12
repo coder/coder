@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/pty/ptytest"
 )
@@ -92,7 +93,7 @@ func TestLogin(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := root.ExecuteContext(ctx)
-			assert.ErrorIs(t, err, context.Canceled)
+			assert.NoError(t, err)
 		}()
 
 		matches := []string{
@@ -108,9 +109,15 @@ func TestLogin(t *testing.T) {
 			pty.ExpectMatch(match)
 			pty.WriteLine(value)
 		}
+
+		// Validate that we reprompt for matching passwords.
 		pty.ExpectMatch("Passwords do not match")
-		pty.ExpectMatch("password") // Re-prompt password.
-		cancel()
+		pty.ExpectMatch("Enter a " + cliui.Styles.Field.Render("password"))
+
+		pty.WriteLine("pass")
+		pty.ExpectMatch("Confirm")
+		pty.WriteLine("pass")
+		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
 

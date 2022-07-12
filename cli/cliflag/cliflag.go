@@ -47,7 +47,7 @@ func StringArrayVarP(flagset *pflag.FlagSet, ptr *[]string, name string, shortha
 			def = strings.Split(val, ",")
 		}
 	}
-	flagset.StringArrayVarP(ptr, name, shorthand, def, usage)
+	flagset.StringArrayVarP(ptr, name, shorthand, def, fmtUsage(usage, env))
 }
 
 // Uint8VarP sets a uint8 flag on the given flag set.
@@ -102,9 +102,14 @@ func DurationVarP(flagset *pflag.FlagSet, ptr *time.Duration, name string, short
 }
 
 func fmtUsage(u string, env string) string {
-	if env == "" {
-		return fmt.Sprintf("%s.", u)
+	if env != "" {
+		// Avoid double dotting.
+		dot := "."
+		if strings.HasSuffix(u, ".") {
+			dot = ""
+		}
+		u = fmt.Sprintf("%s%s\nConsumes $%s", u, dot, env)
 	}
 
-	return fmt.Sprintf("%s - consumes $%s.", u, env)
+	return u
 }

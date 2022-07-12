@@ -229,6 +229,7 @@ func TestTemplateCreate(t *testing.T) {
 				"templates",
 				"delete",
 				"my-template",
+				"--yes",
 			}
 			cmd, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)

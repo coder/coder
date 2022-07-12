@@ -30,7 +30,7 @@ To access Coder via SSH, run the following in the terminal:
 coder config-ssh
 ```
 
-> Run `coder config-ssh --diff` if you'd like to see the changes that will be
+> Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
 > made before proceeding.
 
 Confirm that you want to continue by typing **yes** and pressing enter. If

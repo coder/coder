@@ -141,15 +141,16 @@ func configSSH() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Populate your SSH config with Host entries for all of your workspaces",
-		Example: `
-  - You can use -o (or --ssh-option) so set SSH options to be used for all your
-    workspaces.
-
-    ` + cliui.Styles.Code.Render("$ coder config-ssh -o ForwardAgent=yes") + `
-
-  - You can use --dry-run (or -n) to see the changes that would be made.
-
-    ` + cliui.Styles.Code.Render("$ coder config-ssh --dry-run"),
+		Example: formatExamples(
+			example{
+				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
+				Command:     "coder config-ssh -o ForwardAgent=yes",
+			},
+			example{
+				Description: "You can use --dry-run (or -n) to see the changes that would be made",
+				Command:     "coder config-ssh --dry-run",
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

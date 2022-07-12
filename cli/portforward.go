@@ -29,30 +29,31 @@ func portForward() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     "port-forward <workspace>",
+		Short:   "Forward one or more ports from the local machine to the remote workspace",
 		Aliases: []string{"tunnel"},
 		Args:    cobra.ExactArgs(1),
-		Example: `
-  - Port forward a single TCP port from 1234 in the workspace to port 5678 on
-    your local machine
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 5678:1234") + `
-
-  - Port forward a single UDP port from port 9000 to port 9000 on your local
-    machine
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --udp 9000") + `
-
-  - Forward a Unix socket in the workspace to a local Unix socket
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --unix ./local.sock:~/remote.sock") + `
-
-  - Forward a Unix socket in the workspace to a local TCP port
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --unix 8080:~/remote.sock") + `
-
-  - Port forward multiple TCP ports and a UDP port
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53"),
+		Example: formatExamples(
+			example{
+				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
+				Command:     "coder port-forward <workspace> --tcp 5678:1234",
+			},
+			example{
+				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine",
+				Command:     "coder port-forward <workspace> --udp 9000",
+			},
+			example{
+				Description: "Forward a Unix socket in the workspace to a local Unix socket",
+				Command:     "coder port-forward <workspace> --unix ./local.sock:~/remote.sock",
+			},
+			example{
+				Description: "Forward a Unix socket in the workspace to a local TCP port",
+				Command:     "coder port-forward <workspace> --unix 8080:~/remote.sock",
+			},
+			example{
+				Description: "Port forward multiple TCP ports and a UDP port",
+				Command:     "coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53",
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			specs, err := parsePortForwards(tcpForwards, udpForwards, unixForwards)
 			if err != nil {

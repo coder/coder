@@ -66,9 +66,23 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "dev" {
-  arch = var.step2_arch
-  os   = "linux"
+  arch           = var.step2_arch
+  os             = "linux"
+  startup_script = <<EOF
+    #!/bin/sh
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh
+    code-server --auth none --port 13337
+    EOF
 }
+
+resource "coder_app" "code-server" {
+  agent_id = coder_agent.dev.id
+  name     = "code-server"
+  url      = "http://localhost:13337/?folder=/home/coder"
+  icon     = "/icon/code.svg"
+}
+
 
 variable "docker_image" {
   description = "Which Docker image would you like to use for your workspace?"
@@ -83,7 +97,7 @@ variable "docker_image" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
 }
 
 resource "docker_container" "workspace" {
@@ -95,8 +109,14 @@ resource "docker_container" "workspace" {
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
-  command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  command = [
+    "sh", "-c",
+    <<EOT
+    trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
+    ${replace(coder_agent.dev.init_script, "localhost", "host.docker.internal")}
+    EOT
+  ]
+  env = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

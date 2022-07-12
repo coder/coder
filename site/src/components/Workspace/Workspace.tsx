@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import React, { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -9,8 +9,8 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
+import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -58,16 +58,23 @@ export const Workspace: FC<WorkspaceProps> = ({
   return (
     <Margins>
       <PageHeader
-        className={styles.header}
         actions={
-          <WorkspaceActions
-            workspace={workspace}
-            handleStart={handleStart}
-            handleStop={handleStop}
-            handleDelete={handleDelete}
-            handleUpdate={handleUpdate}
-            handleCancel={handleCancel}
-          />
+          <Stack direction="row" spacing={1}>
+            <WorkspaceScheduleButton
+              workspace={workspace}
+              onDeadlineMinus={scheduleProps.onDeadlineMinus}
+              onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              canUpdateWorkspace={canUpdateWorkspace}
+            />
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleDelete={handleDelete}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+            />
+          </Stack>
         }
       >
         <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
@@ -102,14 +109,6 @@ export const Workspace: FC<WorkspaceProps> = ({
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
         </Stack>
-
-        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}>
-          <WorkspaceSchedule
-            workspace={workspace}
-            onDeadlineMinus={scheduleProps.onDeadlineMinus}
-            onDeadlinePlus={scheduleProps.onDeadlinePlus}
-          />
-        </Stack>
       </Stack>
     </Margins>
   )
@@ -124,10 +123,6 @@ export const useStyles = makeStyles((theme) => {
     },
     secondColumnSpacer: {
       flex: `0 0 ${spacerWidth}px`,
-    },
-    header: {
-      // 100% - (the size of sidebar + the space between both )
-      maxWidth: `calc(100% - (${spacerWidth}px + ${theme.spacing(3)}px))`,
     },
     layout: {
       alignItems: "flex-start",

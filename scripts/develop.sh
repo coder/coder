@@ -29,7 +29,7 @@ if [[ ! -e ./site/out/bin/coder.sha1 && ! -e ./site/out/bin/coder.tar.zst ]]; th
 fi
 
 # Compile the CLI binary once just so we don't waste time compiling things multiple times
-go build -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/cmd/coder"
+go build -tags embed -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/cmd/coder"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
