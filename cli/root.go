@@ -335,7 +335,7 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- $hasRootAnnotations := (and $isRootHelp (eq (len .Annotations) 0))}}
+    {{- $hasRootAnnotations := (and $isRootHelp (gt (len .Annotations) 0))}}
     {{- if (or (and .IsAvailableCommand (not $hasRootAnnotations)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
