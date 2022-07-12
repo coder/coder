@@ -21,9 +21,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
-const SessionTokenKey = "session_token"
-
 type apiKeyContextKey struct{}
 
 // APIKey returns the API key from the ExtractAPIKey handler.
@@ -78,15 +75,15 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 
 			var cookieValue string
-			cookie, err := r.Cookie(SessionTokenKey)
+			cookie, err := r.Cookie(codersdk.SessionTokenKey)
 			if err != nil {
-				cookieValue = r.URL.Query().Get(SessionTokenKey)
+				cookieValue = r.URL.Query().Get(codersdk.SessionTokenKey)
 			} else {
 				cookieValue = cookie.Value
 			}
 			if cookieValue == "" {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q or query parameter must be provided.", SessionTokenKey),
+					Message: fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -94,7 +91,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key format.", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key format.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -103,13 +100,13 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key id.", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key id.", codersdk.SessionTokenKey),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key secret.", SessionTokenKey),
+					Message: fmt.Sprintf("Invalid %q cookie API key secret.", codersdk.SessionTokenKey),
 				})
 				return
 			}

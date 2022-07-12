@@ -75,7 +75,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "test-wow-hello",
 		})
 
@@ -93,7 +93,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "test-wow",
 		})
 
@@ -111,7 +111,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "testtestid-wow",
 		})
 
@@ -130,7 +130,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -150,7 +150,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -179,7 +179,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -206,7 +206,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -245,7 +245,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		q := r.URL.Query()
-		q.Add(httpmw.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
+		q.Add(codersdk.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
 		r.URL.RawQuery = q.Encode()
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
@@ -278,7 +278,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -313,7 +313,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -348,7 +348,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -384,7 +384,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -433,7 +433,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.RemoteAddr = "1.1.1.1:3555"
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
