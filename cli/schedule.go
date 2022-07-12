@@ -17,12 +17,6 @@ import (
 )
 
 const (
-	scheduleDescriptionLong = `Modify scheduled stop and start times for your workspace:
-  * schedule show: show workspace schedule
-  * schedule start: edit workspace start schedule
-  * schedule stop: edit workspace stop schedule
-  * schedule override-stop: edit stop time of active workspace
-`
 	scheduleShowDescriptionLong = `Shows the following information for the given workspace:
   * The automatic start schedule
   * The next scheduled start time
@@ -64,7 +58,6 @@ func schedules() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Modify scheduled stop and start times for your workspace",
-		Long:        scheduleDescriptionLong,
 	}
 
 	scheduleCmd.AddCommand(
