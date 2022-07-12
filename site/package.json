@@ -80,7 +80,7 @@
     "@types/uuid": "8.3.4",
     "@typescript-eslint/eslint-plugin": "5.27.0",
     "@typescript-eslint/parser": "5.30.6",
-    "@xstate/cli": "0.1.7",
+    "@xstate/cli": "0.2.1",
     "chromatic": "6.5.4",
     "copy-webpack-plugin": "10.2.4",
     "css-loader": "6.7.1",
