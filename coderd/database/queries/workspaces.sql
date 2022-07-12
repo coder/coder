@@ -83,6 +83,8 @@ FROM
 	workspaces
 WHERE
 	template_id = ANY(@ids :: uuid [ ])
+	-- Ignore deleted workspaces
+	AND deleted != true
 GROUP BY
 	template_id;
 
