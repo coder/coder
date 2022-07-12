@@ -14,9 +14,6 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // Required until https://github.com/briandowns/spinner/pull/136 is merged.
 replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e
 
-// Required until https://github.com/storj/drpc/pull/31 is merged.
-replace storj.io/drpc => github.com/kylecarbs/drpc v0.0.31-0.20220424193521-8ebbaf48bdff
-
 // Required until https://github.com/fergusstrange/embedded-postgres/pull/75 is merged.
 replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embedded-postgres v1.17.1-0.20220615202325-461532cecd3a
 
@@ -138,7 +135,7 @@ require (
 	inet.af/netaddr v0.0.0-20220617031823-097006376321
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.30
+	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
 	tailscale.com v1.26.2
 )
 
@@ -271,7 +268,7 @@ require (
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
 	github.com/yuin/goldmark v1.4.12 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
-	github.com/zeebo/errs v1.2.2 // indirect
+	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel v1.8.0
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.8.0 // indirect
