@@ -53,7 +53,7 @@
     "tzdata": "1.0.30",
     "uuid": "8.3.2",
     "xstate": "4.32.1",
-    "xterm": "4.18.0",
+    "xterm": "4.19.0",
     "xterm-addon-fit": "0.5.0",
     "xterm-addon-web-links": "0.6.0",
     "xterm-addon-webgl": "0.11.4",
@@ -92,7 +92,7 @@
     "eslint-plugin-compat": "4.0.2",
     "eslint-plugin-import": "2.26.0",
     "eslint-plugin-jest": "26.5.3",
-    "eslint-plugin-jsx-a11y": "6.5.1",
+    "eslint-plugin-jsx-a11y": "6.6.0",
     "eslint-plugin-no-storage": "1.0.2",
     "eslint-plugin-react": "7.30.0",
     "eslint-plugin-react-hooks": "4.6.0",
@@ -115,7 +115,7 @@
     "typescript": "4.6.4",
     "webpack": "5.72.0",
     "webpack-bundle-analyzer": "4.5.0",
-    "webpack-cli": "4.9.2",
+    "webpack-cli": "4.10.0",
     "webpack-dev-server": "4.9.0"
   },
   "browserslist": [
