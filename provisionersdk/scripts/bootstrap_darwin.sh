@@ -15,12 +15,12 @@ cd "$BINARY_DIR"
 # Attempt to download the coder agent.
 # This could fail for a number of reasons, many of which are likely transient.
 # So just keep trying!
-while true; do
+while :; do
 	curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_NAME}" && break
 	status=$?
 	echo "error: failed to download coder agent using curl"
 	echo "curl exit code: ${status}"
-	echo "trying again in 30 seconds..."
+	echo "Trying again in 30 seconds..."
 	sleep 30
 done
 

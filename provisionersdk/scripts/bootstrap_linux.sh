@@ -15,30 +15,26 @@ cd "$BINARY_DIR"
 # Attempt to download the coder agent.
 # This could fail for a number of reasons, many of which are likely transient.
 # So just keep trying!
-while true; do
+while :; do
 	# Try a number of different download tools, as we don't know what we'll
 	# have available
+	status=""
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_NAME}" && break
 		status=$?
-		echo "error: failed to download coder agent using curl"
-		echo "curl exit code: ${status}"
 	elif command -v wget >/dev/null 2>&1; then
 		wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
 		status=$?
-		test "${status}" -eq 0 && break
-		echo "error: failed to download coder agent using wget"
-		echo "wget exit code: ${status}"
 	elif command -v busybox >/dev/null 2>&1; then
 		busybox wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
-		test "${status}" -eq 0 && break
-		echo "error: failed to download coder agent using busybox wget"
-		echo "busybox wget exit code: ${status}"
+		status=$?
 	else
 		echo "error: no download tool found, please install curl, wget or busybox wget"
 		exit 127
 	fi
-	echo "trying again in 30 seconds..."
+	echo "error: failed to download coder agent"
+	echo "       command returned: ${status}"
+	echo "Trying again in 30 seconds..."
 	sleep 30
 done
 

@@ -1,3 +1,12 @@
+# Sleep for a while in case the underlyine provider deletes the resource on error.
+trap {
+	Write-Error '=== Agent script exited with non-zero code. Sleeping 24h to preserve logs...'
+	Start-Sleep -Seconds 86400
+}
+
+# Attempt to download the coder agent.
+# This could fail for a number of reasons, many of which are likely transient.
+# So just keep trying!
 while ($true) {
 	try {
 		$ProgressPreference = "SilentlyContinue"
@@ -5,19 +14,19 @@ while ($true) {
 		# executing shell to be named "sshd", otherwise it fails. See:
 		# https://github.com/microsoft/vscode-remote-release/issues/5699
 		$BINARY_URL="${ACCESS_URL}/bin/coder-windows-${ARCH}.exe"
+		Write-Output "Fetching coder agent from ${BINARY_URL}"
 		Invoke-WebRequest -Uri "${BINARY_URL}" -OutFile $env:TEMP\sshd.exe
-		Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
-		$env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
-		$env:CODER_AGENT_URL = "${ACCESS_URL}"
-		Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
-	} catch [System.Net.WebException],[System.IO.IOException] {
-		Write-Error "error: failed to download coder agent from ${ACCESS_URL}"
-		Write-Error $_.ScriptStackTrace
+		break
 	} catch {
-		Write-Error "error: unhandled exception fetching and starting coder agent:"
-		Write-Error $_.ScriptStackTrace
-	} finally {
+		Write-Output "error: unhandled exception fetching coder agent:"
+		Write-Output $_
 		Write-Output "trying again in 30 seconds..."
 		Start-Sleep -Seconds 30
 	}
 }
+
+# If the below fails, retrying probably won't help.
+Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
+$env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
+$env:CODER_AGENT_URL = "${ACCESS_URL}"
+Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
