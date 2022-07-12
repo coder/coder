@@ -41,6 +41,7 @@ const (
 	varGlobalConfig    = "global-config"
 	varNoOpen          = "no-open"
 	varForceTty        = "force-tty"
+	varVerbose         = "verbose"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	noVersionCheckFlag = "no-version-warning"
@@ -152,6 +153,7 @@ func Root() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
+	cliflag.String(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", "", "Enable verbose output")
 
 	return cmd
 }
@@ -427,7 +429,23 @@ func formatExamples(examples ...example) string {
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
 func FormatCobraError(err error, cmd *cobra.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
-	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
+
+	var (
+		httpErr *codersdk.Error
+		output  strings.Builder
+	)
+
+	if xerrors.As(err, &httpErr) {
+		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
+	}
+
+	if flag := cmd.Flag(varVerbose); flag != nil && flag.Value.String() != "" {
+		_, _ = fmt.Fprintln(&output, err.Error())
+	}
+
+	_, _ = fmt.Fprint(&output, helpErrMsg)
+
+	return cliui.Styles.Error.Render(output.String())
 }
 
 func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {

@@ -17,8 +17,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+func IsSet(cmd *cobra.Command, name string) (string, bool) {
+	flag := cmd.Flag(name)
+	if flag == nil {
+		return "", false
+	}
+
+	return flag.Value.String(), flag.Changed
+}
 
 // String sets a string flag on the given flag set.
 func String(flagset *pflag.FlagSet, name, shorthand, env, def, usage string) {
