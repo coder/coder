@@ -49,7 +49,7 @@ func TestUserList(t *testing.T) {
 
 		_, err := cmd.ExecuteC()
 
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 
 	"cdr.dev/slog"
 )
@@ -22,7 +23,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	err := dec.Decode(&v)
 	if err != nil {
 		api.Logger.Warn(ctx, "csp violation", slog.Error(err))
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read body, invalid json.",
 			Detail:  err.Error(),
 		})

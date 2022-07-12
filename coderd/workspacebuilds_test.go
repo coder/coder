@@ -67,7 +67,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 			workspace.Name,
 			"buildNumber",
 		)
-		var apiError *codersdk.Error
+		var apiError *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
 		require.ErrorContains(t, apiError, "Failed to parse build number as integer.")
@@ -89,7 +89,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 			"workspaceName",
 			strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		)
-		var apiError *codersdk.Error
+		var apiError *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
 		require.ErrorContains(t, apiError, "Resource not found")
@@ -111,7 +111,7 @@ func TestWorkspaceBuildByBuildNumber(t *testing.T) {
 			workspace.Name,
 			"200",
 		)
-		var apiError *codersdk.Error
+		var apiError *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
 		require.ErrorContains(t, apiError, fmt.Sprintf("Workspace %q Build 200 does not exist.", workspace.Name))
@@ -156,7 +156,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 				AfterID: uuid.New(),
 			},
 		})
-		var apiError *codersdk.Error
+		var apiError *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
 		require.Contains(t, apiError.Message, "does not exist")
@@ -246,7 +246,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})

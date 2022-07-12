@@ -48,7 +48,7 @@ func TestDownload(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_, _, err := client.Download(context.Background(), "something")
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})

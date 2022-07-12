@@ -49,7 +49,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	oauthClient := oauth2.NewClient(r.Context(), oauth2.StaticTokenSource(state.Token))
 	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(r.Context(), oauthClient)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching authenticated Github user organizations.",
 			Detail:  err.Error(),
 		})
@@ -66,7 +66,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if selectedMembership == nil {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "You aren't a member of the authorized Github organizations!",
 		})
 		return
@@ -76,7 +76,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	if len(api.GithubOAuth2Config.AllowTeams) > 0 {
 		teams, err := api.GithubOAuth2Config.ListTeams(r.Context(), oauthClient, *selectedMembership.Organization.Login)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to fetch teams from GitHub.",
 				Detail:  err.Error(),
 			})
@@ -100,7 +100,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if allowedTeam == nil {
-			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 				Message: fmt.Sprintf("You aren't a member of an authorized team in the %s Github organization!", *selectedMembership.Organization.Login),
 			})
 			return
@@ -109,7 +109,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	emails, err := api.GithubOAuth2Config.ListEmails(r.Context(), oauthClient)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
 		})
@@ -130,14 +130,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Internal error fetching user by email %q.", *email.Email),
 				Detail:  err.Error(),
 			})
 			return
 		}
 		if !*email.Verified {
-			httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Verify the %q email address on Github to authenticate!", *email.Email),
 			})
 			return
@@ -148,7 +148,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	// If the user doesn't exist, create a new one!
 	if user.ID == uuid.Nil {
 		if !api.GithubOAuth2Config.AllowSignups {
-			httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
 				Message: "Signups are disabled for Github authentication!",
 			})
 			return
@@ -164,7 +164,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 		ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching authenticated Github user.",
 				Detail:  err.Error(),
 			})
@@ -179,7 +179,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if verifiedEmail == nil {
-			httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+			httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
 				Message: "Your primary email must be verified on GitHub!",
 			})
 			return
@@ -190,7 +190,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID: organizationID,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error creating user.",
 				Detail:  err.Error(),
 			})

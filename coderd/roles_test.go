@@ -190,7 +190,7 @@ func TestListRoles(t *testing.T) {
 			t.Parallel()
 			roles, err := c.APICall()
 			if c.AuthorizedError != "" {
-				var apiErr *codersdk.Error
+				var apiErr *codersdk.HTTPError
 				require.ErrorAs(t, err, &apiErr)
 				require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 				require.Contains(t, apiErr.Message, c.AuthorizedError)

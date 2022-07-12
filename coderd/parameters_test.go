@@ -26,7 +26,7 @@ func TestPostParameter(t *testing.T) {
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
@@ -64,7 +64,7 @@ func TestPostParameter(t *testing.T) {
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -106,7 +106,7 @@ func TestDeleteParameter(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
 		err := client.DeleteParameter(context.Background(), codersdk.ParameterTemplate, template.ID, "something")
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})

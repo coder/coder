@@ -23,7 +23,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	if apiKey.UserID == member.UserID {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 		})
 		return
@@ -58,7 +58,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		OrgID:        organization.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),
 		})
 		return

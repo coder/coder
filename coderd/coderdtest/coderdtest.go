@@ -278,7 +278,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	}
 
 	user, err := client.CreateUser(context.Background(), req)
-	var apiError *codersdk.Error
+	var apiError *codersdk.HTTPError
 	// If the user already exists by username or email conflict, try again up to "retries" times.
 	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {

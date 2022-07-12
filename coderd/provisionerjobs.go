@@ -33,7 +33,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
 	if beforeRaw != "" && follow {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query param \"before\" cannot be used with \"follow\".",
 		})
 		return
@@ -46,7 +46,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	if follow {
 		bl, closeFollow, err := api.followLogs(job.ID)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error watching provisioner logs.",
 				Detail:  err.Error(),
 			})
@@ -62,7 +62,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		// avoid this, but not worth it for one fewer query at this point.
 		job, err = api.Database.GetProvisionerJobByID(r.Context(), job.ID)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error querying job.",
 				Detail:  err.Error(),
 			})
@@ -75,9 +75,9 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	if afterRaw != "" {
 		afterMS, err := strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query param \"after\" must be an integer.",
-				Validations: []httpapi.Error{
+				Validations: []codersdk.Error{
 					{Field: "after", Detail: "Must be an integer"},
 				},
 			})
@@ -94,9 +94,9 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	if beforeRaw != "" {
 		beforeMS, err := strconv.ParseInt(beforeRaw, 10, 64)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query param \"before\" must be an integer.",
-				Validations: []httpapi.Error{
+				Validations: []codersdk.Error{
 					{Field: "before", Detail: "Must be an integer"},
 				},
 			})
@@ -119,7 +119,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner logs.",
 			Detail:  err.Error(),
 		})
@@ -141,7 +141,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	defer api.websocketWaitGroup.Done()
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
@@ -195,7 +195,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 
 func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -205,7 +205,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching job resources.",
 			Detail:  err.Error(),
 		})
@@ -220,7 +220,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent.",
 			Detail:  err.Error(),
 		})
@@ -235,7 +235,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace applications.",
 			Detail:  err.Error(),
 		})
@@ -258,7 +258,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 
 			apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error reading job agent.",
 					Detail:  err.Error(),
 				})

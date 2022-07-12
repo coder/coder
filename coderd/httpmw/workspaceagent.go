@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type workspaceAgentContextKey struct{}
@@ -30,14 +31,14 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(SessionTokenKey)
 			if err != nil {
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("Cookie %q must be provided.", SessionTokenKey),
 				})
 				return
 			}
 			token, err := uuid.Parse(cookie.Value)
 			if err != nil {
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 					Message: "Agent token is invalid.",
 				})
 				return
@@ -45,13 +46,13 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 						Message: "Agent token is invalid.",
 					})
 					return
 				}
 
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})

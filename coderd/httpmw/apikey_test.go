@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -32,7 +33,7 @@ func TestAPIKey(t *testing.T) {
 
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
-		httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		httpapi.Write(rw, http.StatusOK, codersdk.Response{
 			Message: "It worked!",
 		})
 	})
@@ -219,7 +220,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)
@@ -257,7 +258,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)

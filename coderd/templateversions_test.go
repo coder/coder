@@ -41,7 +41,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			StorageSource: "hash",
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -55,7 +55,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			StorageSource: "hash",
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -96,7 +96,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -122,7 +122,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		err = client.CancelTemplateVersion(context.Background(), version.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -164,7 +164,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_, err := client.TemplateVersionSchema(context.Background(), version.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -232,7 +232,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_, err := client.TemplateVersionParameters(context.Background(), version.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -277,7 +277,7 @@ func TestTemplateVersionResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_, err := client.TemplateVersionResources(context.Background(), version.ID)
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -388,7 +388,7 @@ func TestTemplateVersionByName(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_, err := client.TemplateVersionByName(context.Background(), template.ID, "nothing")
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -415,7 +415,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: uuid.New(),
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -430,7 +430,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version.ID,
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -543,7 +543,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 			ParameterValues: []codersdk.CreateParameterRequest{},
 		})
-		var apiErr *codersdk.Error
+		var apiErr *codersdk.HTTPError
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -625,7 +625,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			}, 5*time.Second, 25*time.Millisecond)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
-			var apiErr *codersdk.Error
+			var apiErr *codersdk.HTTPError
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 		})
@@ -666,7 +666,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			require.NoError(t, err)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
-			var apiErr *codersdk.Error
+			var apiErr *codersdk.HTTPError
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 		})

@@ -110,7 +110,7 @@ func TestPagination(t *testing.T) {
 			} else {
 				require.False(t, ok, "expect !ok")
 				require.Equal(t, http.StatusBadRequest, rw.Code, "bad request status code")
-				var apiError codersdk.Error
+				var apiError codersdk.HTTPError
 				err := json.NewDecoder(rw.Body).Decode(&apiError)
 				require.NoError(t, err, "decode response")
 				require.Contains(t, apiError.Message, c.ExpectedError, "expected error")
