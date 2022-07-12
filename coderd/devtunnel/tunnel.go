@@ -280,7 +280,7 @@ func GenerateConfig() (Config, error) {
 	}
 
 	spin.Stop()
-	_, _ = fmt.Printf("Found closest tunnel region %s with latency %s.\n",
+	_, _ = fmt.Printf("Using tunnel in %s with latency %s.\n",
 		cliui.Styles.Keyword.Render(Regions[node.RegionID].LocationName),
 		cliui.Styles.Code.Render(node.AvgLatency.String()),
 	)
