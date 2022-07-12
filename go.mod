@@ -43,7 +43,7 @@ replace golang.zx2c4.com/wireguard/tun/netstack => github.com/coder/wireguard-go
 
 // yamux has some unsafe byte slice reads and writes that we fixed in out fork:
 // https://github.com/coder/yamux
-replace github.com/hashicorp/yamux => github.com/coder/yamux v0.0.0-20220711091626-ba57465c315e
+replace github.com/hashicorp/yamux => github.com/coder/yamux v0.0.0-20220712174024-7bf120a2ce53
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
