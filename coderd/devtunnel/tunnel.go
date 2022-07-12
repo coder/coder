@@ -3,11 +3,9 @@ package devtunnel
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -15,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/briandowns/spinner"
 	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -23,14 +21,8 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cryptorand"
-)
-
-var (
-	v0EndpointHTTPS = "wg-tunnel.coder.app"
-
-	v0ServerPublicKey = "+KNSMwed/IlqoesvTMSBNsHFaKVLrmmaCkn0bxIhUg0="
-	v0ServerIP        = netip.AddrFrom16(uuid.MustParse("fcad0000-0000-4000-8000-000000000001"))
 )
 
 type Tunnel struct {
@@ -40,7 +32,6 @@ type Tunnel struct {
 
 type Config struct {
 	Version    int                    `json:"version"`
-	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"private_key"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
@@ -48,7 +39,6 @@ type Config struct {
 }
 type configExt struct {
 	Version    int                    `json:"-"`
-	ID         uuid.UUID              `json:"id"`
 	PrivateKey device.NoisePrivateKey `json:"-"`
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
@@ -146,7 +136,7 @@ func startUpdateRoutine(ctx context.Context, logger slog.Logger, cfg Config) (Se
 	endCh := make(chan struct{})
 	go func() {
 		defer close(endCh)
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -179,22 +169,9 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 		return ServerResponse{}, xerrors.Errorf("marshal config: %w", err)
 	}
 
-	var req *http.Request
-	switch cfg.Version {
-	case 0:
-		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+v0EndpointHTTPS+"/tun", bytes.NewReader(raw))
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
-		}
-
-	case 1:
-		req, err = http.NewRequestWithContext(ctx, "POST", "https://"+cfg.Tunnel.HostnameHTTPS+"/tun", bytes.NewReader(raw))
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("new request: %w", err)
-		}
-
-	default:
-		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+cfg.Tunnel.HostnameHTTPS+"/tun", bytes.NewReader(raw))
+	if err != nil {
+		return ServerResponse{}, xerrors.Errorf("new request: %w", err)
 	}
 
 	res, err := http.DefaultClient.Do(req)
@@ -204,23 +181,9 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 	defer res.Body.Close()
 
 	var resp ServerResponse
-	switch cfg.Version {
-	case 0:
-		_, _ = io.Copy(io.Discard, res.Body)
-		resp.Hostname = fmt.Sprintf("%s.%s", cfg.ID, v0EndpointHTTPS)
-		resp.ServerIP = v0ServerIP
-		resp.ServerPublicKey = encodeBase64ToHex(v0ServerPublicKey)
-		resp.ClientIP = netip.AddrFrom16(cfg.ID)
-
-	case 1:
-		err := json.NewDecoder(res.Body).Decode(&resp)
-		if err != nil {
-			return ServerResponse{}, xerrors.Errorf("decode response: %w", err)
-		}
-
-	default:
-		_, _ = io.Copy(io.Discard, res.Body)
-		return ServerResponse{}, xerrors.Errorf("unknown config version: %d", cfg.Version)
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return ServerResponse{}, xerrors.Errorf("decode response: %w", err)
 	}
 
 	return resp, nil
@@ -273,12 +236,22 @@ func readOrGenerateConfig() (Config, error) {
 	}
 
 	if cfg.Version == 0 {
-		cfg.Tunnel = Node{
-			ID:                0,
-			HostnameHTTPS:     "wg-tunnel.coder.app",
-			HostnameWireguard: "wg-tunnel-udp.coder.app",
-			WireguardPort:     55555,
+		_, _ = fmt.Println()
+		_, _ = fmt.Println(cliui.Styles.Error.Render("You're running a deprecated tunnel version!"))
+		_, _ = fmt.Println(cliui.Styles.Error.Render("Upgrading you to the new version now. You will need to rebuild running workspaces."))
+		_, _ = fmt.Println()
+
+		cfg, err := GenerateConfig()
+		if err != nil {
+			return Config{}, xerrors.Errorf("generate config: %w", err)
 		}
+
+		err = writeConfig(cfg)
+		if err != nil {
+			return Config{}, xerrors.Errorf("write config: %w", err)
+		}
+
+		return cfg, nil
 	}
 
 	return cfg, nil
@@ -291,14 +264,26 @@ func GenerateConfig() (Config, error) {
 	}
 	pub := priv.PublicKey()
 
+	spin := spinner.New(spinner.CharSets[39], 350*time.Millisecond)
+	spin.Suffix = " Finding the closest tunnel region..."
+	spin.Start()
+
 	node, err := FindClosestNode()
 	if err != nil {
+		// If we fail to find the closest node, default to US East.
 		region := Regions[0]
 		n, _ := cryptorand.Intn(len(region.Nodes))
 		node = region.Nodes[n]
+		spin.Stop()
 		_, _ = fmt.Println("Error picking closest dev tunnel:", err)
 		_, _ = fmt.Println("Defaulting to", Regions[0].LocationName)
 	}
+
+	spin.Stop()
+	_, _ = fmt.Printf("Using tunnel in %s with latency %s.\n",
+		cliui.Styles.Keyword.Render(Regions[node.RegionID].LocationName),
+		cliui.Styles.Code.Render(node.AvgLatency.String()),
+	)
 
 	return Config{
 		Version:    1,
@@ -325,17 +310,4 @@ func writeConfig(cfg Config) error {
 	}
 
 	return nil
-}
-
-func encodeBase64ToHex(key string) string {
-	decoded, err := base64.StdEncoding.DecodeString(key)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(decoded) != 32 {
-		panic((xerrors.New("key should be 32 bytes: " + key)))
-	}
-
-	return hex.EncodeToString(decoded)
 }
