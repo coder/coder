@@ -105,7 +105,7 @@
     "mini-css-extract-plugin": "2.6.1",
     "msw": "0.42.0",
     "prettier": "2.7.1",
-    "prettier-plugin-organize-imports": "2.3.4",
+    "prettier-plugin-organize-imports": "3.0.0",
     "react-hot-loader": "4.13.0",
     "sql-formatter": "8.0.2",
     "style-loader": "3.3.1",
