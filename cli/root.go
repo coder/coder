@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -52,26 +53,8 @@ var (
 )
 
 func init() {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
-	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
-}
-
-func isWorkspaceCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["workspaces"]; ok {
-		return true
-	}
-	var ws bool
-	cmd.VisitParents(func(cmd *cobra.Command) {
-		if _, ok := cmd.Annotations["workspaces"]; ok {
-			ws = true
-		}
-	})
-	return ws
+	// Set cobra template functions in init to avoid conflicts in tests.
+	cobra.AddTemplateFuncs(templateFunctions)
 }
 
 func Root() *cobra.Command {
@@ -323,6 +306,30 @@ func isTTYOut(cmd *cobra.Command) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
+}
+
+var templateFunctions = template.FuncMap{
+	"usageHeader":        usageHeader,
+	"isWorkspaceCommand": isWorkspaceCommand,
+}
+
+func usageHeader(s string) string {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	return cliui.Styles.Placeholder.Render(s)
+}
+
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspaces"]; ok {
+		return true
+	}
+	var ws bool
+	cmd.VisitParents(func(cmd *cobra.Command) {
+		if _, ok := cmd.Annotations["workspaces"]; ok {
+			ws = true
+		}
+	})
+	return ws
 }
 
 func usageTemplate() string {
