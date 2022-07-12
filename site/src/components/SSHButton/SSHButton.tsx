@@ -7,12 +7,19 @@ import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
 import { HelpTooltipLink, HelpTooltipLinksGroup, HelpTooltipText } from "../Tooltips/HelpTooltip"
 
-export const SSHButton: React.FC<{ workspaceName: string; agentName: string }> = ({
+export interface SSHButtonProps {
+  workspaceName: string
+  agentName: string
+  defaultIsOpen?: boolean
+}
+
+export const SSHButton: React.FC<SSHButtonProps> = ({
   workspaceName,
   agentName,
+  defaultIsOpen = false,
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(defaultIsOpen)
   const id = isOpen ? "schedule-popover" : undefined
   const styles = useStyles()
 
