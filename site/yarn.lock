@@ -14586,10 +14586,10 @@ xterm-for-react@1.0.4:
     prop-types "^15.7.2"
     xterm "^4.5.0"
 
-xterm@4.18.0, xterm@^4.5.0:
-  version "4.18.0"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.18.0.tgz#a1f6ab2c330c3918fb094ae5f4c2562987398ea1"
-  integrity sha512-JQoc1S0dti6SQfI0bK1AZvGnAxH4MVw45ZPFSO6FHTInAiau3Ix77fSxNx3mX4eh9OL4AYa8+4C8f5UvnSfppQ==
+xterm@4.19.0, xterm@^4.5.0:
+  version "4.19.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0.tgz#c0f9d09cd61de1d658f43ca75f992197add9ef6d"
+  integrity sha512-c3Cp4eOVsYY5Q839dR5IejghRPpxciGmLWWaP9g+ppfMeBChMeLa1DCA+pmX/jyDZ+zxFOmlJL/82qVdayVoGQ==
 
 y18n@^4.0.0:
   version "4.0.3"
