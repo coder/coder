@@ -78,10 +78,10 @@
     "@types/react-helmet": "6.1.5",
     "@types/superagent": "4.1.15",
     "@types/uuid": "8.3.4",
-    "@typescript-eslint/eslint-plugin": "5.27.0",
+    "@typescript-eslint/eslint-plugin": "5.30.6",
     "@typescript-eslint/parser": "5.30.6",
     "@xstate/cli": "0.2.1",
-    "chromatic": "6.5.4",
+    "chromatic": "6.7.0",
     "copy-webpack-plugin": "10.2.4",
     "css-loader": "6.7.1",
     "css-minimizer-webpack-plugin": "3.4.1",
@@ -91,7 +91,7 @@
     "eslint-import-resolver-typescript": "3.2.5",
     "eslint-plugin-compat": "4.0.2",
     "eslint-plugin-import": "2.26.0",
-    "eslint-plugin-jest": "26.2.2",
+    "eslint-plugin-jest": "26.5.3",
     "eslint-plugin-jsx-a11y": "6.6.0",
     "eslint-plugin-no-storage": "1.0.2",
     "eslint-plugin-react": "7.30.0",
@@ -116,7 +116,7 @@
     "webpack": "5.73.0",
     "webpack-bundle-analyzer": "4.5.0",
     "webpack-cli": "4.10.0",
-    "webpack-dev-server": "4.9.0"
+    "webpack-dev-server": "4.9.3"
   },
   "browserslist": [
     "chrome 66",
