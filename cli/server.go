@@ -771,10 +771,23 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return memberships, err
 		},
 		ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-			teams, _, err := github.NewClient(client).Teams.ListTeams(ctx, org, &github.ListOptions{
+			opt := &github.ListOptions{
+				// This is the maximum amount per-page that GitHub allows.
 				PerPage: 100,
-			})
-			return teams, err
+			}
+			var allTeams []*github.Team
+			for {
+				teams, resp, err := github.NewClient(client).Teams.ListTeams(ctx, org, opt)
+				if err != nil {
+					return nil, err
+				}
+				allTeams = append(allTeams, teams...)
+				if resp.NextPage == 0 {
+					break
+				}
+				opt.Page = resp.NextPage
+			}
+			return allTeams, nil
 		},
 	}, nil
 }
