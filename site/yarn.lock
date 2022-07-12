@@ -1749,12 +1749,13 @@
     tiny-glob "^0.2.9"
     tslib "^2.4.0"
 
-"@playwright/test@1.22.1":
-  version "1.22.1"
-  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.22.1.tgz#78b4a7c13d8a7a0c6432672571d70c4d3963f027"
-  integrity sha512-8ouMBUboYslHom41W8bnSEn0TwlAMHhCACwOZeuiAgzukj7KobpZ+UBwrGE0jJ0UblJbKAQNRHXL+z7sDSkb6g==
+"@playwright/test@1.23.2":
+  version "1.23.2"
+  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.23.2.tgz#6af9e77bafcfe6dd17c23a44b40f793db5245d74"
+  integrity sha512-umaEAIwQGfbezixg3raSOraqbQGSqZP988sOaMdpA2wj3Dr6ykOscrMukyK3U6edxhpS0N8kguAFZoHwCEfTig==
   dependencies:
-    playwright-core "1.22.1"
+    "@types/node" "*"
+    playwright-core "1.23.2"
 
 "@pmmmwh/react-refresh-webpack-plugin@0.5.6", "@pmmmwh/react-refresh-webpack-plugin@^0.5.1":
   version "0.5.6"
@@ -10941,10 +10942,10 @@ pkg-dir@^5.0.0:
   dependencies:
     find-up "^5.0.0"
 
-playwright-core@1.22.1:
-  version "1.22.1"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.22.1.tgz#59ddf903546171fdfd9c3dc189630c883619667c"
-  integrity sha512-H+ZUVYnceWNXrRf3oxTEKAr81QzFsCKu5Fp//fEjQvqgKkfA1iX3E9DBrPJpPNOrgVzcE+IqeI0fDmYJe6Ynnw==
+playwright-core@1.23.2:
+  version "1.23.2"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.23.2.tgz#ddc15b3251e42ee0eed82a96ece3f7b2641d75a4"
+  integrity sha512-UGbutIr0nBALDHWW/HcXfyK6ZdmefC99Moo4qyTr89VNIkYZuDrW8Sw554FyFUamcFSdKOgDPk6ECSkofGIZjQ==
 
 pnp-webpack-plugin@1.6.4:
   version "1.6.4"
