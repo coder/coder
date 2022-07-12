@@ -32,7 +32,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-const workspaceDefaultTTL = 12 * time.Hour
+const workspaceDefaultTTL = 2 * time.Hour
 
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
