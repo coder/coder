@@ -28,7 +28,7 @@ var (
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
 	workspaceCommand = map[string]string{
-		"workspaces": " ",
+		"workspaces": "",
 	}
 )
 
@@ -58,6 +58,20 @@ func init() {
 	cobra.AddTemplateFunc("usageHeader", func(s string) string {
 		return header.Render(s)
 	})
+	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
+}
+
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspaces"]; ok {
+		return true
+	}
+	var ws bool
+	cmd.VisitParents(func(cmd *cobra.Command) {
+		if _, ok := cmd.Annotations["workspaces"]; ok {
+			ws = true
+		}
+	})
+	return ws
 }
 
 func Root() *cobra.Command {
@@ -335,8 +349,8 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- $hasRootAnnotations := (and $isRootHelp (gt (len .Annotations) 0))}}
-    {{- if (or (and .IsAvailableCommand (not $hasRootAnnotations)) (eq .Name "help"))}}
+    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
+    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
@@ -345,7 +359,7 @@ func usageTemplate() string {
 {{- if (and $isRootHelp .HasAvailableSubCommands)}}
 {{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
