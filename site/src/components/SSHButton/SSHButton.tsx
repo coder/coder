@@ -54,14 +54,17 @@ export const SSHButton: React.FC<SSHButtonProps> = ({
           horizontal: "left",
         }}
       >
-        <HelpTooltipText>
-          Run the following commands to connect with SSH:
-        </HelpTooltipText>
+        <HelpTooltipText>Run the following commands to connect with SSH:</HelpTooltipText>
 
         <Stack spacing={0.5} className={styles.codeExamples}>
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>Configure ssh</strong>
+              <strong className={styles.codeExampleLabel}>
+                Configure ssh{" "}
+                <span className={styles.textHelper}>
+                  - only needs to be run once, or after managing workspaces
+                </span>
+              </strong>
             </HelpTooltipText>
             <CodeExample code="coder config-ssh" />
           </div>
@@ -98,5 +101,9 @@ const useStyles = makeStyles((theme) => ({
 
   codeExampleLabel: {
     fontSize: 12,
+  },
+
+  textHelper: {
+    fontWeight: 400,
   },
 }))
