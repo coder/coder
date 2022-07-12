@@ -60,7 +60,7 @@ func templateCreate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Create and upload %q?", prettyDir),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err

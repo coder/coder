@@ -89,7 +89,7 @@ func login() *cobra.Command {
 					}
 					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
-						Default:   "yes",
+						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
 					})
 					if errors.Is(err, cliui.Canceled) {

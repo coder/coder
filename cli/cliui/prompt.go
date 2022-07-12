@@ -24,25 +24,41 @@ type PromptOptions struct {
 	Validate  func(string) error
 }
 
+const skipPromptFlag = "yes"
+
 func AllowSkipPrompt(cmd *cobra.Command) {
-	cmd.Flags().BoolP("yes", "y", false, "Bypass prompts")
+	cmd.Flags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
 }
+
+const (
+	ConfirmYes = "yes"
+	ConfirmNo  = "no"
+)
 
 // Prompt asks the user for input.
 func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
-	if opts.IsConfirm && cmd.Flags().Lookup("yes") != nil {
-		if skip, _ := cmd.Flags().GetBool("yes"); skip {
-			return "yes", nil
+	if opts.IsConfirm && cmd.Flags().Lookup(skipPromptFlag) != nil {
+		if skip, _ := cmd.Flags().GetBool(skipPromptFlag); skip {
+			return ConfirmYes, nil
 		}
 	}
 
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
-		opts.Default = "yes"
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+Styles.Bold.Render("yes")+Styles.Placeholder.Render("/no) ")))
+		if len(opts.Default) == 0 {
+			opts.Default = ConfirmYes
+		}
+		renderedYes := Styles.Placeholder.Render(ConfirmYes)
+		renderedNo := Styles.Placeholder.Render(ConfirmNo)
+		if opts.Default == ConfirmYes {
+			renderedYes = Styles.Bold.Render(ConfirmYes)
+		} else {
+			renderedNo = Styles.Bold.Render(ConfirmNo)
+		}
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
 	} else if opts.Default != "" {
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
 	}
