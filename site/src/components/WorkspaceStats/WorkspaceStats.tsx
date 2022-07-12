@@ -64,9 +64,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.byLabel}</span>
         <span className={styles.statsValue}>
-          <span style={{ color: initiatedBy.color }}>
-            {initiatedBy.initiatedBy}
-          </span>
+          <span style={{ color: initiatedBy.color }}>{initiatedBy.initiatedBy}</span>
         </span>
       </div>
       <div className={styles.statsDivider} />
