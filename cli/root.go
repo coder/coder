@@ -331,16 +331,18 @@ func usageTemplate() string {
 {{.Example}}
 {{end}}
 
+{{- $isRootHelp := (not .HasParent)}}
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+    {{- $hasRootAnnotations := (and $isRootHelp (eq (len .Annotations) 0))}}
+    {{- if (or (and .IsAvailableCommand (not $hasRootAnnotations)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
 {{end}}
 
-{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{- if (and $isRootHelp .HasAvailableSubCommands)}}
 {{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
     {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
