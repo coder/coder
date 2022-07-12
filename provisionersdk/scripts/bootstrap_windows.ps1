@@ -1,4 +1,4 @@
-# Sleep for a while in case the underlyine provider deletes the resource on error.
+# Sleep for a while in case the underlying provider deletes the resource on error.
 trap {
 	Write-Error '=== Agent script exited with non-zero code. Sleeping 24h to preserve logs...'
 	Start-Sleep -Seconds 86400
