@@ -55,7 +55,7 @@ export const SSHButton: React.FC<SSHButtonProps> = ({
         }}
       >
         <HelpTooltipText>
-          To connect with SSH you have to run the following commands:
+          Run the following commands to connect with SSH:
         </HelpTooltipText>
 
         <Stack spacing={0.5} className={styles.codeExamples}>
