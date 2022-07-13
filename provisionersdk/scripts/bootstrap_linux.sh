@@ -16,8 +16,8 @@ cd "$BINARY_DIR"
 # This could fail for a number of reasons, many of which are likely transient.
 # So just keep trying!
 while :; do
-	# Try a number of different download tools, as we don't know what we'll
-	# have available
+	# Try a number of different download tools, as we don not know what we
+	# will have available.
 	status=""
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_NAME}" && break
