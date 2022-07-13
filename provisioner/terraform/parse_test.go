@@ -128,6 +128,58 @@ func TestParse(t *testing.T) {
 			},
 			ErrorContains: `The ";" character is not valid.`,
 		},
+		{
+			Name: "multiple-variables",
+			Files: map[string]string{
+				"main1.tf": `variable "foo" { }
+				variable "bar" { }`,
+				"main2.tf": `variable "baz" { }
+				variable "quux" { }`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								Name:                "foo",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "bar",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "baz",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "quux",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							}},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
