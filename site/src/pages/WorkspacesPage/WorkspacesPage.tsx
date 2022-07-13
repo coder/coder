@@ -32,7 +32,7 @@ const WorkspacesPage: FC = () => {
 
       <WorkspacesPageView
         filter={workspacesState.context.filter}
-        isLoading={workspacesState.hasTag("loading")}
+        isLoading={!workspaceRefs}
         workspaceRefs={workspaceRefs}
         onFilter={(query) => {
           setSearchParams({ filter: query })
