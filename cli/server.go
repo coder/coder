@@ -770,24 +770,9 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			})
 			return memberships, err
 		},
-		ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-			opt := &github.ListOptions{
-				// This is the maximum amount per-page that GitHub allows.
-				PerPage: 100,
-			}
-			var allTeams []*github.Team
-			for {
-				teams, resp, err := github.NewClient(client).Teams.ListTeams(ctx, org, opt)
-				if err != nil {
-					return nil, err
-				}
-				allTeams = append(allTeams, teams...)
-				if resp.NextPage == 0 {
-					break
-				}
-				opt.Page = resp.NextPage
-			}
-			return allTeams, nil
+		Team: func(ctx context.Context, client *http.Client, org, teamSlug string) (*github.Team, error) {
+			team, _, err := github.NewClient(client).Teams.GetTeamBySlug(ctx, org, teamSlug)
+			return team, err
 		},
 	}, nil
 }
