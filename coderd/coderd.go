@@ -134,7 +134,7 @@ func New(options *Options) *API {
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
 			})
 		})
@@ -144,7 +144,7 @@ func New(options *Options) *API {
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, httpapi.Response{
+			httpapi.Write(w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})

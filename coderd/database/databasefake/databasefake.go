@@ -527,7 +527,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 
 	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
 	for _, templateID := range templateIDs {
-		found := false
+		counts[templateID] = map[uuid.UUID]struct{}{}
 		for _, workspace := range q.workspaces {
 			if workspace.TemplateID != templateID {
 				continue
@@ -541,11 +541,6 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 			}
 			countByOwnerID[workspace.OwnerID] = struct{}{}
 			counts[templateID] = countByOwnerID
-			found = true
-			break
-		}
-		if !found {
-			counts[templateID] = map[uuid.UUID]struct{}{}
 		}
 	}
 	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)

@@ -20,7 +20,6 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peer/peerwg"
@@ -189,7 +188,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -285,7 +284,7 @@ func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) 
 		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -355,7 +354,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -443,7 +442,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{

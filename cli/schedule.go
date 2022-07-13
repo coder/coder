@@ -17,12 +17,6 @@ import (
 )
 
 const (
-	scheduleDescriptionLong = `Modify scheduled stop and start times for your workspace:
-  * schedule show: show workspace schedule
-  * schedule start: edit workspace start schedule
-  * schedule stop: edit workspace stop schedule
-  * schedule override-stop: edit stop time of active workspace
-`
 	scheduleShowDescriptionLong = `Shows the following information for the given workspace:
   * The automatic start schedule
   * The next scheduled start time
@@ -64,24 +58,24 @@ func schedules() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Modify scheduled stop and start times for your workspace",
-		Long:        scheduleDescriptionLong,
 	}
 
-	scheduleCmd.AddCommand(scheduleShow())
-	scheduleCmd.AddCommand(scheduleStart())
-	scheduleCmd.AddCommand(scheduleStop())
-	scheduleCmd.AddCommand(scheduleOverride())
+	scheduleCmd.AddCommand(
+		scheduleShow(),
+		scheduleStart(),
+		scheduleStop(),
+		scheduleOverride(),
+	)
 
 	return scheduleCmd
 }
 
 func scheduleShow() *cobra.Command {
 	showCmd := &cobra.Command{
-		Annotations: workspaceCommand,
-		Use:         "show <workspace-name>",
-		Short:       "Show workspace schedule",
-		Long:        scheduleShowDescriptionLong,
-		Args:        cobra.ExactArgs(1),
+		Use:   "show <workspace-name>",
+		Short: "Show workspace schedule",
+		Long:  scheduleShowDescriptionLong,
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -101,8 +95,7 @@ func scheduleShow() *cobra.Command {
 
 func scheduleStart() *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: workspaceCommand,
-		Use:         "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
+		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Example: formatExamples(
 			example{
 				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
@@ -153,9 +146,8 @@ func scheduleStart() *cobra.Command {
 
 func scheduleStop() *cobra.Command {
 	return &cobra.Command{
-		Annotations: workspaceCommand,
-		Args:        cobra.ExactArgs(2),
-		Use:         "stop <workspace-name> { <duration> | manual }",
+		Args: cobra.ExactArgs(2),
+		Use:  "stop <workspace-name> { <duration> | manual }",
 		Example: formatExamples(
 			example{
 				Command: "coder schedule stop my-workspace 2h30m",
@@ -200,9 +192,8 @@ func scheduleStop() *cobra.Command {
 
 func scheduleOverride() *cobra.Command {
 	overrideCmd := &cobra.Command{
-		Args:        cobra.ExactArgs(2),
-		Annotations: workspaceCommand,
-		Use:         "override-stop <workspace-name> <duration from now>",
+		Args: cobra.ExactArgs(2),
+		Use:  "override-stop <workspace-name> <duration from now>",
 		Example: formatExamples(
 			example{
 				Command: "coder schedule override-stop my-workspace 90m",

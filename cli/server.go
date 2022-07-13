@@ -770,11 +770,9 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			})
 			return memberships, err
 		},
-		ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-			teams, _, err := github.NewClient(client).Teams.ListTeams(ctx, org, &github.ListOptions{
-				PerPage: 100,
-			})
-			return teams, err
+		Team: func(ctx context.Context, client *http.Client, org, teamSlug string) (*github.Team, error) {
+			team, _, err := github.NewClient(client).Teams.GetTeamBySlug(ctx, org, teamSlug)
+			return team, err
 		},
 	}, nil
 }

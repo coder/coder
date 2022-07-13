@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
 
@@ -93,7 +94,7 @@ func TestExtractUserRoles(t *testing.T) {
 
 			req := httptest.NewRequest("GET", "/", nil)
 			req.AddCookie(&http.Cookie{
-				Name:  httpmw.SessionTokenKey,
+				Name:  codersdk.SessionTokenKey,
 				Value: token,
 			})
 

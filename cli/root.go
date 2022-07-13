@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -28,7 +29,7 @@ var (
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
 	workspaceCommand = map[string]string{
-		"workspaces": " ",
+		"workspaces": "",
 	}
 )
 
@@ -52,12 +53,8 @@ var (
 )
 
 func init() {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
+	// Set cobra template functions in init to avoid conflicts in tests.
+	cobra.AddTemplateFuncs(templateFunctions)
 }
 
 func Root() *cobra.Command {
@@ -311,6 +308,30 @@ func isTTYOut(cmd *cobra.Command) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
+var templateFunctions = template.FuncMap{
+	"usageHeader":        usageHeader,
+	"isWorkspaceCommand": isWorkspaceCommand,
+}
+
+func usageHeader(s string) string {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	return cliui.Styles.Placeholder.Render(s)
+}
+
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspaces"]; ok {
+		return true
+	}
+	var ws bool
+	cmd.VisitParents(func(cmd *cobra.Command) {
+		if _, ok := cmd.Annotations["workspaces"]; ok {
+			ws = true
+		}
+	})
+	return ws
+}
+
 func usageTemplate() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
@@ -331,19 +352,21 @@ func usageTemplate() string {
 {{.Example}}
 {{end}}
 
+{{- $isRootHelp := (not .HasParent)}}
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
+    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
 {{end}}
 
-{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{- if (and $isRootHelp .HasAvailableSubCommands)}}
 {{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
@@ -351,12 +374,12 @@ func usageTemplate() string {
 
 {{- if .HasAvailableLocalFlags}}
 {{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsagesWrapped 100}}
+{{.LocalFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
 {{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsagesWrapped 100}}
+{{.InheritedFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}

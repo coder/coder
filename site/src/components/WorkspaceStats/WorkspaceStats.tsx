@@ -6,7 +6,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { getDisplayStatus } from "../../util/workspace"
+import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
@@ -17,6 +17,7 @@ const Language = {
   lastBuiltLabel: "Last Built",
   outdated: "Outdated",
   upToDate: "Up to date",
+  byLabel: "Last Built by",
 }
 
 export interface WorkspaceStatsProps {
@@ -27,6 +28,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(theme, workspace.latest_build)
 
   return (
     <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
@@ -60,6 +62,13 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.byLabel}</span>
+        <span className={styles.statsValue}>
+          <span style={{ color: initiatedBy.color }}>{initiatedBy.initiatedBy}</span>
+        </span>
+      </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.statusLabel}</span>
         <span className={styles.statsValue}>
           <span style={{ color: status.color }} role="status">
@@ -88,7 +97,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "20%",
+    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

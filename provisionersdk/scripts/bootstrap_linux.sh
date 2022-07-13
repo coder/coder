@@ -4,7 +4,7 @@ set -eux pipefail
 # This is to allow folks to exec into a failed workspace and poke around to
 # troubleshoot.
 waitonexit() {
-	echo '=== Agent script exited with non-zero code. Sleeping 24h to preserve logs...'
+	echo "=== Agent script exited with non-zero code. Sleeping 24h to preserve logs..."
 	sleep 86400
 }
 trap waitonexit EXIT

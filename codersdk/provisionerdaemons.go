@@ -14,8 +14,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/coderd/httpmw"
 )
 
 type LogSource string
@@ -120,7 +118,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{

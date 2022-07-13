@@ -13,6 +13,7 @@ const Language = {
   version: "Version",
   lastBuilt: "Last Built",
   status: "Status",
+  lastBuiltBy: "By",
 }
 
 export interface WorkspacesTableProps {
@@ -26,10 +27,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({ isLoading, workspace
     <Table>
       <TableHead>
         <TableRow>
-          <TableCell width="35%">{Language.name}</TableCell>
+          <TableCell width="30%">{Language.name}</TableCell>
           <TableCell width="15%">{Language.template}</TableCell>
-          <TableCell width="15%">{Language.version}</TableCell>
-          <TableCell width="20%">{Language.lastBuilt}</TableCell>
+          <TableCell width="10%">{Language.version}</TableCell>
+          <TableCell width="15%">{Language.lastBuilt}</TableCell>
+          <TableCell width="15%">{Language.lastBuiltBy}</TableCell>
           <TableCell width="15%">{Language.status}</TableCell>
           <TableCell width="1%"></TableCell>
         </TableRow>

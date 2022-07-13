@@ -9,6 +9,7 @@ import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
+import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
@@ -107,18 +108,17 @@ export const Resources: FC<ResourcesProps> = ({
                         <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
                       </div>
                     </TableCell>
-                    {canUpdateWorkspace && (
-                      <TableCell>
-                        <div className={styles.accessLinks}>
-                          {agent.status === "connected" && (
+                    <TableCell>
+                      <>
+                        {canUpdateWorkspace && agent.status === "connected" && (
+                          <div className={styles.accessLinks}>
+                            <SSHButton workspaceName={workspace.name} agentName={agent.name} />
                             <TerminalLink
                               workspaceName={workspace.name}
                               agentName={agent.name}
                               userName={workspace.owner_name}
                             />
-                          )}
-                          {agent.status === "connected" &&
-                            agent.apps.map((app) => (
+                            {agent.apps.map((app) => (
                               <AppLink
                                 key={app.name}
                                 appIcon={app.icon}
@@ -127,9 +127,10 @@ export const Resources: FC<ResourcesProps> = ({
                                 workspaceName={workspace.name}
                               />
                             ))}
-                        </div>
-                      </TableCell>
-                    )}
+                          </div>
+                        )}
+                      </>
+                    </TableCell>
                   </TableRow>
                 )
               })
