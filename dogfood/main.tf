@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.16.0"
+      version = "~> 2.18.0"
     }
   }
 }
@@ -31,6 +31,8 @@ resource "coder_agent" "dev" {
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh
     code-server --auth none --port 13337
+    sudo service docker start
+    if [ -f ~/personalize ]; then ~/personalize 2>&1 | tee  ~/.personalize.log; fi
     EOF
 }
 
