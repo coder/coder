@@ -163,7 +163,7 @@ const useStyles = makeStyles((theme) => ({
 
   // Adds some left spacing
   agentColumn: {
-    paddingLeft: `${theme.spacing(2)}px !important`,
+    paddingLeft: `${theme.spacing(4)}px !important`,
   },
 
   agentInfo: {
@@ -183,6 +183,6 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     gap: theme.spacing(0.5),
     flexWrap: "wrap",
-    justifyContent: "right",
+    justifyContent: "flex-end",
   },
 }))
