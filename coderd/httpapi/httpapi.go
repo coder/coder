@@ -99,9 +99,9 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err = validate.Struct(value)
 	var validationErrors validator.ValidationErrors
 	if errors.As(err, &validationErrors) {
-		apiErrors := make([]codersdk.Error, 0, len(validationErrors))
+		apiErrors := make([]codersdk.ValidationError, 0, len(validationErrors))
 		for _, validationError := range validationErrors {
-			apiErrors = append(apiErrors, codersdk.Error{
+			apiErrors = append(apiErrors, codersdk.ValidationError{
 				Field:  validationError.Field(),
 				Detail: fmt.Sprintf("Validation failed for tag %q with value: \"%v\"", validationError.Tag(), validationError.Value()),
 			})

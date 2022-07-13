@@ -28,7 +28,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.OrganizationByName(context.Background(), codersdk.Me, "nothing")
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -43,7 +43,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = other.OrganizationByName(context.Background(), codersdk.Me, org.Name)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -70,7 +70,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		_, err = client.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: org.Name,
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})

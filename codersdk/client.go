@@ -138,7 +138,7 @@ func readBodyAsError(res *http.Response) error {
 		if err != nil {
 			return xerrors.Errorf("read body: %w", err)
 		}
-		return &HTTPError{
+		return &Error{
 			statusCode: res.StatusCode,
 			Response: Response{
 				Message: string(resp),
@@ -153,14 +153,14 @@ func readBodyAsError(res *http.Response) error {
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			// If no body is sent, we'll just provide the status code.
-			return &HTTPError{
+			return &Error{
 				statusCode: res.StatusCode,
 				Helper:     helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
 	}
-	return &HTTPError{
+	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
 		method:     method,
@@ -171,7 +171,7 @@ func readBodyAsError(res *http.Response) error {
 
 // Error represents an unaccepted or invalid request to the API.
 // @typescript-ignore Error
-type HTTPError struct {
+type Error struct {
 	Response
 
 	statusCode int
@@ -181,11 +181,11 @@ type HTTPError struct {
 	Helper string
 }
 
-func (e *HTTPError) StatusCode() int {
+func (e *Error) StatusCode() int {
 	return e.statusCode
 }
 
-func (e *HTTPError) Error() string {
+func (e *Error) Error() string {
 	var builder strings.Builder
 	if e.method != "" && e.url != "" {
 		_, _ = fmt.Fprintf(&builder, "%v %v: ", e.method, e.url)

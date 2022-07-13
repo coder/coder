@@ -112,7 +112,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			Name:       "workspace",
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
@@ -135,7 +135,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			Name:       "workspace",
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -153,7 +153,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			Name:       workspace.Name,
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -202,7 +202,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
-			var apiErr *codersdk.HTTPError
+			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
@@ -224,7 +224,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
-			var apiErr *codersdk.HTTPError
+			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
@@ -247,7 +247,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		}
 		_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Len(t, apiErr.Validations, 1)
@@ -262,7 +262,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_, err := client.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "something", codersdk.WorkspaceOptions{})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -634,7 +634,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
@@ -652,7 +652,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
@@ -674,7 +674,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -754,7 +754,7 @@ func TestWorkspaceBuildByName(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.WorkspaceBuildByName(context.Background(), workspace.ID, "something")
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -905,8 +905,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceAutostart(ctx, wsid, req)
-		require.IsType(t, err, &codersdk.HTTPError{}, "expected codersdk.Error")
-		coderSDKErr, _ := err.(*codersdk.HTTPError) //nolint:errorlint
+		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
+		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
 		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})
@@ -1012,8 +1012,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceTTL(ctx, wsid, req)
-		require.IsType(t, err, &codersdk.HTTPError{}, "expected codersdk.Error")
-		coderSDKErr, _ := err.(*codersdk.HTTPError) //nolint:errorlint
+		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
+		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
 		require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 	})

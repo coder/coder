@@ -292,9 +292,9 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		responseErrors := []codersdk.Error{}
+		responseErrors := []codersdk.ValidationError{}
 		if existentUser.Username == params.Username {
-			responseErrors = append(responseErrors, codersdk.Error{
+			responseErrors = append(responseErrors, codersdk.ValidationError{
 				Field:  "username",
 				Detail: "this value is already in use and should be unique",
 			})
@@ -403,7 +403,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid password.",
-			Validations: []codersdk.Error{
+			Validations: []codersdk.ValidationError{
 				{
 					Field:  "password",
 					Detail: err.Error(),
@@ -432,7 +432,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Old password is incorrect.",
-				Validations: []codersdk.Error{
+				Validations: []codersdk.ValidationError{
 					{
 						Field:  "old_password",
 						Detail: "Old password is incorrect.",
@@ -985,7 +985,7 @@ func findUser(id uuid.UUID, users []database.User) *database.User {
 	return nil
 }
 
-func userSearchQuery(query string) (database.GetUsersParams, []codersdk.Error) {
+func userSearchQuery(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	searchParams := make(url.Values)
 	if query == "" {
 		// No filter
@@ -1005,7 +1005,7 @@ func userSearchQuery(query string) (database.GetUsersParams, []codersdk.Error) {
 		case 2:
 			searchParams.Set(parts[0], parts[1])
 		default:
-			return database.GetUsersParams{}, []codersdk.Error{
+			return database.GetUsersParams{}, []codersdk.ValidationError{
 				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
 			}
 		}

@@ -88,7 +88,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			Name:      template.Name,
 			VersionID: version.ID,
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -101,7 +101,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			VersionID: uuid.New(),
 		})
 
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
@@ -115,7 +115,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			Name:      "test",
 			VersionID: uuid.New(),
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -163,7 +163,7 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_, err := client.TemplateByName(context.Background(), user.OrganizationID, "something")
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -259,7 +259,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			MinAutostartIntervalMillis: -int64(time.Hour),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Contains(t, apiErr.Message, "Invalid request")
 		require.Len(t, apiErr.Validations, 2)
@@ -297,7 +297,7 @@ func TestDeleteTemplate(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		err := client.DeleteTemplate(context.Background(), template.ID)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})

@@ -132,7 +132,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Template with name %q already exists.", createTemplate.Name),
-			Validations: []codersdk.Error{{
+			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
 			}},
@@ -150,7 +150,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Template version %q does not exist.", createTemplate.VersionID),
-			Validations: []codersdk.Error{
+			Validations: []codersdk.ValidationError{
 				{Field: "template_version_id", Detail: "Template version does not exist"},
 			},
 		})
@@ -369,12 +369,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var validErrs []codersdk.Error
+	var validErrs []codersdk.ValidationError
 	if req.MaxTTLMillis < 0 {
-		validErrs = append(validErrs, codersdk.Error{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
 	}
 	if req.MinAutostartIntervalMillis < 0 {
-		validErrs = append(validErrs, codersdk.Error{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
 	}
 
 	if len(validErrs) > 0 {

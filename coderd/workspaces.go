@@ -51,7 +51,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", deletedStr),
-				Validations: []codersdk.Error{
+				Validations: []codersdk.ValidationError{
 					{Field: "deleted", Detail: "Must be a valid boolean"},
 				},
 			})
@@ -158,7 +158,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Invalid boolean value %q for \"include_deleted\" query param.", s),
-				Validations: []codersdk.Error{
+				Validations: []codersdk.ValidationError{
 					{Field: "include_deleted", Detail: "Must be a valid boolean"},
 				},
 			})
@@ -249,7 +249,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Template %q doesn't exist.", createWorkspace.TemplateID.String()),
-			Validations: []codersdk.Error{{
+			Validations: []codersdk.ValidationError{{
 				Field:  "template_id",
 				Detail: "template not found",
 			}},
@@ -280,7 +280,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
-			Validations: []codersdk.Error{{Field: "schedule", Detail: err.Error()}},
+			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
 		})
 		return
 	}
@@ -289,7 +289,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace TTL.",
-			Validations: []codersdk.Error{{Field: "ttl_ms", Detail: err.Error()}},
+			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
 		})
 		return
 	}
@@ -316,7 +316,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Workspace %q already exists in the %q template.", createWorkspace.Name, template.Name),
-			Validations: []codersdk.Error{{
+			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "this value is already in use and should be unique",
 			}},
@@ -493,7 +493,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid autostart schedule.",
-			Validations: []codersdk.Error{{Field: "schedule", Detail: err.Error()}},
+			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
 		})
 		return
 	}
@@ -523,7 +523,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var validErrs []codersdk.Error
+	var validErrs []codersdk.ValidationError
 
 	err := api.Database.InTx(func(s database.Store) error {
 		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
@@ -536,7 +536,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
 		if err != nil {
-			validErrs = append(validErrs, codersdk.Error{Field: "ttl_ms", Detail: err.Error()})
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()})
 			return err
 		}
 		if err := s.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
@@ -625,7 +625,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
 			code = http.StatusBadRequest
 			resp.Message = "Bad extend workspace request."
-			resp.Validations = append(resp.Validations, codersdk.Error{Field: "deadline", Detail: err.Error()})
+			resp.Validations = append(resp.Validations, codersdk.ValidationError{Field: "deadline", Detail: err.Error()})
 			return err
 		}
 
@@ -953,7 +953,7 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersdk.Error) {
+func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	searchParams := make(url.Values)
 	if query == "" {
 		// No filter
@@ -977,14 +977,14 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 				searchParams.Set("owner", parts[0])
 				searchParams.Set("name", parts[1])
 			default:
-				return database.GetWorkspacesParams{}, []codersdk.Error{
+				return database.GetWorkspacesParams{}, []codersdk.ValidationError{
 					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
 				}
 			}
 		case 2:
 			searchParams.Set(parts[0], parts[1])
 		default:
-			return database.GetWorkspacesParams{}, []codersdk.Error{
+			return database.GetWorkspacesParams{}, []codersdk.ValidationError{
 				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
 			}
 		}

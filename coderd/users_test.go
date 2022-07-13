@@ -36,7 +36,7 @@ func TestFirstUser(t *testing.T) {
 			Password:         "password",
 			OrganizationName: "someorg",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -57,7 +57,7 @@ func TestPostLogin(t *testing.T) {
 			Email:    "my@email.org",
 			Password: "password",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -77,7 +77,7 @@ func TestPostLogin(t *testing.T) {
 			Email:    req.Email,
 			Password: "badpass",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -96,7 +96,7 @@ func TestPostLogin(t *testing.T) {
 
 		// Test an existing session
 		_, err = member.User(context.Background(), codersdk.Me)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Contact an admin")
@@ -186,7 +186,7 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
 
 		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
-		var sdkErr = &codersdk.HTTPError{}
+		var sdkErr = &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
 	})
@@ -213,7 +213,7 @@ func TestPostUsers(t *testing.T) {
 			Password:       "password",
 			OrganizationID: uuid.New(),
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -228,7 +228,7 @@ func TestPostUsers(t *testing.T) {
 			Username:       "someone-else",
 			Password:       "testing",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
@@ -250,7 +250,7 @@ func TestPostUsers(t *testing.T) {
 			Password:       "testing",
 			OrganizationID: org.ID,
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
@@ -278,7 +278,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		_, err := client.UpdateUserProfile(context.Background(), uuid.New().String(), codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		// Right now, we are raising a BAD request error because we don't support a
 		// user accessing other users info
@@ -299,7 +299,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: existentUser.Username,
 		})
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
@@ -390,7 +390,7 @@ func TestGrantRoles(t *testing.T) {
 
 	requireStatusCode := func(t *testing.T, err error, statusCode int) {
 		t.Helper()
-		var e *codersdk.HTTPError
+		var e *codersdk.Error
 		require.ErrorAs(t, err, &e, "error is codersdk error")
 		require.Equal(t, statusCode, e.StatusCode(), "correct status code")
 	}
@@ -843,7 +843,7 @@ func TestPostAPIKey(t *testing.T) {
 
 		client.SessionToken = ""
 		_, err := client.CreateAPIKey(context.Background(), codersdk.Me)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})

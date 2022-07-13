@@ -100,7 +100,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 			GoogleTokenValidator: validator,
 		})
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
@@ -113,7 +113,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 			GoogleTokenValidator: validator,
 		})
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
-		var apiErr *codersdk.HTTPError
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
