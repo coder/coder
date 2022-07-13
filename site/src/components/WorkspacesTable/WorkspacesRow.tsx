@@ -27,7 +27,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
   const status = getDisplayStatus(theme, workspace.latest_build)
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(theme, workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
 
   return (
@@ -47,7 +47,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <AvatarData
-          title={initiatedBy.initiatedBy}
+          title={initiatedBy}
           subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
         />
       </TableCellLink>

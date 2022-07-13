@@ -19,7 +19,7 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayWorkspaceBuildStatus(theme, build)
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(theme, build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
 
   return (
     <div className={styles.stats}>
@@ -61,9 +61,7 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Initiated by</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: initiatedBy.color }}>{initiatedBy.initiatedBy}</span>
-        </span>
+        <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
     </div>
   )

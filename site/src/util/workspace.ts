@@ -191,29 +191,14 @@ export const DisplayWorkspaceBuildInitiatedByLanguage = {
   autostop: "system/autostop",
 }
 
-export const getDisplayWorkspaceBuildInitiatedBy = (
-  theme: Theme,
-  build: TypesGen.WorkspaceBuild,
-): {
-  color: string
-  initiatedBy: string
-} => {
+export const getDisplayWorkspaceBuildInitiatedBy = (build: TypesGen.WorkspaceBuild): string => {
   switch (build.reason) {
     case "initiator":
-      return {
-        color: theme.palette.text.secondary,
-        initiatedBy: build.initiator_name,
-      }
+      return build.initiator_name
     case "autostart":
-      return {
-        color: theme.palette.secondary.dark,
-        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostart,
-      }
+      return DisplayWorkspaceBuildInitiatedByLanguage.autostart
     case "autostop":
-      return {
-        color: theme.palette.secondary.dark,
-        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostop,
-      }
+      return DisplayWorkspaceBuildInitiatedByLanguage.autostop
   }
 }
 

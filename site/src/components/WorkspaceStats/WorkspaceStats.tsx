@@ -28,7 +28,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, workspace.latest_build)
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(theme, workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
 
   return (
     <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
@@ -63,9 +63,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.byLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: initiatedBy.color }}>{initiatedBy.initiatedBy}</span>
-        </span>
+        <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
