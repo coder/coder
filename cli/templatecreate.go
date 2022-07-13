@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -225,10 +224,6 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
-
-		sort.Slice(parameterSchemas, func(i, j int) bool {
-			return parameterSchemas[i].Name < parameterSchemas[j].Name
-		})
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string

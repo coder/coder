@@ -244,17 +244,30 @@ func TestTemplateVersionParameters(t *testing.T) {
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:           "example",
-							RedisplayValue: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "hello",
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								Name:           "example",
+								RedisplayValue: true,
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  "hello",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							{
+								Name:           "abcd",
+								RedisplayValue: true,
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  "world",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-						}},
+						},
 					},
 				},
 			}},
@@ -264,8 +277,9 @@ func TestTemplateVersionParameters(t *testing.T) {
 		params, err := client.TemplateVersionParameters(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, params)
-		require.Len(t, params, 1)
+		require.Len(t, params, 2)
 		require.Equal(t, "hello", params[0].SourceValue)
+		require.Equal(t, "world", params[1].SourceValue)
 	})
 }
 

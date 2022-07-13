@@ -849,11 +849,13 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
 SELECT
-	id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+	id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
 FROM
 	parameter_schemas
 WHERE
 	job_id = $1
+ORDER BY
+	index
 `
 
 func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error) {
@@ -882,6 +884,7 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 			&i.ValidationCondition,
 			&i.ValidationTypeSystem,
 			&i.ValidationValueType,
+			&i.Index,
 		); err != nil {
 			return nil, err
 		}
@@ -897,7 +900,7 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 }
 
 const getParameterSchemasCreatedAfter = `-- name: GetParameterSchemasCreatedAfter :many
-SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type FROM parameter_schemas WHERE created_at > $1
+SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index FROM parameter_schemas WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error) {
@@ -926,6 +929,7 @@ func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, create
 			&i.ValidationCondition,
 			&i.ValidationTypeSystem,
 			&i.ValidationValueType,
+			&i.Index,
 		); err != nil {
 			return nil, err
 		}
@@ -958,7 +962,8 @@ INSERT INTO
 		validation_error,
 		validation_condition,
 		validation_type_system,
-		validation_value_type
+		validation_value_type,
+		index
 	)
 VALUES
 	(
@@ -977,8 +982,9 @@ VALUES
 		$13,
 		$14,
 		$15,
-		$16
-	) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+		$16,
+		$17
+	) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
 `
 
 type InsertParameterSchemaParams struct {
@@ -998,6 +1004,7 @@ type InsertParameterSchemaParams struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+	Index                    int32                      `db:"index" json:"index"`
 }
 
 func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
@@ -1018,6 +1025,7 @@ func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParame
 		arg.ValidationCondition,
 		arg.ValidationTypeSystem,
 		arg.ValidationValueType,
+		arg.Index,
 	)
 	var i ParameterSchema
 	err := row.Scan(
@@ -1037,6 +1045,7 @@ func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParame
 		&i.ValidationCondition,
 		&i.ValidationTypeSystem,
 		&i.ValidationValueType,
+		&i.Index,
 	)
 	return i, err
 }
