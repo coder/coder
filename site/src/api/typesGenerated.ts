@@ -146,14 +146,6 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/client.go:174:6
-export interface HTTPError extends Response {
-  readonly statusCode: number
-  readonly method: string
-  readonly url: string
-  readonly Helper: string
-}
-
 // From codersdk/users.go:154:6
 export interface LoginWithPasswordRequest {
   readonly email: string
@@ -262,7 +254,7 @@ export interface PutExtendWorkspaceRequest {
 export interface Response {
   readonly message: string
   readonly detail?: string
-  readonly validations?: Error[]
+  readonly validations?: ValidationError[]
 }
 
 // From codersdk/roles.go:12:6
@@ -390,6 +382,12 @@ export interface UserRoles {
 // From codersdk/users.go:32:6
 export interface UsersRequest extends Pagination {
   readonly q?: string
+}
+
+// From codersdk/error.go:24:6
+export interface ValidationError {
+  readonly field: string
+  readonly detail: string
 }
 
 // From codersdk/workspaces.go:19:6
