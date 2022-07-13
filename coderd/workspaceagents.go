@@ -129,38 +129,6 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace owner.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
 	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.WireguardNodeIPv6.IPNet)
 	if !ok {
@@ -173,8 +141,6 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
 		WireguardAddresses:   []netaddr.IPPrefix{ipp},
-		OwnerEmail:           owner.Email,
-		OwnerUsername:        owner.Username,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,

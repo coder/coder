@@ -56,8 +56,6 @@ type Options struct {
 
 type Metadata struct {
 	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
-	OwnerEmail           string             `json:"owner_email"`
-	OwnerUsername        string             `json:"owner_username"`
 	EnvironmentVariables map[string]string  `json:"environment_variables"`
 	StartupScript        string             `json:"startup_script"`
 	Directory            string             `json:"directory"`
