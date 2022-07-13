@@ -28,9 +28,10 @@ resource "coder_agent" "dev" {
   os             = "linux"
   startup_script = <<EOF
     #!/bin/sh
+    set -x
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh
-    code-server --auth none --port 13337
+    code-server --auth none --port 13337 &
     sudo service docker start
     if [ -f ~/personalize ]; then ~/personalize 2>&1 | tee  ~/.personalize.log; fi
     EOF
