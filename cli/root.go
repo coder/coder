@@ -437,7 +437,9 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
 	}
 
-	if cliflag.IsSetBool(cmd, varVerbose) {
+	// If the httpErr is nil then we just have a regular error in which
+	// case we want to print out what's happening.
+	if httpErr == nil || cliflag.IsSetBool(cmd, varVerbose) {
 		_, _ = fmt.Fprintln(&output, err.Error())
 	}
 
