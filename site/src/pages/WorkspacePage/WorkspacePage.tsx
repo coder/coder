@@ -10,6 +10,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
+import { getFaviconByStatus } from "../../util/workspace"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
@@ -50,10 +51,13 @@ export const WorkspacePage: React.FC = () => {
   } else if (!workspace) {
     return <FullScreenLoader />
   } else {
+    const favicon = getFaviconByStatus(workspace.latest_build)
     return (
       <>
         <Helmet>
           <title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+          <link rel="alternate icon" type="image/png" href={`/favicons/${favicon}.png`} />
+          <link rel="icon" type="image/svg+xml" href={`/favicons/${favicon}.svg`} />
         </Helmet>
 
         <Workspace

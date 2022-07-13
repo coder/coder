@@ -281,3 +281,41 @@ export const defaultWorkspaceExtension = (
     deadline: fourHoursFromNow.format(),
   }
 }
+
+// You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
+
+type FaviconType =
+  | "favicon"
+  | "favicon-success"
+  | "favicon-error"
+  | "favicon-warning"
+  | "favicon-running"
+
+export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
+    case undefined:
+      return "favicon"
+    case "started":
+      return "favicon-success"
+    case "starting":
+      return "favicon-running"
+    case "stopping":
+      return "favicon-running"
+    case "stopped":
+      return "favicon"
+    case "deleting":
+      return "favicon"
+    case "deleted":
+      return "favicon"
+    case "canceling":
+      return "favicon-warning"
+    case "canceled":
+      return "favicon"
+    case "error":
+      return "favicon-error"
+    case "queued":
+      return "favicon"
+  }
+  throw new Error("unknown status " + status)
+}
