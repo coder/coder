@@ -1,7 +1,6 @@
 import dayjs from "dayjs"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
-import { dark } from "../theme/theme"
 import {
   defaultWorkspaceExtension,
   getDisplayWorkspaceBuildInitiatedBy,
@@ -109,14 +108,13 @@ describe("util > workspace", () => {
   })
 
   describe("getDisplayWorkspaceBuildInitiatedBy", () => {
-    it.each<[TypesGen.WorkspaceBuild, string, string]>([
-      [Mocks.MockWorkspaceBuild, "#C1C1C1", "TestUser"],
+    it.each<[TypesGen.WorkspaceBuild, string]>([
+      [Mocks.MockWorkspaceBuild, "TestUser"],
       [
         {
           ...Mocks.MockWorkspaceBuild,
           reason: "autostart",
         },
-        "#7057FF",
         "system/autostart",
       ],
       [
@@ -124,17 +122,10 @@ describe("util > workspace", () => {
           ...Mocks.MockWorkspaceBuild,
           reason: "autostop",
         },
-        "#7057FF",
         "system/autostop",
       ],
-    ])(
-      `getDisplayWorkspaceBuildInitiatedBy(%p) returns color: %p, initiatedBy: %p`,
-      (build, color, initiatedBy) => {
-        expect(getDisplayWorkspaceBuildInitiatedBy(dark, build)).toEqual({
-          color: color,
-          initiatedBy: initiatedBy,
-        })
-      },
-    )
+    ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
+      expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
+    })
   })
 })
