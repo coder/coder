@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -87,10 +88,8 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-					return []*github.Team{{
-						Slug: github.String("nope"),
-					}}, nil
+				Team: func(ctx context.Context, client *http.Client, org, team string) (*github.Team, error) {
+					return nil, xerrors.New("no perms")
 				},
 			},
 		})
@@ -223,10 +222,8 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-					return []*github.Team{{
-						Slug: github.String("frontend"),
-					}}, nil
+				Team: func(ctx context.Context, client *http.Client, org, team string) (*github.Team, error) {
+					return &github.Team{}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
