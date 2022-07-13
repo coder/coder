@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type organizationParamContextKey struct{}
@@ -48,7 +49,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching organization.",
 					Detail:  err.Error(),
 				})
@@ -77,7 +78,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching organization member.",
 					Detail:  err.Error(),
 				})

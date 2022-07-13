@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type workspaceAgentParamContextKey struct{}
@@ -34,13 +35,13 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 
 			agent, err := db.GetWorkspaceAgentByID(r.Context(), agentUUID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 					Message: "Agent doesn't exist with that id.",
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})
@@ -49,7 +50,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace resource.",
 					Detail:  err.Error(),
 				})
@@ -58,21 +59,21 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching provisioner job.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Workspace agents can only be fetched for builds.",
 				})
 				return
 			}
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace build.",
 					Detail:  err.Error(),
 				})

@@ -63,7 +63,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	response := make(codersdk.UserAuthorizationResponse)
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
 			})
 			return
