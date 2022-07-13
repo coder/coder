@@ -17,9 +17,7 @@ export const AvatarData: FC<AvatarDataProps> = ({ title, subtitle, link }) => {
 
   return (
     <div className={styles.root}>
-      <Avatar variant="square" className={styles.avatar}>
-        {firstLetter(title)}
-      </Avatar>
+      <Avatar className={styles.avatar}>{firstLetter(title)}</Avatar>
 
       {link ? (
         <Link
@@ -46,11 +44,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
   },
   avatar: {
-    borderRadius: 2,
-    marginRight: theme.spacing(1),
-    width: 24,
-    height: 24,
-    fontSize: 16,
+    marginRight: theme.spacing(1.5),
   },
   info: {
     display: "flex",

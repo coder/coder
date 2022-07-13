@@ -6,10 +6,10 @@ export const getOverrides = (palette: PaletteOptions) => {
   return {
     MuiAvatar: {
       root: {
-        width: 32,
-        height: 32,
-        fontSize: 24,
-        border: `1px solid ${palette.divider}`,
+        borderColor: palette.divider,
+        width: 36,
+        height: 36,
+        fontSize: 20,
       },
     },
     MuiButton: {

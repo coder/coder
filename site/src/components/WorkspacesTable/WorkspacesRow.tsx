@@ -45,6 +45,12 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       <TableCellLink to={workspacePageLink}>
         <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
       </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
+        <AvatarData
+          title={initiatedBy.initiatedBy}
+          subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
+        />
+      </TableCellLink>
       <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
       <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
@@ -60,14 +66,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
           <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
         )}
       </TableCellLink>
-      <TableCellLink to={workspacePageLink}>
-        <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
-          {dayjs().to(dayjs(workspace.latest_build.created_at))}
-        </span>
-      </TableCellLink>
-      <TableCellLink to={workspacePageLink}>
-        <span style={{ color: initiatedBy.color }}>{initiatedBy.initiatedBy}</span>
-      </TableCellLink>
+
       <TableCellLink to={workspacePageLink}>
         <span style={{ color: status.color }}>{status.status}</span>
       </TableCellLink>
@@ -107,5 +106,9 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(0.5),
+  },
+  buildTime: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
   },
 }))
