@@ -1,6 +1,6 @@
 # Sleep for a while in case the underlying provider deletes the resource on error.
 trap {
-	Write-Error '=== Agent script exited with non-zero code. Sleeping 24h to preserve logs...'
+	Write-Error "=== Agent script exited with non-zero code. Sleeping 24h to preserve logs..."
 	Start-Sleep -Seconds 86400
 }
 
@@ -25,7 +25,7 @@ while ($true) {
 	}
 }
 
-# If the below fails, retrying probably won't help.
+# If the below fails, retrying probably will not help.
 Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
 $env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
 $env:CODER_AGENT_URL = "${ACCESS_URL}"
