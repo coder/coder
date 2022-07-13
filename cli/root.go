@@ -40,12 +40,12 @@ const (
 	varAgentURL        = "agent-url"
 	varGlobalConfig    = "global-config"
 	varNoOpen          = "no-open"
+	varNoVersionCheck  = "no-version-warning"
 	varForceTty        = "force-tty"
 	varVerbose         = "verbose"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
-	noVersionCheckFlag = "no-version-warning"
-	envNoVersionCheck  = "CODER_NO_VERSION_WARNING"
+	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
 )
 
 var (
@@ -59,8 +59,6 @@ func init() {
 }
 
 func Root() *cobra.Command {
-	var varSuppressVersion bool
-
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
@@ -69,7 +67,7 @@ func Root() *cobra.Command {
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			err := func() error {
-				if varSuppressVersion {
+				if cliflag.IsSetBool(cmd, varNoVersionCheck) {
 					return nil
 				}
 
@@ -142,7 +140,7 @@ func Root() *cobra.Command {
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
-	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, noVersionCheckFlag, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
@@ -153,7 +151,7 @@ func Root() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
-	cliflag.String(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", "", "Enable verbose output")
+	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output")
 
 	return cmd
 }
@@ -439,7 +437,7 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
 	}
 
-	if flag := cmd.Flag(varVerbose); flag != nil && flag.Value.String() != "" {
+	if cliflag.IsSetBool(cmd, varVerbose) {
 		_, _ = fmt.Fprintln(&output, err.Error())
 	}
 
