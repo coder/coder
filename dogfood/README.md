@@ -15,7 +15,7 @@ Coder dogfoods on a beefy, single Teraswitch machine. We decided to use
 a bare metal provider for best-in-class cost-to-performance. We decided to
 use a single machine for crazy fast parallelized builds and tests.
 
-# How is the provisioner configured?
+## How is the provisioner configured?
 
 Our dogfood VM runs an SSH tunnel to our dogfood Docker host's docker socket.
 The socket is mounted on `/var/run/dogfood-docker.sock`.

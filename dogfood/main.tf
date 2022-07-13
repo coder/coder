@@ -66,7 +66,7 @@ resource "docker_container" "workspace" {
     EOT
   ]
   # CPU limits are unnecessary since Docker will load balance automatically
-  memory  = 8192
+  memory  = 32768
   runtime = "sysbox-runc"
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {
