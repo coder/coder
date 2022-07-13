@@ -405,7 +405,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	}
 
 	if len(request.ParameterSchemas) > 0 {
-		for _, protoParameter := range request.ParameterSchemas {
+		for index, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
@@ -428,6 +428,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 
 				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
 				AllowOverrideSource:      protoParameter.AllowOverrideSource,
+
+				Index: int32(index),
 			}
 
 			// It's possible a parameter doesn't define a default source!

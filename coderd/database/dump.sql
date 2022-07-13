@@ -182,7 +182,8 @@ CREATE TABLE parameter_schemas (
     validation_error character varying(256) NOT NULL,
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
-    validation_value_type character varying(64) NOT NULL
+    validation_value_type character varying(64) NOT NULL,
+    index integer NOT NULL
 );
 
 CREATE TABLE parameter_values (

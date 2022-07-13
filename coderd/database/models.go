@@ -398,6 +398,7 @@ type ParameterSchema struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+	Index                    int32                      `db:"index" json:"index"`
 }
 
 type ParameterValue struct {

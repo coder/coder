@@ -1027,6 +1027,9 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	if len(parameters) == 0 {
 		return nil, sql.ErrNoRows
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		return parameters[i].Index < parameters[j].Index
+	})
 	return parameters, nil
 }
 
@@ -1555,6 +1558,7 @@ func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.Inse
 		ValidationCondition:      arg.ValidationCondition,
 		ValidationTypeSystem:     arg.ValidationTypeSystem,
 		ValidationValueType:      arg.ValidationValueType,
+		Index:                    arg.Index,
 	}
 	q.parameterSchemas = append(q.parameterSchemas, param)
 	return param, nil
