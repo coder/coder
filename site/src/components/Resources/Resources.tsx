@@ -15,7 +15,6 @@ import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
   resources: "Resources",
@@ -41,10 +40,7 @@ export const Resources: FC<ResourcesProps> = ({
   const theme: Theme = useTheme()
 
   return (
-    <WorkspaceSection
-      title={Language.resources}
-      contentsProps={{ className: styles.sectionContents }}
-    >
+    <div aria-label={Language.resources} className={styles.wrapper}>
       {getResourcesError ? (
         { getResourcesError }
       ) : (
@@ -137,13 +133,14 @@ export const Resources: FC<ResourcesProps> = ({
           </TableBody>
         </Table>
       )}
-    </WorkspaceSection>
+    </div>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  sectionContents: {
-    margin: 0,
+  wrapper: {
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
   },
 
   table: {
