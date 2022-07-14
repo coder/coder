@@ -212,7 +212,14 @@ func TestAgent(t *testing.T) {
 			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
 		}, 0)
 
-		gotContent := readFileContents(t, tempPath)
+		gotContentBytes, err := os.ReadFile(tempPath)
+		require.NoError(t, err)
+		if runtime.GOOS == "windows" {
+			// Windows uses UTF16! 🪟🪟🪟
+			gotContentBytes, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), gotContentBytes)
+			require.NoError(t, err)
+		}
+		gotContent := string(gotContentBytes)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
@@ -230,7 +237,9 @@ func TestAgent(t *testing.T) {
 			GitConfigPath: configPath,
 		}, 0)
 
-		gotContent := readFileContents(t, configPath)
+		gotContentBytes, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		gotContent := string(gotContentBytes)
 		require.Contains(t, gotContent, "name = Kermit the Frog")
 		require.Contains(t, gotContent, "email = elmo@example.com")
 	})
@@ -498,15 +507,4 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
-}
-
-func readFileContents(t *testing.T, path string) string {
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	if runtime.GOOS == "windows" {
-		// Windows uses UTF16! 🪟🪟🪟
-		content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-		require.NoError(t, err)
-	}
-	return string(content)
 }
