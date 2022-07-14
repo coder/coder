@@ -486,7 +486,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			createdByName, err := getUsernameByUserID(r.Context(), api.Database, version.CreatedBy)
+			createdByName, err := getUsernameByUserID(r.Context(), store, version.CreatedBy)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching creator name.",
