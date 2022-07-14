@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -20,7 +21,7 @@ func setupGitconfig(ctx context.Context, configPath string, params map[string]st
 		if err != nil {
 			return xerrors.Errorf("get current user: %w", err)
 		}
-		configPath = currentUser.HomeDir + "/" + configPath[2:]
+		configPath = filepath.Join(currentUser.HomeDir, configPath[2:])
 	}
 
 	cmd := exec.CommandContext(ctx, "git", "--version")
