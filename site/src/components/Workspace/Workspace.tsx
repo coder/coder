@@ -105,7 +105,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             />
           )}
 
-          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+          <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
         </Stack>

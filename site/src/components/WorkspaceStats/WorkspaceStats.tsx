@@ -4,10 +4,9 @@ import dayjs from "dayjs"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
-import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -31,7 +30,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
 
   return (
-    <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
+    <div className={styles.stats} aria-label={Language.workspaceDetails}>
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.templateLabel}</span>
         <Link
@@ -74,7 +73,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
           </span>
         </span>
       </div>
-    </WorkspaceSection>
+    </div>
   )
 }
 
@@ -83,7 +82,8 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     backgroundColor: theme.palette.background.paper,
-    borderRadius: CardRadius,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
