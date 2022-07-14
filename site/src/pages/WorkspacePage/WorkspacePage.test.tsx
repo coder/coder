@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
+import { Language } from "../../components/WorkspaceActions/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,
@@ -43,6 +43,9 @@ const renderWorkspacePage = async () => {
 
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
+  // open the workspace action popover so we have access to all available ctas
+  const trigger = await screen.findByTestId("workspace-actions-button")
+  trigger.click()
   // REMARK: exact here because the "Start" button and "START" label for
   //         workspace schedule could otherwise conflict.
   const button = await screen.findByText(label, { exact: true })
@@ -87,6 +90,11 @@ describe("Workspace Page", () => {
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
+
+    // open the workspace action popover so we have access to all available ctas
+    const trigger = await screen.findByTestId("workspace-actions-button")
+    trigger.click()
+
     const button = await screen.findByText(Language.delete)
     await waitFor(() => fireEvent.click(button))
     const confirmDialog = await screen.findByRole("dialog")
