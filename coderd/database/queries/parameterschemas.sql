@@ -4,7 +4,9 @@ SELECT
 FROM
 	parameter_schemas
 WHERE
-	job_id = $1;
+	job_id = $1
+ORDER BY
+	index;
 
 -- name: GetParameterSchemasCreatedAfter :many
 SELECT * FROM parameter_schemas WHERE created_at > $1;
@@ -27,7 +29,8 @@ INSERT INTO
 		validation_error,
 		validation_condition,
 		validation_type_system,
-		validation_value_type
+		validation_value_type,
+		index
 	)
 VALUES
 	(
@@ -46,5 +49,6 @@ VALUES
 		$13,
 		$14,
 		$15,
-		$16
+		$16,
+		$17
 	) RETURNING *;
