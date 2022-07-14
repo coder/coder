@@ -1511,7 +1511,6 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		Name:           arg.Name,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
-		CreatedBy:      arg.CreatedBy,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return version, nil

@@ -2145,7 +2145,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -2164,14 +2164,13 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Name,
 		&i.Readme,
 		&i.JobID,
-		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -2190,14 +2189,13 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Name,
 		&i.Readme,
 		&i.JobID,
-		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -2222,14 +2220,13 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Name,
 		&i.Readme,
 		&i.JobID,
-		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -2292,7 +2289,6 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Name,
 			&i.Readme,
 			&i.JobID,
-			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -2308,7 +2304,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by FROM template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id FROM template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -2329,7 +2325,6 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Name,
 			&i.Readme,
 			&i.JobID,
-			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -2354,11 +2349,10 @@ INSERT INTO
 		updated_at,
 		"name",
 		readme,
-		job_id,
-		created_by
+		job_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 `
 
 type InsertTemplateVersionParams struct {
@@ -2370,7 +2364,6 @@ type InsertTemplateVersionParams struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error) {
@@ -2383,7 +2376,6 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.Name,
 		arg.Readme,
 		arg.JobID,
-		arg.CreatedBy,
 	)
 	var i TemplateVersion
 	err := row.Scan(
@@ -2395,7 +2387,6 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		&i.Name,
 		&i.Readme,
 		&i.JobID,
-		&i.CreatedBy,
 	)
 	return i, err
 }

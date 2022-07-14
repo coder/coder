@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -37,16 +36,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -486,15 +476,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			createdByName, err := getUsernameByUserID(r.Context(), store, version.CreatedBy)
-			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching creator name.",
-					Detail:  err.Error(),
-				})
-				return err
-			}
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), createdByName))
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job)))
 		}
 
 		return nil
@@ -543,16 +525,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -762,7 +735,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Name:           namesgenerator.GetRandomName(1),
 			Readme:         "",
 			JobID:          provisionerJob.ID,
-			CreatedBy:      apiKey.UserID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %w", err)
@@ -776,16 +748,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), createdByName))
+	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -833,15 +796,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.UUID) (string, error) {
-	user, err := db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	return user.Username, nil
-}
-
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, createdByName string) codersdk.TemplateVersion {
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
 		ID:             version.ID,
 		TemplateID:     &version.TemplateID.UUID,
@@ -851,7 +806,5 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Name:           version.Name,
 		Job:            job,
 		Readme:         version.Readme,
-		CreatedByID:    version.CreatedBy,
-		CreatedByName:  createdByName,
 	}
 }

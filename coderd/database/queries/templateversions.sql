@@ -70,11 +70,10 @@ INSERT INTO
 		updated_at,
 		"name",
 		readme,
-		job_id,
-		created_by
+		job_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: UpdateTemplateVersionByID :exec
 UPDATE
