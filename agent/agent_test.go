@@ -216,6 +216,25 @@ func TestAgent(t *testing.T) {
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
+	t.Run("GitAutoconfig", func(t *testing.T) {
+		t.Parallel()
+		configPath := filepath.Join(os.TempDir(), "gitconfig")
+
+		initialContent := "[user]\nemail = elmo@example.com\n"
+		err := os.WriteFile(configPath, []byte(initialContent), 0600)
+		require.NoError(t, err)
+
+		setupAgent(t, agent.Metadata{
+			OwnerUsername: "Kermit the Frog",
+			OwnerEmail:    "kermit@example.com",
+			GitConfigPath: configPath,
+		}, 0)
+
+		gotContent := readFileContents(t, configPath)
+		require.Contains(t, gotContent, "name = Kermit the Frog")
+		require.Contains(t, gotContent, "email = elmo@example.com")
+	})
+
 	t.Run("ReconnectingPTY", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {

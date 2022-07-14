@@ -66,6 +66,7 @@ type Metadata struct {
 	EnvironmentVariables map[string]string  `json:"environment_variables"`
 	StartupScript        string             `json:"startup_script"`
 	Directory            string             `json:"directory"`
+	GitConfigPath        string             `json:"git_config_path"`
 }
 
 type WireguardPublicKeys struct {
@@ -193,7 +194,19 @@ func (a *agent) run(ctx context.Context) {
 }
 
 func (a *agent) performInitialSetup(ctx context.Context, metadata *Metadata) error {
-	err := a.runStartupScript(ctx, metadata.StartupScript)
+	err := setupGitconfig(ctx, metadata.GitConfigPath, map[string]string{
+		"user.name":  metadata.OwnerUsername,
+		"user.email": metadata.OwnerEmail,
+	})
+	if errors.Is(err, context.Canceled) {
+		return err
+	}
+	if err != nil {
+		// failure to set up gitconfig shouldn't prevent the startup script from running
+		a.logger.Warn(ctx, "git autoconfiguration failed", slog.Error(err))
+	}
+
+	err = a.runStartupScript(ctx, metadata.StartupScript)
 	if err != nil {
 		return xerrors.Errorf("agent script failed: %w", err)
 	}
@@ -402,12 +415,6 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
-	// These prevent the user from having to specify _anything_ to successfully commit.
-	// Both author and committer must be set!
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, metadata.OwnerUsername))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, metadata.OwnerUsername))
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.

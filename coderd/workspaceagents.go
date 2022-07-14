@@ -178,6 +178,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
+		GitConfigPath:        "~/.gitconfig",
 	})
 }
 
