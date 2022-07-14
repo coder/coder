@@ -22,10 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/echo"
-
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
@@ -45,6 +41,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -58,6 +55,8 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -508,6 +507,29 @@ func server() *cobra.Command {
 				return err
 			}
 			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			return nil
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "postgres-builtin-serve",
+		Short: "Run the built-in PostgreSQL deployment.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := createConfig(cmd)
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			if verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			url, closePg, err := startBuiltinPostgres(cmd.Context(), cfg, logger)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closePg() }()
+
+			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+
+			<-cmd.Context().Done()
 			return nil
 		},
 	})
