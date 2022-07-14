@@ -112,6 +112,8 @@ name:Template test
 You can add instructions here
 
 [Some link info](https://coder.com)`,
+  created_by_id: "test-creator-id",
+  created_by_name: "test_creator",
 }
 
 export const MockTemplate: TypesGen.Template = {
