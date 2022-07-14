@@ -529,7 +529,11 @@ func server() *cobra.Command {
 
 			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
 
-			<-cmd.Context().Done()
+			stopChan := make(chan os.Signal, 1)
+			defer signal.Stop(stopChan)
+			signal.Notify(stopChan, os.Interrupt)
+
+			<-stopChan
 			return nil
 		},
 	})
