@@ -22,7 +22,6 @@ const Language = {
   resourceLabel: "Resource",
   agentsLabel: "Agents",
   agentLabel: "Agent",
-  accessLabel: "Access",
 }
 
 interface ResourcesProps {
@@ -64,7 +63,7 @@ export const Resources: FC<ResourcesProps> = ({
                   <AgentHelpTooltip />
                 </Stack>
               </TableCell>
-              {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
+              {canUpdateWorkspace && <TableCell></TableCell>}
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -80,7 +79,7 @@ export const Resources: FC<ResourcesProps> = ({
                 if (!agent) {
                   return (
                     <TableRow key={`${resource.id}-${agentIndex}`}>
-                      <TableCell className={styles.resourceNameCell}>
+                      <TableCell>
                         {resource.name}
                         <span className={styles.resourceType}>{resource.type}</span>
                       </TableCell>
@@ -164,7 +163,7 @@ const useStyles = makeStyles((theme) => ({
 
   // Adds some left spacing
   agentColumn: {
-    paddingLeft: `${theme.spacing(2)}px !important`,
+    paddingLeft: `${theme.spacing(4)}px !important`,
   },
 
   agentInfo: {
@@ -184,5 +183,6 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     gap: theme.spacing(0.5),
     flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
 }))
