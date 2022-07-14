@@ -79,9 +79,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   return (
     <div className={styles.buttonContainer}>
       {/* primary workspace CTA */}
-      {buttonMapping[actions.primary]}
+      <span data-testid="primary-cta">{buttonMapping[actions.primary]}</span>
+
       {/* popover toggle button */}
       <Button
+        data-testid="workspace-actions-button"
         aria-controls="workspace-actions-menu"
         aria-haspopup="true"
         className={styles.dropdownButton}
@@ -110,11 +112,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         }}
       >
         {/* secondary workspace CTAs */}
-        {actions.secondary.map((action) => (
-          <div key={action} className={styles.popoverActionButton}>
-            {buttonMapping[action]}
-          </div>
-        ))}
+        <span data-testid="secondary-ctas">
+          {actions.secondary.map((action) => (
+            <div key={action} className={styles.popoverActionButton}>
+              {buttonMapping[action]}
+            </div>
+          ))}
+        </span>
       </Popover>
     </div>
   )

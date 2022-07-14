@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
+import { Language } from "../../components/WorkspaceActions/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,

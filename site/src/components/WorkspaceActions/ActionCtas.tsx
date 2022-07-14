@@ -10,7 +10,7 @@ import { Workspace } from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../util/workspace"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
-const Language = {
+export const Language = {
   start: "Start",
   stop: "Stop",
   delete: "Delete",
