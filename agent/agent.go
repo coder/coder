@@ -45,6 +45,11 @@ const (
 	ProtocolDial            = "dial"
 )
 
+type Agent interface {
+	io.Closer
+	SetupComplete() bool
+}
+
 type Options struct {
 	EnableWireguard        bool
 	UploadWireguardKeys    UploadWireguardKeys
@@ -72,7 +77,7 @@ type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker
 type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
 type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
 
-func New(dialer Dialer, options *Options) io.Closer {
+func New(dialer Dialer, options *Options) Agent {
 	if options == nil {
 		options = &Options{}
 	}
@@ -109,8 +114,10 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata      atomic.Value
-	startupScript atomic.Bool
+	metadata atomic.Value
+	// tracks whether or not we have started/completed initial setup, including any startup script
+	setupStarted  atomic.Bool
+	setupComplete atomic.Bool
 	sshServer     *ssh.Server
 
 	enableWireguard      bool
@@ -147,15 +154,16 @@ func (a *agent) run(ctx context.Context) {
 	}
 	a.metadata.Store(metadata)
 
-	if a.startupScript.CAS(false, true) {
+	if a.setupStarted.CAS(false, true) {
 		// The startup script has not ran yet!
 		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
+			defer a.setupComplete.Store(true)
+			err := a.performInitialSetup(ctx, &metadata)
 			if errors.Is(err, context.Canceled) {
 				return
 			}
 			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+				a.logger.Warn(ctx, "initial setup failed", slog.Error(err))
 			}
 		}()
 	}
@@ -182,6 +190,14 @@ func (a *agent) run(ctx context.Context) {
 		a.closeMutex.Unlock()
 		go a.handlePeerConn(ctx, conn)
 	}
+}
+
+func (a *agent) performInitialSetup(ctx context.Context, metadata *Metadata) error {
+	err := a.runStartupScript(ctx, metadata.StartupScript)
+	if err != nil {
+		return xerrors.Errorf("agent script failed: %w", err)
+	}
+	return nil
 }
 
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
@@ -753,6 +769,10 @@ func (a *agent) Close() error {
 	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
 	return nil
+}
+
+func (a *agent) SetupComplete() bool {
+	return a.setupComplete.Load()
 }
 
 type reconnectingPTY struct {

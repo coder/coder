@@ -212,23 +212,7 @@ func TestAgent(t *testing.T) {
 			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
 		}, 0)
 
-		var gotContent string
-		require.Eventually(t, func() bool {
-			content, err := os.ReadFile(tempPath)
-			if err != nil {
-				return false
-			}
-			if len(content) == 0 {
-				return false
-			}
-			if runtime.GOOS == "windows" {
-				// Windows uses UTF16! 🪟🪟🪟
-				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-				require.NoError(t, err)
-			}
-			gotContent = string(content)
-			return true
-		}, 15*time.Second, 100*time.Millisecond)
+		gotContent := readFileContents(t, tempPath)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
@@ -436,7 +420,7 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
+	a := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
 		listener, err := peerbroker.Listen(server, nil)
 		return metadata, listener, err
 	}, &agent.Options{
@@ -446,7 +430,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
-		_ = closer.Close()
+		_ = a.Close()
 	})
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := api.NegotiateConnection(context.Background())
@@ -458,6 +442,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	t.Cleanup(func() {
 		_ = conn.Close()
 	})
+	require.Eventually(t, a.SetupComplete, 10*time.Second, 100*time.Millisecond)
 
 	return &agent.Conn{
 		Negotiator: api,
@@ -494,4 +479,15 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
+}
+
+func readFileContents(t *testing.T, path string) string {
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	if runtime.GOOS == "windows" {
+		// Windows uses UTF16! 🪟🪟🪟
+		content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
+		require.NoError(t, err)
+	}
+	return string(content)
 }
