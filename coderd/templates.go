@@ -209,7 +209,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				UUID:  dbTemplate.ID,
 				Valid: true,
 			},
-			UpdatedAt: database.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %s", err)

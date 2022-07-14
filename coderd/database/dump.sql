@@ -247,8 +247,7 @@ CREATE TABLE template_versions (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
-    job_id uuid NOT NULL,
-    created_by uuid NOT NULL
+    job_id uuid NOT NULL
 );
 
 CREATE TABLE templates (
@@ -486,9 +485,6 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY template_versions
-    ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
