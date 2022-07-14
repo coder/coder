@@ -37,7 +37,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getCreatedByNameByTemplateVersionID(r.Context(), api.Database, templateVersion)
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching creator name.",
@@ -486,10 +486,11 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			createdByName, err := getCreatedByNameByTemplateVersionID(r.Context(), api.Database, version)
+			createdByName, err := getUsernameByUserID(r.Context(), api.Database, version.CreatedBy)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-					Message: fmt.Sprintf("Internal error fetching creator name (user %q) for version %q.", version.CreatedBy, version.ID),
+					Message: "Internal error fetching creator name.",
+					Detail:  err.Error(),
 				})
 				return err
 			}
@@ -542,7 +543,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getCreatedByNameByTemplateVersionID(r.Context(), api.Database, templateVersion)
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching creator name.",
@@ -775,7 +776,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	createdByName, err := getCreatedByNameByTemplateVersionID(r.Context(), api.Database, templateVersion)
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching creator name.",
@@ -832,12 +833,12 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func getCreatedByNameByTemplateVersionID(ctx context.Context, db database.Store, templateVersion database.TemplateVersion) (string, error) {
-	creator, err := db.GetUserByID(ctx, templateVersion.CreatedBy)
+func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.UUID) (string, error) {
+	user, err := db.GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
-	return creator.Username, nil
+	return user.Username, nil
 }
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, createdByName string) codersdk.TemplateVersion {
