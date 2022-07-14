@@ -76,7 +76,7 @@ func templateDelete() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
 				IsConfirm: true,
-				Default:   "no",
+				Default:   cliui.ConfirmNo,
 			})
 			if err != nil {
 				return err

@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type templateVersionParamContextKey struct{}
@@ -37,7 +38,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching template version.",
 					Detail:  err.Error(),
 				})

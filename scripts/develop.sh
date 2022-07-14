@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
 PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 CODER_DEV_BIN="${PROJECT_ROOT}/.coderv2/coder"

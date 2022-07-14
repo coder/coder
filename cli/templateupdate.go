@@ -53,7 +53,7 @@ func templateUpdate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Upload %q?", prettyDir),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err

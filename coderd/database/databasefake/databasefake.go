@@ -527,7 +527,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 
 	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
 	for _, templateID := range templateIDs {
-		found := false
+		counts[templateID] = map[uuid.UUID]struct{}{}
 		for _, workspace := range q.workspaces {
 			if workspace.TemplateID != templateID {
 				continue
@@ -541,11 +541,6 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 			}
 			countByOwnerID[workspace.OwnerID] = struct{}{}
 			counts[templateID] = countByOwnerID
-			found = true
-			break
-		}
-		if !found {
-			counts[templateID] = map[uuid.UUID]struct{}{}
 		}
 	}
 	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)
@@ -1032,6 +1027,9 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	if len(parameters) == 0 {
 		return nil, sql.ErrNoRows
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		return parameters[i].Index < parameters[j].Index
+	})
 	return parameters, nil
 }
 
@@ -1560,6 +1558,7 @@ func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.Inse
 		ValidationCondition:      arg.ValidationCondition,
 		ValidationTypeSystem:     arg.ValidationTypeSystem,
 		ValidationValueType:      arg.ValidationValueType,
+		Index:                    arg.Index,
 	}
 	q.parameterSchemas = append(q.parameterSchemas, param)
 	return param, nil

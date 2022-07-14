@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -32,7 +33,7 @@ func TestAPIKey(t *testing.T) {
 
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
-		httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		httpapi.Write(rw, http.StatusOK, codersdk.Response{
 			Message: "It worked!",
 		})
 	})
@@ -74,7 +75,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "test-wow-hello",
 		})
 
@@ -92,7 +93,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "test-wow",
 		})
 
@@ -110,7 +111,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: "testtestid-wow",
 		})
 
@@ -129,7 +130,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -149,7 +150,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -178,7 +179,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -205,7 +206,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -219,7 +220,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)
@@ -244,7 +245,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		q := r.URL.Query()
-		q.Add(httpmw.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
+		q.Add(codersdk.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
 		r.URL.RawQuery = q.Encode()
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
@@ -257,7 +258,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)
@@ -277,7 +278,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -312,7 +313,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -347,7 +348,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -383,7 +384,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -432,7 +433,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.RemoteAddr = "1.1.1.1:3555"
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 

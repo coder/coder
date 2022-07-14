@@ -218,9 +218,7 @@ export const workspacesMachine = createMachine(
     },
     initial: "idle",
     states: {
-      idle: {
-        tags: ["loading"],
-      },
+      idle: {},
       gettingWorkspaces: {
         entry: "clearGetWorkspacesError",
         invoke: {

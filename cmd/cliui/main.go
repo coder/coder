@@ -43,7 +43,7 @@ func main() {
 			}
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Do you want to accept?",
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
 			})
 			if errors.Is(err, cliui.Canceled) {

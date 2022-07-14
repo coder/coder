@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type userParamContextKey struct{}
@@ -42,7 +43,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 			// userQuery is either a uuid, a username, or 'me'
 			userQuery := chi.URLParam(r, "user")
 			if userQuery == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 					Message: "\"user\" must be provided.",
 				})
 				return
@@ -55,7 +56,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 					return
 				}
 				if err != nil {
-					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Internal error fetching user.",
 						Detail:  err.Error(),
 					})
@@ -65,7 +66,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				// If the userQuery is a valid uuid
 				user, err = db.GetUserByID(r.Context(), userID)
 				if err != nil {
-					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
 					})
 					return
@@ -76,7 +77,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 					Username: userQuery,
 				})
 				if err != nil {
-					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
 					})
 					return
