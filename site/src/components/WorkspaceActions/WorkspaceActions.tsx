@@ -77,7 +77,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   }
 
   return (
-    <div className={styles.buttonContainer}>
+    <span className={styles.buttonContainer}>
       {/* primary workspace CTA */}
       <span data-testid="primary-cta">{buttonMapping[actions.primary]}</span>
 
@@ -120,7 +120,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           ))}
         </span>
       </Popover>
-    </div>
+    </span>
   )
 }
 
@@ -128,6 +128,7 @@ const useStyles = makeStyles((theme) => ({
   buttonContainer: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+    display: "inline-block",
   },
   dropdownButton: {
     border: "none",
