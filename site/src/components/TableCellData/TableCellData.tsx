@@ -2,6 +2,10 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { Stack } from "../Stack/Stack"
 
+interface StyleProps {
+  highlight?: boolean
+}
+
 export const TableCellData: React.FC = ({ children }) => {
   return <Stack spacing={0}>{children}</Stack>
 }
@@ -23,9 +27,9 @@ export const TableCellDataSecondary: React.FC = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   primary: {
-    color: ({ highlight }: { highlight?: boolean }) =>
+    color: ({ highlight }: StyleProps) =>
       highlight ? theme.palette.text.primary : theme.palette.text.secondary,
-    fontWeight: ({ highlight }: { highlight?: boolean }) => (highlight ? 600 : undefined),
+    fontWeight: ({ highlight }: StyleProps) => (highlight ? 600 : undefined),
   },
 
   secondary: {
