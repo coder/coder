@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -36,7 +37,16 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
 }
 
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -476,7 +486,15 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job)))
+			createdByName, err := getUsernameByUserID(r.Context(), store, version.CreatedBy)
+			if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching creator name.",
+					Detail:  err.Error(),
+				})
+				return err
+			}
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), createdByName))
 		}
 
 		return nil
@@ -525,7 +543,16 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
 }
 
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -735,6 +762,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Name:           namesgenerator.GetRandomName(1),
 			Readme:         "",
 			JobID:          provisionerJob.ID,
+			CreatedBy: uuid.NullUUID{
+				UUID:  apiKey.UserID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %w", err)
@@ -748,7 +779,16 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
+	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching creator name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), createdByName))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -796,7 +836,18 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
+func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.NullUUID) (string, error) {
+	if !userID.Valid {
+		return "", nil
+	}
+	user, err := db.GetUserByID(ctx, userID.UUID)
+	if err != nil {
+		return "", err
+	}
+	return user.Username, nil
+}
+
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, createdByName string) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
 		ID:             version.ID,
 		TemplateID:     &version.TemplateID.UUID,
@@ -806,5 +857,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Name:           version.Name,
 		Job:            job,
 		Readme:         version.Readme,
+		CreatedByID:    version.CreatedBy.UUID,
+		CreatedByName:  createdByName,
 	}
 }

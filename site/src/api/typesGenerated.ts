@@ -87,7 +87,7 @@ export interface CreateTemplateRequest {
   readonly min_autostart_interval_ms?: number
 }
 
-// From codersdk/templateversions.go:106:6
+// From codersdk/templateversions.go:108:6
 export interface CreateTemplateVersionDryRunRequest {
   readonly WorkspaceName: string
   readonly ParameterValues: CreateParameterRequest[]
@@ -290,6 +290,8 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
+  readonly created_by_id: string
+  readonly created_by_name: string
 }
 
 // From codersdk/templates.go:100:6
