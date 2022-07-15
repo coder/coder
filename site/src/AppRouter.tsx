@@ -2,9 +2,11 @@ import { FC, lazy, Suspense } from "react"
 import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
+import { RequireLicense } from "./components/RequireLicense/RequireLicense"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404Page/404Page"
+import { AuditLogPage } from "./pages/AuditLogPage/AuditLogPage"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
@@ -113,6 +115,7 @@ export const AppRouter: FC = () => (
         <Route path="account" element={<AccountPage />} />
         <Route path="security" element={<SecurityPage />} />
         <Route path="ssh-keys" element={<SSHKeysPage />} />
+        <Route path="audit" element={<RequireLicense permissionRequired="audit"><AuditLogPage /></RequireLicense>} />
       </Route>
 
       <Route path="/@:username">
