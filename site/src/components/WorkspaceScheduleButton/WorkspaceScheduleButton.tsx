@@ -15,7 +15,6 @@ import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
-import { Stack } from "../Stack/Stack"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleLabel } from "./WorkspaceScheduleLabel"
 
@@ -28,6 +27,7 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
+  schedule: "Schedule",
   editDeadlineMinus: "Subtract one hour",
   editDeadlinePlus: "Add one hour",
 }
@@ -73,11 +73,11 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.label}>
+    <span className={styles.wrapper}>
+      <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <Stack direction="row" spacing={0}>
+          <span>
             <IconButton
               className={styles.iconButton}
               size="small"
@@ -98,18 +98,19 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
                 <AddIcon />
               </Tooltip>
             </IconButton>
-          </Stack>
+          </span>
         )}
-      </div>
-      <div>
+      </span>
+      <>
         <Button
           ref={anchorRef}
           startIcon={<ScheduleIcon />}
           onClick={() => {
             setIsOpen(true)
           }}
+          className={styles.scheduleButton}
         >
-          Schedule
+          {Language.schedule}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}
@@ -128,33 +129,33 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
         >
           <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} />
         </Popover>
-      </div>
-    </div>
+      </>
+    </span>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "flex",
-    alignItems: "center",
-  },
-
-  label: {
+    display: "inline-block",
     border: `1px solid ${theme.palette.divider}`,
+    borderRadius: `${theme.shape.borderRadius}px`,
+  },
+  label: {
     borderRight: 0,
     height: "100%",
-    display: "flex",
-    alignItems: "center",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
     // It is from the button props
     minHeight: 42,
   },
-
+  scheduleButton: {
+    border: "none",
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+  },
   iconButton: {
     borderRadius: 2,
   },
-
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,
   },
