@@ -6,6 +6,7 @@ import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
+import { LicenseBanner } from "./components/LicenseBanner/LicenseBanner"
 import { dark } from "./theme"
 import "./theme/globalFonts"
 import { XServiceProvider } from "./xServices/StateContext"
@@ -35,6 +36,7 @@ export const App: FC = () => {
           <CssBaseline />
           <ErrorBoundary>
             <XServiceProvider>
+              <LicenseBanner />
               <AppRouter />
               <GlobalSnackbar />
             </XServiceProvider>
