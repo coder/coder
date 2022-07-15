@@ -111,11 +111,13 @@ export const AppRouter: FC = () => (
         />
       </Route>
 
+
+      <Route path="audit" element={<RequireLicense permissionRequired="audit"><AuditLogPage /></RequireLicense>} />
+
       <Route path="settings" element={<SettingsLayout />}>
         <Route path="account" element={<AccountPage />} />
         <Route path="security" element={<SecurityPage />} />
         <Route path="ssh-keys" element={<SSHKeysPage />} />
-        <Route path="audit" element={<RequireLicense permissionRequired="audit"><AuditLogPage /></RequireLicense>} />
       </Route>
 
       <Route path="/@:username">

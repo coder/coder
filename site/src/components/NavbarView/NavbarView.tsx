@@ -11,15 +11,17 @@ import { UserDropdown } from "../UserDropdown/UsersDropdown"
 export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
+  showAuditLog: boolean
 }
 
 export const Language = {
   workspaces: "Workspaces",
   templates: "Templates",
   users: "Users",
+  audit: "Audit"
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, showAuditLog }) => {
   const styles = useStyles()
   const location = useLocation()
   return (
@@ -51,6 +53,13 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
             {Language.users}
           </NavLink>
         </ListItem>
+        {showAuditLog && 
+          <ListItem button className={styles.item}>
+            <NavLink className={styles.link} to="/audit">
+              {Language.audit}
+            </NavLink>
+          </ListItem>
+        }
       </List>
       <div className={styles.fullWidth} />
       <div className={styles.fixed}>
