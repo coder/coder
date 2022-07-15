@@ -10,6 +10,11 @@ import { useNavigate } from "react-router-dom"
 import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
+import {
+  TableCellData,
+  TableCellDataPrimary,
+  TableCellDataSecondary,
+} from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
 
@@ -43,15 +48,19 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       className={styles.clickableTableRow}
     >
       <TableCellLink to={workspacePageLink}>
-        <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
+        <TableCellData>
+          <TableCellDataPrimary highlight>{workspace.name}</TableCellDataPrimary>
+          <TableCellDataSecondary>{workspace.owner_name}</TableCellDataSecondary>
+        </TableCellData>
       </TableCellLink>
+
+      <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <AvatarData
           title={initiatedBy}
           subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
         />
       </TableCellLink>
-      <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
       <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
           <span className={styles.outdatedLabel}>
