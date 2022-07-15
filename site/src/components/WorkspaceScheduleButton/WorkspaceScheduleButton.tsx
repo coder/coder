@@ -15,7 +15,6 @@ import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
-import { Stack } from "../Stack/Stack"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleLabel } from "./WorkspaceScheduleLabel"
 
@@ -78,7 +77,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
       <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <Stack direction="row" spacing={0}>
+          <span>
             <IconButton
               className={styles.iconButton}
               size="small"
@@ -99,7 +98,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
                 <AddIcon />
               </Tooltip>
             </IconButton>
-          </Stack>
+          </span>
         )}
       </span>
       <>
