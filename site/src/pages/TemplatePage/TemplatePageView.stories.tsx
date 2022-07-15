@@ -14,6 +14,7 @@ Example.args = {
   template: Mocks.MockTemplate,
   activeTemplateVersion: Mocks.MockTemplateVersion,
   templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateVersions: [Mocks.MockTemplateVersion],
 }
 
 export const SmallViewport = Template.bind({})
@@ -33,6 +34,7 @@ You can add instructions here
 \`\`\``,
   },
   templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateVersions: [Mocks.MockTemplateVersion],
 }
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },

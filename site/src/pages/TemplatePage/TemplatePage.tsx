@@ -27,8 +27,9 @@ export const TemplatePage: FC = () => {
       organizationId,
     },
   })
-  const { template, activeTemplateVersion, templateResources } = templateState.context
-  const isLoading = !template || !activeTemplateVersion || !templateResources
+  const { template, activeTemplateVersion, templateResources, templateVersions } =
+    templateState.context
+  const isLoading = !template || !activeTemplateVersion || !templateResources || !templateVersions
 
   if (isLoading) {
     return <Loader />
@@ -43,6 +44,7 @@ export const TemplatePage: FC = () => {
         template={template}
         activeTemplateVersion={activeTemplateVersion}
         templateResources={templateResources}
+        templateVersions={templateVersions}
       />
     </>
   )

@@ -136,6 +136,15 @@ export const getTemplateVersionResources = async (
   return response.data
 }
 
+export const getTemplateVersions = async (
+  templateId: string,
+): Promise<TypesGen.TemplateVersion[]> => {
+  const response = await axios.get<TypesGen.TemplateVersion[]>(
+    `/api/v2/templates/${templateId}/versions`,
+  )
+  return response.data
+}
+
 export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
