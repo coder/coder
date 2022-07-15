@@ -28,6 +28,7 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
+  schedule: "Schedule",
   editDeadlineMinus: "Subtract one hour",
   editDeadlinePlus: "Add one hour",
 }
@@ -73,7 +74,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   }
 
   return (
-    <div className={styles.wrapper}>
+    <span className={styles.wrapper}>
       <div className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
@@ -101,15 +102,16 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           </Stack>
         )}
       </div>
-      <div>
+      <>
         <Button
           ref={anchorRef}
           startIcon={<ScheduleIcon />}
           onClick={() => {
             setIsOpen(true)
           }}
+          className={styles.scheduleButton}
         >
-          Schedule
+          {Language.schedule}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}
@@ -128,8 +130,8 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
         >
           <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} />
         </Popover>
-      </div>
-    </div>
+      </>
+    </span>
   )
 }
 
@@ -137,10 +139,10 @@ const useStyles = makeStyles((theme) => ({
   wrapper: {
     display: "flex",
     alignItems: "center",
-  },
-
-  label: {
     border: `1px solid ${theme.palette.divider}`,
+    borderRadius: `${theme.shape.borderRadius}px`,
+  },
+  label: {
     borderRight: 0,
     height: "100%",
     display: "flex",
@@ -150,11 +152,14 @@ const useStyles = makeStyles((theme) => ({
     // It is from the button props
     minHeight: 42,
   },
-
+  scheduleButton: {
+    border: "none",
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+  },
   iconButton: {
     borderRadius: 2,
   },
-
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,
   },
