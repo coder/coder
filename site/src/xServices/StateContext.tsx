@@ -4,6 +4,7 @@ import { useNavigate } from "react-router"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
+import { licenseMachine } from "./license/licenseXService"
 import { siteRolesMachine } from "./roles/siteRolesXService"
 import { usersMachine } from "./users/usersXService"
 
@@ -12,6 +13,7 @@ interface XServiceContextType {
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   usersXService: ActorRefFrom<typeof usersMachine>
   siteRolesXService: ActorRefFrom<typeof siteRolesMachine>
+  licenseXService: ActorRefFrom<typeof licenseMachine>
 }
 
 /**
@@ -39,6 +41,7 @@ export const XServiceProvider: React.FC = ({ children }) => {
           usersMachine.withConfig({ actions: { redirectToUsersPage } }),
         ),
         siteRolesXService: useInterpret(siteRolesMachine),
+        licenseXService: useInterpret(licenseMachine)
       }}
     >
       {children}

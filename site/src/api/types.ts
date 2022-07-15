@@ -14,3 +14,17 @@ export interface ReconnectingPTYRequest {
 export type WorkspaceBuildTransition = "start" | "stop" | "delete"
 
 export type Message = { message: string }
+
+export type LicensePermission = "audit" | "createUser" | "createOrg"
+
+export type LicenseFeatures = Record<LicensePermission, {
+  entitled: boolean
+  enabled: boolean
+  limit?: number
+  actual?: number
+}>
+
+export type LicenseData = {
+  features: LicenseFeatures
+  warnings: string[]
+}
