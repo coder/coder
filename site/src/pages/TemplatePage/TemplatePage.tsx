@@ -29,7 +29,7 @@ export const TemplatePage: FC = () => {
   })
   const { template, activeTemplateVersion, templateResources, templateVersions } =
     templateState.context
-  const isLoading = !template || !activeTemplateVersion || !templateResources || !templateVersions
+  const isLoading = !template || !activeTemplateVersion || !templateResources
 
   if (isLoading) {
     return <Loader />

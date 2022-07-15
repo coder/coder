@@ -43,7 +43,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({ versions }) => {
             .reverse()
             .map((version) => {
               return (
-                <TableRow hover key={version.id} data-testid={`version-${version.id}`} tabIndex={0}>
+                <TableRow key={version.id} data-testid={`version-${version.id}`}>
                   <TableCell>{version.name}</TableCell>
                   <TableCell>
                     <span style={{ color: theme.palette.text.secondary }}>
