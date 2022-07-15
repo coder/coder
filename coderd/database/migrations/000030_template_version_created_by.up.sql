@@ -13,6 +13,4 @@ SET
 WHERE
     created_by IS NULL;
 
-ALTER TABLE ONLY template_versions ALTER COLUMN created_by SET NOT NULL;
-
 COMMIT;
