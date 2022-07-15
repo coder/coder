@@ -75,7 +75,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
   return (
     <span className={styles.wrapper}>
-      <div className={styles.label}>
+      <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
           <Stack direction="row" spacing={0}>
@@ -101,7 +101,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             </IconButton>
           </Stack>
         )}
-      </div>
+      </span>
       <>
         <Button
           ref={anchorRef}
@@ -137,16 +137,13 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "flex",
-    alignItems: "center",
+    display: "inline-block",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
   },
   label: {
     borderRight: 0,
     height: "100%",
-    display: "flex",
-    alignItems: "center",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
     // It is from the button props
