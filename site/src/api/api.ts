@@ -68,6 +68,29 @@ export const checkUserPermissions = async (
   return response.data
 }
 
+export const getLicenseData = async (): Promise<Types.LicenseData> => {
+  const fakeLicenseData = {
+    features: {
+      audit: {
+        entitled: false,
+        enabled: true
+      },
+      createUser: {
+        entitled: true,
+        enabled: true,
+        limit: 1,
+        actual: 2
+      },
+      createOrg: {
+        entitled: true,
+        enabled: false
+      }
+    },
+    warnings: ["This is a test license compliance banner", "Here is a second one"]
+  }
+  return Promise.resolve(fakeLicenseData)
+}
+
 export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   const response = await axios.post<TypesGen.GenerateAPIKeyResponse>("/api/v2/users/me/keys")
   return response.data
