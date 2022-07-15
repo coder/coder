@@ -478,7 +478,7 @@ type TemplateVersion struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
 }
 
 type User struct {

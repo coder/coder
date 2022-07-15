@@ -762,7 +762,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Name:           namesgenerator.GetRandomName(1),
 			Readme:         "",
 			JobID:          provisionerJob.ID,
-			CreatedBy:      apiKey.UserID,
+			CreatedBy: uuid.NullUUID{
+				UUID:  apiKey.UserID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %w", err)
@@ -833,8 +836,11 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.UUID) (string, error) {
-	user, err := db.GetUserByID(ctx, userID)
+func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.NullUUID) (string, error) {
+	if !userID.Valid {
+		return "", nil
+	}
+	user, err := db.GetUserByID(ctx, userID.UUID)
 	if err != nil {
 		return "", err
 	}
@@ -851,7 +857,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Name:           version.Name,
 		Job:            job,
 		Readme:         version.Readme,
-		CreatedByID:    version.CreatedBy,
+		CreatedByID:    version.CreatedBy.UUID,
 		CreatedByName:  createdByName,
 	}
 }
