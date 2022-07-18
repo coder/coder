@@ -162,6 +162,8 @@ func provisionEnv(start *proto.Provision_Start) ([]string, error) {
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
 		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
 		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
+		"CODER_WORKSPACE_OWNER_NAME="+start.Metadata.WorkspaceOwnerName,
+		"CODER_WORKSPACE_OWNER_EMAIL="+start.Metadata.WorkspaceOwnerEmail,
 		"CODER_WORKSPACE_ID="+start.Metadata.WorkspaceId,
 		"CODER_WORKSPACE_OWNER_ID="+start.Metadata.WorkspaceOwnerId,
 	)

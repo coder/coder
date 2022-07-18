@@ -134,6 +134,8 @@ message Provision {
         string workspace_owner = 4;
         string workspace_id = 5;
         string workspace_owner_id = 6;
+        string workspace_owner_name = 7;
+        string workspace_owner_email = 8;
     }
     message Start {
         string directory = 1;
@@ -150,7 +152,7 @@ message Provision {
         }
     }
     message Complete {
-        bytes state = 1; 
+        bytes state = 1;
         string error = 2;
         repeated Resource resources = 3;
     }
