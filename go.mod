@@ -38,10 +38,6 @@ replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.202204091
 
 replace golang.zx2c4.com/wireguard/tun/netstack => github.com/coder/wireguard-go/tun/netstack v0.0.0-20220614153727-d82b4ba8619f
 
-// yamux has some unsafe byte slice reads and writes that we fixed in out fork:
-// https://github.com/coder/yamux
-replace github.com/hashicorp/yamux => github.com/coder/yamux v0.0.0-20220712174024-7bf120a2ce53
-
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.7.0
@@ -82,7 +78,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.13.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
-	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
+	github.com/hashicorp/yamux v0.0.0-20220718163420-dd80a7ee44ce
 	github.com/jedib0t/go-pretty/v6 v6.3.3
 	github.com/justinas/nosurf v1.1.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
