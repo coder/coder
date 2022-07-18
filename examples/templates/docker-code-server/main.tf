@@ -39,6 +39,11 @@ resource "coder_agent" "dev" {
   arch           = var.docker_arch
   os             = "linux"
   startup_script = "code-server --auth none"
+
+  # These environment variables allow you to make Git commits right away after creating a
+  # workspace. Note that they take precedence over configuration defined in ~/.gitconfig!
+  # You can remove this block if you'd prefer to configure Git manually or using
+  # dotfiles. (see docs/dotfiles.md)
   env = {
     GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
     GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner}"
