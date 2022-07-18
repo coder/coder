@@ -103,7 +103,7 @@
     "jest-runner-eslint": "1.0.0",
     "jest-websocket-mock": "2.3.0",
     "mini-css-extract-plugin": "2.6.1",
-    "msw": "0.42.0",
+    "msw": "0.44.1",
     "prettier": "2.7.1",
     "prettier-plugin-organize-imports": "3.0.0",
     "react-hot-loader": "4.13.0",
