@@ -256,8 +256,6 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceTransition: transition,
 					WorkspaceName:       workspace.Name,
 					WorkspaceOwner:      owner.Username,
-					// We don't currently know any "name" for a user aside from their username,
-					// but when we do, we should set the WorkspaceOwnerName field here too.
 					WorkspaceOwnerEmail: owner.Email,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),

@@ -64,8 +64,8 @@ resource "coder_agent" "dev" {
   arch = var.step2_arch
   os   = "linux"
   env = {
-    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
-    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner}"
     GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
     GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
   }
