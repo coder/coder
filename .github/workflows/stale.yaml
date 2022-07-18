@@ -6,8 +6,11 @@ on:
   workflow_dispatch:
 jobs:
   stale:
+    runs-on: ubuntu-latest
     permissions:
       issues: write
       pull-requests: write
     steps:
       - uses: actions/stale@v5.1.0
+        stale-issue-label: stale
+        stale-pr-label: stale
