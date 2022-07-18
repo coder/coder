@@ -49,6 +49,12 @@ resource "coder_agent" "dev" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 resource "google_compute_instance" "dev" {

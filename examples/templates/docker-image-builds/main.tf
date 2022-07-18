@@ -63,6 +63,12 @@ data "coder_workspace" "me" {
 resource "coder_agent" "dev" {
   arch = var.step2_arch
   os   = "linux"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 variable "docker_image" {
@@ -107,7 +113,7 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  # Use the docker gateway if the access URL is 127.0.0.1 
+  # Use the docker gateway if the access URL is 127.0.0.1
   command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {

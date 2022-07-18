@@ -42,16 +42,34 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "go" {
   os   = "linux"
   arch = "amd64"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 resource "coder_agent" "java" {
   os   = "linux"
   arch = "amd64"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 resource "coder_agent" "ubuntu" {
   os   = "linux"
   arch = "amd64"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 resource "kubernetes_pod" "main" {

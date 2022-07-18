@@ -96,6 +96,12 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "dev" {
   os   = "linux"
   arch = "amd64"
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner_name}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 }
 
 resource "digitalocean_volume" "home_volume" {
