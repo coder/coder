@@ -84,6 +84,10 @@ export const getLicenseData = async (): Promise<Types.LicenseData> => {
       createOrg: {
         entitled: true,
         enabled: false
+      },
+      adminScheduling: {
+        enabled: true,
+        entitled: true
       }
     },
     warnings: ["This is a test license compliance banner", "Here is a second one"]

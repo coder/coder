@@ -22,6 +22,10 @@ const defaultLicenseData = {
     createOrg: {
       enabled: false,
       entitled: false
+    },
+    adminScheduling: {
+      enabled: true,
+      entitled: true
     }
   }
 }

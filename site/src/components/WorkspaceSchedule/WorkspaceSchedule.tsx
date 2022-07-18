@@ -17,6 +17,8 @@ import {
   Language as ScheduleLanguage,
 } from "../../util/schedule"
 import { Stack } from "../Stack/Stack"
+import { CELChangeScheduleLink } from "../WorkspaceScheduleButton/CELChangeScheduleLink"
+import { OSSChangeScheduleLink } from "../WorkspaceScheduleButton/OSSChangeScheduleLink"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -27,18 +29,21 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  editScheduleLink: "Edit schedule",
+  OSSeditScheduleLink: "Edit schedule",
+  CELoverrideScheduleLink: "Override schedule",
   timezoneLabel: "Timezone",
 }
 
 export interface WorkspaceScheduleProps {
   workspace: Workspace
   canUpdateWorkspace: boolean
+  adminScheduling: boolean
 }
 
 export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
   workspace,
   canUpdateWorkspace,
+  adminScheduling
 }) => {
   const styles = useStyles()
   const timezone = workspace.autostart_schedule
@@ -71,7 +76,7 @@ export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
               component={RouterLink}
               to={`/@${workspace.owner_name}/${workspace.name}/schedule`}
             >
-              {Language.editScheduleLink}
+              {adminScheduling ? <CELChangeScheduleLink /> : <OSSChangeScheduleLink />}
             </Link>
           </div>
         )}

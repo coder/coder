@@ -11,6 +11,7 @@ import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { selectUser } from "../../xServices/auth/authSelectors"
+import { selectLicenseVisibility } from "../../xServices/license/licenseSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
@@ -24,6 +25,7 @@ export const WorkspacePage: React.FC = () => {
 
   const xServices = useContext(XServiceContext)
   const me = useSelector(xServices.authXService, selectUser)
+  const adminScheduling = useSelector(xServices.licenseXService, selectLicenseVisibility)["adminScheduling"]
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
@@ -68,6 +70,7 @@ export const WorkspacePage: React.FC = () => {
             },
           }}
           scheduleProps={{
+            adminScheduling,
             onDeadlineMinus: () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",

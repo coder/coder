@@ -15,7 +15,7 @@ export type WorkspaceBuildTransition = "start" | "stop" | "delete"
 
 export type Message = { message: string }
 
-export type LicensePermission = "audit" | "createUser" | "createOrg"
+export type LicensePermission = "audit" | "createUser" | "createOrg" | "adminScheduling"
 
 export type LicenseFeatures = Record<LicensePermission, {
   entitled: boolean

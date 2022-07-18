@@ -17,6 +17,7 @@ import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { CELAdminScheduleLabel } from "./CELAdminScheduleLabel"
 import { WorkspaceScheduleLabel } from "./WorkspaceScheduleLabel"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -55,6 +56,7 @@ export interface WorkspaceScheduleButtonProps {
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
   canUpdateWorkspace: boolean
+  adminScheduling: boolean
 }
 
 export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = ({
@@ -62,6 +64,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   onDeadlinePlus,
   onDeadlineMinus,
   canUpdateWorkspace,
+  adminScheduling
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -75,6 +78,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   return (
     <div className={styles.wrapper}>
       <div className={styles.label}>
+        {adminScheduling && <CELAdminScheduleLabel />}
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
           <Stack direction="row" spacing={0}>
@@ -126,7 +130,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             horizontal: "right",
           }}
         >
-          <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} />
+          <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} adminScheduling={adminScheduling} />
         </Popover>
       </div>
     </div>

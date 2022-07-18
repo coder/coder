@@ -20,6 +20,7 @@ export interface WorkspaceProps {
     onExtend: () => void
   }
   scheduleProps: {
+    adminScheduling: boolean
     onDeadlinePlus: () => void
     onDeadlineMinus: () => void
   }
@@ -61,6 +62,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         actions={
           <Stack direction="row" spacing={1}>
             <WorkspaceScheduleButton
+              adminScheduling={scheduleProps.adminScheduling}
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
