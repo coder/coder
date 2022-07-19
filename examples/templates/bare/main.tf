@@ -10,7 +10,7 @@ terraform {
 # template as a starting point for writing custom templates
 # using any Terraform resource/provider.
 #
-# see: https://coder.com/docs/coder-oss/latest/templates
+# See: https://coder.com/docs/coder-oss/latest/templates
 
 data "coder_workspace" "me" {
 
