@@ -12,7 +12,7 @@ export interface APIKey {
   readonly lifetime_seconds: number
 }
 
-// From codersdk/workspaceagents.go:36:6
+// From codersdk/workspaceagents.go:35:6
 export interface AWSInstanceIdentityToken {
   readonly signature: string
   readonly document: string
@@ -30,7 +30,7 @@ export interface AuthMethods {
   readonly github: boolean
 }
 
-// From codersdk/workspaceagents.go:41:6
+// From codersdk/workspaceagents.go:40:6
 export interface AzureInstanceIdentityToken {
   readonly signature: string
   readonly encoding: string
@@ -87,7 +87,7 @@ export interface CreateTemplateRequest {
   readonly min_autostart_interval_ms?: number
 }
 
-// From codersdk/templateversions.go:106:6
+// From codersdk/templateversions.go:108:6
 export interface CreateTemplateVersionDryRunRequest {
   readonly WorkspaceName: string
   readonly ParameterValues: CreateParameterRequest[]
@@ -141,7 +141,7 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
-// From codersdk/workspaceagents.go:32:6
+// From codersdk/workspaceagents.go:31:6
 export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
@@ -214,7 +214,7 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
-// From codersdk/provisionerdaemons.go:38:6
+// From codersdk/provisionerdaemons.go:36:6
 export interface ProvisionerDaemon {
   readonly id: string
   readonly created_at: string
@@ -223,7 +223,7 @@ export interface ProvisionerDaemon {
   readonly provisioners: ProvisionerType[]
 }
 
-// From codersdk/provisionerdaemons.go:67:6
+// From codersdk/provisionerdaemons.go:65:6
 export interface ProvisionerJob {
   readonly id: string
   readonly created_at: string
@@ -235,7 +235,7 @@ export interface ProvisionerJob {
   readonly storage_source: string
 }
 
-// From codersdk/provisionerdaemons.go:78:6
+// From codersdk/provisionerdaemons.go:76:6
 export interface ProvisionerJobLog {
   readonly id: string
   readonly created_at: string
@@ -248,6 +248,13 @@ export interface ProvisionerJobLog {
 // From codersdk/workspaces.go:206:6
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
+}
+
+// From codersdk/error.go:4:6
+export interface Response {
+  readonly message: string
+  readonly detail?: string
+  readonly validations?: ValidationError[]
 }
 
 // From codersdk/roles.go:12:6
@@ -283,6 +290,8 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
+  readonly created_by_id: string
+  readonly created_by_name: string
 }
 
 // From codersdk/templates.go:100:6
@@ -377,6 +386,12 @@ export interface UsersRequest extends Pagination {
   readonly q?: string
 }
 
+// From codersdk/error.go:24:6
+export interface ValidationError {
+  readonly field: string
+  readonly detail: string
+}
+
 // From codersdk/workspaces.go:19:6
 export interface Workspace {
   readonly id: string
@@ -422,7 +437,7 @@ export interface WorkspaceAgent {
   readonly ipv6: any
 }
 
-// From codersdk/workspaceagents.go:48:6
+// From codersdk/workspaceagents.go:47:6
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
@@ -506,10 +521,10 @@ export interface WorkspaceResource {
 // From codersdk/workspacebuilds.go:22:6
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
-// From codersdk/provisionerdaemons.go:28:6
+// From codersdk/provisionerdaemons.go:26:6
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 
-// From codersdk/provisionerdaemons.go:21:6
+// From codersdk/provisionerdaemons.go:19:6
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go:25:6
@@ -527,7 +542,7 @@ export type ParameterSourceScheme = "data" | "none"
 // From codersdk/parameters.go:37:6
 export type ParameterTypeSystem = "hcl" | "none"
 
-// From codersdk/provisionerdaemons.go:47:6
+// From codersdk/provisionerdaemons.go:45:6
 export type ProvisionerJobStatus =
   | "canceled"
   | "canceling"

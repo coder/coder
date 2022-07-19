@@ -397,6 +397,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error

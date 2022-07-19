@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -24,8 +25,8 @@ func templateUpdate() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update <template>",
-		Args:  cobra.ExactArgs(1),
+		Use:   "update [template]",
+		Args:  cobra.MaximumNArgs(1),
 		Short: "Update the source-code of a template from the current directory or as specified by flag",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -36,7 +37,13 @@ func templateUpdate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
+
+			name := filepath.Base(directory)
+			if len(args) > 0 {
+				name = args[0]
+			}
+
+			template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
 			if err != nil {
 				return err
 			}
@@ -46,7 +53,7 @@ func templateUpdate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Upload %q?", prettyDir),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err
@@ -91,7 +98,7 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Printf("Updated version!\n")
+			_, _ = fmt.Printf("Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

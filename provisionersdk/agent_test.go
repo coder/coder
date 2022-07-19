@@ -46,7 +46,10 @@ func TestAgentScript(t *testing.T) {
 		}
 		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 		script = strings.ReplaceAll(script, "${AUTH_TYPE}", "token")
-		output, err := exec.Command("sh", "-c", script).CombinedOutput()
+		// This is intentionally ran in single quotes to mimic how a customer may
+		// embed our script. Our scripts should not include any single quotes.
+		// nolint:gosec
+		output, err := exec.Command("sh", "-c", "sh -c '"+script+"'").CombinedOutput()
 		t.Log(string(output))
 		require.NoError(t, err)
 		// Ignore debug output from `set -x`, we're only interested in the last line.

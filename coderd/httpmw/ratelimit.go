@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 // RateLimitPerMinute returns a handler that limits requests per-minute based
@@ -31,7 +32,7 @@ func RateLimitPerMinute(count int) func(http.Handler) http.Handler {
 			return httprate.KeyByIP(r)
 		}, httprate.KeyByEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusTooManyRequests, httpapi.Response{
+			httpapi.Write(w, http.StatusTooManyRequests, codersdk.Response{
 				Message: "You've been rate limited for sending too many requests!",
 			})
 		}),

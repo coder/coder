@@ -1,7 +1,12 @@
 import dayjs from "dayjs"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
-import { defaultWorkspaceExtension, isWorkspaceDeleted, isWorkspaceOn } from "./workspace"
+import {
+  defaultWorkspaceExtension,
+  getDisplayWorkspaceBuildInitiatedBy,
+  isWorkspaceDeleted,
+  isWorkspaceOn,
+} from "./workspace"
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
@@ -99,6 +104,28 @@ describe("util > workspace", () => {
       ],
     ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
       expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request)
+    })
+  })
+
+  describe("getDisplayWorkspaceBuildInitiatedBy", () => {
+    it.each<[TypesGen.WorkspaceBuild, string]>([
+      [Mocks.MockWorkspaceBuild, "TestUser"],
+      [
+        {
+          ...Mocks.MockWorkspaceBuild,
+          reason: "autostart",
+        },
+        "system/autostart",
+      ],
+      [
+        {
+          ...Mocks.MockWorkspaceBuild,
+          reason: "autostop",
+        },
+        "system/autostop",
+      ],
+    ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
+      expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
     })
   })
 })

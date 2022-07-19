@@ -2,9 +2,9 @@ import { useMachine } from "@xstate/react"
 import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useSearchParams } from "react-router-dom"
-import { workspaceFilterQuery } from "../../util/filters"
-import { pageTitle } from "../../util/page"
-import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
+import { workspaceFilterQuery } from "util/filters"
+import { pageTitle } from "util/page"
+import { workspacesMachine } from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
@@ -32,7 +32,7 @@ const WorkspacesPage: FC = () => {
 
       <WorkspacesPageView
         filter={workspacesState.context.filter}
-        isLoading={workspacesState.hasTag("loading")}
+        isLoading={!workspaceRefs}
         workspaceRefs={workspaceRefs}
         onFilter={(query) => {
           setSearchParams({ filter: query })

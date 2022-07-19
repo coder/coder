@@ -1,6 +1,8 @@
 version: "3.9"
 services:
   coder:
+    # This MUST be stable for our documentation and
+    # other automations.
     image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
     ports:
       - "7080:7080"

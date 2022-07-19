@@ -25,11 +25,9 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
   return (
     <Paper className={styles.root} elevation={0}>
       {title && (
-        <div className={styles.headerContainer}>
-          <div className={styles.header}>
-            <Typography variant="h6">{title}</Typography>
-            {action && <div>{action}</div>}
-          </div>
+        <div className={styles.header}>
+          <Typography variant="h6">{title}</Typography>
+          {action && <div>{action}</div>}
         </div>
       )}
 
@@ -48,9 +46,6 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: CardRadius,
   },
-  headerContainer: {
-    borderBottom: `1px solid ${theme.palette.divider}`,
-  },
   contents: {
     margin: theme.spacing(2),
   },
@@ -58,9 +53,9 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: theme.spacing(1),
-    marginTop: theme.spacing(1),
-    paddingLeft: CardPadding + theme.spacing(1),
+    paddingBottom: theme.spacing(1.5),
+    paddingTop: theme.spacing(2),
+    paddingLeft: CardPadding + theme.spacing(1.5),
     paddingRight: CardPadding / 2,
   },
 }))

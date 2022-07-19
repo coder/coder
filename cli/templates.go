@@ -16,18 +16,20 @@ func templates() *cobra.Command {
 		Use:     "templates",
 		Short:   "Create, manage, and deploy templates",
 		Aliases: []string{"template"},
-		Example: `
-  - Create a template for developers to create workspaces
-
-    ` + cliui.Styles.Code.Render("$ coder templates create") + `
-
-  - Make changes to your template, and plan the changes
-
-    ` + cliui.Styles.Code.Render("$ coder templates plan <name>") + `
-
-  - Update the template. Your developers can update their workspaces
-
-    ` + cliui.Styles.Code.Render("$ coder templates update <name>"),
+		Example: formatExamples(
+			example{
+				Description: "Create a template for developers to create workspaces",
+				Command:     "coder templates create",
+			},
+			example{
+				Description: "Make changes to your template, and plan the changes",
+				Command:     "coder templates plan my-template",
+			},
+			example{
+				Description: "Update the template. Your developers can update their workspaces",
+				Command:     "coder templates update my-template",
+			},
+		),
 	}
 	cmd.AddCommand(
 		templateCreate(),

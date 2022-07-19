@@ -7,9 +7,14 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { getDisplayStatus } from "../../util/workspace"
+import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
+import {
+  TableCellData,
+  TableCellDataPrimary,
+  TableCellDataSecondary,
+} from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
 
@@ -27,6 +32,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
   const status = getDisplayStatus(theme, workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
 
   return (
@@ -42,9 +48,19 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       className={styles.clickableTableRow}
     >
       <TableCellLink to={workspacePageLink}>
-        <AvatarData title={workspace.name} subtitle={workspace.owner_name} />
+        <TableCellData>
+          <TableCellDataPrimary highlight>{workspace.name}</TableCellDataPrimary>
+          <TableCellDataSecondary>{workspace.owner_name}</TableCellDataSecondary>
+        </TableCellData>
       </TableCellLink>
+
       <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
+      <TableCellLink to={workspacePageLink}>
+        <AvatarData
+          title={initiatedBy}
+          subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
+        />
+      </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
           <span className={styles.outdatedLabel}>
@@ -59,11 +75,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
           <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
         )}
       </TableCellLink>
-      <TableCellLink to={workspacePageLink}>
-        <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
-          {dayjs().to(dayjs(workspace.latest_build.created_at))}
-        </span>
-      </TableCellLink>
+
       <TableCellLink to={workspacePageLink}>
         <span style={{ color: status.color }}>{status.status}</span>
       </TableCellLink>
@@ -103,5 +115,9 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(0.5),
+  },
+  buildTime: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
   },
 }))

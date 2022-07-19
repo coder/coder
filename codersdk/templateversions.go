@@ -20,6 +20,8 @@ type TemplateVersion struct {
 	Name           string         `json:"name"`
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
+	CreatedByID    uuid.UUID      `json:"created_by_id"`
+	CreatedByName  string         `json:"created_by_name"`
 }
 
 // TemplateVersion returns a template version by ID.

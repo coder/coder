@@ -6,12 +6,12 @@ import {
   deadlineMinusDisabled,
   deadlinePlusDisabled,
   shouldDisplayPlusMinus,
-} from "./WorkspaceSchedule"
+} from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
 const now = dayjs()
 
-describe("WorkspaceSchedule", () => {
+describe("WorkspaceScheduleButton", () => {
   describe("shouldDisplayPlusMinus", () => {
     it("should not display if the workspace is not running", () => {
       // Given: a stopped workspace

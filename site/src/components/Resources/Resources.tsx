@@ -9,19 +9,18 @@ import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
+import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
   resources: "Resources",
   resourceLabel: "Resource",
   agentsLabel: "Agents",
   agentLabel: "Agent",
-  accessLabel: "Access",
 }
 
 interface ResourcesProps {
@@ -41,10 +40,7 @@ export const Resources: FC<ResourcesProps> = ({
   const theme: Theme = useTheme()
 
   return (
-    <WorkspaceSection
-      title={Language.resources}
-      contentsProps={{ className: styles.sectionContents }}
-    >
+    <div aria-label={Language.resources} className={styles.wrapper}>
       {getResourcesError ? (
         { getResourcesError }
       ) : (
@@ -63,7 +59,7 @@ export const Resources: FC<ResourcesProps> = ({
                   <AgentHelpTooltip />
                 </Stack>
               </TableCell>
-              {canUpdateWorkspace && <TableCell>{Language.accessLabel}</TableCell>}
+              {canUpdateWorkspace && <TableCell></TableCell>}
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -79,7 +75,7 @@ export const Resources: FC<ResourcesProps> = ({
                 if (!agent) {
                   return (
                     <TableRow key={`${resource.id}-${agentIndex}`}>
-                      <TableCell className={styles.resourceNameCell}>
+                      <TableCell>
                         {resource.name}
                         <span className={styles.resourceType}>{resource.type}</span>
                       </TableCell>
@@ -102,22 +98,22 @@ export const Resources: FC<ResourcesProps> = ({
 
                     <TableCell className={styles.agentColumn}>
                       {agent.name}
-                      <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                      <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
+                      <div className={styles.agentInfo}>
+                        <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                        <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
+                      </div>
                     </TableCell>
-                    {canUpdateWorkspace && (
-                      <TableCell>
-                        <Stack>
-                          {agent.status === "connected" && (
+                    <TableCell>
+                      <>
+                        {canUpdateWorkspace && agent.status === "connected" && (
+                          <div className={styles.accessLinks}>
+                            <SSHButton workspaceName={workspace.name} agentName={agent.name} />
                             <TerminalLink
-                              className={styles.accessLink}
                               workspaceName={workspace.name}
                               agentName={agent.name}
                               userName={workspace.owner_name}
                             />
-                          )}
-                          {agent.status === "connected" &&
-                            agent.apps.map((app) => (
+                            {agent.apps.map((app) => (
                               <AppLink
                                 key={app.name}
                                 appIcon={app.icon}
@@ -126,9 +122,10 @@ export const Resources: FC<ResourcesProps> = ({
                                 workspaceName={workspace.name}
                               />
                             ))}
-                        </Stack>
-                      </TableCell>
-                    )}
+                          </div>
+                        )}
+                      </>
+                    </TableCell>
                   </TableRow>
                 )
               })
@@ -136,13 +133,14 @@ export const Resources: FC<ResourcesProps> = ({
           </TableBody>
         </Table>
       )}
-    </WorkspaceSection>
+    </div>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  sectionContents: {
-    margin: 0,
+  wrapper: {
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
   },
 
   table: {
@@ -162,26 +160,26 @@ const useStyles = makeStyles((theme) => ({
 
   // Adds some left spacing
   agentColumn: {
-    paddingLeft: `${theme.spacing(2)}px !important`,
+    paddingLeft: `${theme.spacing(4)}px !important`,
   },
 
-  accessLink: {
-    color: theme.palette.text.secondary,
+  agentInfo: {
     display: "flex",
-    alignItems: "center",
-
-    "& svg": {
-      width: 16,
-      height: 16,
-      marginRight: theme.spacing(1.5),
-    },
-  },
-
-  operatingSystem: {
+    gap: theme.spacing(1.5),
     fontSize: 14,
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.5),
+  },
+
+  operatingSystem: {
     display: "block",
     textTransform: "capitalize",
+  },
+
+  accessLinks: {
+    display: "flex",
+    gap: theme.spacing(0.5),
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
 }))

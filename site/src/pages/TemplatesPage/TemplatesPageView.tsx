@@ -139,7 +139,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 className={styles.clickableTableRow}
               >
                 <TableCellLink to={templatePageLink}>
-                  <AvatarData title={template.name} subtitle={template.description} />
+                  <AvatarData
+                    title={template.name}
+                    subtitle={template.description}
+                    highlightTitle
+                  />
                 </TableCellLink>
 
                 <TableCellLink to={templatePageLink}>

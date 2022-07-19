@@ -42,7 +42,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   presetFilters,
   error,
 }) => {
-  const styles = useStyles({ error })
+  const styles = useStyles({ error: !!error })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -112,14 +112,14 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
             className={styles.inputStyles}
             onChange={form.handleChange}
             startAdornment={
-              <InputAdornment position="start">
+              <InputAdornment position="start" className={styles.searchIcon}>
                 <SearchIcon fontSize="small" />
               </InputAdornment>
             }
           />
         </form>
 
-        {presetFilters && presetFilters.length > 0 && (
+        {presetFilters && presetFilters.length && (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}
@@ -150,7 +150,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 }
 
 interface StyleProps {
-  error?: unknown
+  error?: boolean
 }
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
@@ -183,5 +183,15 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
         borderColor: (props) => props.error && theme.palette.error.contrastText,
       },
     },
+
+    "& .MuiInputBase-input": {
+      paddingTop: "inherit",
+      paddingBottom: "inherit",
+      // The same as the button
+      minHeight: 42,
+    },
+  },
+  searchIcon: {
+    color: theme.palette.text.secondary,
   },
 }))

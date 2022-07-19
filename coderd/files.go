@@ -32,7 +32,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	switch contentType {
 	case "application/x-tar":
 	default:
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
 		})
 		return
@@ -41,7 +41,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, 10*(10<<20))
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
 			Detail:  err.Error(),
 		})
@@ -65,7 +65,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		Data:      data,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error saving file.",
 			Detail:  err.Error(),
 		})
@@ -80,7 +80,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File hash must be provided in url.",
 		})
 		return
@@ -91,7 +91,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching file.",
 			Detail:  err.Error(),
 		})
