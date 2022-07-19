@@ -237,5 +237,6 @@ CI is as simple as running `coder templates update` with the appropriate
 credentials.
 
 ---
-
-Next: [Authentication & Secrets](templates/authentication.md) and [Workspaces](./workspaces.md)
+## Next Steps
+<doc page="./templates/authentication.md"></doc>
+<doc page="./workspaces.md"></doc>
