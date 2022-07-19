@@ -32,7 +32,7 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  errorNoDayOfWeek: "Must set at least one day of week",
+  errorNoDayOfWeek: "Must set at least one day of week if start time is set",
   errorNoTime: "Start time is required",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
