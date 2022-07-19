@@ -214,7 +214,7 @@ some useful parameters. See the [documentation for the `coder` Terraform provide
 for more information.
 
 For example, the [Docker quick-start template](https://github.com/coder/coder/tree/main/examples/templates/docker)
-sets a few environment variables based on the username and email address of the user's owner, so
+sets a few environment variables based on the username and email address of the workspace's owner, so
 that you can make Git commits immediately without any manual configuration:
 
 ```tf
@@ -229,7 +229,8 @@ resource "coder_agent" "dev" {
 }
 ```
 
-You can add these variable definitions to your own templates, or customize them however you like.
+You can add these environment variable definitions to your own templates, or customize them however
+you like.
 
 ## Creating & troubleshooting templates
 
