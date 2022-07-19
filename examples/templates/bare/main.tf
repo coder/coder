@@ -13,7 +13,6 @@ terraform {
 # See: https://coder.com/docs/coder-oss/latest/templates
 
 data "coder_workspace" "me" {
-
 }
 
 resource "coder_agent" "dev1" {
