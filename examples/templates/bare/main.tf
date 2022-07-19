@@ -37,7 +37,7 @@ resource "null_resource" "fake-compute" {
 }
 
 resource "null_resource" "fake-disk" {
-  # This resource will remain even when workspaces are restarted
+  # This resource will remain even when workspaces are restarted.
   count = 1
 }
 
