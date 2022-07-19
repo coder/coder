@@ -33,6 +33,7 @@ resource "null_resource" "fake-compute" {
   # Run the Coder agent init script on resources
   # to access web apps and SSH:
   #
+  # export CODER_AGENT_TOKEN=${coder_agent.dev1.token}
   # ${coder_agent.dev1.init_script}
 }
 
