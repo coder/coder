@@ -36,6 +36,9 @@ type Config struct {
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
 	Tunnel Node `json:"tunnel"`
+
+	// Used in testing.  Normally this is nil, indicating to use DefaultClient.
+	HTTPClient *http.Client `json:"-"`
 }
 type configExt struct {
 	Version    int                    `json:"-"`
@@ -43,6 +46,9 @@ type configExt struct {
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
 	Tunnel Node `json:"-"`
+
+	// Used in testing.  Normally this is nil, indicating to use DefaultClient.
+	HTTPClient *http.Client `json:"-"`
 }
 
 // NewWithConfig calls New with the given config. For documentation, see New.
@@ -54,7 +60,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 
 	tun, tnet, err := netstack.CreateNetTUN(
 		[]netip.Addr{server.ClientIP},
-		[]netip.Addr{netip.AddrFrom4([4]byte{1, 1, 1, 1})},
+		[]netip.Addr{},
 		1280,
 	)
 	if err != nil {
@@ -69,7 +75,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
-endpoint=%s:%d
+endpoint=[%s]:%d
 persistent_keepalive_interval=21
 allowed_ip=%s/128`,
 		hex.EncodeToString(cfg.PrivateKey[:]),
@@ -174,7 +180,11 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 		return ServerResponse{}, xerrors.Errorf("new request: %w", err)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if cfg.HTTPClient != nil {
+		client = cfg.HTTPClient
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return ServerResponse{}, xerrors.Errorf("do request: %w", err)
 	}
