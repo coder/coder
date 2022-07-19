@@ -14,14 +14,15 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun/netstack"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd/devtunnel"
 )
 
 // The tunnel leaks a few goroutines that aren't impactful to production scenarios.
@@ -29,15 +30,17 @@ import (
 // 	goleak.VerifyTestMain(m)
 // }
 
+// TestTunnel cannot run in parallel because we hardcode the UDP port used by the wireguard server.
+// nolint: tparallel
 func TestTunnel(t *testing.T) {
-	t.Parallel()
-
 	ctx, cancelTun := context.WithCancel(context.Background())
 	defer cancelTun()
 
 	server := http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Log("got request for", r.URL)
+			// Going to use something _slightly_ exotic so that we can't accidentally get some
+			// default behavior creating a false positive on the test
 			w.WriteHeader(http.StatusAccepted)
 		}),
 		BaseContext: func(_ net.Listener) context.Context {
@@ -60,12 +63,12 @@ func TestTunnel(t *testing.T) {
 	t.Cleanup(func() { tun.Listener.Close() })
 
 	require.Eventually(t, func() bool {
-		res, err := fTunServer.requestHttp()
+		res, err := fTunServer.requestHTTP()
 		require.NoError(t, err)
 		defer res.Body.Close()
 		_, _ = io.Copy(io.Discard, res.Body)
 
-		return res.StatusCode == http.StatusOK
+		return res.StatusCode == http.StatusAccepted
 	}, time.Minute, time.Second)
 
 	assert.NoError(t, server.Close())
@@ -103,9 +106,9 @@ const (
 )
 
 var (
-	serverIp = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x1})
-	dnsIp    = netip.AddrFrom4([4]byte{1, 1, 1, 1})
-	clientIp = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x2})
+	serverIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x1})
+	dnsIP    = netip.AddrFrom4([4]byte{1, 1, 1, 1})
+	clientIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x2})
 )
 
 func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
@@ -115,8 +118,8 @@ func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
 	pub := priv.PublicKey()
 	pubBytes := [32]byte(pub)
 	tun, tnet, err := netstack.CreateNetTUN(
-		[]netip.Addr{serverIp},
-		[]netip.Addr{dnsIp},
+		[]netip.Addr{serverIP},
+		[]netip.Addr{dnsIP},
 		1280,
 	)
 	require.NoError(t, err)
@@ -127,11 +130,14 @@ listen_port=%d`,
 		wgPort,
 	))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		dev.Close()
+	})
 
 	err = dev.Up()
 	require.NoError(t, err)
 
-	server := newFakeTunnelHttpsServer(t, pubBytes)
+	server := newFakeTunnelHTTPSServer(t, pubBytes)
 
 	return &fakeTunnelServer{
 		t:      t,
@@ -143,16 +149,16 @@ listen_port=%d`,
 	}
 }
 
-func newFakeTunnelHttpsServer(t *testing.T, pubBytes [32]byte) *httptest.Server {
+func newFakeTunnelHTTPSServer(t *testing.T, pubBytes [32]byte) *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/tun", func(writer http.ResponseWriter, request *http.Request) {
 		assert.Equal(t, "POST", request.Method)
 
 		resp := devtunnel.ServerResponse{
-			Hostname:        fmt.Sprintf("[%s]", serverIp.String()),
-			ServerIP:        serverIp,
+			Hostname:        fmt.Sprintf("[%s]", serverIP.String()),
+			ServerIP:        serverIP,
 			ServerPublicKey: hex.EncodeToString(pubBytes[:]),
-			ClientIP:        clientIp,
+			ClientIP:        clientIP,
 		}
 		b, err := json.Marshal(&resp)
 		assert.NoError(t, err)
@@ -178,7 +184,7 @@ func (f *fakeTunnelServer) config() devtunnel.Config {
 	err = f.device.IpcSet(fmt.Sprintf(`public_key=%x
 allowed_ip=%s/128`,
 		pub[:],
-		clientIp.String(),
+		clientIP.String(),
 	))
 	require.NoError(f.t, err)
 	return devtunnel.Config{
@@ -194,11 +200,11 @@ allowed_ip=%s/128`,
 	}
 }
 
-func (f *fakeTunnelServer) requestHttp() (*http.Response, error) {
+func (f *fakeTunnelServer) requestHTTP() (*http.Response, error) {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			f.t.Log("Dial", network, addr)
-			nc, err := f.tnet.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(clientIp, 8090))
+			nc, err := f.tnet.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(clientIP, 8090))
 			assert.NoError(f.t, err)
 			return nc, err
 		},
@@ -207,5 +213,5 @@ func (f *fakeTunnelServer) requestHttp() (*http.Response, error) {
 		Transport: transport,
 		Timeout:   10 * time.Second,
 	}
-	return client.Get(fmt.Sprintf("http://[%s]:8090", clientIp))
+	return client.Get(fmt.Sprintf("http://[%s]:8090", clientIP))
 }
