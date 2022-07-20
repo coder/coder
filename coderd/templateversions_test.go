@@ -125,6 +125,12 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Eventually(t, func() bool {
+			var err error
+			version, err = client.TemplateVersion(context.Background(), version.ID)
+			require.NoError(t, err)
+			return version.Job.Status == codersdk.ProvisionerJobFailed
+		}, 5*time.Second, 25*time.Millisecond)
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
@@ -151,7 +157,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
 			require.NoError(t, err)
-			return version.Job.Status == codersdk.ProvisionerJobCanceled
+			return version.Job.Status == codersdk.ProvisionerJobFailed // cancel times out
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 }

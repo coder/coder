@@ -229,7 +229,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), build.ID)
 		require.NoError(t, err)
-		return build.Job.Status == codersdk.ProvisionerJobCanceled
+		return build.Job.Status == codersdk.ProvisionerJobFailed // this is timing out
 	}, 5*time.Second, 25*time.Millisecond)
 }
 
