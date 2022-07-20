@@ -5,20 +5,20 @@ This article explains how to use secrets in a workspace. To authenticate the
 workspace provisioner, see <a href="./templates/authentication">this</a>.
 </blockquote>
 
-Coder takes an unopinionated stance to workspace secrets.
+Coder is open-minded about how you get your secrets into your workspaces.
 
 ## Wait a minute...
 
 Your first stab at secrets with Coder should be your local method.
 You can do everything you can locally and more with your Coder workspace, so
-whatever workflow and tools you already use to manage secrets can be brought
+whatever workflow and tools you already use to manage secrets may be brought
 over.
 
 For most, this workflow is simply:
 
 1. Give your users their secrets in advance
-1. They write them to a persistent file after
-   they've built a workspace
+1. Your users write them to a persistent file after
+   they've built their workspace
 
 <a href="./templates#parameters">Template parameters</a> are a dangerous way to accept secrets.
 We show parameters in cleartext around the product. Assume anyone with view
@@ -26,10 +26,15 @@ access to a workspace can also see its parameters.
 
 ## Dynamic Secrets
 
-Dynamic secrets are attached to the workspace lifecycle and require no setup by
-the end user.
+Dynamic secrets are attached to the workspace lifecycle and automatically
+injected into the workspace. For a little bit of up front template work,
+they make life simpler for both the end user and the security team.
 
-They can be implemented in your template code like so:
+This method is limited to
+[services with Terraform providers](https://registry.terraform.io/browse/providers),
+which excludes obscure API providers.
+
+Dynamic secrets can be implemented in your template code like so:
 
 ```hcl
 resource "twilio_iam_api_key" "api_key" {
@@ -45,8 +50,6 @@ resource "coder_agent" "dev" {
   }
 }
 ```
-
-This method is limited to [services with Terraform providers](https://registry.terraform.io/browse/providers).
 
 A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key))
 for each workspace and then making the relevant secrets available via the cloud's secret management
