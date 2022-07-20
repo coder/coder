@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -40,11 +39,12 @@ const (
 	varAgentURL        = "agent-url"
 	varGlobalConfig    = "global-config"
 	varNoOpen          = "no-open"
+	varNoVersionCheck  = "no-version-warning"
 	varForceTty        = "force-tty"
+	varVerbose         = "verbose"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
-	noVersionCheckFlag = "no-version-warning"
-	envNoVersionCheck  = "CODER_NO_VERSION_WARNING"
+	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
 )
 
 var (
@@ -58,8 +58,6 @@ func init() {
 }
 
 func Root() *cobra.Command {
-	var varSuppressVersion bool
-
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
@@ -68,7 +66,7 @@ func Root() *cobra.Command {
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			err := func() error {
-				if varSuppressVersion {
+				if cliflag.IsSetBool(cmd, varNoVersionCheck) {
 					return nil
 				}
 
@@ -141,7 +139,7 @@ func Root() *cobra.Command {
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
-	cliflag.BoolVarP(cmd.PersistentFlags(), &varSuppressVersion, noVersionCheckFlag, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
@@ -152,6 +150,7 @@ func Root() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
+	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output")
 
 	return cmd
 }
@@ -427,12 +426,29 @@ func formatExamples(examples ...example) string {
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
 func FormatCobraError(err error, cmd *cobra.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
-	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
+
+	var (
+		httpErr *codersdk.Error
+		output  strings.Builder
+	)
+
+	if xerrors.As(err, &httpErr) {
+		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
+	}
+
+	// If the httpErr is nil then we just have a regular error in which
+	// case we want to print out what's happening.
+	if httpErr == nil || cliflag.IsSetBool(cmd, varVerbose) {
+		_, _ = fmt.Fprintln(&output, err.Error())
+	}
+
+	_, _ = fmt.Fprint(&output, helpErrMsg)
+
+	return cliui.Styles.Error.Render(output.String())
 }
 
 func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
-	flag := cmd.Flag("no-version-warning")
-	if suppress, _ := strconv.ParseBool(flag.Value.String()); suppress {
+	if cliflag.IsSetBool(cmd, varNoVersionCheck) {
 		return nil
 	}
 

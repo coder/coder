@@ -185,6 +185,10 @@ func (e *Error) StatusCode() int {
 	return e.statusCode
 }
 
+func (e *Error) Friendly() string {
+	return fmt.Sprintf("%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
+}
+
 func (e *Error) Error() string {
 	var builder strings.Builder
 	if e.method != "" && e.url != "" {
