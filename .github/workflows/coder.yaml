@@ -219,6 +219,7 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -281,6 +282,7 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -431,6 +433,7 @@ jobs:
         working-directory: site
 
       - uses: codecov/codecov-action@v3
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
