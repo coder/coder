@@ -424,6 +424,8 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 // setupTestListener starts accepting connections and echoing a single packet.
 // Returns the listener and the listen port or Unix path.
 func setupTestListener(t *testing.T, l net.Listener) string {
+	t.Helper()
+
 	// Wait for listener to completely exit before releasing.
 	done := make(chan struct{})
 	t.Cleanup(func() {
@@ -439,6 +441,7 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 		for {
 			c, err := l.Accept()
 			if err != nil {
+				_ = l.Close()
 				return
 			}
 
@@ -478,6 +481,7 @@ func testAccept(t *testing.T, c net.Conn) {
 }
 
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
 	assert.NoError(t, err, "read payload")
@@ -486,12 +490,14 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 }
 
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
 }
 
 func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {
+	t.Helper()
 	for i := 0; i < 100; i++ {
 		time.Sleep(250 * time.Millisecond)
 
