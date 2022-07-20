@@ -12,5 +12,6 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/stale@v5.1.0
-        stale-issue-label: stale
-        stale-pr-label: stale
+        with:
+          stale-issue-label: stale
+          stale-pr-label: stale
