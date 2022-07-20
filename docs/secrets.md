@@ -22,14 +22,14 @@ For most, this workflow is simply:
 
 <a href="./templates#parameters">Template parameters</a> are a dangerous way to accept secrets.
 We show parameters in cleartext around the product. Assume anyone with view
-access to your workspace can also see parameters.
+access to a workspace can also see its parameters.
 
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and require no setup by
 the end user.
 
-They can be implemented in native Terraform like so:
+They can be implemented in your template code like so:
 
 ```hcl
 resource "twilio_iam_api_key" "api_key" {
@@ -40,7 +40,7 @@ resource "twilio_iam_api_key" "api_key" {
 resource "coder_agent" "dev" {
   # ...
   env = {
-    # Let users access the secret via #TWILIO_API_SECRET
+    # Let users access the secret via $TWILIO_API_SECRET
     TWILIO_API_SECRET = "${twilio_iam_api_key.api_key.secret}"
   }
 }
@@ -49,7 +49,7 @@ resource "coder_agent" "dev" {
 This method is limited to [services with Terraform providers](https://registry.terraform.io/browse/providers).
 
 A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key))
-for each workspace and then make the relevant secrets available via the cloud's secret management
+for each workspace and then making the relevant secrets available via the cloud's secret management
 system.
 
 ## Coder SSH Key
