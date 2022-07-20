@@ -14,7 +14,7 @@ You can do everything you can locally and more with your Coder workspace, so
 whatever workflow and tools you already use to manage secrets may be brought
 over.
 
-For most, this workflow is simply:
+Often, this workflow is simply:
 
 1. Give your users their secrets in advance
 1. Your users write them to a persistent file after
@@ -27,7 +27,7 @@ access to a workspace can also see its parameters.
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically
-injected into the workspace. For a little bit of up front template work,
+injected into the workspace. With a little bit of up front template work,
 they make life simpler for both the end user and the security team.
 
 This method is limited to
