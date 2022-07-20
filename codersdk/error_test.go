@@ -1,4 +1,4 @@
-package codersdk
+package codersdk_test
 
 import (
 	"net"
@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func TestIsConnectionErr(t *testing.T) {
@@ -57,7 +59,7 @@ func TestIsConnectionErr(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, c.expectedResult, IsConnectionErr(c.err))
+			require.Equal(t, c.expectedResult, codersdk.IsConnectionErr(c.err))
 		})
 	}
 }

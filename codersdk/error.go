@@ -33,7 +33,7 @@ type ValidationError struct {
 }
 
 // IsConnectionErr is a convenience function for checking if the source of an
-// erro is due to a 'connection refused', 'no such host', etc.
+// error is due to a 'connection refused', 'no such host', etc.
 func IsConnectionErr(err error) bool {
 	var (
 		// E.g. no such host
