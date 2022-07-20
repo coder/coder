@@ -30,9 +30,24 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+    steps:
+      # For pull requests it's not necessary to checkout the code
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            all:
+              - '**''
+            docs:
+              - 'docs/**'
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -48,6 +63,7 @@ jobs:
     name: style/lint/shellcheck
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    if: ${{ needs.changes.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v3
       - name: Run ShellCheck
@@ -60,6 +76,7 @@ jobs:
   style-lint-typescript:
     name: "style/lint/typescript"
     timeout-minutes: 5
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -87,6 +104,7 @@ jobs:
     name: "style/gen"
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    if: ${{ needs.changes.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v3
 
@@ -122,6 +140,7 @@ jobs:
 
   style-fmt:
     name: "style/fmt"
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -154,6 +173,7 @@ jobs:
 
   test-go:
     name: "test/go"
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -227,6 +247,7 @@ jobs:
 
   test-go-postgres:
     name: "test/go/postgres"
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -291,7 +312,9 @@ jobs:
     name: "deploy"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    if: |
+      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      && !needs.changes.outputs.docs_only
     permissions:
       contents: read
       id-token: write
@@ -397,6 +420,7 @@ jobs:
 
   test-js:
     name: "test/js"
+    if: ${{ needs.changes.outputs.docs_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
