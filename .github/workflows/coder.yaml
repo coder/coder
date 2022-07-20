@@ -219,13 +219,16 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          # this flakes and sometimes fails the build
-          fail_ci_if_error: false
 
   test-go-postgres:
     name: "test/go/postgres"
@@ -281,13 +284,16 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          # this flakes and sometimes fails the build
-          fail_ci_if_error: false
 
   deploy:
     name: "deploy"
@@ -431,13 +437,16 @@ jobs:
         working-directory: site
 
       - uses: codecov/codecov-action@v3
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          # this flakes and sometimes fails the build
-          fail_ci_if_error: false
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
