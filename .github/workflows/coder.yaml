@@ -33,7 +33,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      docs-only: ${{ env.DOCS_ONLY }}
     steps:
       # For pull requests it's not necessary to checkout the code
       - uses: dorny/paths-filter@v2
@@ -44,11 +44,15 @@ jobs:
               - '**'
             docs:
               - 'docs/**'
-              - '.github/**'
+      - id: log
+        run: |
+          echo "${{ toJSON(steps.filter) }}"
+          echo "DOCS_ONLY=${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }} >> $GITHUB_ENV"
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -64,7 +68,8 @@ jobs:
     name: style/lint/shellcheck
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     steps:
       - uses: actions/checkout@v3
       - name: Run ShellCheck
@@ -77,7 +82,8 @@ jobs:
   style-lint-typescript:
     name: "style/lint/typescript"
     timeout-minutes: 5
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,7 +111,8 @@ jobs:
     name: "style/gen"
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     steps:
       - uses: actions/checkout@v3
 
@@ -141,7 +148,8 @@ jobs:
 
   style-fmt:
     name: "style/fmt"
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -174,7 +182,8 @@ jobs:
 
   test-go:
     name: "test/go"
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -251,7 +260,8 @@ jobs:
 
   test-go-postgres:
     name: "test/go/postgres"
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -323,9 +333,10 @@ jobs:
     name: "deploy"
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: changes
     if: |
       github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && !needs.changes.outputs.docs_only
+      && needs.changes.outputs.docs_only == 'false'
     permissions:
       contents: read
       id-token: write
@@ -431,7 +442,8 @@ jobs:
 
   test-js:
     name: "test/js"
-    if: ${{ !needs.changes.outputs.docs_only }}
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -485,6 +497,8 @@ jobs:
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:

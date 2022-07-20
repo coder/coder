@@ -91,6 +91,9 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
+		// Read output to prevent hang on macOS, see:
+		// https://github.com/coder/coder/issues/2122
+		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 	t.Run("Stdio", func(t *testing.T) {
@@ -224,6 +227,9 @@ func TestSSH(t *testing.T) {
 
 		// And we're done.
 		pty.WriteLine("exit")
+		// Read output to prevent hang on macOS, see:
+		// https://github.com/coder/coder/issues/2122
+		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 }
