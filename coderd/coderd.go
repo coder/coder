@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -132,19 +131,6 @@ func New(options *Options) *API {
 	// other applications might not as well.
 	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
-
-	r.Get("/upgrade", func(w http.ResponseWriter, r *http.Request) {
-		exe, err := os.Executable()
-		if err != nil {
-			httpapi.Write(w, http.StatusInternalServerError, httpapi.Response{
-				Message: "Unable to locate coder.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		http.ServeFile(w, r, exe)
-	})
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {

@@ -9,7 +9,7 @@ import (
 )
 
 func (c *Client) Upgrade(ctx context.Context) (io.ReadCloser, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/upgrade", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/bin", nil)
 	if err != nil {
 		_ = res.Body.Close()
 		return nil, xerrors.Errorf("do request: %w", err)
