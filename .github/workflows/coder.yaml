@@ -6,6 +6,8 @@ on:
       - main
     tags:
       - "*"
+    paths-ignore:
+      - "docs/**"
 
   pull_request:
 
