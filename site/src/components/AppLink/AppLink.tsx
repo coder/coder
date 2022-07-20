@@ -38,6 +38,7 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
       <Button
         size="small"
         startIcon={appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />}
+        className={styles.button}
       >
         {appName}
       </Button>
@@ -48,5 +49,9 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
 const useStyles = makeStyles(() => ({
   link: {
     textDecoration: "none !important",
+  },
+
+  button: {
+    whiteSpace: "nowrap",
   },
 }))
