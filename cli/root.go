@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -449,8 +448,7 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 }
 
 func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
-	flag := cmd.Flag("no-version-warning")
-	if suppress, _ := strconv.ParseBool(flag.Value.String()); suppress {
+	if cliflag.IsSetBool(cmd, varNoVersionCheck) {
 		return nil
 	}
 
