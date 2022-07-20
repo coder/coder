@@ -1,5 +1,11 @@
 package codersdk
 
+import (
+	"net"
+
+	"golang.org/x/xerrors"
+)
+
 // Response represents a generic HTTP response.
 type Response struct {
 	// Message is an actionable message that depicts actions the request took.
@@ -24,4 +30,17 @@ type Response struct {
 type ValidationError struct {
 	Field  string `json:"field" validate:"required"`
 	Detail string `json:"detail" validate:"required"`
+}
+
+// IsConnectionErr is a convenience function for checking if the source of an
+// erro is due to a 'connection refused', 'no such host', etc.
+func IsConnectionErr(err error) bool {
+	var (
+		// E.g. no such host
+		dnsErr *net.DNSError
+		// Eg. connection refused
+		opErr *net.OpError
+	)
+
+	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
 }

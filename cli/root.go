@@ -455,6 +455,11 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	clientVersion := buildinfo.Version()
 
 	info, err := client.BuildInfo(cmd.Context())
+	// Avoid printing errors that are connection-related.
+	if codersdk.IsConnectionErr(err) {
+		return nil
+	}
+
 	if err != nil {
 		return xerrors.Errorf("build info: %w", err)
 	}
