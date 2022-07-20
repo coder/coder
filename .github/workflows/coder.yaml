@@ -230,6 +230,7 @@ jobs:
   test-go-postgres:
     name: "test/go/postgres"
     runs-on: ubuntu-latest
+    # This timeout must be greater than go test -timeout.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v3
