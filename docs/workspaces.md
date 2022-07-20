@@ -10,7 +10,7 @@ templates](./templates.md):
 
 ```sh
 # create a workspace from the template; specify any variables
-create --template="<templateName>" <workspaceName>
+coder create --template="<templateName>" <workspaceName>
 
 # show the resources behind the workspace and how to connect
 coder show <workspace-name>

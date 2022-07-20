@@ -257,9 +257,8 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 
 func TestWorkspaceAgentTailnet(t *testing.T) {
 	t.Parallel()
-	client, coderAPI := coderdtest.NewWithAPI(t, nil)
+	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,

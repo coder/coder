@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -40,7 +41,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
@@ -255,6 +256,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceTransition: transition,
 					WorkspaceName:       workspace.Name,
 					WorkspaceOwner:      owner.Username,
+					WorkspaceOwnerEmail: owner.Email,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),
 				},
@@ -404,7 +406,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	}
 
 	if len(request.ParameterSchemas) > 0 {
-		for _, protoParameter := range request.ParameterSchemas {
+		for index, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
@@ -427,6 +429,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 
 				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
 				AllowOverrideSource:      protoParameter.AllowOverrideSource,
+
+				Index: int32(index),
 			}
 
 			// It's possible a parameter doesn't define a default source!

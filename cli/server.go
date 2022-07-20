@@ -22,10 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/echo"
-
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
@@ -45,6 +41,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -58,6 +55,8 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -512,6 +511,33 @@ func server() *cobra.Command {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use:   "postgres-builtin-serve",
+		Short: "Run the built-in PostgreSQL deployment.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := createConfig(cmd)
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			if verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			url, closePg, err := startBuiltinPostgres(cmd.Context(), cfg, logger)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closePg() }()
+
+			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+
+			stopChan := make(chan os.Signal, 1)
+			defer signal.Stop(stopChan)
+			signal.Notify(stopChan, os.Interrupt)
+
+			<-stopChan
+			return nil
+		},
+	})
+
 	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
@@ -770,11 +796,9 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			})
 			return memberships, err
 		},
-		ListTeams: func(ctx context.Context, client *http.Client, org string) ([]*github.Team, error) {
-			teams, _, err := github.NewClient(client).Teams.ListTeams(ctx, org, &github.ListOptions{
-				PerPage: 100,
-			})
-			return teams, err
+		Team: func(ctx context.Context, client *http.Client, org, teamSlug string) (*github.Team, error) {
+			team, _, err := github.NewClient(client).Teams.GetTeamBySlug(ctx, org, teamSlug)
+			return team, err
 		},
 	}, nil
 }

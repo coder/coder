@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.3.4"
+      version = "0.4.3"
     }
   }
 }
@@ -33,6 +33,22 @@ variable "region" {
       "us-west-2"
     ], var.region)
     error_message = "Invalid region!"
+  }
+}
+
+variable "instance_type" {
+  description = "What instance type should your workspace use?"
+  default     = "t3.micro"
+  validation {
+    condition = contains([
+      "t3.micro",
+      "t3.small",
+      "t3.medium",
+      "t3.large",
+      "t3.xlarge",
+      "t3.2xlarge",
+    ], var.instance_type)
+    error_message = "Invalid instance type!"
   }
 }
 
@@ -130,7 +146,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
-  instance_type     = "t3.xlarge"
+  instance_type     = "${var.instance_type}"
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {

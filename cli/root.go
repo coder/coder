@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -28,7 +29,7 @@ var (
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
 	workspaceCommand = map[string]string{
-		"workspaces": " ",
+		"workspaces": "",
 	}
 )
 
@@ -52,12 +53,8 @@ var (
 )
 
 func init() {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
+	// Set cobra template functions in init to avoid conflicts in tests.
+	cobra.AddTemplateFuncs(templateFunctions)
 }
 
 func Root() *cobra.Command {
@@ -101,12 +98,16 @@ func Root() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
 		},
-
-		Example: `  Start a Coder server.
-  ` + cliui.Styles.Code.Render("$ coder server") + `
-
-  Get started by creating a template from an example.
-  ` + cliui.Styles.Code.Render("$ coder templates init"),
+		Example: formatExamples(
+			example{
+				Description: "Start a Coder server",
+				Command:     "coder server",
+			},
+			example{
+				Description: "Get started by creating a template from an example",
+				Command:     "coder templates init",
+			},
+		),
 	}
 
 	cmd.AddCommand(
@@ -158,9 +159,8 @@ func Root() *cobra.Command {
 // versionCmd prints the coder version
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "version",
-		Short:   "Show coder version",
-		Example: "coder version",
+		Use:   "version",
+		Short: "Show coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var str strings.Builder
 			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
@@ -308,6 +308,30 @@ func isTTYOut(cmd *cobra.Command) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
+var templateFunctions = template.FuncMap{
+	"usageHeader":        usageHeader,
+	"isWorkspaceCommand": isWorkspaceCommand,
+}
+
+func usageHeader(s string) string {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	return cliui.Styles.Placeholder.Render(s)
+}
+
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspaces"]; ok {
+		return true
+	}
+	var ws bool
+	cmd.VisitParents(func(cmd *cobra.Command) {
+		if _, ok := cmd.Annotations["workspaces"]; ok {
+			ws = true
+		}
+	})
+	return ws
+}
+
 func usageTemplate() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
@@ -328,19 +352,21 @@ func usageTemplate() string {
 {{.Example}}
 {{end}}
 
+{{- $isRootHelp := (not .HasParent)}}
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
+    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
 {{end}}
 
-{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{- if (and $isRootHelp .HasAvailableSubCommands)}}
 {{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
@@ -348,12 +374,12 @@ func usageTemplate() string {
 
 {{- if .HasAvailableLocalFlags}}
 {{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsagesWrapped 100}}
+{{.LocalFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
 {{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsagesWrapped 100}}
+{{.InheritedFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}
@@ -368,6 +394,34 @@ func usageTemplate() string {
 {{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
 {{end}}`
+}
+
+// example represents a standard example for command usage, to be used
+// with formatExamples.
+type example struct {
+	Description string
+	Command     string
+}
+
+// formatExamples formats the exampels as width wrapped bulletpoint
+// descriptions with the command underneath.
+func formatExamples(examples ...example) string {
+	wrap := cliui.Styles.Wrap.Copy()
+	wrap.PaddingLeft(4)
+	var sb strings.Builder
+	for i, e := range examples {
+		if len(e.Description) > 0 {
+			_, _ = sb.WriteString("  - " + wrap.Render(e.Description + ":")[4:] + "\n\n    ")
+		}
+		// We add 1 space here because `cliui.Styles.Code` adds an extra
+		// space. This makes the code block align at an even 2 or 6
+		// spaces for symmetry.
+		_, _ = sb.WriteString(" " + cliui.Styles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		if i < len(examples)-1 {
+			_, _ = sb.WriteString("\n\n")
+		}
+	}
+	return sb.String()
 }
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.

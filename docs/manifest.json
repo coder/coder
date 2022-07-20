@@ -39,7 +39,21 @@
       "title": "Quickstart",
       "description": "Create your first template and workspace",
       "icon": "<svg class=\"MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiBox-root css-uqopch\" focusable=\"false\" aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z\"></path></svg>",
-      "path": "./quickstart.md"
+      "path": "./quickstart.md",
+      "children": [
+        {
+          "title": "Docker",
+          "description": "Setup Coder with Docker",
+          "icon": "<?xml version=\"1.0\" ?><svg viewBox=\"0 0 640 512\" xmlns=\"http:\/\/www.w3.org\/2000\/svg\"><path d=\"M349.9 236.3h-66.1v-59.4h66.1v59.4zm0-204.3h-66.1v60.7h66.1V32zm78.2 144.8H362v59.4h66.1v-59.4zm-156.3-72.1h-66.1v60.1h66.1v-60.1zm78.1 0h-66.1v60.1h66.1v-60.1zm276.8 100c-14.4-9.7-47.6-13.2-73.1-8.4-3.3-24-16.7-44.9-41.1-63.7l-14-9.3-9.3 14c-18.4 27.8-23.4 73.6-3.7 103.8-8.7 4.7-25.8 11.1-48.4 10.7H2.4c-8.7 50.8 5.8 116.8 44 162.1 37.1 43.9 92.7 66.2 165.4 66.2 157.4 0 273.9-72.5 328.4-204.2 21.4.4 67.6.1 91.3-45.2 1.5-2.5 6.6-13.2 8.5-17.1l-13.3-8.9zm-511.1-27.9h-66v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1v-59.4zm-78.1-72.1h-66.1v60.1h66.1v-60.1z\"\/><\/svg>",
+          "path": "./quickstart/docker.md"
+        },
+        {
+          "title": "Generic",
+          "description": "Setup Coder on anything",
+          "icon": "<svg viewBox=\"0 0 32 32\" xmlns=\"http:\/\/www.w3.org\/2000\/svg\"><ellipse cx=\"16\" cy=\"16\" rx=\"4\" ry=\"3.11\" transform=\"rotate(-30 15.991 16.005)\" fill=\"#ffffff\" class=\"fill-00bbff\"><\/ellipse><ellipse cx=\"16\" cy=\"16\" rx=\"4\" ry=\"3.11\" transform=\"rotate(-30 15.991 16.005)\" fill=\"none\" stroke=\"#ffffff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2px\" class=\"stroke-000000\"><\/ellipse><path d=\"M29 8.5c1.93 3.35-.18 8.19-4.73 10.82s-9.8 2-11.73-1.32\" fill=\"none\" stroke=\"#ffffff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2px\" class=\"stroke-000000\"><\/path><path d=\"M17.49 3.06c4.69-.48 8.08 2.78 7.56 7.28a8.47 8.47 0 0 1-.18 1M4.46 11c2.76-3.83 8.27-5.51 12.31-3.76s5.07 6.27 2.31 10.1\" fill=\"none\" stroke=\"#ffffff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2px\" class=\"stroke-000000\"><\/path><path d=\"M3 23.5c-1.93-3.35.18-8.19 4.73-10.82q.43-.25.86-.45M14.56 28.53C9.86 29 6.47 25.84 7 21.46s4.72-8.32 9.41-8.8\" fill=\"none\" stroke=\"#ffffff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2px\" class=\"stroke-000000\"><\/path><path d=\"M27.54 21c-2.76 3.83-8.27 5.51-12.31 3.76a7.44 7.44 0 0 1-.72-.36\" fill=\"none\" stroke=\"#ffffff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2px\" class=\"stroke-000000\"><\/path><\/svg>",
+          "path": "./quickstart/generic.md"
+        }
+      ]
     },
     {
       "title": "Templates",
@@ -48,7 +62,7 @@
       "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"> <path d=\"M15.0017 4.0017H1.0017C0.868289 3.99368 0.734692 4.01405 0.609732 4.06147C0.484772 4.10889 0.371292 4.18228 0.276784 4.27678C0.182276 4.37129 0.108891 4.48477 0.0614728 4.60973C0.0140548 4.73469 -0.00631686 4.86829 0.00170278 5.0017V15.0017C-0.00631686 15.1351 0.0140548 15.2687 0.0614728 15.3937C0.108891 15.5186 0.182276 15.6321 0.276784 15.7266C0.371292 15.8211 0.484772 15.8945 0.609732 15.9419C0.734692 15.9894 0.868289 16.0097 1.0017 16.0017H15.0017C15.1351 16.0097 15.2687 15.9894 15.3937 15.9419C15.5186 15.8945 15.6321 15.8211 15.7266 15.7266C15.8211 15.6321 15.8945 15.5186 15.9419 15.3937C15.9894 15.2687 16.0097 15.1351 16.0017 15.0017V5.0017C16.0097 4.86829 15.9894 4.73469 15.9419 4.60973C15.8945 4.48477 15.8211 4.37129 15.7266 4.27678C15.6321 4.18228 15.5186 4.10889 15.3937 4.06147C15.2687 4.01405 15.1351 3.99368 15.0017 4.0017ZM14.0017 14.0017H2.0017V6.0017H14.0017V14.0017Z\" /> <path d=\"M14 0H2V2H14V0Z\" fill=\"#333333\"/> <path d=\"M5 13L10 8L13 13H5Z\" /> <path d=\"M5 10C5.55228 10 6 9.55228 6 9C6 8.44772 5.55228 8 5 8C4.44772 8 4 8.44772 4 9C4 9.55228 4.44772 10 5 10Z\" /> </svg>",
       "children": [
         {
-          "title": "Authentication & Secrets",
+          "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
           "path": "./templates/authentication.md"
         }
@@ -80,7 +94,13 @@
       "path": "./dotfiles.md"
     },
     {
-      "title": "User management",
+      "title": "Secrets",
+      "description": "Learn how to use secrets in your worskpace",
+      "icon": "<svg xmlns=\"http:\/\/www.w3.org\/2000\/svg\" height=\"24px\" viewBox=\"0 0 24 24\" width=\"24px\" fill=\"#000000\"><path d=\"M0 0h24v24H0zm0 0h24v24H0zm0 0h24v24H0zm0 0h24v24H0z\" fill=\"none\"\/><path d=\"M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z\"\/><\/svg>",
+      "path": "./secrets.md"
+    },
+    {
+      "title": "User Management",
       "description": "Learn about user roles available in Coder and how to create and manage users",
       "icon": "<svg xmlns=\"http:\/\/www.w3.org\/2000\/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0z\" fill=\"none\"\/><path d=\"M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z\"\/><\/svg>",
       "path": "./users.md"

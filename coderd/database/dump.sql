@@ -182,7 +182,8 @@ CREATE TABLE parameter_schemas (
     validation_error character varying(256) NOT NULL,
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
-    validation_value_type character varying(64) NOT NULL
+    validation_value_type character varying(64) NOT NULL,
+    index integer NOT NULL
 );
 
 CREATE TABLE parameter_values (
@@ -246,7 +247,8 @@ CREATE TABLE template_versions (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
-    job_id uuid NOT NULL
+    job_id uuid NOT NULL,
+    created_by uuid
 );
 
 CREATE TABLE templates (
@@ -486,6 +488,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

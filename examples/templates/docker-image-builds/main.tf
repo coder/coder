@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -107,7 +107,7 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  # Use the docker gateway if the access URL is 127.0.0.1 
+  # Use the docker gateway if the access URL is 127.0.0.1
   command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {

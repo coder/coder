@@ -22,9 +22,14 @@
     data-statuscode="{{ .APIResponse.StatusCode }}"
     data-message="{{ .APIResponse.Message }}"
   />
-  <link rel="mask-icon" href="/static/favicon.svg" color="#000000" crossorigin="use-credentials" />
-  <link rel="alternate icon" type="image/png" href="/favicon.png" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <!-- We need to set data-react-helmet to be able to override it in the workspace page -->
+  <link
+    rel="alternate icon"
+    type="image/png"
+    href="/favicons/favicon.png"
+    data-react-helmet="true"
+  />
+  <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" data-react-helmet="true" />
 </head>
 
 <body>

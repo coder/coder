@@ -6,13 +6,6 @@ import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
 
 dayjs.extend(utc)
 
-// REMARK: There's a known problem with storybook and using date libraries that
-//         call string.toLowerCase
-// SEE: https:github.com/storybookjs/storybook/issues/12208#issuecomment-697044557
-const ONE = 1
-const SEVEN = 7
-const THIRTY = 30
-
 export default {
   title: "components/WorkspaceSchedule",
   component: WorkspaceSchedule,
@@ -50,46 +43,6 @@ NoTTL.args = {
       deadline: "0001-01-01T00:00:00Z",
     },
     ttl_ms: undefined,
-  },
-}
-
-export const ShutdownRealSoon = Template.bind({})
-ShutdownRealSoon.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      deadline: dayjs().add(THIRTY, "minute").utc().format(),
-      transition: "start",
-    },
-    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
-  },
-}
-
-export const ShutdownSoon = Template.bind({})
-ShutdownSoon.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      deadline: dayjs().add(ONE, "hour").utc().format(),
-      transition: "start",
-    },
-    ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
-  },
-}
-
-export const ShutdownLong = Template.bind({})
-ShutdownLong.args = {
-  workspace: {
-    ...Mocks.MockWorkspace,
-
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      deadline: dayjs().add(SEVEN, "days").utc().format(),
-      transition: "start",
-    },
-    ttl_ms: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }
 

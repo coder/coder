@@ -83,6 +83,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":            ActionTrack,
 		"readme":          ActionTrack,
 		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":      ActionTrack,
 	},
 	&database.User{}: {
 		"id":              ActionTrack,

@@ -101,8 +101,9 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
 
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
-  created_at: "",
-  updated_at: "",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version",
   readme: `---
@@ -112,6 +113,8 @@ name:Template test
 You can add instructions here
 
 [Some link info](https://coder.com)`,
+  created_by_id: "test-creator-id",
+  created_by_name: "test_creator",
 }
 
 export const MockTemplate: TypesGen.Template = {

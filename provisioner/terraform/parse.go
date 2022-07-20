@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
@@ -22,8 +23,17 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
 	}
 
-	parameters := make([]*proto.ParameterSchema, 0, len(module.Variables))
+	// Sort variables by (filename, line) to make the ordering consistent
+	variables := make([]*tfconfig.Variable, 0, len(module.Variables))
 	for _, v := range module.Variables {
+		variables = append(variables, v)
+	}
+	sort.Slice(variables, func(i, j int) bool {
+		return compareSourcePos(variables[i].Pos, variables[j].Pos)
+	})
+
+	parameters := make([]*proto.ParameterSchema, 0, len(variables))
+	for _, v := range variables {
 		schema, err := convertVariableToParameter(v)
 		if err != nil {
 			return xerrors.Errorf("convert variable %q: %w", v.Name, err)
@@ -128,4 +138,11 @@ func formatDiagnostics(baseDir string, diags tfconfig.Diagnostics) string {
 	}
 
 	return spacer + strings.TrimSpace(msgs.String())
+}
+
+func compareSourcePos(x, y tfconfig.SourcePos) bool {
+	if x.Filename != y.Filename {
+		return x.Filename < y.Filename
+	}
+	return x.Line < y.Line
 }

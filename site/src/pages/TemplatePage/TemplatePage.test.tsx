@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react"
 import {
   MockTemplate,
+  MockTemplateVersion,
   MockWorkspaceResource,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
@@ -15,5 +16,6 @@ describe("TemplatePage", () => {
     await screen.findByText(MockTemplate.name)
     screen.getByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
+    screen.getByTestId(`version-${MockTemplateVersion.id}`)
   })
 })

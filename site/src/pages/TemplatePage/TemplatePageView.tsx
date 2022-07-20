@@ -16,6 +16,7 @@ import {
 import { Stack } from "../../components/Stack/Stack"
 import { TemplateResourcesTable } from "../../components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "../../components/TemplateStats/TemplateStats"
+import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
 
 const Language = {
@@ -23,18 +24,21 @@ const Language = {
   noDescription: "",
   readmeTitle: "README",
   resourcesTitle: "Resources",
+  versionsTitle: "Version history",
 }
 
 export interface TemplatePageViewProps {
   template: Template
   activeTemplateVersion: TemplateVersion
   templateResources: WorkspaceResource[]
+  templateVersions?: TemplateVersion[]
 }
 
 export const TemplatePageView: FC<TemplatePageViewProps> = ({
   template,
   activeTemplateVersion,
   templateResources,
+  templateVersions,
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -88,6 +92,12 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({
             </ReactMarkdown>
           </div>
         </WorkspaceSection>
+        <WorkspaceSection
+          title={Language.versionsTitle}
+          contentsProps={{ className: styles.versionsTableContents }}
+        >
+          <VersionsTable versions={templateVersions} />
+        </WorkspaceSection>
       </Stack>
     </Margins>
   )
@@ -109,6 +119,9 @@ export const useStyles = makeStyles((theme) => {
       },
     },
     resourcesTableContents: {
+      margin: 0,
+    },
+    versionsTableContents: {
       margin: 0,
     },
   }

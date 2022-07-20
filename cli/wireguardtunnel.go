@@ -31,21 +31,20 @@ func wireguardPortForward() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		// Hide all wireguard commands for now while we test!
 		Hidden: true,
-		Example: `
-  - Port forward a single TCP port from 1234 in the workspace to port 5678 on
-    your local machine
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 5678:1234") + `
-
-  - Port forward a single UDP port from port 9000 to port 9000 on your local
-    machine
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --udp 9000") + `
-
-  - Port forward multiple TCP ports and a UDP port
-
-    ` + cliui.Styles.Code.Render("$ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53") + `
-`,
+		Example: formatExamples(
+			example{
+				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
+				Command:     "coder wireguard-port-forward <workspace> --tcp 5678:1234",
+			},
+			example{
+				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine",
+				Command:     "coder wireguard-port-forward <workspace> --udp 9000",
+			},
+			example{
+				Description: "Port forward multiple TCP ports and a UDP port",
+				Command:     "coder wireguard-port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53",
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			specs, err := parsePortForwards(tcpForwards, nil, nil)
 			if err != nil {

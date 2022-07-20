@@ -70,9 +70,9 @@ You'll also need to specify a `coder_app` resource related to the agent. This is
 ```hcl
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
-  name     = "VS Code"
+  name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
-  icon     = "/code.svg"
+  icon     = "/icon/code.svg"
 }
 ```
 

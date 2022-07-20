@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/coder/coder/buildinfo"
-
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 )

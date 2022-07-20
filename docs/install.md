@@ -55,13 +55,16 @@ Coder](https://github.com/coder/coder/releases) installed.
    git clone https://github.com/coder/coder.git
    ```
 
-2. Navigate into the `coder` folder. Coder requires a non-`localhost` access URL
-   for non-Docker-based examples; if you have a public IP or a domain/reverse
-   proxy, you can provide this value before running `docker-compose up` to
-   start the service:
+2. Navigate into the `coder` folder and run `docker-compose up`:
 
    ```console
    cd coder
+   # Coder will bind to localhost:7080.
+   # You may use localhost:7080 as your access URL
+   # when using Docker workspaces exclusively.
+   #  CODER_ACCESS_URL=http://localhost:7080
+   # Otherwise, an internet accessible access URL
+   # is required.
    CODER_ACCESS_URL=https://coder.mydomain.com
    docker-compose up
    ```
