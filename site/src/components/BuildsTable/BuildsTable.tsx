@@ -79,7 +79,9 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
                   </span>
                 </TableCellLink>
                 <TableCellLink to={buildPageLink}>
-                  <span style={{ color: status.color }}>{status.status}</span>
+                  <span style={{ color: status.color }} className={styles.status}>
+                    {status.status}
+                  </span>
                 </TableCellLink>
                 <TableCellLink to={buildPageLink}>
                   <div className={styles.arrowCell}>
@@ -125,5 +127,8 @@ const useStyles = makeStyles((theme) => ({
   },
   arrowCell: {
     display: "flex",
+  },
+  status: {
+    whiteSpace: "nowrap",
   },
 }))
