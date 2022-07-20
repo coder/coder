@@ -142,21 +142,22 @@ func TestPortForward(t *testing.T) {
 		},
 	}
 
+	// Setup agent once to be shared between test-cases (avoid expensive
+	// non-parallel setup).
+	var (
+		client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user         = coderdtest.CreateFirstUser(t, client)
+		_, workspace = runAgent(t, client, user.UserID)
+	)
+
 	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
 		c := c
-		// Avoid parallel test here because setupLocal reserves
+		// Delay parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
-		// after the listener closes.
-		//nolint:paralleltest
+		// between the listener closing and port-forward ready.
 		t.Run(c.name, func(t *testing.T) {
-			//nolint:paralleltest
 			t.Run("OnePort", func(t *testing.T) {
-				var (
-					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-					user         = coderdtest.CreateFirstUser(t, client)
-					_, workspace = runAgent(t, client, user.UserID)
-					p1           = setupTestListener(t, c.setupRemote(t))
-				)
+				p1 := setupTestListener(t, c.setupRemote(t))
 
 				// Create a flag that forwards from local to listener 1.
 				localAddress, localFlag := c.setupLocal(t)
@@ -175,6 +176,8 @@ func TestPortForward(t *testing.T) {
 					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
+
+				t.Parallel() // Port is reserved, enable parallel execution.
 
 				// Open two connections simultaneously and test them out of
 				// sync.
@@ -196,11 +199,8 @@ func TestPortForward(t *testing.T) {
 			//nolint:paralleltest
 			t.Run("TwoPorts", func(t *testing.T) {
 				var (
-					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-					user         = coderdtest.CreateFirstUser(t, client)
-					_, workspace = runAgent(t, client, user.UserID)
-					p1           = setupTestListener(t, c.setupRemote(t))
-					p2           = setupTestListener(t, c.setupRemote(t))
+					p1 = setupTestListener(t, c.setupRemote(t))
+					p2 = setupTestListener(t, c.setupRemote(t))
 				)
 
 				// Create a flags for listener 1 and listener 2.
@@ -222,6 +222,8 @@ func TestPortForward(t *testing.T) {
 					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
+
+				t.Parallel() // Port is reserved, enable parallel execution.
 
 				// Open a connection to both listener 1 and 2 simultaneously and
 				// then test them out of order.
@@ -246,10 +248,6 @@ func TestPortForward(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("TCP2Unix", func(t *testing.T) {
 		var (
-			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user         = coderdtest.CreateFirstUser(t, client)
-			_, workspace = runAgent(t, client, user.UserID)
-
 			// Find the TCP and Unix cases so we can use their setupLocal and
 			// setupRemote methods respectively.
 			tcpCase  = cases[0]
@@ -278,6 +276,8 @@ func TestPortForward(t *testing.T) {
 		}()
 		waitForPortForwardReady(t, buf)
 
+		t.Parallel() // Port is reserved, enable parallel execution.
+
 		// Open two connections simultaneously and test them out of
 		// sync.
 		d := net.Dialer{Timeout: 3 * time.Second}
@@ -299,9 +299,6 @@ func TestPortForward(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
-			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user         = coderdtest.CreateFirstUser(t, client)
-			_, workspace = runAgent(t, client, user.UserID)
 			// These aren't fixed size because we exclude Unix on Windows.
 			dials = []addr{}
 			flags = []string{}
@@ -338,6 +335,8 @@ func TestPortForward(t *testing.T) {
 			errC <- cmd.ExecuteContext(ctx)
 		}()
 		waitForPortForwardReady(t, buf)
+
+		t.Parallel() // Port is reserved, enable parallel execution.
 
 		// Open connections to all items in the "dial" array.
 		var (
