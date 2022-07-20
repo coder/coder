@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"cdr.dev/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.zx2c4.com/wireguard/conn"
@@ -25,13 +27,25 @@ import (
 	"github.com/coder/coder/coderd/devtunnel"
 )
 
+const (
+	ipByte1 = 0xfc
+	ipByte2 = 0xca
+	wgPort  = 48732
+)
+
+var (
+	serverIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x1})
+	dnsIP    = netip.AddrFrom4([4]byte{1, 1, 1, 1})
+	clientIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x2})
+)
+
 // The tunnel leaks a few goroutines that aren't impactful to production scenarios.
 // func TestMain(m *testing.M) {
 // 	goleak.VerifyTestMain(m)
 // }
 
 // TestTunnel cannot run in parallel because we hardcode the UDP port used by the wireguard server.
-// nolint: tparallel
+// nolint: paralleltest
 func TestTunnel(t *testing.T) {
 	ctx, cancelTun := context.WithCancel(context.Background())
 	defer cancelTun()
@@ -51,7 +65,7 @@ func TestTunnel(t *testing.T) {
 	fTunServer := newFakeTunnelServer(t)
 	cfg := fTunServer.config()
 
-	tun, errCh, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil), cfg)
+	tun, errCh, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil).Leveled(slog.LevelDebug), cfg)
 	require.NoError(t, err)
 	t.Log(tun.URL)
 
@@ -99,18 +113,6 @@ type fakeTunnelServer struct {
 	server  *httptest.Server
 }
 
-const (
-	ipByte1 = 0xfc
-	ipByte2 = 0xca
-	wgPort  = 48732
-)
-
-var (
-	serverIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x1})
-	dnsIP    = netip.AddrFrom4([4]byte{1, 1, 1, 1})
-	clientIP = netip.AddrFrom16([16]byte{ipByte1, ipByte2, 15: 0x2})
-)
-
 func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
 	priv, err := wgtypes.GeneratePrivateKey()
 	privBytes := [32]byte(priv)
@@ -123,7 +125,7 @@ func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
 		1280,
 	)
 	require.NoError(t, err)
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, ""))
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, "server "))
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 listen_port=%d`,
 		hex.EncodeToString(privBytes[:]),
@@ -131,6 +133,7 @@ listen_port=%d`,
 	))
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		dev.RemoveAllPeers()
 		dev.Close()
 	})
 
@@ -193,7 +196,7 @@ allowed_ip=%s/128`,
 		PublicKey:  device.NoisePublicKey(pub),
 		Tunnel: devtunnel.Node{
 			HostnameHTTPS:     strings.TrimPrefix(f.server.URL, "https://"),
-			HostnameWireguard: "::1",
+			HostnameWireguard: "localhost",
 			WireguardPort:     wgPort,
 		},
 		HTTPClient: f.server.Client(),

@@ -60,7 +60,7 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 
 	tun, tnet, err := netstack.CreateNetTUN(
 		[]netip.Addr{server.ClientIP},
-		[]netip.Addr{},
+		[]netip.Addr{netip.AddrFrom4([4]byte{1, 1, 1, 1})},
 		1280,
 	)
 	if err != nil {
@@ -71,17 +71,23 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	if err != nil {
 		return nil, nil, xerrors.Errorf("resolve endpoint: %w", err)
 	}
+	// In IPv6, we need to enclose the address to in [] before passing to wireguard's endpoint key, like
+	// [2001:abcd::1]:8888.  We'll use netip.AddrPort to correctly handle this.
+	wgAddr, err := netip.ParseAddr(wgip.String())
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse address: %w", err)
+	}
+	wgEndpoint := netip.AddrPortFrom(wgAddr, cfg.Tunnel.WireguardPort)
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelError, "devtunnel "))
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
-endpoint=[%s]:%d
+endpoint=%s
 persistent_keepalive_interval=21
 allowed_ip=%s/128`,
 		hex.EncodeToString(cfg.PrivateKey[:]),
 		server.ServerPublicKey,
-		wgip.IP.String(),
-		cfg.Tunnel.WireguardPort,
+		wgEndpoint.String(),
 		server.ServerIP.String(),
 	))
 	if err != nil {
@@ -103,6 +109,9 @@ allowed_ip=%s/128`,
 		select {
 		case <-ctx.Done():
 			_ = wgListen.Close()
+			// We need to remove peers before closing to avoid a race condition between dev.Close() and the peer
+			// goroutines which results in segfault.
+			dev.RemoveAllPeers()
 			dev.Close()
 			<-routineEnd
 			close(ch)
