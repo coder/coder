@@ -142,7 +142,7 @@ const useStyles = makeStyles((theme) => ({
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.light, 0.05),
       transition: "background-color 0.3s ease",
     },
   },
