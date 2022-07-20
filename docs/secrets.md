@@ -1,5 +1,7 @@
 # Secrets
 
+Blah blah...
+
 <blockquote class="info">
 This article explains how to use secrets in a workspace. To authenticate the
 workspace provisioner, see <a href="./templates/authentication">this</a>.

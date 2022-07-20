@@ -10,6 +10,9 @@ on:
       - "docs/**"
 
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - ".github/**"
 
   workflow_dispatch:
 
