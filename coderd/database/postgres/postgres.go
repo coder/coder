@@ -75,7 +75,7 @@ func Open() (string, func(), error) {
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
-		Tag:        "11",
+		Tag:        "13",
 		Env: []string{
 			"POSTGRES_PASSWORD=postgres",
 			"POSTGRES_USER=postgres",
