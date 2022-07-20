@@ -271,7 +271,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 
 func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
-		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
+		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
@@ -677,7 +677,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 }
 
 func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
 }
 
 // Used to easily create an HTTP transport!
