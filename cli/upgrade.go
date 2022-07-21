@@ -6,16 +6,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/cli/cliui"
 )
 
 func upgrade() *cobra.Command {
-
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: "Upgrade coder CLI to server version.",
@@ -28,7 +26,7 @@ func upgrade() *cobra.Command {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			bin, err := client.Upgrade(ctx)
+			bin, err := client.FetchCLI(ctx, runtime.GOOS, runtime.GOARCH)
 			if err != nil {
 				return xerrors.Errorf("download binary: %w", err)
 			}
@@ -50,7 +48,7 @@ func upgrade() *cobra.Command {
 			tmpPath := filepath.Join(dir, fmt.Sprintf(".coder-%v", time.Now().Unix()))
 			tmpFi, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, stat.Mode().Perm())
 			if xerrors.Is(err, fs.ErrPermission) {
-				fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Warn.Render("Unable to write to directory %v, try running "))
+				return xerrors.Errorf("Unable to write to directory %q try rerunning command with 'sudo': %w", err)
 			}
 			if err != nil {
 				return xerrors.Errorf("create temp file %q: %w", tmpPath, err)
