@@ -205,13 +205,22 @@ resource "coder_app" "intellij" {
 }
 ```
 
-Here are [Kubernetes pod](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-intellij) and [Docker container](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij) examples with a JetBrains IntelliJ IDE.
 
-Here are [Kubernetes pod](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm) and [Docker container](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm) examples with a JetBrains PyCharm IDE.
+**Pre-built templates:**
+
+You can also reference/use to these pre-built templates with JetBrains projector:
+
+- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-intellij))
+
+- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm)
+
+- GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
+
+- Alternate approach: Projector/IDE installed into the image, all IDEs ((Docker)[https://github.com/bpmct/coder-templates/tree/main/projector-container])
+
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples. 
 
 ![PyCharm in Coder](../images/projector-pycharm.png)
-
-Here are [Kubernetes pod](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland) and [Docker container](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland) examples with a JetBrains GoLand IDE.
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples. 
 
