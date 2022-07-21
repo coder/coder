@@ -215,7 +215,7 @@ Here are [Kubernetes pod](https://github.com/mark-theshark/v2-templates/tree/mai
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples. 
 
-> Coder OSS currently does not perform a health check that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
+> Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
 
 
 
