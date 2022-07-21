@@ -106,6 +106,10 @@ func (c *Channel) init() {
 	// write operations to block once the threshold is set.
 	c.dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 	c.dc.OnBufferedAmountLow(func() {
+		// Grab the lock to protect the sendMore channel from being
+		// closed in between the isClosed check and the send.
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
