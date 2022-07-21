@@ -128,8 +128,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
-			return version.Job.Status == codersdk.ProvisionerJobFailed
+			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 	// TODO(Cian): until we are able to test cancellation properly, validating
