@@ -45,7 +45,7 @@ export const WorkspaceStateActions: StateActionsType = {
   },
   [WorkspaceStateEnum.started]: {
     primary: ButtonTypesEnum.stop,
-    secondary: [ButtonTypesEnum.delete, ButtonTypesEnum.update],
+    secondary: [ButtonTypesEnum.delete],
   },
   [WorkspaceStateEnum.stopping]: {
     primary: ButtonTypesEnum.cancel,
@@ -53,16 +53,16 @@ export const WorkspaceStateActions: StateActionsType = {
   },
   [WorkspaceStateEnum.stopped]: {
     primary: ButtonTypesEnum.start,
-    secondary: [ButtonTypesEnum.delete, ButtonTypesEnum.update],
+    secondary: [ButtonTypesEnum.delete],
   },
   [WorkspaceStateEnum.canceled]: {
     primary: ButtonTypesEnum.start,
-    secondary: [ButtonTypesEnum.stop, ButtonTypesEnum.delete, ButtonTypesEnum.update],
+    secondary: [ButtonTypesEnum.stop, ButtonTypesEnum.delete],
   },
   // in the case of an error
   [WorkspaceStateEnum.error]: {
     primary: ButtonTypesEnum.start, // give the user the ability to start a workspace again
-    secondary: [ButtonTypesEnum.delete, ButtonTypesEnum.update], // allows the user to delete or update
+    secondary: [ButtonTypesEnum.delete], // allows the user to delete
   },
   /**
    * disabled states
