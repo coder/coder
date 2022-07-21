@@ -122,15 +122,16 @@ func (c *Channel) init() {
 	})
 	c.dc.OnOpen(func() {
 		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
-
 		c.conn.logger().Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		var err error
 		c.rwc, err = c.dc.Detach()
 		if err != nil {
+			c.closeMutex.Unlock()
 			_ = c.closeWithError(xerrors.Errorf("detach: %w", err))
 			return
 		}
+		c.closeMutex.Unlock()
+
 		// pion/webrtc will return an io.ErrShortBuffer when a read
 		// is triggerred with a buffer size less than the chunks written.
 		//
