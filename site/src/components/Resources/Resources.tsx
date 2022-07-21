@@ -100,7 +100,9 @@ export const Resources: FC<ResourcesProps> = ({
                       {agent.name}
                       <div className={styles.agentInfo}>
                         <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                        <span style={{ color: agentStatus.color }}>{agentStatus.status}</span>
+                        <span style={{ color: agentStatus.color }} className={styles.status}>
+                          {agentStatus.status}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -181,5 +183,9 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(0.5),
     flexWrap: "wrap",
     justifyContent: "flex-end",
+  },
+
+  status: {
+    whiteSpace: "nowrap",
   },
 }))
