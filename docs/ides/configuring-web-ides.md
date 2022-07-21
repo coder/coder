@@ -116,7 +116,6 @@ Workspace requirements:
 - JetBrains projector CLI
 - At least 4 CPU cores and 4 GB RAM
 
-If you would like to use a Docker host to run a JetBrains IDE, see the [projector-container](https://github.com/bpmct/coder-templates/tree/main/projector-container) community template. It builds Docker images based on JetBrains-provided images & provisions Dockerized workspaces for the following IDEs:
 
 - CLion
 - pyCharm
