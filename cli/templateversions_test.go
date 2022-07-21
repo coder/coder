@@ -20,7 +20,7 @@ func TestTemplateVersions(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "templates", "versions", template.Name)
+		cmd, root := clitest.New(t, "templates", "versions", "show", template.Name)
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)

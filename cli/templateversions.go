@@ -12,11 +12,29 @@ import (
 )
 
 func templateVersions() *cobra.Command {
-	return &cobra.Command{
-		Use:     "versions [template]",
-		Args:    cobra.ExactArgs(1),
-		Short:   "List all the versions of the specified template",
+	cmd := &cobra.Command{
+		Use:     "versions",
+		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
+		Example: formatExamples(
+			example{
+				Description: "Show versions of a specific template",
+				Command:     "coder templates versions show my-template",
+			},
+		),
+	}
+	cmd.AddCommand(
+		templateVersionsShow(),
+	)
+
+	return cmd
+}
+
+func templateVersionsShow() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <template>",
+		Args:  cobra.ExactArgs(1),
+		Short: "List all the versions of the specified template",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -54,7 +72,7 @@ func displayTemplateVersions(templateVersions ...codersdk.TemplateVersion) strin
 	for _, templateVersion := range templateVersions {
 		tableWriter.AppendRow(table.Row{
 			templateVersion.Name,
-			templateVersion.CreatedAt.Format("03:04:05PM MST on Jan 2, 2006"),
+			templateVersion.CreatedAt.Format("03:04:05 PM MST on Jan 2, 2006"),
 			templateVersion.CreatedByName,
 		})
 	}
