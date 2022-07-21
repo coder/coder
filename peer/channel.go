@@ -115,7 +115,6 @@ func (c *Channel) init() {
 		}
 		select {
 		case <-c.closed:
-			return
 		case c.sendMore <- struct{}{}:
 		default:
 		}
