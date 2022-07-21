@@ -174,7 +174,7 @@ const useStyles = makeStyles((theme) => ({
   },
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.dark, 0.1),
     },
 
     "&:focus": {

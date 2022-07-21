@@ -48,5 +48,6 @@ const useStyles = makeStyles((theme) => ({
   },
   avatar: {
     marginRight: theme.spacing(1.5),
+    background: "hsl(219, 8%, 52%)",
   },
 }))
