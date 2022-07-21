@@ -154,6 +154,7 @@ variable "jetbrains-ide" {
       "IntelliJ IDEA Ultimate 2022.1.3",
       "IntelliJ IDEA Ultimate 2021.3"
     ], var.jetbrains-ide)
+    # Find all compatible IDEs with the `projector IDE find` command
     error_message = "Invalid JetBrains IDE!"   
 }
 }
