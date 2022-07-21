@@ -4,7 +4,9 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import MemoryIcon from "@material-ui/icons/MemoryOutlined"
 import useTheme from "@material-ui/styles/useTheme"
+import { AvatarData } from "components/AvatarData/AvatarData"
 import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
@@ -68,6 +70,15 @@ export const Resources: FC<ResourcesProps> = ({
                 /* We need to initialize the agents to display the resource */
               }
               const agents = resource.agents ?? [null]
+              const resourceName = (
+                <AvatarData
+                  avatar={<MemoryIcon />}
+                  title={resource.name}
+                  subtitle={resource.type}
+                  highlightTitle
+                />
+              )
+
               return agents.map((agent, agentIndex) => {
                 {
                   /* If there is no agent, just display the resource name */
@@ -75,10 +86,7 @@ export const Resources: FC<ResourcesProps> = ({
                 if (!agent) {
                   return (
                     <TableRow key={`${resource.id}-${agentIndex}`}>
-                      <TableCell>
-                        {resource.name}
-                        <span className={styles.resourceType}>{resource.type}</span>
-                      </TableCell>
+                      <TableCell>{resourceName}</TableCell>
                       <TableCell colSpan={3}></TableCell>
                     </TableRow>
                   )
@@ -91,8 +99,7 @@ export const Resources: FC<ResourcesProps> = ({
                     {/* The rowspan should be the same than the number of agents */}
                     {agentIndex === 0 && (
                       <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
-                        {resource.name}
-                        <span className={styles.resourceType}>{resource.type}</span>
+                        {resourceName}
                       </TableCell>
                     )}
 

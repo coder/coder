@@ -15,14 +15,25 @@ export interface AvatarDataProps {
   subtitle: string
   highlightTitle?: boolean
   link?: string
+  avatar?: React.ReactNode
 }
 
-export const AvatarData: FC<AvatarDataProps> = ({ title, subtitle, link, highlightTitle }) => {
+export const AvatarData: FC<AvatarDataProps> = ({
+  title,
+  subtitle,
+  link,
+  highlightTitle,
+  avatar,
+}) => {
   const styles = useStyles()
+
+  if (!avatar) {
+    avatar = firstLetter(title)
+  }
 
   return (
     <div className={styles.root}>
-      <Avatar className={styles.avatar}>{firstLetter(title)}</Avatar>
+      <Avatar className={styles.avatar}>{avatar}</Avatar>
 
       {link ? (
         <Link to={link} underline="none" component={RouterLink}>
