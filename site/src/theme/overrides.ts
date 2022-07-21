@@ -5,9 +5,10 @@ import { MONOSPACE_FONT_FAMILY } from "./constants"
 export const getOverrides = (palette: PaletteOptions) => {
   return {
     MuiCssBaseline: {
-      '@global': {
+      "@global": {
         body: {
-          backgroundImage: "linear-gradient(to right bottom, hsl(223, 38%, 14%), hsl(221, 53%, 3%))",
+          backgroundImage:
+            "linear-gradient(to right bottom, hsl(223, 38%, 14%), hsl(221, 53%, 3%))",
           backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
@@ -77,7 +78,7 @@ export const getOverrides = (palette: PaletteOptions) => {
         "& td": {
           paddingTop: 16,
           paddingBottom: 16,
-          background: "transparent"
+          background: "transparent",
         },
       },
     },

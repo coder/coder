@@ -91,7 +91,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.dark, .1),
+      backgroundColor: fade(theme.palette.primary.dark, 0.1),
     },
 
     "&:focus": {
