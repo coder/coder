@@ -153,9 +153,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 		Time:  database.Now(),
 		Valid: true,
 	}
-	invalidNullTimeMock := sql.NullTime{
-		Valid: false,
-	}
+	invalidNullTimeMock := sql.NullTime{}
 	errorMock := sql.NullString{
 		String: "error",
 		Valid:  true,
