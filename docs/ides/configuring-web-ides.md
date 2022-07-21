@@ -140,7 +140,7 @@ For advanced users who want to make a custom image, you can install the Projecto
 
 In this example, the version of JetBrains IntelliJ IDE is passed in from a Terraform input variable. You create a JetBrains icon in the workspace using a `coder_app` resource.
 
-> There is known issue passing query string parameters when opening a JetBrains IDE from an icon in your workspace. Note the `grep` statement to remove an optional password token from the configuration so a query string parameter is not passed.
+> There is a known issue passing query string parameters when opening a JetBrains IDE from an icon in your workspace ([#2669](https://github.com/coder/coder/issues/2669)). Note the `grep` statement to remove an optional password token from the configuration so a query string parameter is not passed.
 
 ```hcl
 
