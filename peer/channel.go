@@ -194,9 +194,6 @@ func (c *Channel) init() {
 //
 // This will block until the underlying DataChannel has been opened.
 func (c *Channel) Read(bytes []byte) (int, error) {
-	if c.isClosed() {
-		return 0, c.closeError
-	}
 	err := c.waitOpened()
 	if err != nil {
 		return 0, err
@@ -233,9 +230,6 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	if c.isClosed() {
-		return 0, c.closeWithError(nil)
-	}
 	err = c.waitOpened()
 	if err != nil {
 		return 0, err
@@ -313,7 +307,13 @@ func (c *Channel) isClosed() bool {
 func (c *Channel) waitOpened() error {
 	select {
 	case <-c.opened:
-		return nil
+		// Re-check to prioritize the closed channel.
+		select {
+		case <-c.closed:
+			return c.closeError
+		default:
+			return nil
+		}
 	case <-c.closed:
 		return c.closeError
 	}
