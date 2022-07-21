@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -228,8 +229,11 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	require.Eventually(t, func() bool {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), build.ID)
-		require.NoError(t, err)
-		return build.Job.Status == codersdk.ProvisionerJobCanceled
+		return assert.NoError(t, err) &&
+			// The job will never actually cancel successfully because it will never send a
+			// provision complete response.
+			assert.Empty(t, build.Job.Error) &&
+			build.Job.Status == codersdk.ProvisionerJobCanceling
 	}, 5*time.Second, 25*time.Millisecond)
 }
 

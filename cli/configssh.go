@@ -89,18 +89,23 @@ func sshFetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]s
 			}
 
 			wc := sshWorkspaceConfig{Name: workspace.Name}
+			var agents []codersdk.WorkspaceAgent
 			for _, resource := range resources {
 				if resource.Transition != codersdk.WorkspaceTransitionStart {
 					continue
 				}
-				for _, agent := range resource.Agents {
-					hostname := workspace.Name
-					if len(resource.Agents) > 1 {
-						hostname += "." + agent.Name
-					}
-					wc.Hosts = append(wc.Hosts, hostname)
-				}
+				agents = append(agents, resource.Agents...)
 			}
+
+			// handle both WORKSPACE and WORKSPACE.AGENT syntax
+			if len(agents) == 1 {
+				wc.Hosts = append(wc.Hosts, workspace.Name)
+			}
+			for _, agent := range agents {
+				hostname := workspace.Name + "." + agent.Name
+				wc.Hosts = append(wc.Hosts, hostname)
+			}
+
 			workspaceConfigs[i] = wc
 
 			return nil
