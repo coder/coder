@@ -126,7 +126,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
-	t.Run("Success", func(t *testing.T) {
+	// TODO(Cian): until we are able to test cancellation properly, validating
+	// Running -> Canceling is the best we can do for now.
+	t.Run("Canceling", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
