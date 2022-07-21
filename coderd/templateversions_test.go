@@ -150,8 +150,11 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
-			return version.Job.Status == codersdk.ProvisionerJobCanceled
+			return assert.NoError(t, err) &&
+				// The job will never actually cancel successfully because it will never send a
+				// provision complete response.
+				assert.Empty(t, version.Job.Error) &&
+				version.Job.Status == codersdk.ProvisionerJobCanceling
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 }
