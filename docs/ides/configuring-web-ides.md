@@ -154,7 +154,7 @@ variable "jetbrains-ide" {
       "IntelliJ IDEA Ultimate 2021.3"
     ], var.jetbrains-ide)
     # Find all compatible IDEs with the `projector IDE find` command
-    error_message = "Invalid JetBrains IDE!"   
+    error_message = "Invalid JetBrains IDE!"
 }
 }
 
@@ -216,13 +216,11 @@ You can also reference/use to these pre-built templates with JetBrains projector
 
 - GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
 
-- Alternate approach: Projector/IDE installed into the image, all IDEs ((Docker)[https://github.com/bpmct/coder-templates/tree/main/projector-container])
-
-> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples. 
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 
 ![PyCharm in Coder](../images/projector-pycharm.png)
 
-> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples. 
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 
 > Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
 
