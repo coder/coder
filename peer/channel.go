@@ -306,6 +306,7 @@ func (c *Channel) isClosed() bool {
 func (c *Channel) waitOpened() error {
 	select {
 	case <-c.opened:
+		// Re-check the closed channel to prioritize closure.
 		if c.isClosed() {
 			return c.closeError
 		}
