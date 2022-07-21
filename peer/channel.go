@@ -106,12 +106,15 @@ func (c *Channel) init() {
 	// write operations to block once the threshold is set.
 	c.dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 	c.dc.OnBufferedAmountLow(func() {
+		// Grab the lock to protect the sendMore channel from being
+		// closed in between the isClosed check and the send.
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
 		select {
 		case <-c.closed:
-			return
 		case c.sendMore <- struct{}{}:
 		default:
 		}
@@ -122,15 +125,16 @@ func (c *Channel) init() {
 	})
 	c.dc.OnOpen(func() {
 		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
-
 		c.conn.logger().Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		var err error
 		c.rwc, err = c.dc.Detach()
 		if err != nil {
+			c.closeMutex.Unlock()
 			_ = c.closeWithError(xerrors.Errorf("detach: %w", err))
 			return
 		}
+		c.closeMutex.Unlock()
+
 		// pion/webrtc will return an io.ErrShortBuffer when a read
 		// is triggerred with a buffer size less than the chunks written.
 		//
@@ -189,9 +193,6 @@ func (c *Channel) init() {
 //
 // This will block until the underlying DataChannel has been opened.
 func (c *Channel) Read(bytes []byte) (int, error) {
-	if c.isClosed() {
-		return 0, c.closeError
-	}
 	err := c.waitOpened()
 	if err != nil {
 		return 0, err
@@ -228,9 +229,6 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	if c.isClosed() {
-		return 0, c.closeWithError(nil)
-	}
 	err = c.waitOpened()
 	if err != nil {
 		return 0, err
@@ -308,6 +306,10 @@ func (c *Channel) isClosed() bool {
 func (c *Channel) waitOpened() error {
 	select {
 	case <-c.opened:
+		// Re-check the closed channel to prioritize closure.
+		if c.isClosed() {
+			return c.closeError
+		}
 		return nil
 	case <-c.closed:
 		return c.closeError
