@@ -148,26 +148,44 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
-		sch, err := server.Accept(context.Background())
-		require.NoError(t, err)
-		defer sch.Close()
+		defer cch.Close()
+
+		readErr := make(chan error, 1)
 		go func() {
-			bytes := make([]byte, 4096)
-			for i := 0; i < 1024; i++ {
-				_, err := cch.Write(bytes)
-				require.NoError(t, err)
-			}
-			_ = cch.Close()
-		}()
-		bytes := make([]byte, 4096)
-		for {
-			_, err = sch.Read(bytes)
+			sch, err := server.Accept(ctx)
 			if err != nil {
-				require.ErrorIs(t, err, peer.ErrClosed)
-				break
+				readErr <- err
+				_ = cch.Close()
+				return
 			}
+			defer sch.Close()
+
+			bytes := make([]byte, 4096)
+			for {
+				_, err = sch.Read(bytes)
+				if err != nil {
+					readErr <- err
+					return
+				}
+			}
+		}()
+
+		bytes := make([]byte, 4096)
+		for i := 0; i < 1024; i++ {
+			_, err = cch.Write(bytes)
+			require.NoError(t, err, "write i=%d", i)
+		}
+		_ = cch.Close()
+
+		select {
+		case err = <-readErr:
+			require.ErrorIs(t, err, peer.ErrClosed, "read error")
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for read error")
 		}
 	})
 
