@@ -129,7 +129,11 @@ export const WorkspaceStatusBadge: React.FC<WorkspaceStatusBadgeProps> = ({ buil
   const theme = useTheme()
   const { text, icon, ...colorStyles } = getStatus(theme, build)
   return (
-    <div className={combineClasses([styles.wrapper, className])} style={{ ...colorStyles }}>
+    <div
+      className={combineClasses([styles.wrapper, className])}
+      style={{ ...colorStyles }}
+      role="status"
+    >
       <div className={styles.iconWrapper}>{icon}</div>
       {text}
     </div>
