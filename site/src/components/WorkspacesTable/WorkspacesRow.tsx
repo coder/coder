@@ -6,7 +6,7 @@ import { useActor } from "@xstate/react"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
@@ -16,7 +16,7 @@ import {
 } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
-import { WorkspaceStatusBadge } from "../WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 
 const Language = {
   upToDateLabel: "Up to date",
