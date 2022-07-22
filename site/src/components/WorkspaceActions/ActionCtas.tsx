@@ -81,11 +81,12 @@ export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
 
   // this is an icon button, so it's important to include an aria label
   return (
-    <Button
-      startIcon={<BlockIcon />}
+    <WorkspaceActionButton
+      icon={<BlockIcon />}
       onClick={handleAction}
       className={styles.cancelButton}
-      aria-label="cancel action"
+      ariaLabel="cancel action"
+      label="" // MUI throws an error if you don't have a label
     />
   )
 }

@@ -57,7 +57,7 @@ export const WorkspaceStateActions: StateActionsType = {
     primary: ButtonTypesEnum.stopping,
     secondary: [],
     canCancel: true,
-   },
+  },
   [WorkspaceStateEnum.stopped]: {
     primary: ButtonTypesEnum.start,
     secondary: [ButtonTypesEnum.delete],

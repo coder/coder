@@ -5,6 +5,19 @@ import { Language } from "./ActionCtas"
 import { WorkspaceStateEnum } from "./constants"
 import { WorkspaceActions, WorkspaceActionsProps } from "./WorkspaceActions"
 
+const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
+  render(
+    <WorkspaceActions
+      workspace={props.workspace ?? Mocks.MockWorkspace}
+      handleStart={jest.fn()}
+      handleStop={jest.fn()}
+      handleDelete={jest.fn()}
+      handleUpdate={jest.fn()}
+      handleCancel={jest.fn()}
+    />,
+  )
+}
+
 const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
   render(
     <WorkspaceActions
@@ -22,9 +35,14 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
 
 describe("WorkspaceActions", () => {
   describe("when the workspace is starting", () => {
-    it("primary is cancel; no secondary", async () => {
-      await renderAndClick({ workspace: Mocks.MockStartingWorkspace })
-      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.cancel)
+    it("primary is starting; cancel is available; no secondary", async () => {
+      await renderComponent({ workspace: Mocks.MockStartingWorkspace })
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.starting)
+      expect(
+        screen.getByRole("button", {
+          name: "cancel action",
+        }),
+      ).toBeInTheDocument()
       expect(screen.queryByTestId("secondary-ctas")).toBeNull()
     })
   })
@@ -36,9 +54,14 @@ describe("WorkspaceActions", () => {
     })
   })
   describe("when the workspace is stopping", () => {
-    it("primary is cancel; no secondary", async () => {
-      await renderAndClick({ workspace: Mocks.MockStoppingWorkspace })
-      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.cancel)
+    it("primary is stopping; cancel is available; no secondary", async () => {
+      await renderComponent({ workspace: Mocks.MockStoppingWorkspace })
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.stopping)
+      expect(
+        screen.getByRole("button", {
+          name: "cancel action",
+        }),
+      ).toBeInTheDocument()
       expect(screen.queryByTestId("secondary-ctas")).toBeNull()
     })
   })
@@ -65,9 +88,14 @@ describe("WorkspaceActions", () => {
     })
   })
   describe("when the workspace is deleting", () => {
-    it("primary is cancel; no secondary", async () => {
-      await renderAndClick({ workspace: Mocks.MockDeletingWorkspace })
-      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.cancel)
+    it("primary is deleting; cancel is available; no secondary", async () => {
+      await renderComponent({ workspace: Mocks.MockDeletingWorkspace })
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.deleting)
+      expect(
+        screen.getByRole("button", {
+          name: "cancel action",
+        }),
+      ).toBeInTheDocument()
       expect(screen.queryByTestId("secondary-ctas")).toBeNull()
     })
   })
