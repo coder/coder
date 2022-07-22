@@ -16,7 +16,7 @@ import {
 } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
-import { WorkspaceStatusBadge } from "../WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 
 const Language = {
   upToDateLabel: "Up to date",
