@@ -24,16 +24,16 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	defer func() {
-		_ = ln.Close()
-	}()
 	server := http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	}
+	t.Cleanup(func() {
+		_ = server.Close()
+		_ = ln.Close()
+	})
 	go server.Serve(ln)
-	defer server.Close()
 	tcpAddr, _ := ln.Addr().(*net.TCPAddr)
 
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -78,9 +78,9 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	defer func() {
+	t.Cleanup(func() {
 		_ = agentCloser.Close()
-	}()
+	})
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse

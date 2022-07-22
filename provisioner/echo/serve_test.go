@@ -25,11 +25,11 @@ func TestEcho(t *testing.T) {
 	// Create an in-memory provisioner to communicate with.
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer func() {
+	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
 		cancelFunc()
-	}()
+	})
 	go func() {
 		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: server,
