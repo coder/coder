@@ -5,7 +5,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import RefreshIcon from "@material-ui/icons/Refresh"
-import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
+import { ApiError, getErrorDetail, getErrorMessage } from "../../api/errors"
 import { FC, useState } from "react"
 import { Stack } from "../Stack/Stack"
 
