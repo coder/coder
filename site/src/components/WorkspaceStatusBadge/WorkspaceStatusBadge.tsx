@@ -6,6 +6,7 @@ import StopIcon from "@material-ui/icons/StopOutlined"
 import { WorkspaceBuild } from "api/typesGenerated"
 import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { combineClasses } from "util/combineClasses"
 import { getWorkspaceStatus } from "util/workspace"
 
 const StatusLanguage = {
@@ -120,14 +121,15 @@ export const getStatus = (
 
 export type WorkspaceStatusBadgeProps = {
   build: WorkspaceBuild
+  className?: string
 }
 
-export const WorkspaceStatusBadge: React.FC<WorkspaceStatusBadgeProps> = ({ build }) => {
+export const WorkspaceStatusBadge: React.FC<WorkspaceStatusBadgeProps> = ({ build, className }) => {
   const styles = useStyles()
   const theme = useTheme()
   const { text, icon, ...colorStyles } = getStatus(theme, build)
   return (
-    <div className={styles.wrapper} style={{ ...colorStyles }}>
+    <div className={combineClasses([styles.wrapper, className])} style={{ ...colorStyles }}>
       <div className={styles.iconWrapper}>{icon}</div>
       {text}
     </div>
@@ -145,9 +147,9 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     fontWeight: 500,
     color: "#FFF",
-    padding: theme.spacing(0.5),
-    paddingLeft: theme.spacing(1),
-    paddingRight: theme.spacing(2),
+    height: theme.spacing(3),
+    paddingLeft: theme.spacing(0.75),
+    paddingRight: theme.spacing(1.5),
   },
 
   iconWrapper: {
