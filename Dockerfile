@@ -15,7 +15,7 @@ LABEL \
 ADD coder /opt/coder
 
 # Create coder group and user.
-RUN addgroup -g 1000 coder &&
+RUN addgroup -g 1000 coder && \
 	adduser -D -g "" -h /home/coder -G coder -u 1000 coder
 USER coder:coder
 

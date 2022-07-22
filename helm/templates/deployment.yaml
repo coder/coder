@@ -28,7 +28,7 @@ spec:
           env:
             {{- if .Values.coder.tls.secretName }}
             - name: CODER_ADDRESS
-              value: "0.0.0.0:443"
+              value: "0.0.0.0:8443"
             - name: CODER_TLS_ENABLE
               value: "true"
             - name: CODER_TLS_CERT_FILE
@@ -37,7 +37,7 @@ spec:
               value: /etc/ssl/certs/coder/tls.key
             {{- else }}
             - name: CODER_ADDRESS
-              value: "0.0.0.0:80"
+              value: "0.0.0.0:8080"
             {{- end }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
@@ -45,11 +45,11 @@ spec:
           ports:
             {{- if .Values.coder.tls.secretName }}
             - name: https
-              containerPort: 443
+              containerPort: 8443
               protocol: TCP
             {{- else }}
             - name: http
-              containerPort: 80
+              containerPort: 8080
               protocol: TCP
             {{- end }}
           readinessProbe:
