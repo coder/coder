@@ -1,6 +1,6 @@
 apiVersion: v2
 name: coder
-description: Remote development environments on your infrastructure.
+description: Remote development environments on your infrastructure
 home: https://github.com/coder/coder
 
 # version and appVersion are injected at release and will always be shown as
