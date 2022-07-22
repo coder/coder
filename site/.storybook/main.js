@@ -35,7 +35,7 @@ module.exports = {
   //
   // SEE: https://storybook.js.org/docs/react/configure/webpack
   webpackFinal: async (config) => {
-    config.resolve.modules = [path.resolve(__dirname, ".."), "node_modules"]
+    config.resolve.modules = [path.resolve(__dirname, ".."), "node_modules", "../src"]
     return config
   },
 }
