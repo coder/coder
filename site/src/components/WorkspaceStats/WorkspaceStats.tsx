@@ -6,7 +6,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
+import { getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -26,7 +26,6 @@ export interface WorkspaceStatsProps {
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
   const styles = useStyles()
   const theme = useTheme()
-  const status = getDisplayStatus(theme, workspace.latest_build)
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
 
   return (
@@ -63,15 +62,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.byLabel}</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
-      </div>
-      <div className={styles.statsDivider} />
-      <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.statusLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: status.color }} role="status">
-            {status.status}
-          </span>
-        </span>
       </div>
     </div>
   )
