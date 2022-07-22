@@ -27,8 +27,6 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 	t.Parallel()
 
 	t.Run("QueryPubSubDupes", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		t.Cleanup(cancel)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		// mDB := mocks.NewStore(t)
 		fDB := databasefake.New()
@@ -64,6 +62,9 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			{ID: uuid.New(), JobID: jobID, Stage: "Stage2"},
 			{ID: uuid.New(), JobID: jobID, Stage: "Stage3"},
 		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
 		// wow there are a lot of DB rows we touch...
 		_, err = fDB.InsertAPIKey(ctx, database.InsertAPIKeyParams{
