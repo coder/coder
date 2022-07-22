@@ -53,6 +53,7 @@ func upgrade() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create temp file %q: %w", tmpPath, err)
 			}
+			defer os.Remove(tmpPath)
 			defer tmpFi.Close()
 
 			_, err = io.Copy(tmpFi, bin)
