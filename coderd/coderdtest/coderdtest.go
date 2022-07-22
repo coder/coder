@@ -143,7 +143,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
 
 	lifecycleExecutor := executor.New(
 		ctx,

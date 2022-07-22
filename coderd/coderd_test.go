@@ -94,7 +94,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		t.Cleanup(func() { close(tickerCh) })
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
+		defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
 
 		lifecycleExecutor := executor.New(
 			ctx,
