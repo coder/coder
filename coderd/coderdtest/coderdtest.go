@@ -353,7 +353,8 @@ func CreateWorkspaceBuild(
 	t *testing.T,
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
-	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	transition database.WorkspaceTransition,
+) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}
@@ -397,36 +398,44 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
-		require.NoError(t, err)
-		return templateVersion.Job.CompletedAt != nil
+		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
 	return templateVersion
 }
 
 // AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
 func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
-		require.NoError(t, err)
-		return workspaceBuild.Job.CompletedAt != nil
+		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
 	return workspaceBuild
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
 func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+	t.Helper()
+
+	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {

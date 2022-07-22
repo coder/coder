@@ -44,17 +44,15 @@ func TestResetPassword(t *testing.T) {
 		err = serverCmd.ExecuteContext(ctx)
 		assert.ErrorIs(t, err, context.Canceled)
 	}()
-	var client *codersdk.Client
+	var rawURL string
 	require.Eventually(t, func() bool {
-		rawURL, err := cfg.URL().Read()
-		if err != nil {
-			return false
-		}
-		accessURL, err := url.Parse(rawURL)
-		require.NoError(t, err)
-		client = codersdk.New(accessURL)
-		return true
-	}, 15*time.Second, 25*time.Millisecond)
+		rawURL, err = cfg.URL().Read()
+		return err == nil && rawURL != ""
+	}, 15*time.Minute, 25*time.Millisecond)
+	accessURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+	client := codersdk.New(accessURL)
+
 	_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 		Email:            email,
 		Username:         username,
