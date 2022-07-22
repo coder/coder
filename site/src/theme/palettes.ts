@@ -28,4 +28,7 @@ export const darkPalette: PaletteOptions = {
   success: {
     main: "hsl(142, 58%, 41%)",
   },
+  info: {
+    main: "hsl(219, 67%, 54%)",
+  },
 }
