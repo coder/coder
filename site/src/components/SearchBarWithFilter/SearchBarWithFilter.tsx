@@ -168,7 +168,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
   },
   errorRoot: {
-    color: theme.palette.error.dark,
+    color: theme.palette.error.main,
   },
   inputStyles: {
     height: "100%",
