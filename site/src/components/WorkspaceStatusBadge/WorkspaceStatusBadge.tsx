@@ -150,6 +150,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(3),
     paddingLeft: theme.spacing(0.75),
     paddingRight: theme.spacing(1.5),
+    whiteSpace: "nowrap",
   },
 
   iconWrapper: {

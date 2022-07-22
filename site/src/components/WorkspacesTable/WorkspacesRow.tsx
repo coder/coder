@@ -7,7 +7,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
+import { getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
@@ -17,6 +17,7 @@ import {
 } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
+import { WorkspaceStatusBadge } from "../WorkspaceStatusBadge/WorkspaceStatusBadge"
 
 dayjs.extend(relativeTime)
 
@@ -31,7 +32,6 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
   const theme: Theme = useTheme()
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
-  const status = getDisplayStatus(theme, workspace.latest_build)
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
 
@@ -77,7 +77,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       </TableCellLink>
 
       <TableCellLink to={workspacePageLink}>
-        <span style={{ color: status.color }}>{status.status}</span>
+        <WorkspaceStatusBadge build={workspace.latest_build} />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <div className={styles.arrowCell}>
