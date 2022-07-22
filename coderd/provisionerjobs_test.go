@@ -41,7 +41,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
+		defer cancelFunc()
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		for {
@@ -77,7 +77,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		before := database.Now()
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
+		defer cancelFunc()
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		for {

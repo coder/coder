@@ -109,9 +109,9 @@ func TestConfigSSH(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
@@ -119,9 +119,9 @@ func TestConfigSSH(t *testing.T) {
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		_ = listener.Close()
-	})
+	}()
 	go func() {
 		for {
 			conn, err := listener.Accept()

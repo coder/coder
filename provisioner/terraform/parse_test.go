@@ -23,11 +23,11 @@ func TestParse(t *testing.T) {
 	// Create an in-memory provisioner to communicate with.
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(func() {
+	defer func() {
 		_ = client.Close()
 		_ = server.Close()
 		cancelFunc()
-	})
+	}()
 	go func() {
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
