@@ -134,9 +134,6 @@ func TestConfigSSH(t *testing.T) {
 			go io.Copy(ssh, conn)
 		}
 	}()
-	t.Cleanup(func() {
-		_ = listener.Close()
-	})
 
 	sshConfigFile, _ := sshConfigFileNames(t)
 

@@ -94,6 +94,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		t.Cleanup(func() { close(tickerCh) })
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+
 		lifecycleExecutor := executor.New(
 			ctx,
 			db,
@@ -109,9 +111,13 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		srv.Start()
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
+		t.Cleanup(srv.Close)
 
 		turnServer, err := turnconn.New(nil)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = turnServer.Close()
+		})
 
 		validator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
@@ -138,9 +144,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		_ = coderdtest.NewProvisionerDaemon(t, coderAPI)
 		t.Cleanup(func() {
-			cancelFunc()
-			_ = turnServer.Close()
-			srv.Close()
 			_ = coderAPI.Close()
 		})
 

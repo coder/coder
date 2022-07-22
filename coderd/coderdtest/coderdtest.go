@@ -143,6 +143,8 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
@@ -156,6 +158,8 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		return ctx
 	}
 	srv.Start()
+	t.Cleanup(srv.Close)
+
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
@@ -166,6 +170,9 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 
 	turnServer, err := turnconn.New(nil)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = turnServer.Close()
+	})
 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(&coderd.Options{
@@ -188,18 +195,16 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
 	})
+	t.Cleanup(func() {
+		_ = coderAPI.Close()
+	})
 	srv.Config.Handler = coderAPI.Handler
 
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerD {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
-
 	t.Cleanup(func() {
-		cancelFunc()
-		_ = turnServer.Close()
-		srv.Close()
-		_ = coderAPI.Close()
 		_ = provisionerCloser.Close()
 	})
 
