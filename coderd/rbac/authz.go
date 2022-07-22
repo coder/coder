@@ -43,9 +43,8 @@ var policy string
 func NewAuthorizer() (*RegoAuthorizer, error) {
 	ctx := context.Background()
 	query, err := rego.New(
-		// allowed is the `allow` field from the prepared query. This is the field to check if authorization is
-		// granted.
-		rego.Query("allowed = data.authz.allow"),
+		// Query returns true/false for authorization access
+		rego.Query("data.authz.allow"),
 		rego.Module("policy.rego", policy),
 	).PrepareForEval(ctx)
 
@@ -92,16 +91,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
 	}
 
-	if len(results) != 1 {
-		return ForbiddenWithInternal(xerrors.Errorf("expect only 1 result, got %d", len(results)), input, results)
-	}
-
-	allowedResult, ok := (results[0].Bindings["allowed"]).(bool)
-	if !ok {
-		return ForbiddenWithInternal(xerrors.Errorf("expected allowed to be a bool but got %T", allowedResult), input, results)
-	}
-
-	if !allowedResult {
+	if !results.Allowed() {
 		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
 	}
 

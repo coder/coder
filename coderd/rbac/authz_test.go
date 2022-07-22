@@ -23,6 +23,29 @@ type subject struct {
 	Roles []rbac.Role `json:"roles"`
 }
 
+// BenchmarkRBACFilter benchmarks the rbac.Filter method. Authorizing batch
+// objects has a noticeable cost on performance.
+//	go test -bench BenchmarkRBACFilter -benchmem -memprofile memprofile.out -cpuprofile profile.out
+func BenchmarkRBACFilter(b *testing.B) {
+	ctx := context.Background()
+	objectList := make([]rbac.Object, b.N)
+	orgID := uuid.New()
+	for i := range objectList {
+		objectList[i] = rbac.ResourceWorkspace.
+			InOrg(orgID).
+			WithID(uuid.NewString()).
+			WithOwner("other")
+	}
+
+	authorizer, err := rbac.NewAuthorizer()
+	require.NoError(b, err)
+
+	roles := []string{rbac.RoleOrgAdmin(orgID)}
+
+	b.ResetTimer()
+	rbac.Filter(ctx, authorizer, "me", roles, rbac.ActionRead, objectList)
+}
+
 func TestFilter(t *testing.T) {
 	t.Parallel()
 
