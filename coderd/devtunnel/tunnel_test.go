@@ -78,7 +78,9 @@ func TestTunnel(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		res, err := fTunServer.requestHTTP()
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		defer res.Body.Close()
 		_, _ = io.Copy(io.Discard, res.Body)
 

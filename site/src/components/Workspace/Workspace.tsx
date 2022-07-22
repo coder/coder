@@ -94,7 +94,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
-          <WorkspaceStats workspace={workspace} />
+          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
           {!!resources && !!resources.length && (
             <Resources

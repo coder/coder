@@ -224,7 +224,9 @@ func TestAgent(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				// Windows uses UTF16! 🪟🪟🪟
 				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-				require.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 			}
 			gotContent = string(content)
 			return true
