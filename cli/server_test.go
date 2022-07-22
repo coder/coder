@@ -50,17 +50,15 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		var client *codersdk.Client
+		var rawURL string
 		require.Eventually(t, func() bool {
-			rawURL, err := cfg.URL().Read()
-			if err != nil {
-				return false
-			}
-			accessURL, err := url.Parse(rawURL)
-			assert.NoError(t, err)
-			client = codersdk.New(accessURL)
-			return true
+			rawURL, err = cfg.URL().Read()
+			return err == nil && rawURL != ""
 		}, time.Minute, 50*time.Millisecond)
+		accessURL, err := url.Parse(rawURL)
+		require.NoError(t, err)
+		client := codersdk.New(accessURL)
+
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 			Email:            "some@one.com",
 			Username:         "example",
