@@ -59,6 +59,17 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
+	// require.Eventually runs the function in a goroutine.
+	m.Match(`
+	require.Eventually(t, func() bool {
+		$*_
+		$require.$_($*_)
+		$*_
+	}, $*_)`).
+		At(m["require"]).
+		Where(m["require"].Text == "require").
+		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
+
 	m.Match(`
 	go func($*_){
 		$*_
@@ -90,10 +101,10 @@ func InTx(m dsl.Matcher) {
 		At(m["f"]).
 		Report("Do not use the database directly within the InTx closure. Use '$y' instead of '$x'.")
 
-	//When using a tx closure, ensure that if you pass the db to another
-	//function inside the closure, it is the tx.
-	//This will miss more complex cases such as passing the db as apart
-	//of another struct.
+	// When using a tx closure, ensure that if you pass the db to another
+	// function inside the closure, it is the tx.
+	// This will miss more complex cases such as passing the db as apart
+	// of another struct.
 	m.Match(`
 	$x.InTx(func($y database.Store) error {
 		$*_

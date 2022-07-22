@@ -1,12 +1,13 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
-import dayjs from "dayjs"
+import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { combineClasses } from "util/combineClasses"
+import { createDayString } from "util/createDayString"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
-import { getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -21,9 +22,10 @@ const Language = {
 
 export interface WorkspaceStatsProps {
   workspace: Workspace
+  handleUpdate: () => void
 }
 
-export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
   const styles = useStyles()
   const theme = useTheme()
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
@@ -45,7 +47,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
         <span className={styles.statsLabel}>{Language.versionLabel}</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
-            <span style={{ color: theme.palette.error.main }}>{Language.outdated}</span>
+            <span className={styles.outdatedLabel}>
+              {Language.outdated}
+              <OutdatedHelpTooltip onUpdateVersion={handleUpdate} ariaLabel="update version" />
+            </span>
           ) : (
             <span style={{ color: theme.palette.text.secondary }}>{Language.upToDate}</span>
           )}
@@ -55,7 +60,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
         <span className={styles.statsValue} data-chromatic="ignore">
-          {dayjs().to(dayjs(workspace.latest_build.created_at))}
+          {createDayString(workspace.latest_build.created_at)}
         </span>
       </div>
       <div className={styles.statsDivider} />
@@ -122,5 +127,11 @@ const useStyles = makeStyles((theme) => ({
   link: {
     color: theme.palette.text.primary,
     fontWeight: 600,
+  },
+  outdatedLabel: {
+    color: theme.palette.error.main,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
   },
 }))

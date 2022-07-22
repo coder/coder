@@ -4,6 +4,8 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { AvatarData } from "components/AvatarData/AvatarData"
+import { ResourceAvatar } from "components/Resources/ResourceAvatar"
 import { FC } from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
@@ -51,8 +53,12 @@ export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({ resources }
               return (
                 <TableRow>
                   <TableCell className={styles.resourceNameCell}>
-                    {resource.name}
-                    <span className={styles.resourceType}>{resource.type}</span>
+                    <AvatarData
+                      title={resource.name}
+                      subtitle={resource.type}
+                      highlightTitle
+                      avatar={<ResourceAvatar type={resource.type} />}
+                    />
                   </TableCell>
                   <TableCell colSpan={3}></TableCell>
                 </TableRow>
@@ -65,8 +71,12 @@ export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({ resources }
                 {/* The rowspan should be the same than the number of agents */}
                 {agentIndex === 0 && (
                   <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
-                    {resource.name}
-                    <span className={styles.resourceType}>{resource.type}</span>
+                    <AvatarData
+                      title={resource.name}
+                      subtitle={resource.type}
+                      highlightTitle
+                      avatar={<ResourceAvatar type={resource.type} />}
+                    />
                   </TableCell>
                 )}
 
