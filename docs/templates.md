@@ -107,13 +107,13 @@ Terraform. There are two types of parameters:
   values are often personalization settings such as "preferred region"
   or "workspace image".
 
-The template sample below uses *admin and user parameters* to allow developers to
+The template sample below uses _admin and user parameters_ to allow developers to
 create workspaces from any image as long as it is in the proper registry:
 
 ```hcl
 variable "image_registry_url" {
-  description = "The image registry developers can sele"
-  default     = "artifactory1.organization.com`
+  description = "The image registry developers can select"
+  default     = "artifactory1.organization.com"
   sensitive   = true # admin (template-wide) parameter
 }
 
@@ -188,7 +188,6 @@ resource "kubernetes_pod" "podName" {
 }
 ```
 
-
 #### Delete workspaces
 
 When a workspace is deleted, the Coder server essentially runs a
@@ -256,8 +255,8 @@ practices:
 - Ensure the resource has `curl` installed
 - Ensure the resource can reach your Coder URL
 - Manually connect to the resource (e.g., `docker exec` or AWS console)
-  - The Coder agent logs are typically stored in (`/var/log/coder-agent.log`)
-
+  - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
+  - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
 ## Change Management
 
