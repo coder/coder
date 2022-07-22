@@ -206,7 +206,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
-		tempPath := filepath.Join(os.TempDir(), "content.txt")
+		tempPath := filepath.Join(t.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
 			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
@@ -324,12 +324,7 @@ func TestAgent(t *testing.T) {
 						t.Skip("Unix socket forwarding isn't supported on Windows")
 					}
 
-					tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-					require.NoError(t, err, "create temp dir for unix listener")
-					t.Cleanup(func() {
-						_ = os.RemoveAll(tmpDir)
-					})
-
+					tmpDir := t.TempDir()
 					l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
 					require.NoError(t, err, "create UDP listener")
 					return l
