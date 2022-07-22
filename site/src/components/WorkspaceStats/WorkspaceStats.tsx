@@ -5,7 +5,7 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
@@ -28,7 +28,6 @@ export interface WorkspaceStatsProps {
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
   const styles = useStyles()
   const theme = useTheme()
-  const status = getDisplayStatus(theme, workspace.latest_build)
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
 
   return (
@@ -68,15 +67,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdat
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.byLabel}</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
-      </div>
-      <div className={styles.statsDivider} />
-      <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.statusLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: status.color }} role="status">
-            {status.status}
-          </span>
-        </span>
       </div>
     </div>
   )
