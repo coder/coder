@@ -24,11 +24,18 @@ export const darkPalette: PaletteOptions = {
   divider: "hsl(221, 32%, 26%)",
   warning: {
     main: "hsl(20, 79%, 53%)",
+    dark: "#57250C",
   },
   success: {
     main: "hsl(142, 58%, 41%)",
+    dark: "#205027",
   },
   info: {
     main: "hsl(219, 67%, 54%)",
+    dark: "#0C2551",
+  },
+  error: {
+    main: "#C84044",
+    dark: "#511112",
   },
 }
