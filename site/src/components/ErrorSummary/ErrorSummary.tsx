@@ -55,7 +55,11 @@ export const ErrorSummary: FC<ErrorSummaryProps> = ({
           <div>
             <span className={styles.errorMessage}>{message}</span>
             {!!detail && (
-              <Link onClick={toggleShowDetails} className={styles.detailsLink}>
+              <Link
+                aria-expanded={showDetails}
+                onClick={toggleShowDetails}
+                className={styles.detailsLink}
+              >
                 {showDetails ? Language.lessDetails : Language.moreDetails}
               </Link>
             )}
