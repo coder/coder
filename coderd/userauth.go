@@ -29,7 +29,7 @@ type GithubOAuth2Config struct {
 	AuthenticatedUser           func(ctx context.Context, client *http.Client) (*github.User, error)
 	ListEmails                  func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
 	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
-	Team                        func(ctx context.Context, client *http.Client, org, team string) (*github.Team, error)
+	TeamMembership              func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error)
 
 	AllowSignups       bool
 	AllowOrganizations []string
@@ -72,9 +72,18 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching authenticated Github user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// The default if no teams are specified is to allow all.
 	if len(api.GithubOAuth2Config.AllowTeams) > 0 {
-		var allowedTeam *github.Team
+		var allowedTeam *github.Membership
 		for _, allowTeam := range api.GithubOAuth2Config.AllowTeams {
 			if allowTeam.Organization != *selectedMembership.Organization.Login {
 				// This needs to continue because multiple organizations
@@ -82,7 +91,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			allowedTeam, err = api.GithubOAuth2Config.Team(r.Context(), oauthClient, allowTeam.Organization, allowTeam.Slug)
+			allowedTeam, err = api.GithubOAuth2Config.TeamMembership(r.Context(), oauthClient, allowTeam.Organization, allowTeam.Slug, *ghUser.Login)
 			// The calling user may not have permission to the requested team!
 			if err != nil {
 				continue
@@ -150,14 +159,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			// support is added, we should enable a configuration map of user
 			// email to organization.
 			organizationID = organizations[0].ID
-		}
-		ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(r.Context(), oauthClient)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching authenticated Github user.",
-				Detail:  err.Error(),
-			})
-			return
 		}
 		var verifiedEmail *github.UserEmail
 		for _, email := range emails {
