@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import Collapse from "@material-ui/core/Collapse"
 import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { darken, makeStyles, Theme } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
@@ -49,33 +49,33 @@ export const ErrorSummary: FC<ErrorSummaryProps> = ({
   }
 
   return (
-    <Stack>
-      <Stack className={styles.root}>
-        <Stack direction="row" alignItems="center" className={styles.message}>
-          <div>
-            <span className={styles.errorMessage}>{message}</span>
-            {!!detail && (
-              <Link
-                aria-expanded={showDetails}
-                onClick={toggleShowDetails}
-                className={styles.detailsLink}
-              >
-                {showDetails ? Language.lessDetails : Language.moreDetails}
-              </Link>
-            )}
-          </div>
-          {dismissible && (
-            <IconButton onClick={closeError} className={styles.iconButton}>
-              <CloseIcon className={styles.closeIcon} />
-            </IconButton>
-          )}
-        </Stack>
-        <Collapse in={showDetails}>{detail}</Collapse>
-      </Stack>
-
-      {retry && (
+    <Stack className={styles.root}>
+      <Stack direction="row" alignItems="center" className={styles.messageBox}>
         <div>
-          <Button onClick={retry} startIcon={<RefreshIcon />} variant="outlined">
+          <span className={styles.errorMessage}>{message}</span>
+          {!!detail && (
+            <Link
+              aria-expanded={showDetails}
+              onClick={toggleShowDetails}
+              className={styles.detailsLink}
+              tabIndex={0}
+            >
+              {showDetails ? Language.lessDetails : Language.moreDetails}
+            </Link>
+          )}
+        </div>
+        {dismissible && (
+          <IconButton onClick={closeError} className={styles.iconButton}>
+            <CloseIcon className={styles.closeIcon} />
+          </IconButton>
+        )}
+      </Stack>
+      <Collapse in={showDetails}>
+        <div className={styles.details}>{detail}</div>
+      </Collapse>
+      {retry && (
+        <div className={styles.retry}>
+          <Button size="small" onClick={retry} startIcon={<RefreshIcon />} variant="outlined">
             {Language.retryMessage}
           </Button>
         </div>
@@ -90,13 +90,13 @@ interface StyleProps {
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
-    background: `${theme.palette.error.main}60`,
+    background: darken(theme.palette.error.main, 0.6),
     margin: `${theme.spacing(2)}px`,
     padding: `${theme.spacing(2)}px`,
     borderRadius: theme.shape.borderRadius,
-    gap: (props) => (props.showDetails ? `${theme.spacing(2)}px` : 0),
+    gap: 0,
   },
-  message: {
+  messageBox: {
     justifyContent: "space-between",
   },
   errorMessage: {
@@ -105,6 +105,12 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   detailsLink: {
     cursor: "pointer",
   },
+  details: {
+    marginTop: `${theme.spacing(2)}px`,
+    padding: `${theme.spacing(2)}px`,
+    background: darken(theme.palette.error.main, 0.7),
+    borderRadius: theme.shape.borderRadius,
+  },
   iconButton: {
     padding: 0,
   },
@@ -112,5 +118,8 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     width: 25,
     height: 25,
     color: theme.palette.primary.contrastText,
+  },
+  retry: {
+    marginTop: `${theme.spacing(2)}px`,
   },
 }))
