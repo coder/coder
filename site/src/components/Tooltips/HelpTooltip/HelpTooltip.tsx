@@ -33,7 +33,7 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(!!open)
-  const id = isOpen ? "help-popover" : ""
+  const id = isOpen ? "help-popover" : undefined
 
   const onClose = () => {
     setIsOpen(false)
