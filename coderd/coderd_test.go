@@ -109,9 +109,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			return ctx
 		}
 		srv.Start()
+		t.Cleanup(srv.Close)
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		t.Cleanup(srv.Close)
 
 		turnServer, err := turnconn.New(nil)
 		require.NoError(t, err)
