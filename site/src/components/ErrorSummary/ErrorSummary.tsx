@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import RefreshIcon from "@material-ui/icons/Refresh"
+import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import { Stack } from "../Stack/Stack"
 
 const Language = {
   retryMessage: "Retry",
