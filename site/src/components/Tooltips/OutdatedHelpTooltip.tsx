@@ -15,8 +15,8 @@ export const Language = {
 }
 
 interface TooltipProps {
-  onUpdateVersion: () => void,
-  ariaLabel?: string,
+  onUpdateVersion: () => void
+  ariaLabel?: string
 }
 
 export const OutdatedHelpTooltip: FC<TooltipProps> = ({ onUpdateVersion, ariaLabel }) => {
