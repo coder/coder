@@ -250,7 +250,7 @@ export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
 
-// From codersdk/error.go:4:6
+// From codersdk/error.go:10:6
 export interface Response {
   readonly message: string
   readonly detail?: string
@@ -386,7 +386,7 @@ export interface UsersRequest extends Pagination {
   readonly q?: string
 }
 
-// From codersdk/error.go:24:6
+// From codersdk/error.go:30:6
 export interface ValidationError {
   readonly field: string
   readonly detail: string

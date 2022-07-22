@@ -119,23 +119,13 @@ func TestPortForward(t *testing.T) {
 					t.Skip("Unix socket forwarding isn't supported on Windows")
 				}
 
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
 				require.NoError(t, err, "create UDP listener")
 				return l
 			},
 			setupLocal: func(t *testing.T) (string, string) {
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				path := filepath.Join(tmpDir, "test.sock")
 				return path, path
 			},

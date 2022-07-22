@@ -230,7 +230,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        10 * time.Millisecond,
 		UpdateInterval:      25 * time.Millisecond,
-		ForceCancelInterval: 25 * time.Millisecond,
+		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},

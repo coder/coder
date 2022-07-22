@@ -3,7 +3,6 @@ package peer
 import (
 	"bytes"
 	"context"
-
 	"crypto/rand"
 	"io"
 	"sync"
@@ -256,7 +255,6 @@ func (c *Conn) init() error {
 			c.logger().Debug(context.Background(), "sending local candidate", slog.F("candidate", iceCandidate.ToJSON().Candidate))
 			select {
 			case <-c.closed:
-				break
 			case c.localCandidateChannel <- iceCandidate.ToJSON():
 			}
 		}()
@@ -265,7 +263,6 @@ func (c *Conn) init() error {
 		go func() {
 			select {
 			case <-c.closed:
-				return
 			case c.dcOpenChannel <- dc:
 			}
 		}()
@@ -435,9 +432,6 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 				data := make([]byte, pingDataLength)
 				bytesRead, err := c.pingEchoChan.Read(data)
 				if err != nil {
-					if c.isClosed() {
-						return
-					}
 					_ = c.CloseWithError(xerrors.Errorf("read ping echo channel: %w", err))
 					return
 				}

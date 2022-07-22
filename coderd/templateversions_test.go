@@ -125,8 +125,15 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Eventually(t, func() bool {
+			var err error
+			version, err = client.TemplateVersion(context.Background(), version.ID)
+			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
+		}, 5*time.Second, 25*time.Millisecond)
 	})
-	t.Run("Success", func(t *testing.T) {
+	// TODO(Cian): until we are able to test cancellation properly, validating
+	// Running -> Canceling is the best we can do for now.
+	t.Run("Canceling", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -150,8 +157,11 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
-			return version.Job.Status == codersdk.ProvisionerJobCanceled
+			return assert.NoError(t, err) &&
+				// The job will never actually cancel successfully because it will never send a
+				// provision complete response.
+				assert.Empty(t, version.Job.Error) &&
+				version.Job.Status == codersdk.ProvisionerJobCanceling
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 }
