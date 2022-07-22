@@ -42,11 +42,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   )
   const workspaceState = WorkspaceStateEnum[workspaceStatus]
 
-  const canUpdateWorkspace = workspace.outdated && canAcceptJobs(workspaceStatus)
+  const canBeUpdated = workspace.outdated && canAcceptJobs(workspaceStatus)
 
   // actions are the primary and secondary CTAs that appear in the workspace actions dropdown
   const actions = useMemo(() => {
-    if (!canUpdateWorkspace) {
+    if (!canBeUpdated) {
       return WorkspaceStateActions[workspaceState]
     }
 
@@ -57,7 +57,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     updatedActions.primary = ButtonTypesEnum.update
 
     return updatedActions
-  }, [canUpdateWorkspace, workspaceState])
+  }, [canBeUpdated, workspaceState])
 
   /**
    * Ensures we close the popover before calling any action handler

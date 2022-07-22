@@ -3,11 +3,11 @@ import { makeStyles, useTheme } from "@material-ui/core/styles"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { combineClasses } from "util/combineClasses"
+import { createDayString } from "util/createDayString"
+import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
-import { createDayString } from "./createDayString"
 
 const Language = {
   workspaceDetails: "Workspace Details",

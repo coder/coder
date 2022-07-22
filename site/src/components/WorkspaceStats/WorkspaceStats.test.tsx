@@ -3,7 +3,7 @@ import { Language } from "components/Tooltips/OutdatedHelpTooltip"
 import { WorkspaceStats } from "components/WorkspaceStats/WorkspaceStats"
 import { MockOutdatedWorkspace } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
-import * as CreateDayString from "./createDayString"
+import * as CreateDayString from "util/createDayString"
 
 describe("WorkspaceStats", () => {
   it("shows an outdated tooltip", async () => {

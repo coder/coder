@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
+import * as CreateDayString from "util/createDayString"
 import { Language as WorkspacesTableBodyLanguage } from "../../components/WorkspacesTable/WorkspacesTableBody"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
@@ -9,6 +10,9 @@ import WorkspacesPage from "./WorkspacesPage"
 describe("WorkspacesPage", () => {
   beforeEach(() => {
     history.replace("/workspaces")
+    // Mocking the dayjs module within the createDayString file
+    const mock = jest.spyOn(CreateDayString, "createDayString")
+    mock.mockImplementation(() => "a minute ago")
   })
 
   it("renders an empty workspaces page", async () => {
