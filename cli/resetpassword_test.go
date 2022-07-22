@@ -48,7 +48,7 @@ func TestResetPassword(t *testing.T) {
 	require.Eventually(t, func() bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, 15*time.Minute, 25*time.Millisecond)
+	}, 15*time.Second, 25*time.Millisecond)
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err)
 	client := codersdk.New(accessURL)
