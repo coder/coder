@@ -6,7 +6,7 @@ import { useActor } from "@xstate/react"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
