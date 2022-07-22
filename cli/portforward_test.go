@@ -394,16 +394,17 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	clitest.SetupConfig(t, client, root)
 	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
-	defer agentCancel()
+	t.Cleanup(func() {
+		agentCancel()
+		err := <-errC
+		require.NoError(t, err)
+	})
 	go func() {
 		errC <- cmd.ExecuteContext(agentCtx)
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
-	require.NoError(t, err)
-
-	err := <-errC
 	require.NoError(t, err)
 
 	return resources, workspace
