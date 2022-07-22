@@ -4,11 +4,10 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import MemoryIcon from "@material-ui/icons/MemoryOutlined"
 import useTheme from "@material-ui/styles/useTheme"
-import { AvatarData } from "components/AvatarData/AvatarData"
 import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
@@ -17,6 +16,7 @@ import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
+import { ResourceAvatar } from "./ResourceAvatar"
 
 const Language = {
   resources: "Resources",
@@ -72,7 +72,7 @@ export const Resources: FC<ResourcesProps> = ({
               const agents = resource.agents ?? [null]
               const resourceName = (
                 <AvatarData
-                  avatar={<MemoryIcon />}
+                  avatar={<ResourceAvatar type={resource.type} />}
                   title={resource.name}
                   subtitle={resource.type}
                   highlightTitle
@@ -154,6 +154,11 @@ const useStyles = makeStyles((theme) => ({
 
   table: {
     border: 0,
+  },
+
+  resourceAvatar: {
+    color: "#FFF",
+    backgroundColor: "#3B73D8",
   },
 
   resourceNameCell: {

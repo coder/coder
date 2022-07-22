@@ -28,12 +28,12 @@ export const AvatarData: FC<AvatarDataProps> = ({
   const styles = useStyles()
 
   if (!avatar) {
-    avatar = firstLetter(title)
+    avatar = <Avatar>{firstLetter(title)}</Avatar>
   }
 
   return (
     <div className={styles.root}>
-      <Avatar className={styles.avatar}>{avatar}</Avatar>
+      <div className={styles.avatarWrapper}>{avatar}</div>
 
       {link ? (
         <Link to={link} underline="none" component={RouterLink}>
@@ -57,8 +57,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
   },
-  avatar: {
+  avatarWrapper: {
     marginRight: theme.spacing(1.5),
-    background: "hsl(219, 8%, 52%)",
   },
 }))
