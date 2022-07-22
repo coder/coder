@@ -5,7 +5,10 @@ metadata:
   labels:
     {{- include "coder.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.coder.replicaCount }}
+  # NOTE: this is currently not used as coder v2 does not support high
+  #       availability yet.
+  # replicas: {{ .Values.coder.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
@@ -15,36 +18,45 @@ spec:
         {{- include "coder.selectorLabels" . | nindent 8 }}
     spec:
       restartPolicy: Always
-      terminationGracePeriodSeconds: 300
+      terminationGracePeriodSeconds: 60
       containers:
         - name: coder
-          image: "{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
-            - name: CODER_ADDRESS
-              value: "0.0.0.0:80"
             {{- if .Values.coder.tls.secretName }}
+            - name: CODER_ADDRESS
+              value: "0.0.0.0:443"
             - name: CODER_TLS_ENABLE
               value: "true"
             - name: CODER_TLS_CERT_FILE
               value: /etc/ssl/certs/coder/tls.crt
             - name: CODER_TLS_KEY_FILE
               value: /etc/ssl/certs/coder/tls.key
+            {{- else }}
+            - name: CODER_ADDRESS
+              value: "0.0.0.0:80"
             {{- end }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
           ports:
+            {{- if .Values.coder.tls.secretName }}
+            - name: https
+              containerPort: 443
+              protocol: TCP
+            {{- else }}
             - name: http
               containerPort: 80
               protocol: TCP
+            {{- end }}
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/v2/buildinfo
               port: http
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/v2/buildinfo
               port: http

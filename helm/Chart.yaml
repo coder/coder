@@ -3,7 +3,8 @@ name: coder
 description: Remote development environments on your infrastructure.
 home: https://github.com/coder/coder
 
-# version and appVersion are injected at release.
+# version and appVersion are injected at release and will always be shown as
+# 0.1.0 in the repository.
 type: application
 version: "0.1.0"
 appVersion: "0.1.0"

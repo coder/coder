@@ -13,6 +13,14 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Selector labels
+*/}}
+{{- define "coder.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "coder.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "coder.labels" -}}
@@ -22,12 +30,4 @@ helm.sh/chart: {{ include "coder.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels
-*/}}
-{{- define "coder.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "coder.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
