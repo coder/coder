@@ -4,12 +4,25 @@ import { MONOSPACE_FONT_FAMILY } from "./constants"
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const getOverrides = (palette: PaletteOptions) => {
   return {
+    MuiCssBaseline: {
+      "@global": {
+        body: {
+          backgroundImage:
+            "linear-gradient(to right bottom, hsl(223, 38%, 14%), hsl(221, 53%, 3%))",
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment: "fixed",
+          letterSpacing: "-0.015em",
+        },
+      },
+    },
     MuiAvatar: {
       root: {
-        borderColor: palette.divider,
         width: 36,
         height: 36,
-        fontSize: 20,
+        fontSize: 18,
+      },
+      colorDefault: {
+        backgroundColor: "#a1adc9",
       },
     },
     MuiButton: {
@@ -26,7 +39,7 @@ export const getOverrides = (palette: PaletteOptions) => {
       contained: {
         boxShadow: "none",
         color: palette.text?.primary,
-        backgroundColor: "#151515",
+        backgroundColor: "hsl(223, 27%, 3%)",
         "&:hover": {
           boxShadow: "none",
           backgroundColor: "#000000",
@@ -62,11 +75,12 @@ export const getOverrides = (palette: PaletteOptions) => {
       root: {
         // Gives the appearance of a border!
         borderRadius: 2,
-        border: `1px solid ${palette.divider}`,
+        background: "hsla(222, 31%, 19%, .5)",
 
         "& td": {
           paddingTop: 16,
           paddingBottom: 16,
+          background: "transparent",
         },
       },
     },
@@ -97,11 +111,15 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiOutlinedInput: {
       root: {
+        "& .MuiOutlinedInput-notchedOutline": {
+          borderColor: palette.divider,
+        },
+
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
         },
         "&:hover .MuiOutlinedInput-notchedOutline": {
-          borderColor: (palette.primary as SimplePaletteColorOptions).light,
+          borderColor: palette.divider,
         },
       },
     },

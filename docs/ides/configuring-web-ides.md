@@ -77,8 +77,9 @@ resource "coder_app" "code-server" {
 ```
 
 <blockquote class="warning">
-If the `code-server` integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
+If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
 </blockquote>
+
 
 ## VNC Desktop
 
@@ -112,12 +113,9 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 
 Workspace requirements:
 
-- JetBrains server
-- IDE (e.g IntelliJ IDEA, pyCharm)
+- JetBrains projector CLI
+- At least 4 CPU cores and 4 GB RAM
 
-Installation instructions will vary depending on your workspace's operating system, platform, and build system.
-
-As a starting point, see the [projector-container](https://github.com/bpmct/coder-templates/tree/main/projector-container) community template. It builds & provisions a Dockerized workspaces for the following IDEs:
 
 - CLion
 - pyCharm
@@ -131,6 +129,102 @@ As a starting point, see the [projector-container](https://github.com/bpmct/code
 - Rubymine
 - WebStorm
 - ➕ code-server (just in case!)
+
+
+For advanced users who want to make a custom image, you can install the Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder template. Using the Projector CLI, you can use `projector ide autoinstall` and `projector run` to download and start a JetBrains IDE in your workspace.
+
+
+![IntelliJ in Coder](../images/projector-intellij.png)
+
+
+In this example, the version of JetBrains IntelliJ IDE is passed in from a Terraform input variable. You create a JetBrains icon in the workspace using a `coder_app` resource.
+
+> There is a known issue passing query string parameters when opening a JetBrains IDE from an icon in your workspace ([#2669](https://github.com/coder/coder/issues/2669)). Note the `grep` statement to remove an optional password token from the configuration so a query string parameter is not passed.
+
+```hcl
+
+variable "jetbrains-ide" {
+  description = "JetBrains IntelliJ IDE"
+  default     = "IntelliJ IDEA Community Edition 2022.1.3"
+  validation {
+    condition = contains([
+      "IntelliJ IDEA Community Edition 2022.1.3",
+      "IntelliJ IDEA Community Edition 2021.3",
+      "IntelliJ IDEA Ultimate 2022.1.3",
+      "IntelliJ IDEA Ultimate 2021.3"
+    ], var.jetbrains-ide)
+    # Find all compatible IDEs with the `projector IDE find` command
+    error_message = "Invalid JetBrains IDE!"
+}
+}
+
+resource "coder_agent" "coder" {
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install projector
+PROJECTOR_BINARY=/home/coder/.local/bin/projector
+if [ -f $PROJECTOR_BINARY ]; then
+    echo 'projector has already been installed - check for update'
+    /home/coder/.local/bin/projector self-update 2>&1 | tee projector.log
+else
+    echo 'installing projector'
+    pip3 install projector-installer --user 2>&1 | tee projector.log
+fi
+
+echo 'access projector license terms'
+/home/coder/.local/bin/projector --accept-license 2>&1 | tee -a projector.log
+
+PROJECTOR_CONFIG_PATH=/home/coder/.projector/configs/intellij
+
+if [ -d "$PROJECTOR_CONFIG_PATH" ]; then
+    echo 'projector has already been configured and the JetBrains IDE downloaded - skip step' 2>&1 | tee -a projector.log
+else
+    echo 'autoinstalling IDE and creating projector config folder'
+    /home/coder/.local/bin/projector ide autoinstall --config-name "intellij" --ide-name "${var.jetbrains-ide}" --hostname=localhost --port 8997 --use-separate-config --password coder 2>&1 | tee -a projector.log
+
+    # delete the configuration's run.sh input parameters that check password tokens since tokens do not work with coder_app yet passed in the querystring
+    grep -iv "HANDSHAKE_TOKEN" $PROJECTOR_CONFIG_PATH/run.sh > temp && mv temp $PROJECTOR_CONFIG_PATH/run.sh 2>&1 | tee -a projector.log
+    chmod +x $PROJECTOR_CONFIG_PATH/run.sh 2>&1 | tee -a projector.log
+
+    echo "creation of intellij configuration complete" 2>&1 | tee -a projector.log
+fi
+# start JetBrains projector-based IDE
+/home/coder/.local/bin/projector run intellij &
+
+EOT
+}
+
+resource "coder_app" "intellij" {
+  agent_id      = coder_agent.coder.id
+  name          = "${var.jetbrains-ide}"
+  icon          = "/icon/intellij.svg"
+  url           = "http://localhost:8997/"
+  relative_path = true
+}
+```
+
+
+**Pre-built templates:**
+
+You can also reference/use to these pre-built templates with JetBrains projector:
+
+- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-intellij))
+
+- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm)
+
+- GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
+
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
+
+![PyCharm in Coder](../images/projector-pycharm.png)
+
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
+
+> Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
+
+
 
 ## JupyterLab
 

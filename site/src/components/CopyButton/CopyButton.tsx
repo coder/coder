@@ -82,8 +82,6 @@ const useStyles = makeStyles((theme) => ({
   },
   copyButton: {
     borderRadius: 7,
-    background: theme.palette.background.default,
-    color: theme.palette.primary.contrastText,
     padding: theme.spacing(0.85),
     minWidth: 32,
 
