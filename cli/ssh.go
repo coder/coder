@@ -36,8 +36,6 @@ import (
 var workspacePollInterval = time.Minute
 var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
-var errConnectionDropped = xerrors.New("SSH connection ended unexpectedly")
-
 func ssh() *cobra.Command {
 	var (
 		stdio          bool
@@ -237,7 +235,7 @@ func ssh() *cobra.Command {
 				// If the connection drops unexpectedly, we get an ExitMissingError but no other
 				// error details, so try to at least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return errConnectionDropped
+					return xerrors.New("SSH connection ended unexpectedly")
 				}
 				return err
 			}
