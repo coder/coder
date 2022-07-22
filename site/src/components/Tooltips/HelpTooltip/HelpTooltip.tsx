@@ -33,7 +33,7 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(!!open)
-  const id = isOpen ? "help-popover" : undefined
+  const id = isOpen ? "help-popover" : ""
 
   const onClose = () => {
     setIsOpen(false)
@@ -110,16 +110,17 @@ export const HelpTooltipLink: React.FC<{ href: string }> = ({ children, href }) 
   )
 }
 
-export const HelpTooltipAction: React.FC<{ icon: Icon; onClick: () => void }> = ({
-  children,
-  icon: Icon,
-  onClick,
-}) => {
+export const HelpTooltipAction: React.FC<{
+  icon: Icon
+  onClick: () => void
+  ariaLabel?: string
+}> = ({ children, icon: Icon, onClick, ariaLabel }) => {
   const styles = useStyles()
   const tooltip = useHelpTooltip()
 
   return (
     <button
+      aria-label={ariaLabel ?? ""}
       className={styles.action}
       onClick={(event) => {
         event.stopPropagation()

@@ -8,23 +8,24 @@ import {
   HelpTooltipTitle,
 } from "./HelpTooltip"
 
-const Language = {
+export const Language = {
   outdatedLabel: "Outdated",
   versionTooltipText: "This workspace version is outdated and a newer version is available.",
   updateVersionLabel: "Update version",
 }
 
 interface TooltipProps {
-  onUpdateVersion: () => void
+  onUpdateVersion: () => void,
+  ariaLabel?: string,
 }
 
-export const OutdatedHelpTooltip: FC<TooltipProps> = ({ onUpdateVersion }) => {
+export const OutdatedHelpTooltip: FC<TooltipProps> = ({ onUpdateVersion, ariaLabel }) => {
   return (
     <HelpTooltip size="small">
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipAction icon={RefreshIcon} onClick={onUpdateVersion}>
+        <HelpTooltipAction icon={RefreshIcon} onClick={onUpdateVersion} ariaLabel={ariaLabel}>
           {Language.updateVersionLabel}
         </HelpTooltipAction>
       </HelpTooltipLinksGroup>
