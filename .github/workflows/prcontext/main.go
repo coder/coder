@@ -32,8 +32,8 @@ func main() {
 		return
 	}
 
-	_, _ = fmt.Printf("---\n%s\n---\n", c.Event.PullRequest.Body)
+	_, _ = fmt.Printf("::group::{PR Body}\n%s\n::endgroup::\n", c.Event.PullRequest.Body)
 
 	skips := parseBody(c.Event.PullRequest.Body)
-	_, _ = fmt.Printf("::set-output name=skips::[%s]\n", strings.Join(skips, " "))
+	_, _ = fmt.Printf("::echo::on\n::set-output name=skips::[%s]\n", strings.Join(skips, " "))
 }

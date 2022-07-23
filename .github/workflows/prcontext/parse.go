@@ -3,8 +3,6 @@ package main
 import (
 	"regexp"
 	"strings"
-
-	"github.com/coder/flog"
 )
 
 const ciSkipPrefix = "ci-skip"
@@ -19,7 +17,7 @@ func parseBody(body string) (skips []string) {
 	for i := range matches {
 		for j := range matches[i] {
 			v := matches[i][j]
-			flog.Info("%q", v)
+			// flog.Info("%q", v)
 			if !strings.Contains(v, ciSkipPrefix) {
 				skipMatches = append(skipMatches, strings.Split(v, " ")...)
 			}
