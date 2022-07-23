@@ -31,7 +31,9 @@ func main() {
 		flog.Info("aborting since not Pull Request")
 		return
 	}
-	_, _, = fmt.Printf("---\n%s\n---\n", c.Event.PullRequest.Body)
+
+	_, _ = fmt.Printf("---\n%s\n---\n", c.Event.PullRequest.Body)
+
 	skips := parseBody(c.Event.PullRequest.Body)
 	_, _ = fmt.Printf("::set-output name=skips::[%s]\n", strings.Join(skips, " "))
 }
