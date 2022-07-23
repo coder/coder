@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/coder/flog"
 )
@@ -29,4 +31,6 @@ func main() {
 		flog.Info("aborting since not Pull Request")
 		return
 	}
+	skips := parseBody(c.Event.PullRequest.Body)
+	_, _ = fmt.Printf("::set-output name=skips::[%s]\n", strings.Join(skips, " "))
 }

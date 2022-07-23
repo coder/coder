@@ -70,12 +70,14 @@ jobs:
 
   pr-context:
     runs-on: ubuntu-latest
+    outputs:
+      skips: ${{ steps.prcontext.skips }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
-      - name: Dump GitHub Context
+      - id: prcontext
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
