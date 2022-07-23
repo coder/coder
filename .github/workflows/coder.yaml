@@ -297,7 +297,7 @@ jobs:
     name: "test/go/postgres"
     needs:
       - changes
-      - prcontext
+      - pr-context
     if: >
       needs.changes.outputs.docs-only == 'false' &&
       !contains(needs.prcontext.outputs.skips, github.job)
