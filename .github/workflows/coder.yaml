@@ -45,7 +45,7 @@ jobs:
             docs:
               - 'docs/**'
               # For testing:
-              # - '.github/**'
+              - '.github/**'
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
