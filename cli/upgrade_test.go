@@ -42,7 +42,8 @@ func TestUpgrade(t *testing.T) {
 		stat, err := os.Stat(coderPath)
 		require.NoError(t, err)
 
-		cmd := exec.Command(coderPath, "--url", server.URL, "upgrade")
+		//nolint
+		cmd := exec.Command(coderPath, "--url", server.URL, "--token", "fake", "upgrade")
 		t.Log("Running command " + strings.Join(cmd.Args, " "))
 
 		out, err := cmd.CombinedOutput()
@@ -80,6 +81,7 @@ func copyFile(t *testing.T, from, to string) {
 	b, err := os.ReadFile(from)
 	require.NoError(t, err)
 
+	//nolint
 	err = os.WriteFile(to, b, 0755)
 	require.NoError(t, err)
 

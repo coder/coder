@@ -63,7 +63,7 @@ func parseChecksumFile(rd io.Reader) (CLIChecksums, error) {
 		}
 
 		var (
-			binary   = fields[1]
+			binary   = strings.TrimPrefix(fields[1], "*")
 			checksum = fields[0]
 		)
 
