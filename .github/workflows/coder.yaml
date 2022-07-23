@@ -57,7 +57,7 @@ jobs:
     steps:
       - id: log
         run: |
-          echo "${{ toJSON(changes) }}"
+          echo "${{ toJSON(needs.changes) }}"
 
   style-lint-golangci:
     name: style/lint/golangci
