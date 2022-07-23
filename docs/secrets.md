@@ -42,7 +42,7 @@ resource "twilio_iam_api_key" "api_key" {
   friendly_name = "Test API Key"
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   # ...
   env = {
     # Let users access the secret via $TWILIO_API_SECRET

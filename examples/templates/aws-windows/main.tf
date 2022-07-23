@@ -69,7 +69,7 @@ data "aws_ami" "windows" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "windows"
