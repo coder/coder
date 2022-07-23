@@ -44,6 +44,8 @@ jobs:
               - '**'
             docs:
               - 'docs/**'
+              # For testing:
+              - '.github/**'
       - id: log
         run: |
           echo "${{ toJSON(steps.filter) }}"
