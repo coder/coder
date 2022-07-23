@@ -24,4 +24,9 @@ func main() {
 	if err != nil {
 		flog.Fatal("decode stdin: %+v", err)
 	}
+	flog.Info("detected event %q", c.EventName)
+	if c.EventName != "pull_request" {
+		flog.Info("aborting since not Pull Request")
+		return
+	}
 }
