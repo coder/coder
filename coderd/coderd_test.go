@@ -153,8 +153,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	// so we wait for it to occur.
 	require.Eventually(t, func() bool {
 		provisionerds, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		return len(provisionerds) > 0
+		return assert.NoError(t, err) && len(provisionerds) > 0
 	}, time.Second*10, time.Second)
 
 	provisionerds, err := client.ProvisionerDaemons(ctx)

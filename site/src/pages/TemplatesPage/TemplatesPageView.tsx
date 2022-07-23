@@ -6,10 +6,9 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
+import { createDayString } from "util/createDayString"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -30,8 +29,6 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
-
-dayjs.extend(relativeTime)
 
 export const Language = {
   developerCount: (ownerCount: number): string => {
@@ -151,7 +148,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                 </TableCellLink>
 
                 <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                  {dayjs().to(dayjs(template.updated_at))}
+                  {createDayString(template.updated_at)}
                 </TableCellLink>
                 <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
                 <TableCellLink to={templatePageLink}>

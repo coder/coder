@@ -115,7 +115,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return false
+			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
 		}, 5*time.Second, 25*time.Millisecond)
@@ -125,6 +127,11 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Eventually(t, func() bool {
+			var err error
+			version, err = client.TemplateVersion(context.Background(), version.ID)
+			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
+		}, 5*time.Second, 25*time.Millisecond)
 	})
 	// TODO(Cian): until we are able to test cancellation properly, validating
 	// Running -> Canceling is the best we can do for now.
@@ -143,7 +150,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return false
+			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
 		}, 5*time.Second, 25*time.Millisecond)
@@ -531,9 +540,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// Wait for the job to complete
 		require.Eventually(t, func() bool {
 			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-			assert.NoError(t, err)
-
-			return job.Status == codersdk.ProvisionerJobSucceeded
+			return assert.NoError(t, err) && job.Status == codersdk.ProvisionerJobSucceeded
 		}, 5*time.Second, 25*time.Millisecond)
 
 		<-logsDone
@@ -583,7 +590,8 @@ func TestTemplateVersionDryRun(t *testing.T) {
 					{
 						Type: &proto.Provision_Response_Log{
 							Log: &proto.Log{},
-						}},
+						},
+					},
 					{
 						Type: &proto.Provision_Response_Complete{
 							Complete: &proto.Provision_Complete{},
@@ -604,7 +612,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobPending
@@ -615,7 +625,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobCanceling
@@ -637,7 +649,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobSucceeded
@@ -661,7 +675,8 @@ func TestTemplateVersionDryRun(t *testing.T) {
 					{
 						Type: &proto.Provision_Response_Log{
 							Log: &proto.Log{},
-						}},
+						},
+					},
 					{
 						Type: &proto.Provision_Response_Complete{
 							Complete: &proto.Provision_Complete{},

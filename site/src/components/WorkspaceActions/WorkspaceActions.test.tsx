@@ -79,11 +79,11 @@ describe("WorkspaceActions", () => {
     })
   })
   describe("when the workspace is outdated", () => {
-    it("primary is start; secondary are delete, update", async () => {
+    it("primary is update; secondary are start, delete", async () => {
       await renderAndClick({ workspace: Mocks.MockOutdatedWorkspace })
-      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.start)
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(Language.update)
+      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(Language.start)
       expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(Language.delete)
-      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(Language.update)
     })
   })
 })

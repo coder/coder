@@ -312,7 +312,11 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	switch {
 	case provisionerJob.CanceledAt.Valid:
 		if provisionerJob.CompletedAt.Valid {
-			job.Status = codersdk.ProvisionerJobCanceled
+			if job.Error == "" {
+				job.Status = codersdk.ProvisionerJobCanceled
+			} else {
+				job.Status = codersdk.ProvisionerJobFailed
+			}
 		} else {
 			job.Status = codersdk.ProvisionerJobCanceling
 		}

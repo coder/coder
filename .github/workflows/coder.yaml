@@ -233,7 +233,10 @@ jobs:
   test-go-postgres:
     name: "test/go/postgres"
     runs-on: ubuntu-latest
-    # This timeout must be greater than go test -timeout.
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v3

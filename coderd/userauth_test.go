@@ -88,7 +88,12 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				Team: func(ctx context.Context, client *http.Client, org, team string) (*github.Team, error) {
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("kyle"),
+					}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
 					return nil, xerrors.New("no perms")
 				},
 			},
@@ -222,8 +227,8 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				Team: func(ctx context.Context, client *http.Client, org, team string) (*github.Team, error) {
-					return &github.Team{}, nil
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{

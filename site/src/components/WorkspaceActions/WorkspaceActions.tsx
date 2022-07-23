@@ -1,12 +1,19 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import { FC, ReactNode, useEffect, useRef, useState } from "react"
+import { FC, ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
-import { getWorkspaceStatus } from "../../util/workspace"
+import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { CancelButton, DeleteButton, StartButton, StopButton, UpdateButton } from "./ActionCtas"
 import { ButtonTypesEnum, WorkspaceStateActions, WorkspaceStateEnum } from "./constants"
+
+/**
+ * Jobs submitted while another job is in progress will be discarded,
+ * so check whether workspace job status has reached completion (whether successful or not).
+ */
+const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
 
 export interface WorkspaceActionsProps {
   workspace: Workspace
@@ -34,7 +41,23 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace.latest_build,
   )
   const workspaceState = WorkspaceStateEnum[workspaceStatus]
-  const actions = WorkspaceStateActions[workspaceState]
+
+  const canBeUpdated = workspace.outdated && canAcceptJobs(workspaceStatus)
+
+  // actions are the primary and secondary CTAs that appear in the workspace actions dropdown
+  const actions = useMemo(() => {
+    if (!canBeUpdated) {
+      return WorkspaceStateActions[workspaceState]
+    }
+
+    // if an update is available, we make the update button the primary CTA
+    // and move the former primary CTA to the secondary actions list
+    const updatedActions = { ...WorkspaceStateActions[workspaceState] }
+    updatedActions.secondary.unshift(updatedActions.primary)
+    updatedActions.primary = ButtonTypesEnum.update
+
+    return updatedActions
+  }, [canBeUpdated, workspaceState])
 
   /**
    * Ensures we close the popover before calling any action handler
@@ -58,16 +81,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
+    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
-    [ButtonTypesEnum.update]: (
-      <UpdateButton
-        handleAction={handleUpdate}
-        workspace={workspace}
-        workspaceStatus={workspaceStatus}
-      />
-    ),
     [ButtonTypesEnum.cancel]: <CancelButton handleAction={handleCancel} />,
     [ButtonTypesEnum.canceling]: disabledButton,
     [ButtonTypesEnum.disabled]: disabledButton,

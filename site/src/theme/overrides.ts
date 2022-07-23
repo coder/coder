@@ -17,10 +17,12 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiAvatar: {
       root: {
-        borderColor: palette.divider,
         width: 36,
         height: 36,
         fontSize: 18,
+      },
+      colorDefault: {
+        backgroundColor: "#a1adc9",
       },
     },
     MuiButton: {

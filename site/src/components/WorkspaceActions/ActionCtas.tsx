@@ -6,8 +6,6 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import HighlightOffIcon from "@material-ui/icons/HighlightOff"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
 import { FC } from "react"
-import { Workspace } from "../../api/typesGenerated"
-import { WorkspaceStatus } from "../../util/workspace"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 export const Language = {
@@ -20,6 +18,16 @@ export const Language = {
 
 interface WorkspaceAction {
   handleAction: () => void
+}
+
+export const UpdateButton: FC<WorkspaceAction> = ({ handleAction }) => {
+  const styles = useStyles()
+
+  return (
+    <Button className={styles.actionButton} startIcon={<CloudQueueIcon />} onClick={handleAction}>
+      {Language.update}
+    </Button>
+  )
 }
 
 export const StartButton: FC<WorkspaceAction> = ({ handleAction }) => {
@@ -58,36 +66,6 @@ export const DeleteButton: FC<WorkspaceAction> = ({ handleAction }) => {
       onClick={handleAction}
       label={Language.delete}
     />
-  )
-}
-
-type UpdateAction = WorkspaceAction & {
-  workspace: Workspace
-  workspaceStatus: WorkspaceStatus
-}
-
-export const UpdateButton: FC<UpdateAction> = ({ handleAction, workspace, workspaceStatus }) => {
-  const styles = useStyles()
-
-  /**
-   * Jobs submitted while another job is in progress will be discarded,
-   * so check whether workspace job status has reached completion (whether successful or not).
-   */
-  const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
-    ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
-
-  return (
-    <>
-      {workspace.outdated && canAcceptJobs(workspaceStatus) && (
-        <Button
-          className={styles.actionButton}
-          startIcon={<CloudQueueIcon />}
-          onClick={handleAction}
-        >
-          {Language.update}
-        </Button>
-      )}
-    </>
   )
 }
 

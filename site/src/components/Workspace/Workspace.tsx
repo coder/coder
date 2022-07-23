@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import React, { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -77,6 +78,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           </Stack>
         }
       >
+        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
         <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
         <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
       </PageHeader>
@@ -94,7 +96,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
-          <WorkspaceStats workspace={workspace} />
+          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
           {!!resources && !!resources.length && (
             <Resources
@@ -118,6 +120,9 @@ const spacerWidth = 300
 
 export const useStyles = makeStyles((theme) => {
   return {
+    statusBadge: {
+      marginBottom: theme.spacing(3),
+    },
     firstColumnSpacer: {
       flex: 2,
     },

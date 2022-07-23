@@ -15,14 +15,25 @@ export interface AvatarDataProps {
   subtitle: string
   highlightTitle?: boolean
   link?: string
+  avatar?: React.ReactNode
 }
 
-export const AvatarData: FC<AvatarDataProps> = ({ title, subtitle, link, highlightTitle }) => {
+export const AvatarData: FC<AvatarDataProps> = ({
+  title,
+  subtitle,
+  link,
+  highlightTitle,
+  avatar,
+}) => {
   const styles = useStyles()
+
+  if (!avatar) {
+    avatar = <Avatar>{firstLetter(title)}</Avatar>
+  }
 
   return (
     <div className={styles.root}>
-      <Avatar className={styles.avatar}>{firstLetter(title)}</Avatar>
+      <div className={styles.avatarWrapper}>{avatar}</div>
 
       {link ? (
         <Link to={link} underline="none" component={RouterLink}>
@@ -46,8 +57,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
   },
-  avatar: {
+  avatarWrapper: {
     marginRight: theme.spacing(1.5),
-    background: "hsl(219, 8%, 52%)",
   },
 }))
