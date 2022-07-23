@@ -16,7 +16,7 @@ type githubContext struct {
 	Event     struct {
 		PullRequest struct {
 			Body string `json:"body"`
-		}
+		} `json:"pull_request"`
 	} `json:"event"`
 }
 
