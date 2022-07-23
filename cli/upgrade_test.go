@@ -24,6 +24,10 @@ func TestUpgrade(t *testing.T) {
 		binPath = filepath.Join(tmpDir, binName)
 	)
 
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+
 	// Build a binary. We have to do this because 'coder upgrade'
 	// replaces the running binary with the one pulled from the server.
 	buildCoder(t, binPath)
@@ -93,9 +97,14 @@ func copyFile(t *testing.T, from, to string) {
 // newUpgradeServer starts a server with just the routes necessary
 // to complete the 'coder upgrade' path.
 func newUpgradeServer(t *testing.T, binPath string) *httptest.Server {
+	path := fmt.Sprintf("/bin/coder-%s-%s", runtime.GOOS, runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		path += ".exe"
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc(
-		fmt.Sprintf("/bin/coder-%s-%s", runtime.GOOS, runtime.GOARCH),
+		path,
 		func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, binPath)
 		})

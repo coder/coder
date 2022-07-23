@@ -13,6 +13,10 @@ import (
 
 func (c *Client) FetchCLI(ctx context.Context, os, arch string) (io.ReadCloser, error) {
 	binName := fmt.Sprintf("coder-%s-%s", os, arch)
+	if os == "windows" {
+		binName += ".exe"
+	}
+
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/bin/%s", binName), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
