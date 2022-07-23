@@ -52,7 +52,7 @@ jobs:
     name: style/lint/golangci
     timeout-minutes: 5
     needs: changes
-    if: needs.changes.outputs.docs_only == 'false'
+    if: needs.changes.outputs.docs_only == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
