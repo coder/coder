@@ -35,7 +35,7 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch           = var.docker_arch
   os             = "linux"
   startup_script = "code-server --auth none"
