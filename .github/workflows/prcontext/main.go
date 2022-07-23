@@ -20,7 +20,7 @@ type githubContext struct {
 
 func main() {
 	var c githubContext
-	err := json.NewDecoder(os.Stdin).Decode(&c)
+	err := json.Unmarshal([]byte(os.Getenv("GITHUB_CONTEXT")), &c)
 	if err != nil {
 		flog.Fatal("decode stdin: %+v", err)
 	}
