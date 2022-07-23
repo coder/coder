@@ -75,8 +75,7 @@ jobs:
       - name: Dump GitHub Context
         run: |
           go install github.com/coder/coder/.github/workflows/prcontext
-          pushd; .github/workflows/prcontext; go build -o /usr/bin/prcontext 
-          '${{ toJSON(github) }}' > go run .github/workflows
+          echo '${{ toJSON(github) }}' | prcontext
 
   style-lint-golangci:
     name: style/lint/golangci
