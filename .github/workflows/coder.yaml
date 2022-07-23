@@ -47,7 +47,7 @@ jobs:
             docs:
               - 'docs/**'
               # For testing:
-              - '.github/**'
+              # - '.github/**'
             go:
               - "**.go"
               - "**.mod"
