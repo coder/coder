@@ -50,6 +50,15 @@ jobs:
         run: |
           echo "${{ toJSON(steps.filter) }}"
           echo "DOCS_ONLY=${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }} >> $GITHUB_ENV"
+
+  show-changes:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - id: log
+        run: |
+          echo "${{ toJSON(changesj) }}"
+
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
