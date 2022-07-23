@@ -74,7 +74,9 @@ jobs:
       - uses: actions/checkout@v3
       - name: Dump GitHub Context
         run: |
-          echo github context '${{ toJSON(github) }}'
+          go install github.com/coder/coder/.github/workflows/prcontext
+          pushd; .github/workflows/prcontext; go build -o /usr/bin/prcontext 
+          '${{ toJSON(github) }}' > go run .github/workflows
 
   style-lint-golangci:
     name: style/lint/golangci
