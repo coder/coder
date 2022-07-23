@@ -15,3 +15,7 @@ jobs:
         with:
           stale-issue-label: stale
           stale-pr-label: stale
+          # Pull Requests become stale more quickly due to merge conflicts.
+          # Also, we promote minimizing WIP.
+          days-before-pr-stale: 7
+          days-before-pr-close: 3
