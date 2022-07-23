@@ -19,3 +19,16 @@ jobs:
           # Also, we promote minimizing WIP.
           days-before-pr-stale: 7
           days-before-pr-close: 3
+          stale-pr-message: >
+            This Pull Request is becoming stale. In order to minimize WIP, 
+            prevent merge conflicts and keep the tracker readable, I'm going
+            close to this PR in 3 days if there isn't more activity.
+          stale-issue-message: >
+            This issue is becoming stale. In order to keep the tracker readable
+            and actionable, I'm going close to this issue in 7 days if there 
+            isn't more activity.
+          # Upped from 30 since we have a big tracker and was hitting the limit.
+          operations-per-run: 60
+          close-issue-reason: not_planned
+          # Start with the oldest issues, always.
+          ascending: true
