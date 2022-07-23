@@ -45,7 +45,7 @@ jobs:
             docs:
               - 'docs/**'
               # For testing:
-              - '.github/**'
+              # - '.github/**'
 
   # Debug step
   show-changes:
