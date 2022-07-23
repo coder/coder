@@ -33,7 +33,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      docs-only: ${{ env.DOCS_ONLY }}
+      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
     steps:
       # For pull requests it's not necessary to checkout the code
       - uses: dorny/paths-filter@v2
@@ -54,7 +54,7 @@ jobs:
     name: style/lint/golangci
     timeout-minutes: 5
     needs: changes
-    if: needs.changes.outputs.docs_only == false
+    if: needs.changes.outputs.docs_only == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
