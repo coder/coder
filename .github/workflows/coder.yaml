@@ -588,8 +588,6 @@ jobs:
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v3
