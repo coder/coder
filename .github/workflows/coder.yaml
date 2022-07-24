@@ -567,7 +567,7 @@ jobs:
     needs:
       - changes
       - pr-context
-    if: needs.changes.outputs.docs-only == 'false' && contains(needs.pr-context.outputs.skips, github.job) == 'false'
+    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.pr-context.outputs.skips, github.job)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
