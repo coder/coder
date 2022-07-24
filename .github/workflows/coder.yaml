@@ -269,10 +269,12 @@ jobs:
         id: test
         shell: bash
         run: |
+          # Code coverage is more computationally expensive and also
+          # prevents test caching, so we disable it on alternate operating
+          # systems.
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             echo ::set-output name=cover::true
-            export COVERAGE_FLAGS=-covermode=atomic -coverprofile="gotests.coverage"
-          -coverpkg=./...,github.com/coder/coder/codersdk
+            export COVERAGE_FLAGS=-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...,github.com/coder/coder/codersdk
           elif
             echo ::set-output name=cover::false
           fi
