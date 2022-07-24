@@ -623,7 +623,7 @@ jobs:
 
       - name: Build
         run: |
-          yarn install
+          sudo npm install -g prettier
           make -B site/out/index.html
 
       - run: yarn playwright:install
