@@ -623,6 +623,7 @@ jobs:
 
       - name: Build
         run: |
+          yarn install
           make -B site/out/index.html
 
       - run: yarn playwright:install
