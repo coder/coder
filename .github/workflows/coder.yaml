@@ -565,7 +565,7 @@ jobs:
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.prcontext.outputs.skips, github.job)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
