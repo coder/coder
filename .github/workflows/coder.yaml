@@ -69,7 +69,7 @@ jobs:
       - id: log
         run: |
           echo "${{ toJSON(needs) }}"
-          echo "${{ contains(needs.pr-context.outputs.skips, "postgres") }} "
+          echo "${{ contains(needs.pr-context.outputs.skips, 'postgres') }} "
 
   pr-context:
     runs-on: ubuntu-latest
