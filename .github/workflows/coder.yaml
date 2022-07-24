@@ -587,7 +587,7 @@ jobs:
           path: |
             **/node_modules
             .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             js-${{ runner.os }}-
 
