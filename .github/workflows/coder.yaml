@@ -69,7 +69,7 @@ jobs:
       - id: log
         run: |
           echo "${{ toJSON(needs) }}"
-          echo "${{ contains(needs.pr-context.outputs.skips, github.job) }}
+          echo "${{ contains(needs.pr-context.outputs.skips, github.job) }} "
 
   pr-context:
     runs-on: ubuntu-latest
