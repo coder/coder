@@ -60,13 +60,15 @@ jobs:
           echo "${{ toJSON(steps.filter )}}"
 
   # Debug step
-  show-changes:
-    needs: changes
+  debug-inputs:
+    needs:
+      - changes
+      - pr-context
     runs-on: ubuntu-latest
     steps:
       - id: log
         run: |
-          echo "${{ toJSON(needs.changes) }}"
+          echo "${{ toJSON(needs) }}"
 
   pr-context:
     runs-on: ubuntu-latest
@@ -567,7 +569,7 @@ jobs:
     needs:
       - changes
       - pr-context
-    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.pr-context.outputs.skips, github.job)
+    if: needs.changes.outputs.docs-only == 'false' && contains(needs.pr-context.outputs.skips, github.job) == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
