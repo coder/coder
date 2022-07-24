@@ -331,7 +331,7 @@ jobs:
       - pr-context
     if: >
       needs.changes.outputs.docs-only == 'false' &&
-      contains(needs.pr-context.outputs.skips, github.job) == 'false'
+      contains(needs.pr-context.outputs.skips, 'test/go/postgres') == 'false'
     runs-on: ubuntu-latest
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
