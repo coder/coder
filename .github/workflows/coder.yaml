@@ -69,7 +69,8 @@ jobs:
       - id: log
         run: |
           echo "${{ toJSON(needs) }}"
-          echo "${{ contains(needs.pr-context.outputs.skips, 'postgres') }} "
+          echo "${{ contains(needs.pr-context.outputs.skips, 'test/go/postgres') }} "
+          echo "${{ contains(needs.pr-context.outputs.skips, 'test/e2e') }} "
 
   pr-context:
     runs-on: ubuntu-latest
@@ -331,7 +332,7 @@ jobs:
       - pr-context
     if: >
       needs.changes.outputs.docs-only == 'false' &&
-      contains(needs.pr-context.outputs.skips, github.job) == 'false'
+      !contains(needs.pr-context.outputs.skips, 'test/go/postgres')
     runs-on: ubuntu-latest
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
