@@ -2,6 +2,13 @@
 
 Please [install Coder](./install.md) before proceeding with the steps outlined in this article.
 
+## First time admin user setup
+
+1.  Run `coder login <your Access URL>` in a new terminal and follow the
+    interactive instructions to create your admin user and password.
+
+> If using `coder server --tunnel`, the Access URL appears in the terminal logs.
+
 ## Creating your first template and workspace
 
 In a new terminal window, run the following to copy a sample template:
@@ -36,6 +43,11 @@ Coder's tunnel, use the access URL you were provided). Log in with the admin
 credentials provided to you by Coder.
 
 ![Coder Web UI with code-server](../images/code-server.png)
+
+You can also create workspaces using the access URL and the Templates UI.
+
+![Templates UI to create a
+workspace](../images/create-workspace-from-templates-ui.png)
 
 ## Modifying templates
 
