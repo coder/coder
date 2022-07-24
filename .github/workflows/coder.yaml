@@ -274,15 +274,15 @@ jobs:
           # systems.
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             echo ::set-output name=cover::true
-            export COVERAGE_FLAGS=-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...,github.com/coder/coder/codersdk
-          elif
+            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...,github.com/coder/coder/codersdk'
+          else
             echo ::set-output name=cover::false
           fi
           gotestsum --junitfile="gotests.xml" --packages="./..." --
           -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
 
       - name: Upload DataDog Trace
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
