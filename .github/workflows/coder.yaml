@@ -570,7 +570,7 @@ jobs:
     needs:
       - changes
       - pr-context
-    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.pr-context.outputs.skips, github.job)
+    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.pr-context.outputs.skips, "test/e2e")
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
