@@ -107,9 +107,9 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 
 [JetBrains Projector](https://jetbrains.github.io/projector-client/mkdocs/latest/) is a JetBrains Incubator project which renders JetBrains IDEs in the web browser.
 
-![JetBrains Projector in Coder](../images/jetbrains-projector.png)
+![PyCharm in Coder](../images/projector-pycharm.png)
 
-> It is common to see latency and performance issues with Projector. We recommend using [Jetbrains Gateway](https://youtrack.jetbrains.com/issues/GTW) whenever possible (also no Template edits required!)
+> It is common to see latency and performance issues with Projector. We recommend using [JetBrains Gateway](https://youtrack.jetbrains.com/issues/GTW) whenever possible (also no Template edits required!)
 
 Workspace requirements:
 
@@ -118,18 +118,17 @@ Workspace requirements:
 
 
 - CLion
-- pyCharm
+- PyCharm
 - DataGrip
+- GoLand
 - IntelliJ IDEA Community
 - IntelliJ IDEA Ultimate
 - PhpStorm
-- pyCharm Community
+- PyCharm Community
 - PyCharm Professional
 - Rider
-- Rubymine
+- RubyMine
 - WebStorm
-- ➕ code-server (just in case!)
-
 
 For advanced users who want to make a custom image, you can install the Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder template. Using the Projector CLI, you can use `projector ide autoinstall` and `projector run` to download and start a JetBrains IDE in your workspace.
 
@@ -215,10 +214,6 @@ You can also reference/use to these pre-built templates with JetBrains projector
 - PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm)
 
 - GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
-
-> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
-
-![PyCharm in Coder](../images/projector-pycharm.png)
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 
