@@ -71,13 +71,13 @@ jobs:
   pr-context:
     runs-on: ubuntu-latest
     outputs:
-      skips: ${{ steps.prcontext.skips }}
+      skips: ${{ steps.pr-context.skips }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
-      - id: prcontext
+      - id: pr-context
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
@@ -328,7 +328,7 @@ jobs:
       - pr-context
     if: >
       needs.changes.outputs.docs-only == 'false' &&
-      !contains(needs.prcontext.outputs.skips, github.job)
+      contains(needs.pr-context.outputs.skips, github.job) == 'false'
     runs-on: ubuntu-latest
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -564,8 +564,10 @@ jobs:
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
-    needs: changes
-    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.prcontext.outputs.skips, github.job)
+    needs:
+      - changes
+      - pr-context
+    if: needs.changes.outputs.docs-only == 'false' && contains(needs.pr-context.outputs.skips, github.job) == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:

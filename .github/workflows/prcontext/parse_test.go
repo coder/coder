@@ -26,6 +26,7 @@ func Test_parseBody(t *testing.T) {
 		{"single dir single skip", args{"test pr [ci-skip dog] 123\n\n"}, []string{"dog"}},
 		{"double dir double skip", args{"test pr [ci-skip dog] [ci-skip cat] 123\n\n"}, []string{"dog", "cat"}},
 		{"single dir double skip", args{"test pr [ci-skip test/go/postgres cat] 123\n\n"}, []string{"test/go/postgres", "cat"}},
+		{"confuse", args{"ci ci [ci-skip] dog [ci-skip test/go/postgres test/e2e/ubuntu-latest] 123\n\n"}, []string{"test/go/postgres", "test/e2e/ubuntu-latest"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
