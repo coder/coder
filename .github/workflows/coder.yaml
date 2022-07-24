@@ -278,8 +278,8 @@ jobs:
           else
             echo ::set-output name=cover::false
           fi
-          gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
+          set -x
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
 
       - name: Upload DataDog Trace
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
