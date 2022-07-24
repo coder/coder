@@ -33,9 +33,12 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      just-docs: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      just-js: ${{ steps.filter.outputs.js_count == steps.filter.outputs.all_count }}
+      just-go: ${{ steps.filter.outputs.go_count == steps.filter.outputs.all_count }}
       go: ${{ steps.filter.outputs.go }}
       sh: ${{ steps.filter.outputs.sh }}
+      js: ${{ steps.filter.outputs.js }}
     steps:
       - uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
@@ -55,11 +58,16 @@ jobs:
               - "**.sum"
             sh:
               - "**.sh"
+            js:
+              - "**.jsx?"
+              - "**.tsx?"
+              - "**.s?css"
+              - "**.json"
+              - "**.lock"
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
-  # Debug step
   debug-inputs:
     needs:
       - changes
@@ -123,7 +131,7 @@ jobs:
     name: "style/lint/typescript"
     timeout-minutes: 5
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.ts == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -152,7 +160,7 @@ jobs:
     timeout-minutes: 8
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.just-docs == 'false'
     steps:
       - uses: actions/checkout@v3
 
@@ -208,7 +216,7 @@ jobs:
   style-fmt:
     name: "style/fmt"
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.just-docs == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -242,7 +250,7 @@ jobs:
   test-go:
     name: "test/go"
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.go == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -332,7 +340,7 @@ jobs:
       - changes
       - pr-context
     if: >
-      needs.changes.outputs.docs-only == 'false' &&
+      needs.changes.outputs.go == 'true' &&
       !contains(needs.pr-context.outputs.skips, 'test/go/postgres')
     runs-on: ubuntu-latest
     # This timeout must be greater than the timeout set by `go test` in
@@ -408,7 +416,7 @@ jobs:
     needs: changes
     if: |
       github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && needs.changes.outputs.docs-only == 'false'
+      && needs.changes.outputs.just-docs == 'false'
     permissions:
       contents: read
       id-token: write
@@ -515,7 +523,7 @@ jobs:
   test-js:
     name: "test/js"
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.js == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -572,7 +580,7 @@ jobs:
     needs:
       - changes
       - pr-context
-    if: needs.changes.outputs.docs-only == 'false' && !contains(needs.pr-context.outputs.skips, 'test/e2e')
+    if: needs.changes.outputs.just-docs == 'false' && !contains(needs.pr-context.outputs.skips, 'test/e2e')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -589,7 +597,7 @@ jobs:
           path: |
             **/node_modules
             .eslintcache
-          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
+          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock', '.github/workflows/**', '**playwright**') }}
 
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v3
