@@ -40,7 +40,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
       },
       contained: {
         boxShadow: "none",
-        color: palette.text?.primary,
+        color: palette.text.primary,
         backgroundColor: "hsl(223, 27%, 3%)",
         "&:hover": {
           boxShadow: "none",
@@ -98,12 +98,12 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTableCell: {
       head: {
-        color: palette.text?.secondary,
+        color: palette.text.secondary,
       },
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
-        background: palette.background?.paper,
+        background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
         padding: 8,
         // This targets the first+last td elements, and also the first+last elements
@@ -128,7 +128,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
 
         "& input:-webkit-autofill": {
-          WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
+          WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
         "&:hover .MuiOutlinedInput-notchedOutline": {
           borderColor: palette.divider,
