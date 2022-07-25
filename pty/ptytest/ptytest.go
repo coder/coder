@@ -120,7 +120,10 @@ func (p *PTY) ExpectMatch(str string) string {
 		p.t.Logf("%s: matched %q = %q", time.Now(), str, buffer.String())
 		return buffer.String()
 	case <-timeout.Done():
+		// Ensure goroutine is cleaned up before test exit.
 		_ = p.out.closeErr(p.Close())
+		<-match
+
 		p.t.Fatalf("%s: match exceeded deadline: wanted %q; got %q", time.Now(), str, buffer.String())
 		return ""
 	}
