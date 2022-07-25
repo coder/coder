@@ -36,5 +36,6 @@ func TestTemplateVersions(t *testing.T) {
 
 		pty.ExpectMatch(version.Name)
 		pty.ExpectMatch(version.CreatedByName)
+		pty.ExpectMatch("Active")
 	})
 }
