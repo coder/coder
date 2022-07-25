@@ -38,7 +38,7 @@ vim main.tf
 ```
 
 ```hcl
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
     arch          = "amd64"
     os            = "linux"
     startup_script = <<EOF
@@ -80,7 +80,6 @@ resource "coder_app" "code-server" {
 If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
 </blockquote>
 
-
 ## VNC Desktop
 
 ![VNC Desktop in Coder](../images/vnc-desktop.png)
@@ -116,7 +115,6 @@ Workspace requirements:
 - JetBrains projector CLI
 - At least 4 CPU cores and 4 GB RAM
 
-
 - CLion
 - pyCharm
 - DataGrip
@@ -130,12 +128,9 @@ Workspace requirements:
 - WebStorm
 - ➕ code-server (just in case!)
 
-
 For advanced users who want to make a custom image, you can install the Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder template. Using the Projector CLI, you can use `projector ide autoinstall` and `projector run` to download and start a JetBrains IDE in your workspace.
 
-
 ![IntelliJ in Coder](../images/projector-intellij.png)
-
 
 In this example, the version of JetBrains IntelliJ IDE is passed in from a Terraform input variable. You create a JetBrains icon in the workspace using a `coder_app` resource.
 
@@ -205,7 +200,6 @@ resource "coder_app" "intellij" {
 }
 ```
 
-
 **Pre-built templates:**
 
 You can also reference/use to these pre-built templates with JetBrains projector:
@@ -223,8 +217,6 @@ You can also reference/use to these pre-built templates with JetBrains projector
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 
 > Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
-
-
 
 ## JupyterLab
 

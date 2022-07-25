@@ -93,6 +93,10 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     ],
   },
 
+  cache: {
+    type: "filesystem",
+  },
+
   // resolve extend/modify how modules are resolved.
   //
   // REMARK: Do not add aliases here, unless they cannot be defined in a

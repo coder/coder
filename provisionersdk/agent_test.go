@@ -35,7 +35,7 @@ func TestAgentScript(t *testing.T) {
 			render.Status(r, http.StatusOK)
 			render.Data(rw, r, content)
 		}))
-		t.Cleanup(srv.Close)
+		defer srv.Close()
 		srvURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 

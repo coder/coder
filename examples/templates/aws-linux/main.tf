@@ -72,7 +72,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "linux"

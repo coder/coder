@@ -45,7 +45,12 @@ func TestServer(t *testing.T) {
 		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--address", ":0", "--postgres-url", connectionURL)
+		root, cfg := clitest.New(t,
+			"server",
+			"--address", ":0",
+			"--postgres-url", connectionURL,
+			"--cache-dir", t.TempDir(),
+		)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -75,7 +80,11 @@ func TestServer(t *testing.T) {
 			t.SkipNow()
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		root, cfg := clitest.New(t, "server", "--address", ":0")
+		root, cfg := clitest.New(t,
+			"server",
+			"--address", ":0",
+			"--cache-dir", t.TempDir(),
+		)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -102,7 +111,13 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--access-url", "http://1.2.3.4:3000/")
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "http://1.2.3.4:3000/",
+			"--cache-dir", t.TempDir(),
+		)
 		var buf strings.Builder
 		errC := make(chan error)
 		root.SetOutput(&buf)
@@ -127,8 +142,14 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-min-version", "tls9")
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-min-version", "tls9",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -136,8 +157,14 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-client-auth", "something")
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-client-auth", "something",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -145,8 +172,13 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable")
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -156,8 +188,15 @@ func TestServer(t *testing.T) {
 		defer cancelFunc()
 
 		certPath, keyPath := generateTLSCertificate(t)
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-cert-file", certPath,
+			"--tls-key-file", keyPath,
+			"--cache-dir", t.TempDir(),
+		)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -197,7 +236,13 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--provisioner-daemons", "1")
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--provisioner-daemons", "1",
+			"--cache-dir", t.TempDir(),
+		)
 		serverErr := make(chan error)
 		go func() {
 			serverErr <- root.ExecuteContext(ctx)
@@ -220,7 +265,13 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--trace=true")
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--trace=true",
+			"--cache-dir", t.TempDir(),
+		)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -249,9 +300,16 @@ func TestServer(t *testing.T) {
 			snapshot <- ss
 		})
 		server := httptest.NewServer(r)
-		t.Cleanup(server.Close)
+		defer server.Close()
 
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--telemetry", "--telemetry-url", server.URL)
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--telemetry",
+			"--telemetry-url", server.URL,
+			"--cache-dir", t.TempDir(),
+		)
 		errC := make(chan error)
 		go func() {
 			errC <- root.ExecuteContext(ctx)

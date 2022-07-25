@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -231,6 +232,11 @@ func ssh() *cobra.Command {
 
 			err = sshSession.Wait()
 			if err != nil {
+				// If the connection drops unexpectedly, we get an ExitMissingError but no other
+				// error details, so try to at least give the user a better message
+				if errors.Is(err, &gossh.ExitMissingError{}) {
+					return xerrors.New("SSH connection ended unexpectedly")
+				}
 				return err
 			}
 

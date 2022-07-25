@@ -217,7 +217,7 @@ sets a few environment variables based on the username and email address of the 
 that you can make Git commits immediately without any manual configuration:
 
 ```tf
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   # ...
   env = {
     GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
