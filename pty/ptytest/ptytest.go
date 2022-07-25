@@ -7,80 +7,91 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/pty"
-)
-
-var (
-	// Used to ensure terminal output doesn't have anything crazy!
-	// See: https://stackoverflow.com/a/29497680
-	stripAnsi = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 )
 
 func New(t *testing.T) *PTY {
 	ptty, err := pty.New()
 	require.NoError(t, err)
 
-	return create(t, ptty)
+	return create(t, ptty, "cmd")
 }
 
 func Start(t *testing.T, cmd *exec.Cmd) (*PTY, *os.Process) {
 	ptty, ps, err := pty.Start(cmd)
 	require.NoError(t, err)
-	return create(t, ptty), ps
+	return create(t, ptty, cmd.Args[0]), ps
 }
 
-func create(t *testing.T, ptty pty.PTY) *PTY {
-	reader, writer := io.Pipe()
-	scanner := bufio.NewScanner(reader)
+func create(t *testing.T, ptty pty.PTY, name string) *PTY {
+	// Use pipe for logging.
+	logDone := make(chan struct{})
+	logr, logw := io.Pipe()
 	t.Cleanup(func() {
-		_ = reader.Close()
-		_ = writer.Close()
+		_ = logw.Close()
+		_ = logr.Close()
+		<-logDone // Guard against logging after test.
 	})
 	go func() {
-		for scanner.Scan() {
-			if scanner.Err() != nil {
-				return
-			}
-			t.Log(stripAnsi.ReplaceAllString(scanner.Text(), ""))
+		defer close(logDone)
+		s := bufio.NewScanner(logr)
+		for s.Scan() {
+			// Quote output to avoid terminal escape codes, e.g. bell.
+			t.Logf("%s: stdout: %q", name, s.Text())
 		}
 	}()
 
+	// Write to log and output buffer.
+	copyDone := make(chan struct{})
+	out := newStdbuf()
+	w := io.MultiWriter(logw, out)
+	go func() {
+		defer close(copyDone)
+		_, err := io.Copy(w, ptty.Output())
+		_ = out.closeErr(err)
+	}()
 	t.Cleanup(func() {
+		_ = out.Close
 		_ = ptty.Close()
+		<-copyDone
 	})
+
 	return &PTY{
 		t:   t,
 		PTY: ptty,
+		out: out,
 
-		outputWriter: writer,
-		runeReader:   bufio.NewReaderSize(ptty.Output(), utf8.UTFMax),
+		runeReader: bufio.NewReaderSize(out, utf8.UTFMax),
 	}
 }
 
 type PTY struct {
 	t *testing.T
 	pty.PTY
+	out *stdbuf
 
-	outputWriter io.Writer
-	runeReader   *bufio.Reader
+	runeReader *bufio.Reader
 }
 
 func (p *PTY) ExpectMatch(str string) string {
-	var buffer bytes.Buffer
-	multiWriter := io.MultiWriter(&buffer, p.outputWriter)
-	runeWriter := bufio.NewWriterSize(multiWriter, utf8.UTFMax)
+	p.t.Helper()
+
 	complete, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
+
+	timeout := make(chan error, 1)
 	go func() {
+		defer close(timeout)
 		timer := time.NewTimer(10 * time.Second)
 		defer timer.Stop()
 		select {
@@ -88,35 +99,155 @@ func (p *PTY) ExpectMatch(str string) string {
 			return
 		case <-timer.C:
 		}
-		_ = p.Close()
-		p.t.Errorf("%s match exceeded deadline: wanted %q; got %q", time.Now(), str, buffer.String())
+		timeout <- xerrors.Errorf("%s match exceeded deadline", time.Now())
 	}()
-	for {
-		var r rune
-		r, _, err := p.runeReader.ReadRune()
-		require.NoError(p.t, err)
-		_, err = runeWriter.WriteRune(r)
-		require.NoError(p.t, err)
-		err = runeWriter.Flush()
-		require.NoError(p.t, err)
-		if strings.Contains(buffer.String(), str) {
-			break
+
+	var buffer bytes.Buffer
+	match := make(chan error, 1)
+	go func() {
+		defer close(match)
+		for {
+			r, _, err := p.runeReader.ReadRune()
+			if err != nil {
+				match <- err
+				return
+			}
+			_, err = buffer.WriteRune(r)
+			if err != nil {
+				match <- err
+				return
+			}
+			if strings.Contains(buffer.String(), str) {
+				match <- nil
+				return
+			}
 		}
+	}()
+
+	select {
+	case err := <-match:
+		if err != nil {
+			p.t.Fatalf("read error: %v (wanted %q; got %q)", err, str, buffer.String())
+		}
+		p.t.Logf("matched %q = %q", str, buffer.String())
+	case err := <-timeout:
+		_ = p.out.closeErr(p.Close())
+		p.t.Fatalf("%s: wanted %q; got %q", err, str, buffer.String())
 	}
-	p.t.Logf("matched %q = %q", str, stripAnsi.ReplaceAllString(buffer.String(), ""))
 	return buffer.String()
 }
 
 func (p *PTY) Write(r rune) {
+	p.t.Helper()
+
 	_, err := p.Input().Write([]byte{byte(r)})
 	require.NoError(p.t, err)
 }
 
 func (p *PTY) WriteLine(str string) {
+	p.t.Helper()
+
 	newline := []byte{'\r'}
 	if runtime.GOOS == "windows" {
 		newline = append(newline, '\n')
 	}
 	_, err := p.Input().Write(append([]byte(str), newline...))
 	require.NoError(p.t, err)
+}
+
+// stdbuf is like a buffered stdout, it buffers writes until read.
+type stdbuf struct {
+	r io.Reader
+
+	mu   sync.Mutex // Protects following.
+	b    []byte
+	more chan struct{}
+	err  error
+}
+
+func newStdbuf() *stdbuf {
+	return &stdbuf{more: make(chan struct{}, 1)}
+}
+
+func (b *stdbuf) Read(p []byte) (int, error) {
+	if b.r == nil {
+		return b.read(p)
+	}
+
+	n, err := b.r.Read(p)
+	if xerrors.Is(err, io.EOF) {
+		b.r = nil
+		err = nil
+		if n == 0 {
+			return b.read(p)
+		}
+	}
+	return n, err
+}
+
+func (b *stdbuf) read(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Deplete channel so that more check
+	// is for future input into buffer.
+	select {
+	case <-b.more:
+	default:
+	}
+
+	if len(b.b) == 0 {
+		if b.err != nil {
+			return 0, b.err
+		}
+
+		b.mu.Unlock()
+		<-b.more
+		b.mu.Lock()
+	}
+
+	b.r = bytes.NewReader(b.b)
+	b.b = b.b[len(b.b):]
+
+	return b.r.Read(p)
+}
+
+func (b *stdbuf) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.err != nil {
+		return 0, b.err
+	}
+
+	b.b = append(b.b, p...)
+
+	select {
+	case b.more <- struct{}{}:
+	default:
+	}
+
+	return len(p), nil
+}
+
+func (b *stdbuf) Close() error {
+	return b.closeErr(nil)
+}
+
+func (b *stdbuf) closeErr(err error) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.err != nil {
+		return err
+	}
+	if err == nil {
+		err = io.EOF
+	}
+	b.err = err
+	close(b.more)
+	return b.err
 }
