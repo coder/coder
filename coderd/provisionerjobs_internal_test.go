@@ -38,7 +38,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 		}
 		api := New(&opts)
 		server := httptest.NewServer(api.Handler)
-		t.Cleanup(server.Close)
+		defer server.Close()
 		userID := uuid.New()
 		keyID, keySecret, err := generateAPIKeyIDSecret()
 		require.NoError(t, err)

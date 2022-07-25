@@ -108,15 +108,15 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
-		t.Cleanup(func() {
+		defer func() {
 			_ = agentCloser.Close()
-		})
+		}()
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
-		t.Cleanup(func() {
+		defer func() {
 			_ = conn.Close()
-		})
+		}()
 		_, err = conn.Ping()
 		require.NoError(t, err)
 	})
@@ -233,9 +233,9 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	opts := &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Named("client"),
@@ -244,9 +244,9 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	opts.SettingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4})
 	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, opts)
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		_ = conn.Close()
-	})
+	}()
 	_, err = conn.Ping()
 	require.NoError(t, err)
 }
@@ -294,9 +294,9 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 
 	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80, "/bin/bash")

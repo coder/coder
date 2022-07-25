@@ -43,9 +43,9 @@ func TestProxy(t *testing.T) {
 		Pubsub:    pubsub,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		_ = proxyCloser.Close()
-	})
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
