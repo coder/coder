@@ -45,7 +45,7 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"

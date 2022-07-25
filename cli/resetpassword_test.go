@@ -38,7 +38,12 @@ func TestResetPassword(t *testing.T) {
 	defer closeFunc()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverDone := make(chan struct{})
-	serverCmd, cfg := clitest.New(t, "server", "--address", ":0", "--postgres-url", connectionURL)
+	serverCmd, cfg := clitest.New(t,
+		"server",
+		"--address", ":0",
+		"--postgres-url", connectionURL,
+		"--cache-dir", t.TempDir(),
+	)
 	go func() {
 		defer close(serverDone)
 		err = serverCmd.ExecuteContext(ctx)
