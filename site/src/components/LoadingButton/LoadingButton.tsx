@@ -9,7 +9,6 @@ export interface LoadingButtonProps extends ButtonProps {
   loading?: boolean
   /** An optional label to display with the loading spinner */
   loadingLabel?: string
-  classProp?: string
 }
 
 /**
@@ -22,14 +21,13 @@ export const LoadingButton: FC<LoadingButtonProps> = ({
   loading = false,
   loadingLabel,
   children,
-  classProp,
   ...rest
 }) => {
   const styles = useStyles({ hasLoadingLabel: !!loadingLabel })
   const hidden = loading ? { opacity: 0 } : undefined
 
   return (
-    <Button {...rest} disabled={rest.disabled || loading} className={classProp}>
+    <Button {...rest} disabled={rest.disabled || loading}>
       <span style={hidden}>{children}</span>
       {loading && (
         <div className={styles.loader}>

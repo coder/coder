@@ -115,7 +115,7 @@ export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
     <LoadingButton
       loading
       loadingLabel={label}
-      classProp={combineClasses([styles.loadingButton, styles.actionButton])}
+      className={combineClasses([styles.loadingButton, styles.actionButton])}
     />
   )
 }
