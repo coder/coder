@@ -35,7 +35,8 @@ func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClien
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			CachePath: t.TempDir(),
+			Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
 		assert.NoError(t, err)
 	}()

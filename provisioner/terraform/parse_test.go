@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -33,6 +36,8 @@ func TestParse(t *testing.T) {
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
+			CachePath: t.TempDir(),
+			Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
 		assert.NoError(t, err)
 	}()
@@ -175,7 +180,8 @@ func TestParse(t *testing.T) {
 								DefaultDestination: &proto.ParameterDestination{
 									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 								},
-							}},
+							},
+						},
 					},
 				},
 			},
