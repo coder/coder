@@ -245,9 +245,10 @@ func (b *stdbuf) closeErr(err error) error {
 		return err
 	}
 	if err == nil {
-		err = io.EOF
+		b.err = io.EOF
+	} else {
+		b.err = err
 	}
-	b.err = err
 	close(b.more)
-	return b.err
+	return err
 }
