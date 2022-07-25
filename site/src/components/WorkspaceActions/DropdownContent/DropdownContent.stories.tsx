@@ -8,8 +8,11 @@ import {
 } from "../constants"
 import { DropdownContent, DropdownContentProps } from "./DropdownContent"
 
+// These are the stories for the secondary actions (housed in the dropdown)
+// in WorkspaceActions.tsx
+
 export default {
-  title: "components/DropdownContent",
+  title: "WorkspaceActionsDropdown",
   component: DropdownContent,
 }
 
