@@ -1,6 +1,10 @@
+import Drawer from "@material-ui/core/Drawer"
+import IconButton from "@material-ui/core/IconButton"
 import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
+import MenuIcon from "@material-ui/icons/Menu"
+import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
@@ -19,41 +23,66 @@ export const Language = {
   users: "Users",
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ className }) => {
   const styles = useStyles()
   const location = useLocation()
+
+  return (
+    <List className={combineClasses([styles.navItems, className])}>
+      <ListItem button className={styles.item}>
+        <NavLink
+          className={combineClasses([styles.link, location.pathname.startsWith("/@") && "active"])}
+          to="/workspaces"
+        >
+          {Language.workspaces}
+        </NavLink>
+      </ListItem>
+      <ListItem button className={styles.item}>
+        <NavLink className={styles.link} to="/templates">
+          {Language.templates}
+        </NavLink>
+      </ListItem>
+      <ListItem button className={styles.item}>
+        <NavLink className={styles.link} to="/users">
+          {Language.users}
+        </NavLink>
+      </ListItem>
+    </List>
+  )
+}
+
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+  const styles = useStyles()
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
   return (
     <nav className={styles.root}>
-      <List className={styles.fixed}>
-        <ListItem className={styles.item}>
-          <NavLink className={styles.logo} to="/workspaces">
+      <IconButton
+        aria-label="Open menu"
+        className={styles.mobileMenuButton}
+        onClick={() => {
+          setIsDrawerOpen(true)
+        }}
+      >
+        <MenuIcon />
+      </IconButton>
+
+      <Drawer anchor="left" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+        <div className={styles.drawer}>
+          <div className={styles.drawerHeader}>
             <Logo fill="white" opacity={1} width={125} />
-          </NavLink>
-        </ListItem>
-        <ListItem button className={styles.item}>
-          <NavLink
-            className={combineClasses([
-              styles.link,
-              location.pathname.startsWith("/@") && "active",
-            ])}
-            to="/workspaces"
-          >
-            {Language.workspaces}
-          </NavLink>
-        </ListItem>
-        <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/templates">
-            {Language.templates}
-          </NavLink>
-        </ListItem>
-        <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/users">
-            {Language.users}
-          </NavLink>
-        </ListItem>
-      </List>
-      <div className={styles.fullWidth} />
-      <div className={styles.fixed}>
+          </div>
+          <NavItems />
+        </div>
+      </Drawer>
+
+      <NavLink className={styles.logo} to="/workspaces">
+        <Logo fill="white" opacity={1} width={125} />
+      </NavLink>
+
+      <NavItems className={styles.desktopNavItems} />
+
+      <div className={styles.profileButton}>
         {user && <UserDropdown user={user} onSignOut={onSignOut} />}
       </div>
     </nav>
@@ -64,9 +93,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     position: "relative",
     display: "flex",
-    flex: 0,
-    flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
     height: navHeight,
     background: theme.palette.background.paper,
@@ -76,14 +103,37 @@ const useStyles = makeStyles((theme) => ({
       borderTop: `1px solid ${theme.palette.divider}`,
     },
     borderBottom: `1px solid ${theme.palette.divider}`,
+
+    [theme.breakpoints.up("md")]: {
+      justifyContent: "flex-start",
+    },
   },
-  fixed: {
-    flex: 0,
-    display: "flex",
+  drawer: {
+    width: 250,
+  },
+  drawerHeader: {
+    padding: theme.spacing(2),
+    paddingTop: theme.spacing(4),
+    paddingBottom: theme.spacing(4),
+  },
+  navItems: {
     padding: 0,
   },
-  fullWidth: {
-    flex: 1,
+  desktopNavItems: {
+    display: "none",
+    [theme.breakpoints.up("md")]: {
+      display: "flex",
+    },
+  },
+  profileButton: {
+    [theme.breakpoints.up("md")]: {
+      marginLeft: "auto",
+    },
+  },
+  mobileMenuButton: {
+    [theme.breakpoints.up("md")]: {
+      display: "none",
+    },
   },
   logo: {
     alignItems: "center",
@@ -107,8 +157,7 @@ const useStyles = makeStyles((theme) => ({
     color: "hsl(220, 11%, 71%)",
     display: "flex",
     fontSize: 16,
-    height: navHeight,
-    padding: `0 ${theme.spacing(3)}px`,
+    padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
     textDecoration: "none",
     transition: "background-color 0.3s ease",
 
@@ -124,13 +173,25 @@ const useStyles = makeStyles((theme) => ({
 
       "&::before": {
         content: `" "`,
-        bottom: 0,
-        left: theme.spacing(3),
+        left: 0,
+        width: 2,
+        height: "100%",
         background: theme.palette.secondary.dark,
-        right: theme.spacing(3),
-        height: 2,
         position: "absolute",
+
+        [theme.breakpoints.up("md")]: {
+          bottom: 0,
+          left: theme.spacing(3),
+          width: `calc(100% - 2 * ${theme.spacing(3)}px)`,
+          right: theme.spacing(3),
+          height: 2,
+        },
       },
+    },
+
+    [theme.breakpoints.up("md")]: {
+      height: navHeight,
+      padding: `0 ${theme.spacing(3)}px`,
     },
   },
 }))
