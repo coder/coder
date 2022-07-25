@@ -48,7 +48,7 @@ export const permissionsToCheck = {
 type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
-  getUserError?: Error | unknown
+  getUserError?: Error | unknown // not used anywhere
   getMethodsError?: Error | unknown
   authError?: Error | AxiosError | unknown
   updateProfileError?: Error | unknown
@@ -56,11 +56,11 @@ export interface AuthContext {
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
-  checkPermissionsError?: Error | unknown
+  checkPermissionsError?: Error | unknown // not used anywhere
   // SSH
   sshKey?: TypesGen.GitSSHKey
-  getSSHKeyError?: Error | unknown
-  regenerateSSHKeyError?: Error | unknown
+  getSSHKeyError?: Error | unknown // not used anywhere
+  regenerateSSHKeyError?: Error | unknown // not used anywhere
 }
 
 export type AuthEvent =
@@ -194,12 +194,12 @@ export const authMachine =
           },
         },
         signingIn: {
+          entry: "clearAuthError",
           invoke: {
             src: "signIn",
             id: "signIn",
             onDone: [
               {
-                actions: "clearAuthError",
                 target: "gettingUser",
               },
             ],

@@ -52,10 +52,11 @@ describe("LoginPage", () => {
 
   it("shows an error if fetching auth methods fails", async () => {
     // Given
+    const apiErrorMessage = "Unable to fetch methods"
     server.use(
       // Make login fail
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
+        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }))
       }),
     )
 
@@ -63,7 +64,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    const errorMessage = await screen.findByText(Language.methodsErrorMessage)
+    const errorMessage = await screen.findByText(apiErrorMessage)
     expect(errorMessage).toBeDefined()
   })
 
