@@ -18,21 +18,21 @@ func templateVersions() *cobra.Command {
 		Aliases: []string{"version"},
 		Example: formatExamples(
 			example{
-				Description: "Show versions of a specific template",
-				Command:     "coder templates versions show my-template",
+				Description: "List versions of a specific template",
+				Command:     "coder templates versions list my-template",
 			},
 		),
 	}
 	cmd.AddCommand(
-		templateVersionsShow(),
+		templateVersionsList(),
 	)
 
 	return cmd
 }
 
-func templateVersionsShow() *cobra.Command {
+func templateVersionsList() *cobra.Command {
 	return &cobra.Command{
-		Use:   "show <template>",
+		Use:   "list <template>",
 		Args:  cobra.ExactArgs(1),
 		Short: "List all the versions of the specified template",
 		RunE: func(cmd *cobra.Command, args []string) error {
