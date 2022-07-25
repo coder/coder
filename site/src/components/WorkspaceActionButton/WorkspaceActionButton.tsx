@@ -18,7 +18,7 @@ export const WorkspaceActionButton: FC<WorkspaceActionButtonProps> = ({
 }) => {
   return (
     <Button className={className} startIcon={icon} onClick={onClick} aria-label={ariaLabel}>
-      {label}
+      {!!label && label}
     </Button>
   )
 }

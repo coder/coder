@@ -86,7 +86,6 @@ export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
       onClick={handleAction}
       className={styles.cancelButton}
       ariaLabel="cancel action"
-      label="" // MUI throws an error if you don't have a label
     />
   )
 }
@@ -124,7 +123,7 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
-    width: "160px",
+    width: theme.spacing(20),
     border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
   },
