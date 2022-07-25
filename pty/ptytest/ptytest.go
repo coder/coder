@@ -93,22 +93,21 @@ func (p *PTY) ExpectMatch(str string) string {
 	match := make(chan error, 1)
 	go func() {
 		defer close(match)
-		for {
-			r, _, err := p.runeReader.ReadRune()
-			if err != nil {
-				match <- err
-				return
+		match <- func() error {
+			for {
+				r, _, err := p.runeReader.ReadRune()
+				if err != nil {
+					return err
+				}
+				_, err = buffer.WriteRune(r)
+				if err != nil {
+					return err
+				}
+				if strings.Contains(buffer.String(), str) {
+					return nil
+				}
 			}
-			_, err = buffer.WriteRune(r)
-			if err != nil {
-				match <- err
-				return
-			}
-			if strings.Contains(buffer.String(), str) {
-				match <- nil
-				return
-			}
-		}
+		}()
 	}()
 
 	select {
