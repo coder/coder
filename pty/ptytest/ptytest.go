@@ -86,21 +86,8 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	complete, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
-
-	timeout := make(chan error, 1)
-	go func() {
-		defer close(timeout)
-		timer := time.NewTimer(10 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-complete.Done():
-			return
-		case <-timer.C:
-		}
-		timeout <- xerrors.Errorf("%s match exceeded deadline", time.Now())
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	var buffer bytes.Buffer
 	match := make(chan error, 1)
@@ -127,14 +114,16 @@ func (p *PTY) ExpectMatch(str string) string {
 	select {
 	case err := <-match:
 		if err != nil {
-			p.t.Fatalf("read error: %v (wanted %q; got %q)", err, str, buffer.String())
+			p.t.Fatalf("%s: read error: %v (wanted %q; got %q)", time.Now(), err, str, buffer.String())
+			return ""
 		}
-		p.t.Logf("matched %q = %q", str, buffer.String())
-	case err := <-timeout:
+		p.t.Logf("%s: matched %q = %q", time.Now(), str, buffer.String())
+		return buffer.String()
+	case <-ctx.Done():
 		_ = p.out.closeErr(p.Close())
-		p.t.Fatalf("%s: wanted %q; got %q", err, str, buffer.String())
+		p.t.Fatalf("%s: match exceeded deadline: wanted %q; got %q", time.Now(), str, buffer.String())
+		return ""
 	}
-	return buffer.String()
 }
 
 func (p *PTY) Write(r rune) {
