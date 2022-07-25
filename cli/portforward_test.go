@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -158,7 +157,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -204,7 +203,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -257,7 +256,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
@@ -317,7 +316,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
