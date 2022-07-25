@@ -1,8 +1,9 @@
-import { PaletteOptions, SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { Theme } from "@material-ui/core/styles"
+import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { Overrides } from "@material-ui/core/styles/overrides"
 import { MONOSPACE_FONT_FAMILY } from "./constants"
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const getOverrides = (palette: PaletteOptions) => {
+export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
     MuiCssBaseline: {
       "@global": {
@@ -29,12 +30,13 @@ export const getOverrides = (palette: PaletteOptions) => {
       root: {
         // Prevents a loading button from collapsing!
         minHeight: 42,
-        fontWeight: "regular",
+        fontWeight: "normal",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+        flexShrink: 0,
       },
       contained: {
         boxShadow: "none",
@@ -71,16 +73,26 @@ export const getOverrides = (palette: PaletteOptions) => {
         textTransform: "uppercase",
       },
     },
+    MuiTableContainer: {
+      root: {
+        borderRadius: 2,
+        border: `1px solid ${palette.divider}`,
+      },
+    },
     MuiTable: {
       root: {
-        // Gives the appearance of a border!
-        borderRadius: 2,
         background: "hsla(222, 31%, 19%, .5)",
 
         "& td": {
           paddingTop: 16,
           paddingBottom: 16,
           background: "transparent",
+        },
+
+        [breakpoints.down("md")]: {
+          // Random value based on visual adjustments.
+          // This is used to avoid line breaking on columns
+          minWidth: 1000,
         },
       },
     },

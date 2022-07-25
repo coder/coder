@@ -136,22 +136,25 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
   },
   label: {
     borderRight: 0,
-    height: "100%",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
-    // It is from the button props
-    minHeight: 42,
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+    },
   },
   scheduleButton: {
     border: "none",
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    flexShrink: 0,
   },
   iconButton: {
     borderRadius: 2,

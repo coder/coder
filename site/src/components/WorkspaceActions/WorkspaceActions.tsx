@@ -96,7 +96,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   return (
     <span className={styles.buttonContainer}>
       {/* primary workspace CTA */}
-      <span data-testid="primary-cta">{buttonMapping[actions.primary]}</span>
+      <span data-testid="primary-cta" className={styles.primaryCta}>
+        {buttonMapping[actions.primary]}
+      </span>
 
       {/* popover toggle button */}
       <Button
@@ -145,7 +147,7 @@ const useStyles = makeStyles((theme) => ({
   buttonContainer: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
-    display: "inline-block",
+    display: "inline-flex",
   },
   dropdownButton: {
     border: "none",
@@ -163,6 +165,15 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(16),
     border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+  },
+  primaryCta: {
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+
+      "& > *": {
+        width: "100%",
+      },
+    },
   },
   popoverActionButton: {
     "& .MuiButtonBase-root": {

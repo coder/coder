@@ -38,6 +38,11 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     paddingTop: theme.spacing(6),
     paddingBottom: theme.spacing(5),
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+    },
   },
 
   title: {
@@ -60,5 +65,11 @@ const useStyles = makeStyles((theme) => ({
 
   actions: {
     marginLeft: "auto",
+
+    [theme.breakpoints.down("md")]: {
+      marginTop: theme.spacing(3),
+      marginLeft: "initial",
+      width: "100%",
+    },
   },
 }))
