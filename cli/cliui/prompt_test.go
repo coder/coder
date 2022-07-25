@@ -185,7 +185,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	// connect the child process's stdio to the PTY directly, not via a pipe
 	cmd.Stdin = ptty.Input().Reader
 	cmd.Stdout = ptty.Output().Writer
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = ptty.Output().Writer
 	err := cmd.Start()
 	require.NoError(t, err)
 	process := cmd.Process

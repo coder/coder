@@ -173,9 +173,10 @@ func TestConfigSSH(t *testing.T) {
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
 	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
+	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
-	sshCmd.Stderr = os.Stderr
+	sshCmd.Stderr = pty.Output()
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
