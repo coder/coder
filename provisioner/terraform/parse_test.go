@@ -3,45 +3,20 @@
 package terraform_test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	// Create an in-memory provisioner to communicate with.
-	client, server := provisionersdk.TransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-		cancelFunc()
-	})
-	go func() {
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: server,
-			},
-			CachePath: t.TempDir(),
-			Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
-		assert.NoError(t, err)
-	}()
-	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	ctx, api := setupProvisioner(t)
 
 	testCases := []struct {
 		Name     string

@@ -23,22 +23,25 @@ import (
 )
 
 func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
+	cachePath := t.TempDir()
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
 		cancelFunc()
+		err := <-serverErr
+		assert.NoError(t, err)
 	})
 	go func() {
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
+		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
-			CachePath: t.TempDir(),
+			CachePath: cachePath,
 			Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
-		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 	return ctx, api
