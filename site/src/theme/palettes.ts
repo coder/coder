@@ -1,41 +1,42 @@
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
+import { colors } from "./colors"
 
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
-    main: "hsl(215, 81%, 63%)",
-    contrastText: "hsl(218, 44%, 92%)",
-    light: "hsl(215, 83%, 70%)",
-    dark: "hsl(215, 74%, 51%)",
+    main: colors.blue[7],
+    contrastText: colors.gray[3],
+    light: colors.blue[6],
+    dark: colors.blue[9],
   },
   secondary: {
-    main: "hsl(142, 64%, 34%)",
-    contrastText: "hsl(218, 44%, 92%)",
-    dark: "hsl(233, 73%, 63%)",
+    main: colors.green[11],
+    contrastText: colors.gray[3],
+    dark: colors.indigo[7],
   },
   background: {
-    default: "hsl(222, 38%, 14%)",
-    paper: "hsl(222, 32%, 19%)",
+    default: colors.gray[15],
+    paper: colors.gray[14],
   },
   text: {
-    primary: "hsl(218, 44%, 92%)",
-    secondary: "hsl(218, 32%, 77%)",
+    primary: colors.gray[3],
+    secondary: colors.gray[5],
   },
-  divider: "hsl(221, 32%, 26%)",
+  divider: colors.gray[13],
   warning: {
-    main: "hsl(20, 79%, 53%)",
-    dark: "#57250C",
+    main: colors.orange[11],
+    dark: colors.orange[15],
   },
   success: {
-    main: "hsl(142, 58%, 41%)",
-    dark: "#205027",
+    main: colors.green[11],
+    dark: colors.green[15],
   },
   info: {
-    main: "hsl(219, 67%, 54%)",
-    dark: "#0C2551",
+    main: colors.blue[11],
+    dark: colors.blue[15],
   },
   error: {
-    main: "#D8666C",
-    dark: "#511112",
+    main: colors.red[11],
+    dark: colors.red[15],
   },
 }
