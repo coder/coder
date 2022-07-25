@@ -1,4 +1,3 @@
-import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
@@ -48,19 +47,21 @@ export const permissionsToCheck = {
 type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
-  getUserError?: Error | unknown // not used anywhere
+  getUserError?: Error | unknown
+  // The getMethods API call does not return an ApiError.
+  // It can only error out in a generic fashion.
   getMethodsError?: Error | unknown
-  authError?: Error | AxiosError | unknown
+  authError?: Error | unknown
   updateProfileError?: Error | unknown
   updateSecurityError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
-  checkPermissionsError?: Error | unknown // not used anywhere
+  checkPermissionsError?: Error | unknown
   // SSH
   sshKey?: TypesGen.GitSSHKey
-  getSSHKeyError?: Error | unknown // not used anywhere
-  regenerateSSHKeyError?: Error | unknown // not used anywhere
+  getSSHKeyError?: Error | unknown
+  regenerateSSHKeyError?: Error | unknown
 }
 
 export type AuthEvent =
