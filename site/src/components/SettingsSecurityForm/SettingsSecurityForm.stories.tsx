@@ -6,7 +6,7 @@ export default {
   component: SecurityForm,
   argTypes: {
     onSubmit: { action: "Submit" },
-  }
+  },
 }
 
 const Template: Story<SecurityFormProps> = (args: SecurityFormProps) => <SecurityForm {...args} />
@@ -17,7 +17,7 @@ Example.args = {
   initialValues: {
     old_password: "",
     password: "",
-    confirm_password: ""
+    confirm_password: "",
   },
   updateSecurityError: undefined,
   onSubmit: () => {

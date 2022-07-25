@@ -6,7 +6,7 @@ export default {
   component: AccountForm,
   argTypes: {
     onSubmit: { action: "Submit" },
-  }
+  },
 }
 
 const Template: Story<AccountFormProps> = (args: AccountFormProps) => <AccountForm {...args} />
