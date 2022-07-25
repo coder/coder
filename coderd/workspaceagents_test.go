@@ -32,6 +32,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
+		tmpDir := t.TempDir()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
@@ -43,7 +44,7 @@ func TestWorkspaceAgent(t *testing.T) {
 							Type: "aws_instance",
 							Agents: []*proto.Agent{{
 								Id:        uuid.NewString(),
-								Directory: "/tmp",
+								Directory: tmpDir,
 								Auth: &proto.Agent_Token{
 									Token: authToken,
 								},
@@ -60,7 +61,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		require.Equal(t, "/tmp", resources[0].Agents[0].Directory)
+		require.Equal(t, tmpDir, resources[0].Agents[0].Directory)
 		_, err = client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
