@@ -39,4 +39,5 @@ SmallViewport.parameters = {
   viewport: {
     defaultViewport: "tablet",
   },
+  chromatic: { viewports: [420] },
 }
