@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
@@ -20,8 +20,6 @@ export const Language = {
 const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
-
-export type AccountFormErrors = FormikErrors<AccountFormValues>
 
 export interface AccountFormProps {
   email: string

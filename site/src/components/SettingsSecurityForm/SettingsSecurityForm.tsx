@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
@@ -40,7 +40,6 @@ const validationSchema = Yup.object({
     }),
 })
 
-export type SecurityFormErrors = FormikErrors<SecurityFormValues>
 export interface SecurityFormProps {
   isLoading: boolean
   initialValues: SecurityFormValues
