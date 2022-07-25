@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import { FC, ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { FC, useEffect, useMemo, useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
@@ -15,7 +15,13 @@ import {
   StopButton,
   UpdateButton,
 } from "./ActionCtas"
-import { ButtonTypesEnum, WorkspaceStateActions, WorkspaceStateEnum } from "./constants"
+import {
+  ButtonMapping,
+  ButtonTypesEnum,
+  WorkspaceStateActions,
+  WorkspaceStateEnum,
+} from "./constants"
+import { DropdownContent } from "./DropdownContent/DropdownContent"
 
 /**
  * Jobs submitted while another job is in progress will be discarded,
@@ -78,10 +84,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     }
   }, [workspaceStatus])
 
-  type ButtonMapping = {
-    [key in ButtonTypesEnum]: ReactNode
-  }
-
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
@@ -138,13 +140,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             }}
           >
             {/* secondary workspace CTAs */}
-            <span data-testid="secondary-ctas">
-              {actions.secondary.map((action) => (
-                <div key={action} className={styles.popoverActionButton}>
-                  {buttonMapping[action]}
-                </div>
-              ))}
-            </span>
+            <DropdownContent secondaryActions={actions.secondary} buttonMapping={buttonMapping} />
           </Popover>
         </>
       )}
@@ -166,13 +162,6 @@ const useStyles = makeStyles((theme) => ({
     width: "63px", // matching cancel button so button grouping doesn't grow in size
     "& .MuiButton-label": {
       marginRight: "8px",
-    },
-  },
-  popoverActionButton: {
-    "& .MuiButtonBase-root": {
-      backgroundColor: "unset",
-      justifyContent: "start",
-      padding: "0px",
     },
   },
   popoverPaper: {

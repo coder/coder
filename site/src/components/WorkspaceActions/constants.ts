@@ -1,3 +1,5 @@
+import { ReactNode } from "react"
+
 // all the possible states returned by the API
 export enum WorkspaceStateEnum {
   starting = "Starting",
@@ -29,6 +31,10 @@ export enum ButtonTypesEnum {
   disabled,
   queued,
   loading,
+}
+
+export type ButtonMapping = {
+  [key in ButtonTypesEnum]: ReactNode
 }
 
 type StateActionsType = {
