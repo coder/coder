@@ -171,7 +171,7 @@ func newStdbuf() *stdbuf {
 
 func (b *stdbuf) Read(p []byte) (int, error) {
 	if b.r == nil {
-		return b.read(p)
+		return b.readOrWaitForMore(p)
 	}
 
 	n, err := b.r.Read(p)
@@ -179,13 +179,13 @@ func (b *stdbuf) Read(p []byte) (int, error) {
 		b.r = nil
 		err = nil
 		if n == 0 {
-			return b.read(p)
+			return b.readOrWaitForMore(p)
 		}
 	}
 	return n, err
 }
 
-func (b *stdbuf) read(p []byte) (int, error) {
+func (b *stdbuf) readOrWaitForMore(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

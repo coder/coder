@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStdbuf(t *testing.T) {
@@ -17,14 +18,19 @@ func TestStdbuf(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		io.Copy(&got, b)
+		_, err := io.Copy(&got, b)
+		assert.NoError(t, err)
 	}()
 
-	b.Write([]byte("hello "))
-	b.Write([]byte("world\n"))
-	b.Write([]byte("bye\n"))
+	_, err := b.Write([]byte("hello "))
+	require.NoError(t, err)
+	_, err = b.Write([]byte("world\n"))
+	require.NoError(t, err)
+	_, err = b.Write([]byte("bye\n"))
+	require.NoError(t, err)
 
-	b.Close()
+	err = b.Close()
+	require.NoError(t, err)
 	<-done
 
 	assert.Equal(t, "hello world\nbye\n", got.String())
