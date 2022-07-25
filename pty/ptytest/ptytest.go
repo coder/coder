@@ -86,7 +86,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var buffer bytes.Buffer
@@ -119,7 +119,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		}
 		p.t.Logf("%s: matched %q = %q", time.Now(), str, buffer.String())
 		return buffer.String()
-	case <-ctx.Done():
+	case <-timeout.Done():
 		_ = p.out.closeErr(p.Close())
 		p.t.Fatalf("%s: match exceeded deadline: wanted %q; got %q", time.Now(), str, buffer.String())
 		return ""
