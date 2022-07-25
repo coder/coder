@@ -175,6 +175,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		AgentInactiveDisconnectTimeout: 5 * time.Second,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		CacheDir:                       t.TempDir(),
 		Database:                       db,
 		Pubsub:                         pubsub,
 
