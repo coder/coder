@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
 )
+
+// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
+const SessionTokenKey = "session_token"
 
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
@@ -64,7 +64,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.AddCookie(&http.Cookie{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	})
 	if body != nil {
@@ -99,7 +99,7 @@ func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Con
 	}
 	apiURL.Path = path
 	q := apiURL.Query()
-	q.Add(httpmw.SessionTokenKey, c.SessionToken)
+	q.Add(SessionTokenKey, c.SessionToken)
 	apiURL.RawQuery = q.Encode()
 
 	//nolint:bodyclose
@@ -113,7 +113,7 @@ func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Con
 	return conn, nil
 }
 
-// readBodyAsError reads the response as an httpapi.Message, and
+// readBodyAsError reads the response as an .Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
@@ -140,7 +140,7 @@ func readBodyAsError(res *http.Response) error {
 		}
 		return &Error{
 			statusCode: res.StatusCode,
-			Response: httpapi.Response{
+			Response: Response{
 				Message: string(resp),
 			},
 			Helper: helper,
@@ -148,7 +148,7 @@ func readBodyAsError(res *http.Response) error {
 	}
 
 	//nolint:varnamelen
-	var m httpapi.Response
+	var m Response
 	err := json.NewDecoder(res.Body).Decode(&m)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -172,7 +172,7 @@ func readBodyAsError(res *http.Response) error {
 // Error represents an unaccepted or invalid request to the API.
 // @typescript-ignore Error
 type Error struct {
-	httpapi.Response
+	Response
 
 	statusCode int
 	method     string
@@ -183,6 +183,10 @@ type Error struct {
 
 func (e *Error) StatusCode() int {
 	return e.statusCode
+}
+
+func (e *Error) Friendly() string {
+	return fmt.Sprintf("%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
 }
 
 func (e *Error) Error() string {

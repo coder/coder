@@ -1,4 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
+import dayjs from "dayjs"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
@@ -131,6 +132,15 @@ export const getTemplateVersionResources = async (
 ): Promise<TypesGen.WorkspaceResource[]> => {
   const response = await axios.get<TypesGen.WorkspaceResource[]>(
     `/api/v2/templateversions/${versionId}/resources`,
+  )
+  return response.data
+}
+
+export const getTemplateVersions = async (
+  templateId: string,
+): Promise<TypesGen.TemplateVersion[]> => {
+  const response = await axios.get<TypesGen.TemplateVersion[]>(
+    `/api/v2/templates/${templateId}/versions`,
   )
   return response.data
 }
@@ -339,7 +349,7 @@ export const getWorkspaceBuildLogs = async (
 
 export const putWorkspaceExtension = async (
   workspaceId: string,
-  extendWorkspaceRequest: TypesGen.PutExtendWorkspaceRequest,
+  newDeadline: dayjs.Dayjs,
 ): Promise<void> => {
-  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, extendWorkspaceRequest)
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
 }

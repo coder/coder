@@ -1,9 +1,14 @@
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { combineClasses } from "../../util/combineClasses"
+import { generateRandomString } from "../../util/random"
+
+export const Language = {
+  appTitle: (appName: string, identifier: string): string => `${appName} - ${identifier}`,
+}
 
 export interface AppLinkProps {
   userName: TypesGen.User["username"]
@@ -23,39 +28,30 @@ export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, ap
       className={styles.link}
       onClick={(event) => {
         event.preventDefault()
-        window.open(href, appName, "width=900,height=600")
+        window.open(
+          href,
+          Language.appTitle(appName, generateRandomString(12)),
+          "width=900,height=600",
+        )
       }}
     >
-      {appIcon ? (
-        <img
-          className={combineClasses([styles.icon, appIcon === "" ? "empty" : ""])}
-          alt={`${appName} Icon`}
-          src={appIcon || ""}
-        />
-      ) : (
-        <ComputerIcon className={styles.icon} />
-      )}
-      {appName}
+      <Button
+        size="small"
+        startIcon={appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />}
+        className={styles.button}
+      >
+        {appName}
+      </Button>
     </Link>
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   link: {
-    color: theme.palette.text.secondary,
-    display: "flex",
-    alignItems: "center",
+    textDecoration: "none !important",
   },
 
-  icon: {
-    width: 16,
-    height: 16,
-    marginRight: theme.spacing(1.5),
-
-    // If no icon is provided we still want the padding on the left
-    // to occur.
-    "&.empty": {
-      opacity: 0,
-    },
+  button: {
+    whiteSpace: "nowrap",
   },
 }))

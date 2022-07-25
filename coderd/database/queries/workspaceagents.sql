@@ -65,10 +65,10 @@ VALUES
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
 	first_connected_at = $2,
 	last_connected_at = $3,
-	disconnected_at = $4
+	disconnected_at = $4,
+	updated_at = $5
 WHERE
 	id = $1;
 
@@ -76,8 +76,8 @@ WHERE
 UPDATE
 	workspace_agents
 SET
-	updated_at = now(),
 	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3
+	wireguard_disco_public_key = $3,
+	updated_at = $4
 WHERE
 	id = $1;

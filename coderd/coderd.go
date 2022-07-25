@@ -103,10 +103,10 @@ func New(options *Options) *API {
 		siteHandler: site.Handler(site.FS(), binFS),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
-
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
+	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
-	})
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	r.Use(
 		func(next http.Handler) http.Handler {
@@ -121,10 +121,10 @@ func New(options *Options) *API {
 	apps := func(r chi.Router) {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			apiKeyMiddleware,
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 		)
-		r.Get("/*", api.workspaceAppsProxyPath)
+		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
@@ -134,7 +134,7 @@ func New(options *Options) *API {
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
 			})
 		})
@@ -144,7 +144,7 @@ func New(options *Options) *API {
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, httpapi.Response{
+			httpapi.Write(w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})

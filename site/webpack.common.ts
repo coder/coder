@@ -93,6 +93,10 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     ],
   },
 
+  cache: {
+    type: "filesystem",
+  },
+
   // resolve extend/modify how modules are resolved.
   //
   // REMARK: Do not add aliases here, unless they cannot be defined in a
@@ -103,6 +107,7 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     //
     // See: https://webpack.js.org/guides/typescript/
     extensions: [".tsx", ".ts", ".js"],
+    modules: [path.resolve(__dirname, "src"), "node_modules"],
   },
 
   // plugins customize the build process

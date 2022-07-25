@@ -1,5 +1,10 @@
 import { assign, createMachine } from "xstate"
-import { getTemplateByName, getTemplateVersion, getTemplateVersionResources } from "../../api/api"
+import {
+  getTemplateByName,
+  getTemplateVersion,
+  getTemplateVersionResources,
+  getTemplateVersions,
+} from "../../api/api"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 
 interface TemplateContext {
@@ -8,6 +13,7 @@ interface TemplateContext {
   template?: Template
   activeTemplateVersion?: TemplateVersion
   templateResources?: WorkspaceResource[]
+  templateVersions?: TemplateVersion[]
 }
 
 export const templateMachine = createMachine(
@@ -23,6 +29,9 @@ export const templateMachine = createMachine(
         }
         getTemplateResources: {
           data: WorkspaceResource[]
+        }
+        getTemplateVersions: {
+          data: TemplateVersion[]
         }
       },
     },
@@ -72,6 +81,21 @@ export const templateMachine = createMachine(
               success: { type: "final" },
             },
           },
+          templateVersions: {
+            initial: "gettingTemplateVersions",
+            states: {
+              gettingTemplateVersions: {
+                invoke: {
+                  src: "getTemplateVersions",
+                  onDone: {
+                    actions: ["assignTemplateVersions"],
+                    target: "success",
+                  },
+                },
+              },
+              success: { type: "final" },
+            },
+          },
         },
       },
       loaded: {},
@@ -94,6 +118,13 @@ export const templateMachine = createMachine(
 
         return getTemplateVersionResources(ctx.template.active_version_id)
       },
+      getTemplateVersions: (ctx) => {
+        if (!ctx.template) {
+          throw new Error("Template not loaded")
+        }
+
+        return getTemplateVersions(ctx.template.id)
+      },
     },
     actions: {
       assignTemplate: assign({
@@ -104,6 +135,9 @@ export const templateMachine = createMachine(
       }),
       assignTemplateResources: assign({
         templateResources: (_, event) => event.data,
+      }),
+      assignTemplateVersions: assign({
+        templateVersions: (_, event) => event.data,
       }),
     },
   },

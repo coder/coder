@@ -527,7 +527,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 
 	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
 	for _, templateID := range templateIDs {
-		found := false
+		counts[templateID] = map[uuid.UUID]struct{}{}
 		for _, workspace := range q.workspaces {
 			if workspace.TemplateID != templateID {
 				continue
@@ -541,11 +541,6 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 			}
 			countByOwnerID[workspace.OwnerID] = struct{}{}
 			counts[templateID] = countByOwnerID
-			found = true
-			break
-		}
-		if !found {
-			counts[templateID] = map[uuid.UUID]struct{}{}
 		}
 	}
 	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)
@@ -1032,6 +1027,9 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	if len(parameters) == 0 {
 		return nil, sql.ErrNoRows
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		return parameters[i].Index < parameters[j].Index
+	})
 	return parameters, nil
 }
 
@@ -1513,6 +1511,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		Name:           arg.Name,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
+		CreatedBy:      arg.CreatedBy,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return version, nil
@@ -1560,6 +1559,7 @@ func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.Inse
 		ValidationCondition:      arg.ValidationCondition,
 		ValidationTypeSystem:     arg.ValidationTypeSystem,
 		ValidationValueType:      arg.ValidationValueType,
+		Index:                    arg.Index,
 	}
 	q.parameterSchemas = append(q.parameterSchemas, param)
 	return param, nil
@@ -1830,6 +1830,7 @@ func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg dat
 			continue
 		}
 		template.ActiveVersionID = arg.ActiveVersionID
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
@@ -1845,6 +1846,7 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 			continue
 		}
 		template.Deleted = arg.Deleted
+		template.UpdatedAt = arg.UpdatedAt
 		q.templates[index] = template
 		return nil
 	}
@@ -1876,7 +1878,7 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 			continue
 		}
 		templateVersion.Readme = arg.Readme
-		templateVersion.UpdatedAt = database.Now()
+		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
 		return nil
 	}
@@ -1910,6 +1912,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.FirstConnectedAt = arg.FirstConnectedAt
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
+		agent.UpdatedAt = arg.UpdatedAt
 		q.provisionerJobAgents[index] = agent
 		return nil
 	}
@@ -1927,7 +1930,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentKeysByID(_ context.Context, arg databa
 
 		agent.WireguardNodePublicKey = arg.WireguardNodePublicKey
 		agent.WireguardDiscoPublicKey = arg.WireguardDiscoPublicKey
-		agent.UpdatedAt = database.Now()
+		agent.UpdatedAt = arg.UpdatedAt
 		q.provisionerJobAgents[index] = agent
 		return nil
 	}

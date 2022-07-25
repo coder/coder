@@ -47,7 +47,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
     return <TableLoader />
   }
 
-  if (!users || users.length === 0) {
+  if (!users || !users.length) {
     return (
       <TableRow>
         <TableCell colSpan={999}>
@@ -72,7 +72,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
         return (
           <TableRow key={user.id}>
             <TableCell>
-              <AvatarData title={user.username} subtitle={user.email} />
+              <AvatarData title={user.username} subtitle={user.email} highlightTitle />
             </TableCell>
             <TableCell
               className={combineClasses([

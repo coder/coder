@@ -114,12 +114,14 @@ func TestDiff(t *testing.T) {
 				UpdatedAt:      time.Now(),
 				OrganizationID: uuid.UUID{3},
 				Name:           "rust",
+				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
 				"id":              uuid.UUID{1}.String(),
 				"template_id":     uuid.UUID{2}.String(),
 				"organization_id": uuid.UUID{3}.String(),
 				"name":            "rust",
+				"created_by":      uuid.UUID{4}.String(),
 			},
 		},
 		{
@@ -132,11 +134,13 @@ func TestDiff(t *testing.T) {
 				UpdatedAt:      time.Now(),
 				OrganizationID: uuid.UUID{3},
 				Name:           "rust",
+				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
 				"id":              uuid.UUID{1}.String(),
 				"organization_id": uuid.UUID{3}.String(),
 				"name":            "rust",
+				"created_by":      uuid.UUID{4}.String(),
 			},
 		},
 	})

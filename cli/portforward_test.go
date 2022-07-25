@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -119,44 +118,35 @@ func TestPortForward(t *testing.T) {
 					t.Skip("Unix socket forwarding isn't supported on Windows")
 				}
 
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
 				require.NoError(t, err, "create UDP listener")
 				return l
 			},
 			setupLocal: func(t *testing.T) (string, string) {
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				path := filepath.Join(tmpDir, "test.sock")
 				return path, path
 			},
 		},
 	}
 
+	// Setup agent once to be shared between test-cases (avoid expensive
+	// non-parallel setup).
+	var (
+		client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user         = coderdtest.CreateFirstUser(t, client)
+		_, workspace = runAgent(t, client, user.UserID)
+	)
+
 	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
 		c := c
-		// Avoid parallel test here because setupLocal reserves
+		// Delay parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
-		// after the listener closes.
-		//nolint:paralleltest
+		// between the listener closing and port-forward ready.
 		t.Run(c.name, func(t *testing.T) {
-			//nolint:paralleltest
 			t.Run("OnePort", func(t *testing.T) {
-				var (
-					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-					user         = coderdtest.CreateFirstUser(t, client)
-					_, workspace = runAgent(t, client, user.UserID)
-					p1           = setupTestListener(t, c.setupRemote(t))
-				)
+				p1 := setupTestListener(t, c.setupRemote(t))
 
 				// Create a flag that forwards from local to listener 1.
 				localAddress, localFlag := c.setupLocal(t)
@@ -167,7 +157,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -175,6 +165,8 @@ func TestPortForward(t *testing.T) {
 					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
+
+				t.Parallel() // Port is reserved, enable parallel execution.
 
 				// Open two connections simultaneously and test them out of
 				// sync.
@@ -196,11 +188,8 @@ func TestPortForward(t *testing.T) {
 			//nolint:paralleltest
 			t.Run("TwoPorts", func(t *testing.T) {
 				var (
-					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-					user         = coderdtest.CreateFirstUser(t, client)
-					_, workspace = runAgent(t, client, user.UserID)
-					p1           = setupTestListener(t, c.setupRemote(t))
-					p2           = setupTestListener(t, c.setupRemote(t))
+					p1 = setupTestListener(t, c.setupRemote(t))
+					p2 = setupTestListener(t, c.setupRemote(t))
 				)
 
 				// Create a flags for listener 1 and listener 2.
@@ -214,7 +203,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -222,6 +211,8 @@ func TestPortForward(t *testing.T) {
 					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
+
+				t.Parallel() // Port is reserved, enable parallel execution.
 
 				// Open a connection to both listener 1 and 2 simultaneously and
 				// then test them out of order.
@@ -246,10 +237,6 @@ func TestPortForward(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("TCP2Unix", func(t *testing.T) {
 		var (
-			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user         = coderdtest.CreateFirstUser(t, client)
-			_, workspace = runAgent(t, client, user.UserID)
-
 			// Find the TCP and Unix cases so we can use their setupLocal and
 			// setupRemote methods respectively.
 			tcpCase  = cases[0]
@@ -269,7 +256,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
@@ -277,6 +264,8 @@ func TestPortForward(t *testing.T) {
 			errC <- cmd.ExecuteContext(ctx)
 		}()
 		waitForPortForwardReady(t, buf)
+
+		t.Parallel() // Port is reserved, enable parallel execution.
 
 		// Open two connections simultaneously and test them out of
 		// sync.
@@ -299,9 +288,6 @@ func TestPortForward(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
-			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-			user         = coderdtest.CreateFirstUser(t, client)
-			_, workspace = runAgent(t, client, user.UserID)
 			// These aren't fixed size because we exclude Unix on Windows.
 			dials = []addr{}
 			flags = []string{}
@@ -330,7 +316,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
@@ -338,6 +324,8 @@ func TestPortForward(t *testing.T) {
 			errC <- cmd.ExecuteContext(ctx)
 		}()
 		waitForPortForwardReady(t, buf)
+
+		t.Parallel() // Port is reserved, enable parallel execution.
 
 		// Open connections to all items in the "dial" array.
 		var (
@@ -402,7 +390,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start workspace agent in a goroutine
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
+	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String(), "--wireguard=false")
 	clitest.SetupConfig(t, client, root)
 	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
@@ -425,6 +413,8 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 // setupTestListener starts accepting connections and echoing a single packet.
 // Returns the listener and the listen port or Unix path.
 func setupTestListener(t *testing.T, l net.Listener) string {
+	t.Helper()
+
 	// Wait for listener to completely exit before releasing.
 	done := make(chan struct{})
 	t.Cleanup(func() {
@@ -440,6 +430,7 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 		for {
 			c, err := l.Accept()
 			if err != nil {
+				_ = l.Close()
 				return
 			}
 
@@ -479,6 +470,7 @@ func testAccept(t *testing.T, c net.Conn) {
 }
 
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
 	assert.NoError(t, err, "read payload")
@@ -487,12 +479,14 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 }
 
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
 }
 
 func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {
+	t.Helper()
 	for i := 0; i < 100; i++ {
 		time.Sleep(250 * time.Millisecond)
 

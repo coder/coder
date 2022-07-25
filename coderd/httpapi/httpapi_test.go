@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestWrite(t *testing.T) {
@@ -19,7 +20,7 @@ func TestWrite(t *testing.T) {
 	t.Run("NoErrors", func(t *testing.T) {
 		t.Parallel()
 		rw := httptest.NewRecorder()
-		httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		httpapi.Write(rw, http.StatusOK, codersdk.Response{
 			Message: "Wow.",
 		})
 		var m map[string]interface{}
@@ -71,7 +72,7 @@ func TestRead(t *testing.T) {
 
 		var validate toValidate
 		require.False(t, httpapi.Read(rw, r, &validate))
-		var v httpapi.Response
+		var v codersdk.Response
 		err := json.NewDecoder(rw.Body).Decode(&v)
 		require.NoError(t, err)
 		require.Len(t, v.Validations, 1)

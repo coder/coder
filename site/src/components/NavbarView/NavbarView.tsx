@@ -104,7 +104,7 @@ const useStyles = makeStyles((theme) => ({
   },
   link: {
     alignItems: "center",
-    color: "#A7A7A7",
+    color: "hsl(220, 11%, 71%)",
     display: "flex",
     fontSize: 16,
     height: navHeight,
@@ -113,7 +113,7 @@ const useStyles = makeStyles((theme) => ({
     transition: "background-color 0.3s ease",
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.light, 0.05),
     },
 
     // NavLink adds this class when the current route matches.

@@ -31,15 +31,17 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
 
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Args:    cobra.ExactArgs(1),
 		Aliases: aliases,
-		Example: fmt.Sprintf("coder users %s example_user", verb),
+		Example: formatExamples(
+			example{
+				Command: fmt.Sprintf("coder users %s example_user", verb),
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -69,7 +71,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err

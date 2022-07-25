@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.3"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -93,7 +93,7 @@ provider "digitalocean" {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 }

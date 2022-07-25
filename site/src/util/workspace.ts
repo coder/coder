@@ -67,75 +67,6 @@ export const DisplayStatusLanguage = {
   queued: "Queued",
 }
 
-// Localize workspace status and provide corresponding color from theme
-export const getDisplayStatus = (
-  theme: Theme,
-  build: TypesGen.WorkspaceBuild,
-): {
-  color: string
-  status: string
-} => {
-  const status = getWorkspaceStatus(build)
-  switch (status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayStatusLanguage.loading,
-      }
-    case "started":
-      return {
-        color: theme.palette.success.main,
-        status: `⦿ ${DisplayStatusLanguage.started}`,
-      }
-    case "starting":
-      return {
-        color: theme.palette.primary.main,
-        status: `⦿ ${DisplayStatusLanguage.starting}`,
-      }
-    case "stopping":
-      return {
-        color: theme.palette.primary.main,
-        status: `◍ ${DisplayStatusLanguage.stopping}`,
-      }
-    case "stopped":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.stopped}`,
-      }
-    case "deleting":
-      return {
-        color: theme.palette.text.secondary,
-        status: `⦸ ${DisplayStatusLanguage.deleting}`,
-      }
-    case "deleted":
-      return {
-        color: theme.palette.text.secondary,
-        status: `⦸ ${DisplayStatusLanguage.deleted}`,
-      }
-    case "canceling":
-      return {
-        color: theme.palette.warning.light,
-        status: `◍ ${DisplayStatusLanguage.canceling}`,
-      }
-    case "canceled":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.canceled}`,
-      }
-    case "error":
-      return {
-        color: theme.palette.error.main,
-        status: `ⓧ ${DisplayStatusLanguage.failed}`,
-      }
-    case "queued":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.queued}`,
-      }
-  }
-  throw new Error("unknown status " + status)
-}
-
 export const DisplayWorkspaceBuildStatusLanguage = {
   succeeded: "Succeeded",
   pending: "Pending",
@@ -191,29 +122,14 @@ export const DisplayWorkspaceBuildInitiatedByLanguage = {
   autostop: "system/autostop",
 }
 
-export const getDisplayWorkspaceBuildInitiatedBy = (
-  theme: Theme,
-  build: TypesGen.WorkspaceBuild,
-): {
-  color: string
-  initiatedBy: string
-} => {
+export const getDisplayWorkspaceBuildInitiatedBy = (build: TypesGen.WorkspaceBuild): string => {
   switch (build.reason) {
     case "initiator":
-      return {
-        color: theme.palette.text.secondary,
-        initiatedBy: build.initiator_name,
-      }
+      return build.initiator_name
     case "autostart":
-      return {
-        color: theme.palette.secondary.dark,
-        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostart,
-      }
+      return DisplayWorkspaceBuildInitiatedByLanguage.autostart
     case "autostop":
-      return {
-        color: theme.palette.secondary.dark,
-        initiatedBy: DisplayWorkspaceBuildInitiatedByLanguage.autostop,
-      }
+      return DisplayWorkspaceBuildInitiatedByLanguage.autostop
   }
 }
 
@@ -295,4 +211,42 @@ export const defaultWorkspaceExtension = (
   return {
     deadline: fourHoursFromNow.format(),
   }
+}
+
+// You can see the favicon designs here: https://www.figma.com/file/YIGBkXUcnRGz2ZKNmLaJQf/Coder-v2-Design?node-id=560%3A620
+
+type FaviconType =
+  | "favicon"
+  | "favicon-success"
+  | "favicon-error"
+  | "favicon-warning"
+  | "favicon-running"
+
+export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
+    case undefined:
+      return "favicon"
+    case "started":
+      return "favicon-success"
+    case "starting":
+      return "favicon-running"
+    case "stopping":
+      return "favicon-running"
+    case "stopped":
+      return "favicon"
+    case "deleting":
+      return "favicon"
+    case "deleted":
+      return "favicon"
+    case "canceling":
+      return "favicon-warning"
+    case "canceled":
+      return "favicon"
+    case "error":
+      return "favicon-error"
+    case "queued":
+      return "favicon"
+  }
+  throw new Error("unknown status " + status)
 }

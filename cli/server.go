@@ -22,10 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/echo"
-
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
@@ -45,6 +41,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -58,6 +55,8 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -82,6 +81,7 @@ func server() *cobra.Command {
 		oauth2GithubClientID             string
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
+		oauth2GithubAllowedTeams         []string
 		oauth2GithubAllowSignups         bool
 		telemetryEnable                  bool
 		telemetryURL                     string
@@ -264,7 +264,7 @@ func server() *cobra.Command {
 			}
 
 			if oauth2GithubClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations)
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
@@ -511,6 +511,33 @@ func server() *cobra.Command {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use:   "postgres-builtin-serve",
+		Short: "Run the built-in PostgreSQL deployment.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := createConfig(cmd)
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			if verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			url, closePg, err := startBuiltinPostgres(cmd.Context(), cfg, logger)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = closePg() }()
+
+			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+
+			stopChan := make(chan os.Signal, 1)
+			defer signal.Stop(stopChan)
+			signal.Notify(stopChan, os.Interrupt)
+
+			<-stopChan
+			return nil
+		},
+	})
+
 	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
@@ -535,6 +562,8 @@ func server() *cobra.Command {
 		"Specifies a client secret to use for oauth2 with GitHub.")
 	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedOrganizations, "oauth2-github-allowed-orgs", "", "CODER_OAUTH2_GITHUB_ALLOWED_ORGS", nil,
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
+	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedTeams, "oauth2-github-allowed-teams", "", "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS", nil,
+		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
@@ -719,10 +748,21 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	return tls.NewListener(listener, tlsConfig), nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
+	for _, rawTeam := range rawTeams {
+		parts := strings.SplitN(rawTeam, "/", 2)
+		if len(parts) != 2 {
+			return nil, xerrors.Errorf("github team allowlist is formatted incorrectly. got %s; wanted <organization>/<team>", rawTeam)
+		}
+		allowTeams = append(allowTeams, coderd.GithubOAuth2Team{
+			Organization: parts[0],
+			Slug:         parts[1],
+		})
 	}
 	return &coderd.GithubOAuth2Config{
 		OAuth2Config: &oauth2.Config{
@@ -738,6 +778,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 		},
 		AllowSignups:       allowSignups,
 		AllowOrganizations: allowOrgs,
+		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 			user, _, err := github.NewClient(client).Users.Get(ctx, "")
 			return user, err
@@ -749,8 +790,15 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 			memberships, _, err := github.NewClient(client).Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
 				State: "active",
+				ListOptions: github.ListOptions{
+					PerPage: 100,
+				},
 			})
 			return memberships, err
+		},
+		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
+			team, _, err := github.NewClient(client).Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
+			return team, err
 		},
 	}, nil
 }

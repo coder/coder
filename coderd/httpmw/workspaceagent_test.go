@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -22,7 +23,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		token := uuid.New()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: token.String(),
 		})
 		return r, token

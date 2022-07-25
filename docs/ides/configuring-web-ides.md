@@ -11,8 +11,19 @@ It's common to also let developers to connect via web IDEs.
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-resources in the template. This gives you full control over the version,
-behavior, and configuration for applications in your workspace.
+resources in the template. With our generic model, any web application can
+be used as a Coder application. For example:
+
+```hcl
+# Give template users the portainer.io web UI
+resource "coder_app" "portainer" {
+  agent_id      = coder_agent.dev.id
+  name          = "portainer"
+  icon          = "https://simpleicons.org/icons/portainer.svg"
+  url           = "http://localhost:8000"
+  relative_path = true
+}
+```
 
 ## code-server
 
@@ -22,12 +33,12 @@ behavior, and configuration for applications in your workspace.
 
 ```sh
 # edit your template
-cd your-template/ 
+cd your-template/
 vim main.tf
 ```
 
 ```hcl
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
     arch          = "amd64"
     os            = "linux"
     startup_script = <<EOF
@@ -48,7 +59,7 @@ FROM codercom/enterprise-base:ubuntu
 RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
 
 # pre-install versions
-RUN code-server --install-extension eamodio.gitlens 
+RUN code-server --install-extension eamodio.gitlens
 
 # directly start code-server with the agent's startup_script (see above),
 # or use a proccess manager like supervisord
@@ -59,17 +70,21 @@ You'll also need to specify a `coder_app` resource related to the agent. This is
 ```hcl
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
-  name     = "VS Code"
+  name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
-  icon     = "/code.svg"
+  icon     = "/icon/code.svg"
 }
 ```
+
+<blockquote class="warning">
+If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
+</blockquote>
 
 ## VNC Desktop
 
 ![VNC Desktop in Coder](../images/vnc-desktop.png)
 
-You may want a full desktop environment to develop with/preview specialized software. 
+You may want a full desktop environment to develop with/preview specialized software.
 
 Workspace requirements:
 
@@ -85,7 +100,7 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 - Ubuntu 20.04
 - TigerVNC server
 - noVNC client
-- XFCE Desktop 
+- XFCE Desktop
 
 ## JetBrains Projector
 
@@ -97,12 +112,8 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 
 Workspace requirements:
 
-- JetBrains server
-- IDE (e.g IntelliJ IDEA, pyCharm)
-
-Installation instructions will vary depending on your workspace's operating system, platform, and build system.
-
-As a starting point, see the [projector-container](https://github.com/bpmct/coder-templates/tree/main/projector-container) community template. It builds & provisions a Dockerized workspaces for the following IDEs:
+- JetBrains projector CLI
+- At least 4 CPU cores and 4 GB RAM
 
 - CLion
 - pyCharm
@@ -117,30 +128,177 @@ As a starting point, see the [projector-container](https://github.com/bpmct/code
 - WebStorm
 - ➕ code-server (just in case!)
 
-## Custom IDEs and applications
+For advanced users who want to make a custom image, you can install the Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder template. Using the Projector CLI, you can use `projector ide autoinstall` and `projector run` to download and start a JetBrains IDE in your workspace.
 
-As long as the process is running on the specified port inside your resource, you support any application.
+![IntelliJ in Coder](../images/projector-intellij.png)
 
-```sh
-# edit your template
-cd your-template/ 
-vim main.tf
-```
+In this example, the version of JetBrains IntelliJ IDE is passed in from a Terraform input variable. You create a JetBrains icon in the workspace using a `coder_app` resource.
+
+> There is a known issue passing query string parameters when opening a JetBrains IDE from an icon in your workspace ([#2669](https://github.com/coder/coder/issues/2669)). Note the `grep` statement to remove an optional password token from the configuration so a query string parameter is not passed.
 
 ```hcl
-resource "coder_app" "portainer" {
-  agent_id      = coder_agent.dev.id
-  name          = "portainer"
-  icon          = "https://simpleicons.org/icons/portainer.svg"
-  url           = "http://localhost:8000"
+
+variable "jetbrains-ide" {
+  description = "JetBrains IntelliJ IDE"
+  default     = "IntelliJ IDEA Community Edition 2022.1.3"
+  validation {
+    condition = contains([
+      "IntelliJ IDEA Community Edition 2022.1.3",
+      "IntelliJ IDEA Community Edition 2021.3",
+      "IntelliJ IDEA Ultimate 2022.1.3",
+      "IntelliJ IDEA Ultimate 2021.3"
+    ], var.jetbrains-ide)
+    # Find all compatible IDEs with the `projector IDE find` command
+    error_message = "Invalid JetBrains IDE!"
+}
+}
+
+resource "coder_agent" "coder" {
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install projector
+PROJECTOR_BINARY=/home/coder/.local/bin/projector
+if [ -f $PROJECTOR_BINARY ]; then
+    echo 'projector has already been installed - check for update'
+    /home/coder/.local/bin/projector self-update 2>&1 | tee projector.log
+else
+    echo 'installing projector'
+    pip3 install projector-installer --user 2>&1 | tee projector.log
+fi
+
+echo 'access projector license terms'
+/home/coder/.local/bin/projector --accept-license 2>&1 | tee -a projector.log
+
+PROJECTOR_CONFIG_PATH=/home/coder/.projector/configs/intellij
+
+if [ -d "$PROJECTOR_CONFIG_PATH" ]; then
+    echo 'projector has already been configured and the JetBrains IDE downloaded - skip step' 2>&1 | tee -a projector.log
+else
+    echo 'autoinstalling IDE and creating projector config folder'
+    /home/coder/.local/bin/projector ide autoinstall --config-name "intellij" --ide-name "${var.jetbrains-ide}" --hostname=localhost --port 8997 --use-separate-config --password coder 2>&1 | tee -a projector.log
+
+    # delete the configuration's run.sh input parameters that check password tokens since tokens do not work with coder_app yet passed in the querystring
+    grep -iv "HANDSHAKE_TOKEN" $PROJECTOR_CONFIG_PATH/run.sh > temp && mv temp $PROJECTOR_CONFIG_PATH/run.sh 2>&1 | tee -a projector.log
+    chmod +x $PROJECTOR_CONFIG_PATH/run.sh 2>&1 | tee -a projector.log
+
+    echo "creation of intellij configuration complete" 2>&1 | tee -a projector.log
+fi
+# start JetBrains projector-based IDE
+/home/coder/.local/bin/projector run intellij &
+
+EOT
+}
+
+resource "coder_app" "intellij" {
+  agent_id      = coder_agent.coder.id
+  name          = "${var.jetbrains-ide}"
+  icon          = "/icon/intellij.svg"
+  url           = "http://localhost:8997/"
   relative_path = true
 }
 ```
 
-> The full `coder_app` schema is described in the 
-> [Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app).
+**Pre-built templates:**
 
-```sh
-# update your template
-coder templates update your-template
+You can also reference/use to these pre-built templates with JetBrains projector:
+
+- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-intellij))
+
+- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm)
+
+- GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
+
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
+
+![PyCharm in Coder](../images/projector-pycharm.png)
+
+> You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
+
+> Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
+
+## JupyterLab
+
+Configure your agent and `coder_app` like so to use Jupyter:
+
+```hcl
+data "coder_workspace" "me" {}
+
+## The name of the app must always be equal to the "/apps/<name>"
+## string in the base_url. This caveat is unique to Jupyter.
+
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/coder"
+  startup_script = <<-EOF
+pip3 install jupyterlab
+jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/ --ServerApp.token='' --ip='*'
+EOF
+}
+
+resource "coder_app" "jupyter" {
+  agent_id = coder_agent.coder.id
+  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter"
+  icon = "/icon/jupyter.svg"
+}
 ```
+
+![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
+
+## SSH Fallback
+
+Certain Web IDEs don't support URL base path adjustment and thus can't be exposed with
+`coder_app`. In these cases you can use [SSH](../ides.md#ssh).
+
+### RStudio
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# start rstudio
+/usr/lib/rstudio-server/bin/rserver --server-daemonize=1 --auth-none=1 &
+EOT
+}
+```
+
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8787.
+
+```console
+ssh -L 8787:localhost:8787 coder.<RStudio workspace name>
+```
+
+Check out this [RStudio Dockerfile](https://github.com/mark-theshark/dockerfiles/blob/main/rstudio/no-args/Dockerfile) for a starting point to creating a template.
+
+![RStudio in Coder](../images/rstudio-port-forward.png)
+
+### Airflow
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+# install and start airflow
+pip3 install apache-airflow 2>&1 | tee airflow-install.log
+/home/coder/.local/bin/airflow standalone  2>&1 | tee airflow-run.log &
+EOT
+}
+```
+
+From your local machine, start port forwarding and then open the IDE on
+http://localhost:8080.
+
+```console
+ssh -L 8080:localhost:8080 coder.<Airflow workspace name>
+```
+
+![Airflow in Coder](../images/airflow-port-forward.png)

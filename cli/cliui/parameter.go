@@ -47,6 +47,7 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchem
 		value, err = Prompt(cmd, PromptOptions{
 			Text: Styles.Bold.Render(text),
 		})
+		value = strings.TrimSpace(value)
 	}
 	if err != nil {
 		return "", err

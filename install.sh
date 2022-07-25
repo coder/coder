@@ -84,6 +84,11 @@ echo_latest_version() {
 }
 
 echo_standalone_postinstall() {
+	if [ "${DRY_RUN-}" ]; then
+		echo_dryrun_postinstall
+		return
+	fi
+
 	cath <<EOF
 
 Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
@@ -105,6 +110,11 @@ EOF
 }
 
 echo_systemd_postinstall() {
+	if [ "${DRY_RUN-}" ]; then
+		echo_dryrun_postinstall
+		return
+	fi
+
 	echoh
 	cath <<EOF
 $1 package has been installed.
@@ -122,6 +132,15 @@ Or, just run the server directly:
 
   $ coder server
 
+EOF
+}
+
+echo_dryrun_postinstall() {
+	cath <<EOF
+
+Dry-run complete.
+
+To install Coder, re-run this script without the --dry-run flag.
 EOF
 }
 
@@ -240,6 +259,11 @@ main() {
 	ARCH=${ARCH:-$(arch)}
 
 	distro_name
+
+	if [ "${DRY_RUN-}" ]; then
+		echoh "Running with --dry-run; the following are the commands that would be run if this were a real installation:"
+		echoh
+	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
 	if [ "$METHOD" = standalone ]; then

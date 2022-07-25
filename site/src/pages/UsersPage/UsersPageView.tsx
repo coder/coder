@@ -64,7 +64,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
           ) : undefined
         }
       >
-        <PageHeaderTitle>Users</PageHeaderTitle>
+        <PageHeaderTitle>{Language.pageTitle}</PageHeaderTitle>
       </PageHeader>
 
       <SearchBarWithFilter

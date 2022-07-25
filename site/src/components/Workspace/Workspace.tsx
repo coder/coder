@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
+import React, { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -9,8 +10,8 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
+import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -18,6 +19,10 @@ export interface WorkspaceProps {
   bannerProps: {
     isLoading?: boolean
     onExtend: () => void
+  }
+  scheduleProps: {
+    onDeadlinePlus: () => void
+    onDeadlineMinus: () => void
   }
   handleStart: () => void
   handleStop: () => void
@@ -36,6 +41,7 @@ export interface WorkspaceProps {
  */
 export const Workspace: FC<WorkspaceProps> = ({
   bannerProps,
+  scheduleProps,
   handleStart,
   handleStop,
   handleDelete,
@@ -53,18 +59,26 @@ export const Workspace: FC<WorkspaceProps> = ({
   return (
     <Margins>
       <PageHeader
-        className={styles.header}
         actions={
-          <WorkspaceActions
-            workspace={workspace}
-            handleStart={handleStart}
-            handleStop={handleStop}
-            handleDelete={handleDelete}
-            handleUpdate={handleUpdate}
-            handleCancel={handleCancel}
-          />
+          <Stack direction="row" spacing={1}>
+            <WorkspaceScheduleButton
+              workspace={workspace}
+              onDeadlineMinus={scheduleProps.onDeadlineMinus}
+              onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              canUpdateWorkspace={canUpdateWorkspace}
+            />
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleDelete={handleDelete}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+            />
+          </Stack>
         }
       >
+        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
         <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
         <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
       </PageHeader>
@@ -82,7 +96,7 @@ export const Workspace: FC<WorkspaceProps> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
-          <WorkspaceStats workspace={workspace} />
+          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
           {!!resources && !!resources.length && (
             <Resources
@@ -93,13 +107,9 @@ export const Workspace: FC<WorkspaceProps> = ({
             />
           )}
 
-          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+          <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
-        </Stack>
-
-        <Stack direction="column" className={styles.secondColumnSpacer} spacing={3}>
-          <WorkspaceSchedule workspace={workspace} />
         </Stack>
       </Stack>
     </Margins>
@@ -110,15 +120,14 @@ const spacerWidth = 300
 
 export const useStyles = makeStyles((theme) => {
   return {
+    statusBadge: {
+      marginBottom: theme.spacing(3),
+    },
     firstColumnSpacer: {
       flex: 2,
     },
     secondColumnSpacer: {
       flex: `0 0 ${spacerWidth}px`,
-    },
-    header: {
-      // 100% - (the size of sidebar + the space between both )
-      maxWidth: `calc(100% - (${spacerWidth}px + ${theme.spacing(3)}px))`,
     },
     layout: {
       alignItems: "flex-start",

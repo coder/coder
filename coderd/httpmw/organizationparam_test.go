@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -29,7 +30,7 @@ func TestOrganizationParam(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -67,7 +68,7 @@ func TestOrganizationParam(t *testing.T) {
 			rtr  = chi.NewRouter()
 		)
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", nil)
@@ -87,7 +88,7 @@ func TestOrganizationParam(t *testing.T) {
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.NewString())
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", nil)
@@ -107,7 +108,7 @@ func TestOrganizationParam(t *testing.T) {
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", "not-a-uuid")
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", nil)
@@ -135,7 +136,7 @@ func TestOrganizationParam(t *testing.T) {
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", u.ID.String())
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
@@ -172,7 +173,7 @@ func TestOrganizationParam(t *testing.T) {
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),

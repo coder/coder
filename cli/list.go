@@ -15,14 +15,13 @@ import (
 )
 
 func list() *cobra.Command {
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List all workspaces",
 		Aliases:     []string{"ls"},
+		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -58,33 +57,7 @@ func list() *cobra.Command {
 
 			now := time.Now()
 			for _, workspace := range workspaces {
-				status := ""
-				inProgress := false
-				if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning ||
-					workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobCanceling {
-					inProgress = true
-				}
-
-				switch workspace.LatestBuild.Transition {
-				case codersdk.WorkspaceTransitionStart:
-					status = "Running"
-					if inProgress {
-						status = "Starting"
-					}
-				case codersdk.WorkspaceTransitionStop:
-					status = "Stopped"
-					if inProgress {
-						status = "Stopping"
-					}
-				case codersdk.WorkspaceTransitionDelete:
-					status = "Deleted"
-					if inProgress {
-						status = "Deleting"
-					}
-				}
-				if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
-					status = "Failed"
-				}
+				status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
 
 				lastBuilt := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 				autostartDisplay := "-"

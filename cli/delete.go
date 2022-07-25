@@ -22,6 +22,7 @@ func deleteWorkspace() *cobra.Command {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm delete workspace?",
 				IsConfirm: true,
+				Default:   cliui.ConfirmNo,
 			})
 			if err != nil {
 				return err
@@ -48,7 +49,7 @@ func deleteWorkspace() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been deleted!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been deleted at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

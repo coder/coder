@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -39,8 +40,7 @@ func TestProvisionerDaemons(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
-			return version.Job.Error != ""
+			return assert.NoError(t, err) && version.Job.Error != ""
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 }

@@ -3,13 +3,14 @@ import Fade from "@material-ui/core/Fade"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
+import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import { Theme } from "@material-ui/core/styles/createMuiTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import { FormikErrors, useFormik } from "formik"
-import { useState } from "react"
+import debounce from "just-debounce-it"
+import { useCallback, useEffect, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
 
@@ -41,7 +42,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   presetFilters,
   error,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({ error: !!error })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -53,7 +54,22 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
     },
   })
 
-  const getFieldHelpers = getFormHelpers<FilterFormValues>(form)
+  // debounce query string entry by user
+  // we want the dependency array empty here
+  // as we don't need to redefine the function
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedOnFilter = useCallback(
+    debounce((debouncedQueryString: string) => {
+      onFilter(debouncedQueryString)
+    }, 300),
+    [],
+  )
+
+  // update the query params while typing
+  useEffect(() => {
+    debouncedOnFilter(form.values.query)
+    return () => debouncedOnFilter.cancel()
+  }, [debouncedOnFilter, form.values.query])
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
@@ -75,7 +91,7 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
 
   return (
     <Stack spacing={1} className={styles.root}>
-      <Stack direction="row" spacing={0} className={styles.filterContainer}>
+      <Stack direction="row" spacing={0}>
         {presetFilters && presetFilters.length > 0 && (
           <Button
             aria-controls="filter-menu"
@@ -88,23 +104,22 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
         )}
 
         <form onSubmit={form.handleSubmit} className={styles.filterForm}>
-          <TextField
-            {...getFieldHelpers("query")}
-            className={styles.textFieldRoot}
-            onChange={onChangeTrimmed(form)}
-            fullWidth
-            variant="outlined"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
+          <OutlinedInput
+            id="query"
+            name="query"
+            value={form.values.query}
+            error={!!error}
+            className={styles.inputStyles}
+            onChange={form.handleChange}
+            startAdornment={
+              <InputAdornment position="start" className={styles.searchIcon}>
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            }
           />
         </form>
 
-        {presetFilters && presetFilters.length > 0 && (
+        {presetFilters && presetFilters.length && (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}
@@ -134,29 +149,49 @@ export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  error?: boolean
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     marginBottom: theme.spacing(2),
   },
-  filterContainer: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
-  },
+  // necessary to expand the textField
+  // the length of the page (within the bordered filterContainer)
   filterForm: {
     width: "100%",
   },
   buttonRoot: {
-    border: "none",
-    borderRight: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRight: "0px",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
   },
-  textFieldRoot: {
-    margin: "0px",
+  errorRoot: {
+    color: theme.palette.error.main,
+  },
+  inputStyles: {
+    height: "100%",
+    width: "100%",
+    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    color: theme.palette.primary.contrastText,
+    backgroundColor: theme.palette.background.paper,
+
     "& fieldset": {
-      border: "none",
+      borderColor: theme.palette.divider,
+      "&MuiOutlinedInput-root:hover, &MuiOutlinedInput-notchedOutline": {
+        borderColor: (props) => props.error && theme.palette.error.contrastText,
+      },
+    },
+
+    "& .MuiInputBase-input": {
+      paddingTop: "inherit",
+      paddingBottom: "inherit",
+      // The same as the button
+      minHeight: 42,
     },
   },
-  errorRoot: {
-    color: theme.palette.error.dark,
+  searchIcon: {
+    color: theme.palette.text.secondary,
   },
 }))

@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -11,7 +13,7 @@ import (
 )
 
 func templateDelete() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -32,6 +34,14 @@ func templateDelete() *cobra.Command {
 
 			if len(args) > 0 {
 				templateNames = args
+
+				for _, templateName := range templateNames {
+					template, err := client.TemplateByName(ctx, organization.ID, templateName)
+					if err != nil {
+						return xerrors.Errorf("get template by name: %w", err)
+					}
+					templates = append(templates, template)
+				}
 			} else {
 				allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
 				if err != nil {
@@ -57,17 +67,19 @@ func templateDelete() *cobra.Command {
 				for _, template := range allTemplates {
 					if template.Name == selection {
 						templates = append(templates, template)
+						templateNames = append(templateNames, template.Name)
 					}
 				}
 			}
 
-			for _, templateName := range templateNames {
-				template, err := client.TemplateByName(ctx, organization.ID, templateName)
-				if err != nil {
-					return xerrors.Errorf("get template by name: %w", err)
-				}
-
-				templates = append(templates, template)
+			// Confirm deletion of the template.
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
+				IsConfirm: true,
+				Default:   cliui.ConfirmNo,
+			})
+			if err != nil {
+				return err
 			}
 
 			for _, template := range templates {
@@ -76,10 +88,13 @@ func templateDelete() *cobra.Command {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+"!")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
 			}
 
 			return nil
 		},
 	}
+
+	cliui.AllowSkipPrompt(cmd)
+	return cmd
 }

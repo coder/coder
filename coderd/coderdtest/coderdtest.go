@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -229,7 +230,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        10 * time.Millisecond,
 		UpdateInterval:      25 * time.Millisecond,
-		ForceCancelInterval: 25 * time.Millisecond,
+		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
@@ -265,13 +266,26 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
-		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
+		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
+
 	user, err := client.CreateUser(context.Background(), req)
+	var apiError *codersdk.Error
+	// If the user already exists by username or email conflict, try again up to "retries" times.
+	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+		if apiError.StatusCode() == http.StatusConflict {
+			retries--
+			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+		}
+	}
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -339,7 +353,8 @@ func CreateWorkspaceBuild(
 	t *testing.T,
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
-	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	transition database.WorkspaceTransition,
+) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}
@@ -383,35 +398,44 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
-		require.NoError(t, err)
-		return templateVersion.Job.CompletedAt != nil
+		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
 	return templateVersion
 }
 
 // AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
 func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
-		require.NoError(t, err)
-		return workspaceBuild.Job.CompletedAt != nil
+		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
 	return workspaceBuild
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
 func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+	t.Helper()
+
+	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
@@ -662,7 +686,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 }
 
 func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
 }
 
 // Used to easily create an HTTP transport!

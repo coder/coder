@@ -9,7 +9,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -37,7 +37,7 @@ variable "dotfiles_uri" {
   default     = ""
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch           = "amd64"
   os             = "linux"
   startup_script = var.dotfiles_uri != "" ? "coder dotfiles -y ${var.dotfiles_uri}" : null

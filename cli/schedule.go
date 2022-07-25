@@ -17,12 +17,6 @@ import (
 )
 
 const (
-	scheduleDescriptionLong = `Modify scheduled stop and start times for your workspace:
-  * schedule show: show workspace schedule
-  * schedule start: edit workspace start schedule
-  * schedule stop: edit workspace stop schedule
-  * schedule override-stop: edit stop time of active workspace
-`
 	scheduleShowDescriptionLong = `Shows the following information for the given workspace:
   * The automatic start schedule
   * The next scheduled start time
@@ -64,24 +58,24 @@ func schedules() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Modify scheduled stop and start times for your workspace",
-		Long:        scheduleDescriptionLong,
 	}
 
-	scheduleCmd.AddCommand(scheduleShow())
-	scheduleCmd.AddCommand(scheduleStart())
-	scheduleCmd.AddCommand(scheduleStop())
-	scheduleCmd.AddCommand(scheduleOverride())
+	scheduleCmd.AddCommand(
+		scheduleShow(),
+		scheduleStart(),
+		scheduleStop(),
+		scheduleOverride(),
+	)
 
 	return scheduleCmd
 }
 
 func scheduleShow() *cobra.Command {
 	showCmd := &cobra.Command{
-		Annotations: workspaceCommand,
-		Use:         "show <workspace-name>",
-		Short:       "Show workspace schedule",
-		Long:        scheduleShowDescriptionLong,
-		Args:        cobra.ExactArgs(1),
+		Use:   "show <workspace-name>",
+		Short: "Show workspace schedule",
+		Long:  scheduleShowDescriptionLong,
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -101,12 +95,16 @@ func scheduleShow() *cobra.Command {
 
 func scheduleStart() *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: workspaceCommand,
-		Use:         "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
-		Example:     `start my-workspace 9:30AM Mon-Fri Europe/Dublin`,
-		Short:       "Edit workspace start schedule",
-		Long:        scheduleStartDescriptionLong,
-		Args:        cobra.RangeArgs(2, 4),
+		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
+		Example: formatExamples(
+			example{
+				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
+				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
+			},
+		),
+		Short: "Edit workspace start schedule",
+		Long:  scheduleStartDescriptionLong,
+		Args:  cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -148,12 +146,15 @@ func scheduleStart() *cobra.Command {
 
 func scheduleStop() *cobra.Command {
 	return &cobra.Command{
-		Annotations: workspaceCommand,
-		Args:        cobra.ExactArgs(2),
-		Use:         "stop <workspace-name> { <duration> | manual }",
-		Example:     `stop my-workspace 2h30m`,
-		Short:       "Edit workspace stop schedule",
-		Long:        scheduleStopDescriptionLong,
+		Args: cobra.ExactArgs(2),
+		Use:  "stop <workspace-name> { <duration> | manual }",
+		Example: formatExamples(
+			example{
+				Command: "coder schedule stop my-workspace 2h30m",
+			},
+		),
+		Short: "Edit workspace stop schedule",
+		Long:  scheduleStopDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -191,12 +192,15 @@ func scheduleStop() *cobra.Command {
 
 func scheduleOverride() *cobra.Command {
 	overrideCmd := &cobra.Command{
-		Args:        cobra.ExactArgs(2),
-		Annotations: workspaceCommand,
-		Use:         "override-stop <workspace-name> <duration from now>",
-		Example:     "override-stop my-workspace 90m",
-		Short:       "Edit stop time of active workspace",
-		Long:        scheduleOverrideDescriptionLong,
+		Args: cobra.ExactArgs(2),
+		Use:  "override-stop <workspace-name> <duration from now>",
+		Example: formatExamples(
+			example{
+				Command: "coder schedule override-stop my-workspace 90m",
+			},
+		),
+		Short: "Edit stop time of active workspace",
+		Long:  scheduleOverrideDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			overrideDuration, err := parseDuration(args[1])
 			if err != nil {
