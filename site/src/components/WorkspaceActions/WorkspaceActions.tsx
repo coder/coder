@@ -167,7 +167,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   primaryCta: {
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
 
       "& > *": {

@@ -146,14 +146,14 @@ const useStyles = makeStyles((theme) => ({
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
       display: "flex",
       alignItems: "center",
     },
   },
   actions: {
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       marginLeft: "auto",
     },
   },

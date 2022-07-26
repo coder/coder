@@ -88,7 +88,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           background: "transparent",
         },
 
-        [breakpoints.down("md")]: {
+        [breakpoints.down("sm")]: {
           // Random value based on visual adjustments.
           // This is used to avoid line breaking on columns
           minWidth: 1000,

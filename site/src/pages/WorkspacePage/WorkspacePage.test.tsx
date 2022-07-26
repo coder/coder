@@ -169,7 +169,7 @@ describe("Workspace Page", () => {
   describe("Timeline", () => {
     it("shows the timeline build", async () => {
       await renderWorkspacePage()
-      const table = await screen.findByTestId("builds-table")
+      const table = await screen.findByRole("table", { description: "builds table" })
 
       // Wait for the results to be loaded
       await waitFor(async () => {

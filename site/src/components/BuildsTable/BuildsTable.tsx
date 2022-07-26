@@ -39,7 +39,7 @@ export const BuildsTable: FC<BuildsTableProps> = ({ builds, className }) => {
 
   return (
     <TableContainer className={className}>
-      <Table data-testid="builds-table">
+      <Table aria-describedby="builds table">
         <TableHead>
           <TableRow>
             <TableCell width="20%">{Language.actionLabel}</TableCell>

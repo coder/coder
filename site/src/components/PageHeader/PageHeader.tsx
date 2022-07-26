@@ -13,9 +13,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions, class
   return (
     <div className={combineClasses([styles.root, className])}>
       <hgroup>{children}</hgroup>
-      <Stack direction="row" className={styles.actions}>
-        {actions}
-      </Stack>
+      {actions && (
+        <Stack direction="row" className={styles.actions}>
+          {actions}
+        </Stack>
+      )}
     </div>
   )
 }
@@ -39,7 +41,7 @@ const useStyles = makeStyles((theme) => ({
     paddingTop: theme.spacing(6),
     paddingBottom: theme.spacing(5),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
       alignItems: "flex-start",
     },
@@ -66,7 +68,7 @@ const useStyles = makeStyles((theme) => ({
   actions: {
     marginLeft: "auto",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       marginTop: theme.spacing(3),
       marginLeft: "initial",
       width: "100%",

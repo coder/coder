@@ -18,7 +18,7 @@ const useStyles = makeStyles((theme) => ({
     gap: ({ spacing }: StyleProps) => theme.spacing(spacing),
     alignItems: ({ alignItems }: StyleProps) => alignItems,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
     },
   },
