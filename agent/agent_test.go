@@ -409,7 +409,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 			}
 			ssh, err := agentConn.SSH()
 			if !assert.NoError(t, err) {
-				conn.Close()
+				_ = conn.Close()
 				return
 			}
 			go agent.Bicopy(context.Background(), conn, ssh)
