@@ -64,3 +64,8 @@ func Test_formatExamples(t *testing.T) {
 		})
 	}
 }
+
+func TestMain(m *testing.M) {
+	setCliTest()
+	// goleak.VerifyTestMain(m)
+}

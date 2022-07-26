@@ -175,6 +175,15 @@ func versionCmd() *cobra.Command {
 	}
 }
 
+// setCliTest in TestMain to convey we are running in a test.
+func setCliTest() {
+	os.Setenv("CODER_TEST_CLI", "true")
+}
+
+func isCliTest() bool {
+	return os.Getenv("CODER_TEST_CLI") != ""
+}
+
 // createClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
