@@ -37,7 +37,7 @@
     "axios": "0.26.1",
     "can-ndjson-stream": "1.0.2",
     "cron-parser": "4.5.0",
-    "cronstrue": "2.5.0",
+    "cronstrue": "2.11.0",
     "dayjs": "1.11.4",
     "formik": "2.2.9",
     "front-matter": "4.0.2",
