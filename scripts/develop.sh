@@ -69,7 +69,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 		template_name="docker-${GOARCH}"
 		(
 			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes &&
-			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+				rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
 
