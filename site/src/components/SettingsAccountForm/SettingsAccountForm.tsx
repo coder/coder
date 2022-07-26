@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
@@ -27,6 +27,8 @@ export interface AccountFormProps {
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
   updateProfileError?: Error | unknown
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<AccountFormValues>
 }
 
 export const AccountForm: FC<AccountFormProps> = ({
@@ -35,11 +37,13 @@ export const AccountForm: FC<AccountFormProps> = ({
   onSubmit,
   initialValues,
   updateProfileError,
+  initialTouched,
 }) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
+    initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<AccountFormValues>(form, updateProfileError)
 

@@ -48,6 +48,9 @@ WithLoginError.args = {
     },
     isAxiosError: true,
   },
+  initialTouched: {
+    password: true,
+  },
 }
 
 export const WithAuthMethodsError = Template.bind({})

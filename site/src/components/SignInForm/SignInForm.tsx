@@ -5,7 +5,7 @@ import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
@@ -72,6 +72,8 @@ export interface SignInFormProps {
   methodsError?: Error | unknown
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
 
 export const SignInForm: FC<SignInFormProps> = ({
@@ -81,6 +83,7 @@ export const SignInForm: FC<SignInFormProps> = ({
   authError,
   methodsError,
   onSubmit,
+  initialTouched,
 }) => {
   const styles = useStyles()
 
@@ -96,6 +99,7 @@ export const SignInForm: FC<SignInFormProps> = ({
     // field), or after a submission attempt.
     validateOnBlur: false,
     onSubmit,
+    initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(form, authError)
 

@@ -47,4 +47,7 @@ WithError.args = {
     },
     isAxiosError: true,
   },
+  initialTouched: {
+    username: true,
+  },
 }

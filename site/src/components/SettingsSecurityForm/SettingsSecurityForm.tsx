@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
@@ -45,6 +45,8 @@ export interface SecurityFormProps {
   initialValues: SecurityFormValues
   onSubmit: (values: SecurityFormValues) => void
   updateSecurityError?: Error | unknown
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<SecurityFormValues>
 }
 
 export const SecurityForm: React.FC<SecurityFormProps> = ({
@@ -52,11 +54,13 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
   onSubmit,
   initialValues,
   updateSecurityError,
+  initialTouched,
 }) => {
   const form: FormikContextType<SecurityFormValues> = useFormik<SecurityFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
+    initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<SecurityFormValues>(form, updateSecurityError)
 

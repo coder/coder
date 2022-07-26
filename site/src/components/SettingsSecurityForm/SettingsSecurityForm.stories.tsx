@@ -48,4 +48,7 @@ WithError.args = {
     },
     isAxiosError: true,
   },
+  initialTouched: {
+    old_password: true,
+  },
 }
