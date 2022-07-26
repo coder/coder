@@ -54,6 +54,7 @@ jobs:
               # - '.github/**'
             go:
               - "**.go"
+              - "**.sql"
               - "**.mod"
               - "**.sum"
             sh:
