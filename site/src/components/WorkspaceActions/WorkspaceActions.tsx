@@ -104,7 +104,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   return (
     <span className={styles.buttonContainer}>
       {/* primary workspace CTA */}
-      <span data-testid="primary-cta">{buttonMapping[actions.primary]}</span>
+      <span data-testid="primary-cta" className={styles.primaryCta}>
+        {buttonMapping[actions.primary]}
+      </span>
       {actions.canCancel ? (
         // cancel CTA
         <>{buttonMapping[ButtonTypesEnum.cancel]}</>
@@ -152,7 +154,7 @@ const useStyles = makeStyles((theme) => ({
   buttonContainer: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
-    display: "inline-block",
+    display: "inline-flex",
   },
   dropdownButton: {
     border: "none",
@@ -162,6 +164,15 @@ const useStyles = makeStyles((theme) => ({
     width: "63px", // matching cancel button so button grouping doesn't grow in size
     "& .MuiButton-label": {
       marginRight: "8px",
+    },
+  },
+  primaryCta: {
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+
+      "& > *": {
+        width: "100%",
+      },
     },
   },
   popoverPaper: {

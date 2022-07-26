@@ -82,7 +82,7 @@ const useStyles = makeStyles((theme) => ({
       width: 890,
     },
   },
-  [theme.breakpoints.down("md")]: {
+  [theme.breakpoints.down("sm")]: {
     contentPanel: {
       width: 700,
     },

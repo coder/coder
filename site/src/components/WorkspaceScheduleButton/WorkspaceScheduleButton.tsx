@@ -77,7 +77,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
       <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <span>
+          <span className={styles.actions}>
             <IconButton
               className={styles.iconButton}
               size="small"
@@ -136,22 +136,32 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
   },
   label: {
     borderRight: 0,
-    height: "100%",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
-    // It is from the button props
-    minHeight: 42,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      display: "flex",
+      alignItems: "center",
+    },
+  },
+  actions: {
+    [theme.breakpoints.down("sm")]: {
+      marginLeft: "auto",
+    },
   },
   scheduleButton: {
     border: "none",
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    flexShrink: 0,
   },
   iconButton: {
     borderRadius: 2,
