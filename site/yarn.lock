@@ -5502,10 +5502,10 @@ cron-parser@4.5.0:
   dependencies:
     luxon "^2.4.0"
 
-cronstrue@2.5.0:
-  version "2.5.0"
-  resolved "https://registry.yarnpkg.com/cronstrue/-/cronstrue-2.5.0.tgz#1d69bd53520ce536789fb666d9fd562065b491c6"
-  integrity sha512-2uhcYEmXEH52Prn1biZ1HSaQwGwUy4fxFiq3U3vKwLYngL14j8f4pZeQt9f1J6tWDaLFeLRgcCHtO45r78ECyw==
+cronstrue@2.11.0:
+  version "2.11.0"
+  resolved "https://registry.yarnpkg.com/cronstrue/-/cronstrue-2.11.0.tgz#18ff1b95a836b9b4e06854f796db2dc8fa98ce41"
+  integrity sha512-iIBCSis5yqtFYWtJAmNOiwDveFWWIn+8uV5UYuPHYu/Aeu5CSSJepSbaHMyfc+pPFgnsCcGzfPQEo7LSGmWbTg==
 
 cross-spawn@^6.0.0:
   version "6.0.5"
@@ -13461,10 +13461,10 @@ ts-loader@9.3.1:
     micromatch "^4.0.0"
     semver "^7.3.4"
 
-ts-node@10.8.2:
-  version "10.8.2"
-  resolved "https://registry.yarnpkg.com/ts-node/-/ts-node-10.8.2.tgz#3185b75228cef116bf82ffe8762594f54b2a23f2"
-  integrity sha512-LYdGnoGddf1D6v8REPtIH+5iq/gTDuZqv2/UJUU7tKjuEU8xVZorBM+buCGNjj+pGEud+sOoM4CX3/YzINpENA==
+ts-node@10.9.1:
+  version "10.9.1"
+  resolved "https://registry.yarnpkg.com/ts-node/-/ts-node-10.9.1.tgz#e73de9102958af9e1f0b168a6ff320e25adcff4b"
+  integrity sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==
   dependencies:
     "@cspotcode/source-map-support" "^0.8.0"
     "@tsconfig/node10" "^1.0.7"
