@@ -1,0 +1,222 @@
+{
+  "format_version": "1.1",
+  "terraform_version": "1.2.5",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "os": "linux",
+            "startup_script": null
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_metadata.about_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "about_info",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "pair": [
+              {
+                "key": "hello",
+                "sensitive": false,
+                "value": "world"
+              }
+            ]
+          },
+          "sensitive_values": {
+            "pair": [
+              {}
+            ]
+          }
+        },
+        {
+          "address": "null_resource.about",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "about",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.main",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "main",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "arch": "amd64",
+          "auth": "token",
+          "dir": null,
+          "env": null,
+          "os": "linux",
+          "startup_script": null
+        },
+        "after_unknown": {
+          "id": true,
+          "init_script": true,
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "coder_metadata.about_info",
+      "mode": "managed",
+      "type": "coder_metadata",
+      "name": "about_info",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "pair": [
+            {
+              "key": "hello",
+              "sensitive": false,
+              "value": "world"
+            }
+          ]
+        },
+        "after_unknown": {
+          "id": true,
+          "pair": [
+            {}
+          ],
+          "resource_id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "pair": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "null_resource.about",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "about",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.4.4"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "coder_metadata.about_info",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "about_info",
+          "provider_config_key": "coder",
+          "expressions": {
+            "pair": [
+              {
+                "key": {
+                  "constant_value": "hello"
+                },
+                "value": {
+                  "constant_value": "world"
+                }
+              }
+            ],
+            "resource_id": {
+              "references": [
+                "null_resource.about.id",
+                "null_resource.about"
+              ]
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "null_resource.about",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "about",
+          "provider_config_key": "null",
+          "schema_version": 0
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "null_resource.about",
+      "attribute": [
+        "id"
+      ]
+    }
+  ]
+}

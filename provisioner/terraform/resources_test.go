@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk/proto"
+
+	protobuf "github.com/golang/protobuf/proto"
 )
 
 func TestConvertResources(t *testing.T) {
@@ -114,6 +116,15 @@ func TestConvertResources(t *testing.T) {
 				Auth: &proto.Agent_Token{},
 			}},
 		}},
+		// Tests fetching metadata about workspace resources.
+		"resource-metadata": {{
+			Name: "about",
+			Type: "null_resource",
+			Metadata: []*proto.Resource_Metadata{{
+				Key:   "hello",
+				Value: "world",
+			}},
+		}},
 	} {
 		folderName := folderName
 		expected := expected
@@ -134,7 +145,16 @@ func TestConvertResources(t *testing.T) {
 				resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(resources)
-				resourcesWant, err := json.Marshal(expected)
+
+				// plan does not contain metadata, so clone expected and remove it
+				var expectedNoMetadata []*proto.Resource
+				for _, resource := range expected {
+					resourceCopy, _ := protobuf.Clone(resource).(*proto.Resource)
+					resourceCopy.Metadata = nil
+					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
+				}
+
+				resourcesWant, err := json.Marshal(expectedNoMetadata)
 				require.NoError(t, err)
 				resourcesGot, err := json.Marshal(resources)
 				require.NoError(t, err)

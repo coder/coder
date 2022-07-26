@@ -101,6 +101,13 @@ message Resource {
     string name = 1;
     string type = 2;
     repeated Agent agents = 3;
+
+    message Metadata {
+        string key = 1;
+        string value = 2;
+        bool sensitive = 3;
+    }
+    repeated Metadata metadata = 4;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

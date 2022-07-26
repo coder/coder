@@ -516,6 +516,14 @@ export interface WorkspaceResource {
   readonly type: string
   readonly name: string
   readonly agents?: WorkspaceAgent[]
+  readonly metadata?: WorkspaceResourceMetadata[]
+}
+
+// From codersdk/workspaceresources.go
+export interface WorkspaceResourceMetadata {
+  readonly key: string
+  readonly value: string
+  readonly sensitive: boolean
 }
 
 // From codersdk/workspacebuilds.go
