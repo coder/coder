@@ -44,7 +44,6 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	# rather than leaving things in an inconsistent state.
 	trap 'kill -TERM -$$' ERR
 	cdroot
-	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -$$ &
 	"${CODER_DEV_SHIM}" server --address 127.0.0.1:3000 --in-memory --tunnel || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
@@ -68,10 +67,14 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 		DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
 		template_name="docker-${GOARCH}"
-		"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
-		rm -rfv "${temp_template_dir}"
+		(
+			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes &&
+				rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
 
+	# Start the frontend once we have a template up and running
+	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -$$ &
 	log
 	log "======================================================================="
 	log "==                                                                   =="

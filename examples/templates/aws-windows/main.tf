@@ -83,7 +83,7 @@ locals {
   user_data_start = <<EOT
 <powershell>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-${coder_agent.dev.init_script}
+${coder_agent.main.init_script}
 </powershell>
 <persist>true</persist>
 EOT
