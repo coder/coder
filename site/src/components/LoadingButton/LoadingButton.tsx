@@ -1,11 +1,14 @@
 import Button, { ButtonProps } from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { makeStyles } from "@material-ui/core/styles"
-import * as React from "react"
+import { Theme } from "@material-ui/core/styles/createMuiTheme"
+import { FC } from "react"
 
 export interface LoadingButtonProps extends ButtonProps {
   /** Whether or not to disable the button and show a spinner */
   loading?: boolean
+  /** An optional label to display with the loading spinner */
+  loadingLabel?: string
 }
 
 /**
@@ -14,12 +17,13 @@ export interface LoadingButtonProps extends ButtonProps {
  * In Material-UI 5+ - this is built-in, but since we're on an earlier version,
  * we have to roll our own.
  */
-export const LoadingButton: React.FC<LoadingButtonProps> = ({
+export const LoadingButton: FC<LoadingButtonProps> = ({
   loading = false,
+  loadingLabel,
   children,
   ...rest
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({ hasLoadingLabel: !!loadingLabel })
   const hidden = loading ? { opacity: 0 } : undefined
 
   return (
@@ -30,17 +34,35 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
           <CircularProgress size={18} className={styles.spinner} />
         </div>
       )}
+      {!!loadingLabel && loadingLabel}
     </Button>
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  hasLoadingLabel?: boolean
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   loader: {
-    position: "absolute",
+    position: (props) => {
+      if (!props.hasLoadingLabel) {
+        return "absolute"
+      }
+    },
+    transform: (props) => {
+      if (!props.hasLoadingLabel) {
+        return "translate(-50%, -50%)"
+      }
+    },
+    marginRight: (props) => {
+      if (props.hasLoadingLabel) {
+        return "10px"
+      }
+    },
     top: "50%",
     left: "50%",
-    transform: "translate(-50%, -50%)",
-    height: 18,
+    height: 22, // centering loading icon
     width: 18,
   },
   spinner: {
