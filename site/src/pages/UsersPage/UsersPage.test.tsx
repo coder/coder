@@ -170,34 +170,6 @@ describe("Users Page", () => {
   })
 
   describe("suspend user", () => {
-    describe("when it is success", () => {
-      it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
-
-        await suspendUser(() => {
-          jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest
-            .spyOn(API, "getUsers")
-            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
-        })
-
-        // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserSuccess)
-
-        // Check if the API was called correctly
-        expect(API.suspendUser).toBeCalledTimes(1)
-        expect(API.suspendUser).toBeCalledWith(MockUser.id)
-
-        // Check if the users list was reload
-        await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
-      })
-    })
-
     describe("when it fails", () => {
       it("shows an error message", async () => {
         render(
