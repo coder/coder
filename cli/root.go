@@ -176,8 +176,8 @@ func versionCmd() *cobra.Command {
 }
 
 // setCliTest in TestMain to convey we are running in a test.
-func setCliTest() {
-	os.Setenv("CODER_TEST_CLI", "true")
+func setCliTest() error {
+	return os.Setenv("CODER_TEST_CLI", "true")
 }
 
 func isCliTest() bool {
