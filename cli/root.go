@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -173,6 +174,10 @@ func versionCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func isTest() bool {
+	return flag.Lookup("test.v") != nil
 }
 
 // createClient returns a new client from the command context.
