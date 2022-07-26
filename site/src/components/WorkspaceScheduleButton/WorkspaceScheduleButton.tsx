@@ -77,7 +77,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
       <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <span>
+          <span className={styles.actions}>
             <IconButton
               className={styles.iconButton}
               size="small"
@@ -148,6 +148,13 @@ const useStyles = makeStyles((theme) => ({
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
+      display: "flex",
+      alignItems: "center",
+    },
+  },
+  actions: {
+    [theme.breakpoints.down("md")]: {
+      marginLeft: "auto",
     },
   },
   scheduleButton: {
