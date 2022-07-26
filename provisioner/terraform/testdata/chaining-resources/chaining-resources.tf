@@ -14,7 +14,7 @@ resource "coder_agent" "main" {
 
 resource "null_resource" "b" {
   depends_on = [
-    coder_agent.dev
+    coder_agent.main
   ]
 }
 
