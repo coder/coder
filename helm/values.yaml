@@ -69,18 +69,3 @@ coder:
     # your cloud and specify it here in production to avoid accidental IP
     # address changes.
     loadBalancerIP: ""
-
-  # coder.ingress -- The Ingress object to expose for Coder.
-  ingress:
-    # coder.ingress.enable -- Whether to create the Ingress object.
-    enable: false
-    # coder.ingress.className -- The name of the Ingress class to use.
-    className: ""
-    # coder.ingress.host -- The hostname to match on.
-    host: "coder.example.com"
-    # coder.ingress.tls -- The TLS configuration to use for the Ingress.
-    tls:
-      # coder.ingress.tls.enable -- Whether to enable TLS on the Ingress.
-      enable: false
-      # coder.ingress.tls.secretName -- The name of the TLS secret to use.
-      secretName: ""
