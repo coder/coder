@@ -3,6 +3,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { TableContainer } from "components/TableContainer/TableContainer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { UsersTableBody } from "./UsersTableBody"
@@ -37,29 +38,31 @@ export const UsersTable: FC<UsersTableProps> = ({
   isLoading,
 }) => {
   return (
-    <Table>
-      <TableHead>
-        <TableRow>
-          <TableCell>{Language.usernameLabel}</TableCell>
-          <TableCell>{Language.statusLabel}</TableCell>
-          <TableCell>{Language.rolesLabel}</TableCell>
-          {/* 1% is a trick to make the table cell width fit the content */}
-          {canEditUsers && <TableCell width="1%" />}
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        <UsersTableBody
-          users={users}
-          roles={roles}
-          isLoading={isLoading}
-          canEditUsers={canEditUsers}
-          isUpdatingUserRoles={isUpdatingUserRoles}
-          onActivateUser={onActivateUser}
-          onResetUserPassword={onResetUserPassword}
-          onSuspendUser={onSuspendUser}
-          onUpdateUserRoles={onUpdateUserRoles}
-        />
-      </TableBody>
-    </Table>
+    <TableContainer>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>{Language.usernameLabel}</TableCell>
+            <TableCell>{Language.statusLabel}</TableCell>
+            <TableCell>{Language.rolesLabel}</TableCell>
+            {/* 1% is a trick to make the table cell width fit the content */}
+            {canEditUsers && <TableCell width="1%" />}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <UsersTableBody
+            users={users}
+            roles={roles}
+            isLoading={isLoading}
+            canEditUsers={canEditUsers}
+            isUpdatingUserRoles={isUpdatingUserRoles}
+            onActivateUser={onActivateUser}
+            onResetUserPassword={onResetUserPassword}
+            onSuspendUser={onSuspendUser}
+            onUpdateUserRoles={onUpdateUserRoles}
+          />
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 }
