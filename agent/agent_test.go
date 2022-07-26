@@ -120,10 +120,12 @@ func TestAgent(t *testing.T) {
 		localPort := tcpAddr.Port
 		done := make(chan struct{})
 		go func() {
+			defer close(done)
 			conn, err := local.Accept()
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			_ = conn.Close()
-			close(done)
 		}()
 
 		err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
@@ -399,15 +401,18 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
+		defer listener.Close()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
 			ssh, err := agentConn.SSH()
-			assert.NoError(t, err)
-			go io.Copy(conn, ssh)
-			go io.Copy(ssh, conn)
+			if !assert.NoError(t, err) {
+				_ = conn.Close()
+				return
+			}
+			go agent.Bicopy(context.Background(), conn, ssh)
 		}
 	}()
 	t.Cleanup(func() {

@@ -73,8 +73,8 @@ func TestTunnel(t *testing.T) {
 		err := server.Serve(tun.Listener)
 		assert.Equal(t, http.ErrServerClosed, err)
 	}()
-	t.Cleanup(func() { _ = server.Close() })
-	t.Cleanup(func() { tun.Listener.Close() })
+	defer func() { _ = server.Close() }()
+	defer func() { tun.Listener.Close() }()
 
 	require.Eventually(t, func() bool {
 		res, err := fTunServer.requestHTTP()
@@ -116,9 +116,11 @@ type fakeTunnelServer struct {
 }
 
 func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
+	t.Helper()
+
 	priv, err := wgtypes.GeneratePrivateKey()
-	privBytes := [32]byte(priv)
 	require.NoError(t, err)
+	privBytes := [32]byte(priv)
 	pub := priv.PublicKey()
 	pubBytes := [32]byte(pub)
 	tun, tnet, err := netstack.CreateNetTUN(
@@ -127,17 +129,25 @@ func newFakeTunnelServer(t *testing.T) *fakeTunnelServer {
 		1280,
 	)
 	require.NoError(t, err)
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelVerbose, "server "))
+
+	ctx := context.Background()
+	slogger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("server")
+	logger := &device.Logger{
+		Verbosef: slog.Stdlib(ctx, slogger, slog.LevelDebug).Printf,
+		Errorf:   slog.Stdlib(ctx, slogger, slog.LevelError).Printf,
+	}
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), logger)
+	t.Cleanup(func() {
+		dev.RemoveAllPeers()
+		dev.Close()
+		slogger.Debug(ctx, "dev.Close()")
+	})
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 listen_port=%d`,
 		hex.EncodeToString(privBytes[:]),
 		wgPort,
 	))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		dev.RemoveAllPeers()
-		dev.Close()
-	})
 
 	err = dev.Up()
 	require.NoError(t, err)
