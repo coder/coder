@@ -18,6 +18,7 @@ support should work:
   - WebStorm
 - Web IDEs (code-server, JupyterLab, Jetbrains Projector)
    - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+- Emacs (with [TRAMP](./ides/configuring-emacs-tramp.md))
 
 ## SSH configuration
 
