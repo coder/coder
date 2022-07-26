@@ -5502,10 +5502,10 @@ cron-parser@4.5.0:
   dependencies:
     luxon "^2.4.0"
 
-cronstrue@2.5.0:
-  version "2.5.0"
-  resolved "https://registry.yarnpkg.com/cronstrue/-/cronstrue-2.5.0.tgz#1d69bd53520ce536789fb666d9fd562065b491c6"
-  integrity sha512-2uhcYEmXEH52Prn1biZ1HSaQwGwUy4fxFiq3U3vKwLYngL14j8f4pZeQt9f1J6tWDaLFeLRgcCHtO45r78ECyw==
+cronstrue@2.11.0:
+  version "2.11.0"
+  resolved "https://registry.yarnpkg.com/cronstrue/-/cronstrue-2.11.0.tgz#18ff1b95a836b9b4e06854f796db2dc8fa98ce41"
+  integrity sha512-iIBCSis5yqtFYWtJAmNOiwDveFWWIn+8uV5UYuPHYu/Aeu5CSSJepSbaHMyfc+pPFgnsCcGzfPQEo7LSGmWbTg==
 
 cross-spawn@^6.0.0:
   version "6.0.5"
