@@ -116,8 +116,8 @@ resource "digitalocean_droplet" "workspace" {
   user_data = templatefile("cloud-config.yaml.tftpl", {
     username          = data.coder_workspace.me.owner
     home_volume_label = digitalocean_volume.home_volume.initial_filesystem_label
-    init_script       = base64encode(coder_agent.dev.init_script)
-    coder_agent_token = coder_agent.dev.token
+    init_script       = base64encode(coder_agent.main.init_script)
+    coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
   ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []

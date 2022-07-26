@@ -48,7 +48,7 @@ module "gce-container" {
   container = {
     image   = "mcr.microsoft.com/vscode/devcontainers/go:1"
     command = ["sh"]
-    args    = ["-c", coder_agent.dev.init_script]
+    args    = ["-c", coder_agent.main.init_script]
     securityContext = {
       privileged : true
     }
@@ -85,6 +85,6 @@ resource "google_compute_instance" "dev" {
 
 resource "coder_agent_instance" "dev" {
   count       = data.coder_workspace.me.start_count
-  agent_id    = coder_agent.dev.id
+  agent_id    = coder_agent.main.id
   instance_id = google_compute_instance.dev[0].instance_id
 }

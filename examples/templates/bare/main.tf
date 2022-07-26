@@ -15,7 +15,7 @@ terraform {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "dev1" {
+resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
   auth = "token"
@@ -32,8 +32,8 @@ resource "null_resource" "fake-compute" {
   # Run the Coder agent init script on resources
   # to access web apps and SSH:
   #
-  # export CODER_AGENT_TOKEN=${coder_agent.dev1.token}
-  # ${coder_agent.dev1.init_script}
+  # export CODER_AGENT_TOKEN=${coder_agent.main.token}
+  # ${coder_agent.main.init_script}
 }
 
 resource "null_resource" "fake-disk" {

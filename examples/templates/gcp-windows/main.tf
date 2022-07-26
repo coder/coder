@@ -71,7 +71,7 @@ resource "google_compute_instance" "dev" {
     scopes = ["cloud-platform"]
   }
   metadata = {
-    windows-startup-script-ps1 = coder_agent.dev.init_script
+    windows-startup-script-ps1 = coder_agent.main.init_script
     serial-port-enable         = "TRUE"
   }
 }
