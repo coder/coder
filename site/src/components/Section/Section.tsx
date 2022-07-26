@@ -62,6 +62,11 @@ const useStyles = makeStyles((theme) => ({
     boxShadow: `0px 18px 12px 6px ${fade(theme.palette.common.black, 0.02)}`,
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
+    borderRadius: theme.shape.borderRadius,
+
+    [theme.breakpoints.down("sm")]: {
+      padding: theme.spacing(4, 3, 4, 3),
+    },
   },
   inner: ({ layout }: { layout: SectionLayout }) => ({
     maxWidth: layout === "fluid" ? "100%" : 500,

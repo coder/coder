@@ -47,10 +47,22 @@ const useStyles = makeStyles((theme) => ({
   menu: {
     minWidth: 160,
     marginTop: theme.spacing(5),
+
+    [theme.breakpoints.down("sm")]: {
+      display: "flex",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      marginBottom: theme.spacing(2),
+      // 48px is the side margins
+      width: "calc(100% + 48px)",
+      // Side margin
+      marginLeft: -theme.spacing(3),
+      marginTop: theme.spacing(3),
+    },
   },
 
   link: {
     textDecoration: "none",
+    flex: 1,
   },
 
   menuItem: {
@@ -84,6 +96,13 @@ const useStyles = makeStyles((theme) => ({
       "&::after": {
         opacity: 1,
       },
+    },
+
+    [theme.breakpoints.down("sm")]: {
+      textAlign: "center",
+      width: "100%",
+      paddingTop: theme.spacing(2),
+      paddingBottom: theme.spacing(2),
     },
   },
 
