@@ -567,7 +567,7 @@ func server() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
 	enableTelemetryByDefault := true
-	if isCliTest() {
+	if isTest() {
 		enableTelemetryByDefault = false
 	}
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")

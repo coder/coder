@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -175,13 +176,8 @@ func versionCmd() *cobra.Command {
 	}
 }
 
-// setCliTest in TestMain to convey we are running in a test.
-func setCliTest() error {
-	return os.Setenv("CODER_TEST_CLI", "true")
-}
-
-func isCliTest() bool {
-	return os.Getenv("CODER_TEST_CLI") != ""
+func isTest() bool {
+	return flag.Lookup("test.v") != nil
 }
 
 // createClient returns a new client from the command context.
