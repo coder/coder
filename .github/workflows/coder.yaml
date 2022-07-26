@@ -54,6 +54,7 @@ jobs:
               # - '.github/**'
             go:
               - "**.go"
+              # For migrations:
               - "**.sql"
               - "**.mod"
               - "**.sum"
