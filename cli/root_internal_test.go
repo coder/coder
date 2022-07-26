@@ -66,7 +66,6 @@ func Test_formatExamples(t *testing.T) {
 	}
 }
 
-//nolint:unused-parameter // We want to enable goleak at some point.
 func TestMain(m *testing.M) {
 	// Replace with goleak.VerifyTestMain(m) when we enable goleak.
 	os.Exit(m.Run())
