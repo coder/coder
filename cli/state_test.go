@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,8 +96,6 @@ func TestStatePush(t *testing.T) {
 		err = stateFile.Close()
 		require.NoError(t, err)
 		cmd, root := clitest.New(t, "state", "push", workspace.Name, stateFile.Name())
-		cmd.SetErr(io.Discard)
-		cmd.SetOut(io.Discard)
 		clitest.SetupConfig(t, client, root)
 		err = cmd.Execute()
 		require.NoError(t, err)

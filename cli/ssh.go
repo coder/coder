@@ -127,7 +127,7 @@ func ssh() *cobra.Command {
 
 				ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 				wgn, err := peerwg.New(
-					slog.Make(sloghuman.Sink(os.Stderr)),
+					slog.Make(sloghuman.Sink(cmd.ErrOrStderr())),
 					[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
 				)
 				if err != nil {
@@ -193,13 +193,14 @@ func ssh() *cobra.Command {
 			}
 
 			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
-			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(os.Stdin.Fd()))
+			stdinFile, valid2 := cmd.InOrStdin().(*os.File)
+			if valid && valid2 && isatty.IsTerminal(stdoutFile.Fd()) {
+				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(os.Stdin.Fd()), state)
+					_ = term.Restore(int(stdinFile.Fd()), state)
 				}()
 
 				windowChange := listenWindowSize(cmd.Context())
