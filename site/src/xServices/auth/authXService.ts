@@ -1,13 +1,12 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
   successSecurityUpdate: "Updated password.",
   successRegenerateSSHKey: "SSH Key regenerated successfully",
-  errorRegenerateSSHKey: "Error on regenerate the SSH Key",
 }
 
 export const checks = {
@@ -130,7 +129,7 @@ const sshState = {
             ],
             onError: [
               {
-                actions: ["assignRegenerateSSHKeyError", "notifySSHKeyRegenerationError"],
+                actions: ["assignRegenerateSSHKeyError"],
                 target: "#authState.signedIn.ssh.loaded.idle",
               },
             ],
@@ -487,9 +486,6 @@ export const authMachine =
         }),
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
-        },
-        notifySSHKeyRegenerationError: () => {
-          displayError(Language.errorRegenerateSSHKey)
         },
       },
     },

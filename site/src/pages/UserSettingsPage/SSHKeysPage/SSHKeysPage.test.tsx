@@ -85,7 +85,7 @@ describe("SSH keys Page", () => {
         fireEvent.click(confirmButton)
 
         // Check if the error message is displayed
-        await screen.findByText(authXServiceLanguage.errorRegenerateSSHKey)
+        await screen.findByText(SSHKeysPageLanguage.errorRegenerateSSHKey)
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1)
