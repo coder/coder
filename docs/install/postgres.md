@@ -60,13 +60,13 @@ documentation](https://www.postgresql.org/docs/current/tutorial-start.html).
 1. Create a database called `coder` and assign the owner:
 
     ```console
-    create database coder owner coder;
+    create database coder owner coderuser;
     ```
 
 1. Set the password for `coderuser`:
 
     ```console
-    \password coder # enter password when prompted
+    \password coderuser # enter password when prompted
     ```
 
 1. Assign rights to the database to your user:
