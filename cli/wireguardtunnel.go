@@ -95,7 +95,7 @@ func wireguardPortForward() *cobra.Command {
 
 			ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 			wgn, err := peerwg.New(
-				slog.Make(sloghuman.Sink(os.Stderr)),
+				slog.Make(sloghuman.Sink(cmd.ErrOrStderr())),
 				[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
 			)
 			if err != nil {

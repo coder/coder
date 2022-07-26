@@ -106,7 +106,7 @@ func server() *cobra.Command {
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printLogo(cmd, spooky)
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -348,7 +348,7 @@ func server() *cobra.Command {
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
-			var _ = pprof.Handler
+			_ = pprof.Handler
 			if pprofEnabled {
 				//nolint:revive
 				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
@@ -516,7 +516,7 @@ func server() *cobra.Command {
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
