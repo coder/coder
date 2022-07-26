@@ -26,6 +26,14 @@ AllStates.args = {
   ],
 }
 
+export const SmallViewport = Template.bind({})
+SmallViewport.args = {
+  ...AllStates.args,
+}
+SmallViewport.parameters = {
+  chromatic: { viewports: [600] },
+}
+
 export const EmptyCanCreate = Template.bind({})
 EmptyCanCreate.args = {
   canCreateTemplate: true,
