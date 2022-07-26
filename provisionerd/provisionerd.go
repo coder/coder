@@ -190,7 +190,6 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if p.isRunningJob() {
-		p.opts.Logger.Debug(context.Background(), "skipping acquire; job is already running")
 		return
 	}
 	if p.isShutdown() {
