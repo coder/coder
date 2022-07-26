@@ -3,6 +3,7 @@ import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
+import { sidePadding } from "theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface TabSidebarItem {
@@ -52,11 +53,10 @@ const useStyles = makeStyles((theme) => ({
       display: "flex",
       borderBottom: `1px solid ${theme.palette.divider}`,
       marginBottom: theme.spacing(2),
-      // 48px is the side margins
-      width: "calc(100% + 48px)",
-      // Side margin
-      marginLeft: -theme.spacing(3),
-      marginTop: theme.spacing(3),
+      // Fit all the width
+      width: `calc(100% + ${sidePadding * 2}px)`,
+      marginLeft: -sidePadding,
+      marginTop: sidePadding,
     },
   },
 
