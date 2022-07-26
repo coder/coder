@@ -275,12 +275,19 @@ jobs:
       - name: ls artifacts
         run: ls artifacts
 
+      - name: Publish Helm
+        run: |
+          set -euxo pipefail
+          ./scripts/helm.sh --push
+          mv ./dist/*.tgz ./artifacts/
+
       - name: Publish Release
         run: |
           ./scripts/publish_release.sh \
             ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
             ./artifacts/*.zip \
             ./artifacts/*.tar.gz \
+            ./artifacts/*.tgz \
             ./artifacts/*.apk \
             ./artifacts/*.deb \
             ./artifacts/*.rpm
