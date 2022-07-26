@@ -85,7 +85,9 @@ jobs:
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
-          go run github.com/coder/coder/.github/workflows/prcontext
+          cd .github/workflows/prcontext
+          go build
+          ./prcontext
 
   style-lint-golangci:
     name: style/lint/golangci
