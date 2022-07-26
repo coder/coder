@@ -40,6 +40,8 @@ export const LoginPage: React.FC = () => {
     authSend({ type: "SIGN_IN", email, password })
   }
 
+  const { authError, getUserError, checkPermissionsError, getMethodsError } = authState.context
+
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
   } else {
@@ -54,8 +56,12 @@ export const LoginPage: React.FC = () => {
               authMethods={authState.context.methods}
               redirectTo={redirectTo}
               isLoading={isLoading}
-              authError={authState.context.authError}
-              methodsError={authState.context.getMethodsError as Error}
+              loginErrors={{
+                authError,
+                getUserError,
+                checkPermissionsError,
+                getMethodsError,
+              }}
               onSubmit={onSubmit}
             />
           </div>

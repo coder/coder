@@ -29,7 +29,9 @@ export const Language = {
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   authErrorMessage: "Incorrect email or password.",
-  methodsErrorMessage: "Unable to fetch auth methods.",
+  getUserErrorMessage: "Unable to fetch user details.",
+  checkPermissionsErrorMessage: "Unable to fetch user permissions.",
+  getMethodsErrorMessage: "Unable to fetch auth methods.",
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
 }
@@ -65,11 +67,17 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
+type LoginErrors = {
+  authError?: Error | unknown
+  getUserError?: Error | unknown
+  checkPermissionsError?: Error | unknown
+  getMethodsError?: Error | unknown
+}
+
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  authError?: Error | unknown
-  methodsError?: Error | unknown
+  loginErrors: LoginErrors
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
   // initialTouched is only used for testing the error state of the form.
@@ -80,8 +88,7 @@ export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,
-  authError,
-  methodsError,
+  loginErrors,
   onSubmit,
   initialTouched,
 }) => {
@@ -101,18 +108,39 @@ export const SignInForm: FC<SignInFormProps> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(form, authError)
+  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(
+    form,
+    loginErrors.authError,
+  )
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {authError && (
-            <ErrorSummary error={authError} defaultMessage={Language.authErrorMessage} />
+          {loginErrors.authError && (
+            <ErrorSummary
+              error={loginErrors.authError}
+              defaultMessage={Language.authErrorMessage}
+            />
           )}
-          {methodsError && (
-            <ErrorSummary error={methodsError} defaultMessage={Language.methodsErrorMessage} />
+          {loginErrors.getUserError && (
+            <ErrorSummary
+              error={loginErrors.getUserError}
+              defaultMessage={Language.getUserErrorMessage}
+            />
+          )}
+          {loginErrors.checkPermissionsError && (
+            <ErrorSummary
+              error={loginErrors.checkPermissionsError}
+              defaultMessage={Language.checkPermissionsErrorMessage}
+            />
+          )}
+          {loginErrors.getMethodsError && (
+            <ErrorSummary
+              error={loginErrors.getMethodsError}
+              defaultMessage={Language.getMethodsErrorMessage}
+            />
           )}
           <TextField
             {...getFieldHelpers("email")}

@@ -213,12 +213,13 @@ export const authMachine =
           tags: "loading",
         },
         gettingUser: {
+          entry: "clearGetUserError",
           invoke: {
             src: "getMe",
             id: "getMe",
             onDone: [
               {
-                actions: ["assignMe", "clearGetUserError"],
+                actions: ["assignMe"],
                 target: "gettingPermissions",
               },
             ],
