@@ -35,7 +35,7 @@ func TestStart(t *testing.T) {
 	})
 	t.Run("Kill", func(t *testing.T) {
 		t.Parallel()
-		pty, ps := ptytest.Start(t, exec.Command("cmd.exe"))
+		_, ps := ptytest.Start(t, exec.Command("cmd.exe"))
 		err := ps.Kill()
 		assert.NoError(t, err)
 		err = ps.Wait()
