@@ -7,6 +7,7 @@ import FormLabel from "@material-ui/core/FormLabel"
 import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -206,6 +207,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <FullPageForm onCancel={onCancel} title="Workspace schedule">
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
+          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
             disabled={isLoading}
