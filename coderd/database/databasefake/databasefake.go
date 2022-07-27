@@ -895,7 +895,10 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
-			return i.CreatedAt.Before(j.CreatedAt) && i.ID.String() < j.ID.String()
+			if i.CreatedAt.Before(j.CreatedAt) {
+				return true
+			}
+			return i.ID.String() < j.ID.String()
 		})
 		return templates, nil
 	}
@@ -1075,7 +1078,10 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 
 	templates := slices.Clone(q.templates)
 	slices.SortFunc(templates, func(i, j database.Template) bool {
-		return i.CreatedAt.Before(j.CreatedAt) && i.ID.String() < j.ID.String()
+		if i.CreatedAt.Before(j.CreatedAt) {
+			return true
+		}
+		return i.ID.String() < j.ID.String()
 	})
 
 	return templates, nil
