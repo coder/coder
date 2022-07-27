@@ -146,7 +146,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
-  instance_type     = "${var.instance_type}"
+  instance_type     = var.instance_type
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {

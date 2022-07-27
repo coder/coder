@@ -288,7 +288,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, time.Duration(template.MaxTtl))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid Workspace TTL.",
+			Message:     "Invalid Workspace Time to Shutdown.",
 			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
 		})
 		return
@@ -523,8 +523,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var validErrs []codersdk.ValidationError
-
 	err := api.Database.InTx(func(s database.Store) error {
 		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
 		if err != nil {
@@ -536,28 +534,31 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
 		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()})
-			return err
+			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
 		if err := s.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
 			ID:  workspace.ID,
 			Ttl: dbTTL,
 		}); err != nil {
-			return xerrors.Errorf("update workspace TTL: %w", err)
+			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		code := http.StatusInternalServerError
-		if len(validErrs) > 0 {
-			code = http.StatusBadRequest
+		var validErr codersdk.ValidationError
+		if errors.As(err, &validErr) {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Error updating workspace time until shutdown!",
+				Validations: []codersdk.ValidationError{validErr},
+			})
+			return
 		}
-		httpapi.Write(rw, code, codersdk.Response{
-			Message:     "Error updating workspace time until shutdown!",
-			Validations: validErrs,
-			Detail:      err.Error(),
+
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating workspace time until shutdown!",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -895,15 +896,15 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
 	if truncated < time.Minute {
-		return sql.NullInt64{}, xerrors.New("ttl must be at least one minute")
+		return sql.NullInt64{}, xerrors.New("time until shutdown must be at least one minute")
 	}
 
 	if truncated > 24*7*time.Hour {
-		return sql.NullInt64{}, xerrors.New("ttl must be less than 7 days")
+		return sql.NullInt64{}, xerrors.New("time until shutdown must be less than 7 days")
 	}
 
 	if truncated > max {
-		return sql.NullInt64{}, xerrors.Errorf("ttl must be below template maximum %s", max.String())
+		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be below template maximum %s", max.String())
 	}
 
 	return sql.NullInt64{
