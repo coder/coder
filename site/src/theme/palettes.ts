@@ -34,11 +34,11 @@ export const darkPalette: PaletteOptions = {
   info: {
     main: colors.blue[11],
     dark: colors.blue[15],
-    contrastText: colors.gray[3]
+    contrastText: colors.gray[3],
   },
   error: {
     main: colors.red[5],
     dark: colors.red[15],
-    contrastText: colors.gray[3]
+    contrastText: colors.gray[3],
   },
 }

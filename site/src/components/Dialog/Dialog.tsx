@@ -2,7 +2,7 @@ import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dial
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import OutlinedInput, { OutlinedInputProps } from "@material-ui/core/OutlinedInput"
-import { darken, lighten, fade, makeStyles } from "@material-ui/core/styles"
+import { darken, fade, lighten, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
