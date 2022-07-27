@@ -67,7 +67,7 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
 	}
 
-	if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
+	if version.LessThan(minTerraformVersion) || version.GreaterThan(maxTerraformVersion) {
 		return "", terraformMinorVersionMismatch
 	}
 
