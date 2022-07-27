@@ -248,8 +248,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 
 func (g *Generator) posLine(obj types.Object) string {
 	file := g.pkg.Fset.File(obj.Pos())
-	position := file.Position(obj.Pos())
-	return fmt.Sprintf("// From %s\n", filepath.Join("codersdk", filepath.Base(position.Filename)))
+	return fmt.Sprintf("// From %s\n", filepath.Join("codersdk", filepath.Base(file.Name())))
 }
 
 // buildStruct just prints the typescript def for a type.
