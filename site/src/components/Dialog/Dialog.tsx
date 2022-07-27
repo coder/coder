@@ -2,7 +2,7 @@ import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dial
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import OutlinedInput, { OutlinedInputProps } from "@material-ui/core/OutlinedInput"
-import { darken, fade, makeStyles } from "@material-ui/core/styles"
+import { darken, lighten, fade, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
@@ -200,10 +200,10 @@ const useButtonStyles = makeStyles((theme) => ({
   },
   errorButton: {
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.error.main,
+      backgroundColor: lighten(theme.palette.error.dark, 0.15),
       color: theme.palette.error.contrastText,
       "&:hover": {
-        backgroundColor: darken(theme.palette.error.main, 0.3),
+        backgroundColor: theme.palette.error.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
