@@ -38,13 +38,12 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		if err != nil {
 			return xerrors.Errorf("create yamux: %w", err)
 		}
+		go func() {
+			<-ctx.Done()
+			_ = stdio.Close()
+		}()
 		options.Listener = stdio
 	}
-
-	go func() {
-		<-ctx.Done()
-		_ = options.Listener.Close()
-	}()
 
 	// dRPC is a drop-in replacement for gRPC with less generated code, and faster transports.
 	// See: https://www.storj.io/blog/introducing-drpc-our-replacement-for-grpc
