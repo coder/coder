@@ -58,7 +58,10 @@ func (e *Executor) Run() {
 			select {
 			case <-e.ctx.Done():
 				return
-			case t := <-e.tick:
+			case t, ok := <-e.tick:
+				if !ok {
+					return
+				}
 				stats := e.runOnce(t)
 				if stats.Error != nil {
 					e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
