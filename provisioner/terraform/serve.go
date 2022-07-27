@@ -16,9 +16,9 @@ import (
 
 // This is the exact version of Terraform used internally
 // when Terraform is missing on the system.
-var terraformVersion = version.Must(version.NewVersion("1.1.9"))
+var terraformVersion = version.Must(version.NewVersion("1.2.1"))
 var minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-var maxTerraformVersion = version.Must(version.NewVersion("1.2.0"))
+var maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
 
 var (
 	// The minimum version of Terraform supported by the provisioner.
