@@ -547,19 +547,18 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
+		resp := codersdk.Response{
+			Message: "Error updating workspace time until shutdown.",
+		}
 		var validErr codersdk.ValidationError
 		if errors.As(err, &validErr) {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message:     "Error updating workspace time until shutdown!",
-				Validations: []codersdk.ValidationError{validErr},
-			})
+			resp.Validations = []codersdk.ValidationError{validErr}
+			httpapi.Write(rw, http.StatusBadRequest, resp)
 			return
 		}
 
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error updating workspace time until shutdown!",
-			Detail:  err.Error(),
-		})
+		resp.Detail = err.Error()
+		httpapi.Write(rw, http.StatusInternalServerError, resp)
 		return
 	}
 
