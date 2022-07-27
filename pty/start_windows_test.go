@@ -29,13 +29,13 @@ func TestStart(t *testing.T) {
 	})
 	t.Run("Resize", func(t *testing.T) {
 		t.Parallel()
-		pty := ptytest.Start(t, exec.Command("cmd.exe"))
+		pty, _ := ptytest.Start(t, exec.Command("cmd.exe"))
 		err := pty.Resize(100, 50)
 		require.NoError(t, err)
 	})
 	t.Run("Kill", func(t *testing.T) {
 		t.Parallel()
-		pty := ptytest.Start(t, exec.Command("cmd.exe"))
+		pty, ps := ptytest.Start(t, exec.Command("cmd.exe"))
 		err := ps.Kill()
 		assert.NoError(t, err)
 		err = ps.Wait()
