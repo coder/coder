@@ -34,11 +34,29 @@
                 "key": "hello",
                 "sensitive": false,
                 "value": "world"
+              },
+              {
+                "key": "null",
+                "sensitive": false,
+                "value": null
+              },
+              {
+                "key": "empty",
+                "sensitive": false,
+                "value": ""
+              },
+              {
+                "key": "secret",
+                "sensitive": true,
+                "value": "squirrel"
               }
             ]
           },
           "sensitive_values": {
             "pair": [
+              {},
+              {},
+              {},
               {}
             ]
           }
@@ -104,19 +122,48 @@
               "key": "hello",
               "sensitive": false,
               "value": "world"
+            },
+            {
+              "key": "null",
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "key": "empty",
+              "sensitive": false,
+              "value": ""
+            },
+            {
+              "key": "secret",
+              "sensitive": true,
+              "value": "squirrel"
             }
           ]
         },
         "after_unknown": {
           "id": true,
           "pair": [
-            {}
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            },
+            {
+              "is_null": true
+            }
           ],
           "resource_id": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "pair": [
+            {},
+            {},
+            {},
             {}
           ]
         }
@@ -153,7 +200,8 @@
       },
       "null": {
         "name": "null",
-        "full_name": "registry.terraform.io/hashicorp/null"
+        "full_name": "registry.terraform.io/hashicorp/null",
+        "version_constraint": "~> 3.0.0"
       }
     },
     "root_module": {
@@ -188,6 +236,30 @@
                 },
                 "value": {
                   "constant_value": "world"
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "null"
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "empty"
+                },
+                "value": {
+                  "constant_value": ""
+                }
+              },
+              {
+                "key": {
+                  "constant_value": "secret"
+                },
+                "sensitive": {
+                  "constant_value": true
+                },
+                "value": {
+                  "constant_value": "squirrel"
                 }
               }
             ],

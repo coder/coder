@@ -106,6 +106,7 @@ message Resource {
         string key = 1;
         string value = 2;
         bool sensitive = 3;
+        bool is_null = 4;
     }
     repeated Metadata metadata = 4;
 }

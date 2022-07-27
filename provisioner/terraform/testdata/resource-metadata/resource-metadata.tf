@@ -20,4 +20,16 @@ resource "coder_metadata" "about_info" {
     key = "hello"
     value = "world"
   }
+  pair {
+    key = "null"
+  }
+  pair {
+    key = "empty"
+    value = ""
+  }
+  pair {
+    key = "secret"
+    value = "squirrel"
+    sensitive = true
+  }
 }

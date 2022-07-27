@@ -123,6 +123,15 @@ func TestConvertResources(t *testing.T) {
 			Metadata: []*proto.Resource_Metadata{{
 				Key:   "hello",
 				Value: "world",
+			}, {
+				Key:    "null",
+				IsNull: true,
+			}, {
+				Key: "empty",
+			}, {
+				Key:       "secret",
+				Value:     "squirrel",
+				Sensitive: true,
 			}},
 		}},
 	} {

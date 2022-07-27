@@ -16,11 +16,11 @@
             "auth": "token",
             "dir": null,
             "env": null,
-            "id": "37ab3278-a210-4f0c-a85a-ced1a544da44",
+            "id": "055cee57-5884-40ce-8dbb-0a1e271dbcd8",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "c479e351-417e-4f80-be53-3b72b9b3395f"
+            "token": "a4234680-9d5e-45a2-80b7-7abab72b50e1"
           },
           "sensitive_values": {}
         },
@@ -32,18 +32,40 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "id": "37a1baf8-e50a-43e9-a877-4bf8ebec7459",
+            "id": "2166fc0d-77b1-4e61-970d-cf51d3f081d0",
             "pair": [
               {
+                "is_null": false,
                 "key": "hello",
                 "sensitive": false,
                 "value": "world"
+              },
+              {
+                "is_null": true,
+                "key": "null",
+                "sensitive": false,
+                "value": ""
+              },
+              {
+                "is_null": false,
+                "key": "empty",
+                "sensitive": false,
+                "value": ""
+              },
+              {
+                "is_null": false,
+                "key": "secret",
+                "sensitive": true,
+                "value": "squirrel"
               }
             ],
-            "resource_id": "5021828316519403978"
+            "resource_id": "6544955863062406045"
           },
           "sensitive_values": {
             "pair": [
+              {},
+              {},
+              {},
               {}
             ]
           },
@@ -59,7 +81,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5021828316519403978",
+            "id": "6544955863062406045",
             "triggers": null
           },
           "sensitive_values": {}

@@ -43,6 +43,7 @@ type metadataItem struct {
 	Key       string `mapstructure:"key"`
 	Value     string `mapstructure:"value"`
 	Sensitive bool   `mapstructure:"sensitive"`
+	IsNull    bool   `mapstructure:"is_null"`
 }
 
 // ConvertResources consumes Terraform state and a GraphViz representation produced by
@@ -260,6 +261,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Key:       item.Key,
 					Value:     item.Value,
 					Sensitive: item.Sensitive,
+					IsNull:    item.IsNull,
 				})
 		}
 	}
