@@ -43,6 +43,11 @@ const (
 	ProtocolReconnectingPTY = "reconnecting-pty"
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
+
+	// MagicSessionErrorCode indicates that something went wrong with the session, rather than the
+	// command just returning a nonzero exit code, and is chosen as an arbitrary, high number
+	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
+	MagicSessionErrorCode = 229
 )
 
 type Options struct {
@@ -273,9 +278,17 @@ func (a *agent) init(ctx context.Context) {
 		},
 		Handler: func(session ssh.Session) {
 			err := a.handleSSHSession(session)
+			var exitError *exec.ExitError
+			if xerrors.As(err, &exitError) {
+				a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+				_ = session.Exit(exitError.ExitCode())
+				return
+			}
 			if err != nil {
 				a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
-				_ = session.Exit(1)
+				// This exit code is designed to be unlikely to be confused for a legit exit code
+				// from the process.
+				_ = session.Exit(MagicSessionErrorCode)
 				return
 			}
 		},
@@ -403,7 +416,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	return cmd, nil
 }
 
-func (a *agent) handleSSHSession(session ssh.Session) error {
+func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
@@ -426,14 +439,24 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		defer func() {
+			closeErr := ptty.Close()
+			if closeErr != nil {
+				a.logger.Warn(context.Background(), "failed to close tty",
+					slog.Error(closeErr))
+				if retErr == nil {
+					retErr = closeErr
+				}
+			}
+		}()
 		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
 		if err != nil {
 			return xerrors.Errorf("resize ptty: %w", err)
 		}
 		go func() {
 			for win := range windowSize {
-				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
-				if err != nil {
+				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
+				if resizeErr != nil {
 					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
 				}
 			}
@@ -444,9 +467,15 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		go func() {
 			_, _ = io.Copy(session, ptty.Output())
 		}()
-		_, _ = process.Wait()
-		_ = ptty.Close()
-		return nil
+		err = process.Wait()
+		var exitErr *exec.ExitError
+		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
+		// and not something to be concerned about.  But, if it's something else, we should log it.
+		if err != nil && !xerrors.As(err, &exitErr) {
+			a.logger.Warn(context.Background(), "wait error",
+				slog.Error(err))
+		}
+		return err
 	}
 
 	cmd.Stdout = session
@@ -549,7 +578,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		go func() {
 			// If the process dies randomly, we should
 			// close the pty.
-			_, _ = process.Wait()
+			_ = process.Wait()
 			rpty.Close()
 		}()
 		go func() {
