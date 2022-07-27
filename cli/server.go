@@ -481,6 +481,9 @@ func server() *cobra.Command {
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-devTunnelErr:
+				if exitErr == nil {
+					exitErr = xerrors.New("dev tunnel closed unexpectedly")
+				}
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
