@@ -4,20 +4,16 @@
  */
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { ApiError, FieldErrors, mapApiErrorToFieldErrors } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
-  errorSubmissionFailed: "Failed to update schedule",
-  errorWorkspaceFetch: "Failed to fetch workspace",
   successMessage: "Successfully updated workspace schedule.",
 }
 
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceScheduleContext {
-  formErrors?: FieldErrors
   getWorkspaceError?: Error | unknown
   /**
    * Each workspace has their own schedule (start and ttl). For this reason, we
@@ -29,6 +25,7 @@ export interface WorkspaceScheduleContext {
   userId?: string
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
+  submitScheduleError?: Error | unknown
 }
 
 export const checks = {
@@ -86,7 +83,7 @@ export const workspaceSchedule = createMachine(
           },
           onError: {
             target: "error",
-            actions: ["assignGetWorkspaceError", "displayWorkspaceError"],
+            actions: ["assignGetWorkspaceError"],
           },
         },
         tags: "loading",
@@ -125,7 +122,7 @@ export const workspaceSchedule = createMachine(
           },
           onError: {
             target: "presentForm",
-            actions: ["assignSubmissionError", "displaySubmissionError"],
+            actions: ["assignSubmissionError"],
           },
         },
         tags: "loading",
@@ -145,7 +142,7 @@ export const workspaceSchedule = createMachine(
   {
     actions: {
       assignSubmissionError: assign({
-        formErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+        submitScheduleError: (_, event) => event.data
       }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
@@ -170,12 +167,6 @@ export const workspaceSchedule = createMachine(
       clearGetWorkspaceError: (context) => {
         assign({ ...context, getWorkspaceError: undefined })
       },
-      displayWorkspaceError: () => {
-        displayError(Language.errorWorkspaceFetch)
-      },
-      displaySubmissionError: () => {
-        displayError(Language.errorSubmissionFailed)
-      },
       displaySuccess: () => {
         displaySuccess(Language.successMessage)
       },
@@ -197,7 +188,7 @@ export const workspaceSchedule = createMachine(
       submitSchedule: async (context, event) => {
         if (!context.workspace?.id) {
           // This state is theoretically impossible, but helps TS
-          throw new Error("failed to load workspace")
+          throw new Error("Failed to load workspace.")
         }
 
         // REMARK: These calls are purposefully synchronous because if one

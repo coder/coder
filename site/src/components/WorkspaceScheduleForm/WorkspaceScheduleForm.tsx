@@ -16,8 +16,7 @@ import utc from "dayjs/plugin/utc"
 import { useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { FieldErrors } from "../../api/errors"
-import { getFormHelpers } from "../../util/formUtils"
+import { getFormHelpersWithError } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -54,7 +53,7 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleFormProps {
-  fieldErrors?: FieldErrors
+  submitScheduleError?: Error | unknown
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
   onCancel: () => void
@@ -178,7 +177,7 @@ export const defaultWorkspaceSchedule = (
 })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
-  fieldErrors,
+  submitScheduleError,
   initialValues = defaultWorkspaceSchedule(),
   isLoading,
   onCancel,
@@ -191,7 +190,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     onSubmit,
     validationSchema,
   })
-  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, fieldErrors)
+  const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(form, submitScheduleError)
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
