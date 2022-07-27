@@ -191,7 +191,10 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     onSubmit,
     validationSchema,
   })
-  const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(form, submitScheduleError)
+  const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
+    form,
+    submitScheduleError,
+  )
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },

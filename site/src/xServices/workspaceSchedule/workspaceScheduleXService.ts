@@ -142,7 +142,7 @@ export const workspaceSchedule = createMachine(
   {
     actions: {
       assignSubmissionError: assign({
-        submitScheduleError: (_, event) => event.data
+        submitScheduleError: (_, event) => event.data,
       }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,

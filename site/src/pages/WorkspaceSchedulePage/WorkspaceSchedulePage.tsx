@@ -29,7 +29,7 @@ dayjs.extend(timezone)
 const Language = {
   forbiddenError: "You don't have permissions to update the schedule for this workspace.",
   getWorkspaceError: "Failed to fetch workspace.",
-  checkPermissionsError: "Failed to fetch permissions."
+  checkPermissionsError: "Failed to fetch permissions.",
 }
 
 export const formValuesToAutoStartRequest = (
@@ -185,7 +185,9 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <ErrorSummary
         error={getWorkspaceError || checkPermissionsError}
-        defaultMessage={getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError}
+        defaultMessage={
+          getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError
+        }
         retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
       />
     )
