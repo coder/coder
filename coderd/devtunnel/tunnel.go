@@ -108,7 +108,7 @@ allowed_ip=%s/128`,
 		return nil, nil, xerrors.Errorf("wireguard device listen: %w", err)
 	}
 
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	go func() {
 		select {
 		case <-ctx.Done():
