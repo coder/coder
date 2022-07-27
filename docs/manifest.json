@@ -32,7 +32,7 @@
           "title": "GitHub OAuth",
           "description": "Learn how to set up OAuth using your GitHub organization.",
           "path": "./install/oauth.md"
-        } 
+        }
       ]
     },
     {
@@ -84,6 +84,11 @@
           "title": "Configuring Web IDEs",
           "description": "Learn how to configure web IDEs in your templates",
           "path": "./ides/configuring-web-ides.md"
+        },
+        {
+          "title": "Configuring Emacs (with TRAMP)",
+          "description": "Learn how to configure Emacs in Coder",
+          "path": "./ides/configuring-emacs-tramp.md"
         }
       ]
     },
