@@ -207,7 +207,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be at least one minute")
+			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
 
 		t.Run("AboveMax", func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID: template.ID,
 				Name:       "testing",
-				TTLMillis:  ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+				TTLMillis:  ptr.Ref(template.MaxTTLMillis + time.Minute.Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -229,7 +229,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be less than 7 days")
+			require.Equal(t, "time until shutdown must be less than 7 days", apiErr.Validations[0].Detail)
 		})
 	})
 
@@ -934,7 +934,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:          "below minimum ttl",
 			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
-			expectedError: "ttl must be at least one minute",
+			expectedError: "time until shutdown must be at least one minute",
 		},
 		{
 			name:          "minimum ttl",
@@ -949,12 +949,12 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:          "above maximum ttl",
 			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
-			expectedError: "ttl must be less than 7 days",
+			expectedError: "time until shutdown must be less than 7 days",
 		},
 		{
 			name:           "above template maximum ttl",
 			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
-			expectedError:  "ttl_ms: ttl must be below template maximum 8h0m0s",
+			expectedError:  "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
 		},
 	}
