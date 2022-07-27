@@ -26,7 +26,7 @@ To fix this:
    ```bash
    hostname coder.<name>
    ```
-   This can also be done in the workspace Terraform template by setting workspace isntance's hostname to the data `coder_workspace.name` attribute. How this is done depends on how the instance is provisioned.
+   This can also be done in the workspace Terraform template by setting workspace instance's hostname to the data `coder_workspace.name` attribute. How this is done depends on how the instance is provisioned.
 3. Next in the shell profile file on the workspace (ex., `~/.bashrc`) add the following:
    ```bash
    ansi_term_announce_host() {
