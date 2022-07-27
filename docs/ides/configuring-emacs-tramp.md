@@ -22,10 +22,11 @@ To fix this:
    ```lisp
    (setq tramp-default-method "ssh")
    ```
-2. Be sure to set the hostname on the workspace to the `coder.<name>` format:
+2. Then on your Coder workspace instance be sure to set the hostname to the `coder.<name>` format:
    ```bash
    hostname coder.<name>
    ```
+   This can also be done in the workspace Terraform template by setting workspace isntance's hostname to the data `coder_workspace.name` attribute. How this is done depends on how the instance is provisioned.
 3. Next in the shell profile file on the workspace (ex., `~/.bashrc`) add the following:
    ```bash
    ansi_term_announce_host() {
@@ -52,4 +53,4 @@ To fix this:
 
    ansi_term_announce
    ```
-   Ansi Term expects the terminal running inside of it to send escape codes to inform Emacs of the hostname, user, and working directory. The above code sends these escape codes and associated data whenever the terminal logs in and whenever the directory changes.
+   Ansi Term expects the terminal running inside of it to send escape codes to inform Emacs of the hostname, user, and working directory. The above code sends these escape codes and associated data whenever the terminal logs in and whenever the directory changes. The expression in step 1 lets Emacs know that you are accessing the hostname these escape codes announce via SSH.
