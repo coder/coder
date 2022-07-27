@@ -41,6 +41,11 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		options.Listener = stdio
 	}
 
+	go func() {
+		<-ctx.Done()
+		_ = options.Listener.Close()
+	}()
+
 	// dRPC is a drop-in replacement for gRPC with less generated code, and faster transports.
 	// See: https://www.storj.io/blog/introducing-drpc-our-replacement-for-grpc
 	mux := drpcmux.New()
