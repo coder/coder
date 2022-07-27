@@ -9,7 +9,7 @@ import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 
-const Language = {
+export const Language = {
   retryMessage: "Retry",
   unknownErrorMessage: "An unknown error has occurred",
   moreDetails: "More",
@@ -91,7 +91,6 @@ interface StyleProps {
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     background: darken(theme.palette.error.main, 0.6),
-    margin: `${theme.spacing(2)}px`,
     padding: `${theme.spacing(2)}px`,
     borderRadius: theme.shape.borderRadius,
     gap: 0,

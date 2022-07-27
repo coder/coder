@@ -54,15 +54,27 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // its channel is closed.
 func (e *Executor) Run() {
 	go func() {
-		for t := range e.tick {
-			stats := e.runOnce(t)
-			if stats.Error != nil {
-				e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
+		for {
+			select {
+			case <-e.ctx.Done():
+				return
+			case t, ok := <-e.tick:
+				if !ok {
+					return
+				}
+				stats := e.runOnce(t)
+				if stats.Error != nil {
+					e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
+				}
+				if e.statsCh != nil {
+					select {
+					case <-e.ctx.Done():
+						return
+					case e.statsCh <- stats:
+					}
+				}
+				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
-			if e.statsCh != nil {
-				e.statsCh <- stats
-			}
-			e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 		}
 	}()
 }

@@ -1,4 +1,3 @@
-import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
@@ -49,8 +48,10 @@ type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown
+  // The getMethods API call does not return an ApiError.
+  // It can only error out in a generic fashion.
   getMethodsError?: Error | unknown
-  authError?: Error | AxiosError | unknown
+  authError?: Error | unknown
   updateProfileError?: Error | unknown
   updateSecurityError?: Error | unknown
   me?: TypesGen.User
@@ -194,12 +195,12 @@ export const authMachine =
           },
         },
         signingIn: {
+          entry: "clearAuthError",
           invoke: {
             src: "signIn",
             id: "signIn",
             onDone: [
               {
-                actions: "clearAuthError",
                 target: "gettingUser",
               },
             ],

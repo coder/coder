@@ -1,3 +1,4 @@
+import { hasApiFieldErrors, isApiError, mapApiErrorToFieldErrors } from "api/errors"
 import { FormikContextType, FormikErrors, getIn } from "formik"
 import { ChangeEvent, ChangeEventHandler, FocusEventHandler, ReactNode } from "react"
 import * as Yup from "yup"
@@ -44,6 +45,17 @@ export const getFormHelpers =
       helperText: touched ? error || HelperText : HelperText,
     }
   }
+
+export const getFormHelpersWithError = <T>(
+  form: FormikContextType<T>,
+  error?: Error | unknown,
+): ((name: keyof T, HelperText?: ReactNode) => FormHelpers) => {
+  const apiValidationErrors =
+    isApiError(error) && hasApiFieldErrors(error)
+      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
+      : undefined
+  return getFormHelpers(form, apiValidationErrors)
+}
 
 export const onChangeTrimmed =
   <T>(form: FormikContextType<T>) =>

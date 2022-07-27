@@ -6,7 +6,6 @@ export default {
   component: SignInForm,
   argTypes: {
     isLoading: "boolean",
-    authErrorMessage: "string",
     onSubmit: { action: "Submit" },
   },
 }
@@ -16,7 +15,7 @@ const Template: Story<SignInFormProps> = (args: SignInFormProps) => <SignInForm 
 export const SignedOut = Template.bind({})
 SignedOut.args = {
   isLoading: false,
-  authErrorMessage: undefined,
+  authError: undefined,
   onSubmit: () => {
     return Promise.resolve()
   },
@@ -33,12 +32,31 @@ Loading.args = {
 }
 
 export const WithLoginError = Template.bind({})
-WithLoginError.args = { ...SignedOut.args, authErrorMessage: "Email or password was invalid" }
+WithLoginError.args = {
+  ...SignedOut.args,
+  authError: {
+    response: {
+      data: {
+        message: "Email or password was invalid",
+        validations: [
+          {
+            field: "password",
+            detail: "Password is invalid.",
+          },
+        ],
+      },
+    },
+    isAxiosError: true,
+  },
+  initialTouched: {
+    password: true,
+  },
+}
 
 export const WithAuthMethodsError = Template.bind({})
 WithAuthMethodsError.args = {
   ...SignedOut.args,
-  methodsErrorMessage: "Failed to fetch auth methods",
+  methodsError: new Error("Failed to fetch auth methods"),
 }
 
 export const WithGithub = Template.bind({})

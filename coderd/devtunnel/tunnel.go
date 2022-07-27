@@ -79,7 +79,11 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	}
 	wgEndpoint := netip.AddrPortFrom(wgAddr, cfg.Tunnel.WireguardPort)
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelError, "devtunnel "))
+	dlog := &device.Logger{
+		Verbosef: slog.Stdlib(ctx, logger, slog.LevelDebug).Printf,
+		Errorf:   slog.Stdlib(ctx, logger, slog.LevelError).Printf,
+	}
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), dlog)
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
 endpoint=%s
@@ -104,7 +108,7 @@ allowed_ip=%s/128`,
 		return nil, nil, xerrors.Errorf("wireguard device listen: %w", err)
 	}
 
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	go func() {
 		select {
 		case <-ctx.Done():

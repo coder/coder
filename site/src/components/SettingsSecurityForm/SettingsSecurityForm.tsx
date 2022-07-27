@@ -1,9 +1,9 @@
-import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
@@ -40,33 +40,35 @@ const validationSchema = Yup.object({
     }),
 })
 
-export type SecurityFormErrors = FormikErrors<SecurityFormValues>
 export interface SecurityFormProps {
   isLoading: boolean
   initialValues: SecurityFormValues
   onSubmit: (values: SecurityFormValues) => void
-  formErrors?: SecurityFormErrors
-  error?: string
+  updateSecurityError?: Error | unknown
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<SecurityFormValues>
 }
 
 export const SecurityForm: React.FC<SecurityFormProps> = ({
   isLoading,
   onSubmit,
   initialValues,
-  formErrors = {},
-  error,
+  updateSecurityError,
+  initialTouched,
 }) => {
   const form: FormikContextType<SecurityFormValues> = useFormik<SecurityFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
+    initialTouched,
   })
-  const getFieldHelpers = getFormHelpers<SecurityFormValues>(form, formErrors)
+  const getFieldHelpers = getFormHelpersWithError<SecurityFormValues>(form, updateSecurityError)
 
   return (
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
+          {updateSecurityError && <ErrorSummary error={updateSecurityError} />}
           <TextField
             {...getFieldHelpers("old_password")}
             onChange={onChangeTrimmed(form)}
@@ -94,8 +96,6 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
             variant="outlined"
             type="password"
           />
-
-          {error && <FormHelperText error>{error}</FormHelperText>}
 
           <div>
             <LoadingButton loading={isLoading} type="submit" variant="contained">

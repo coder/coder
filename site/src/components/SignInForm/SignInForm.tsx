@@ -1,14 +1,15 @@
 import Button from "@material-ui/core/Button"
-import FormHelperText from "@material-ui/core/FormHelperText"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
-import { FormikContextType, useFormik } from "formik"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Stack } from "components/Stack/Stack"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
 import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 
@@ -39,17 +40,6 @@ const validationSchema = Yup.object({
 })
 
 const useStyles = makeStyles((theme) => ({
-  loginBtnWrapper: {
-    marginTop: theme.spacing(6),
-    borderTop: `1px solid ${theme.palette.action.disabled}`,
-    paddingTop: theme.spacing(3),
-  },
-  loginTextField: {
-    marginTop: theme.spacing(2),
-  },
-  submitBtn: {
-    marginTop: theme.spacing(2),
-  },
   buttonIcon: {
     width: 14,
     height: 14,
@@ -78,19 +68,22 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  authErrorMessage?: string
-  methodsErrorMessage?: string
+  authError?: Error | unknown
+  methodsError?: Error | unknown
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
 
 export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,
-  authErrorMessage,
-  methodsErrorMessage,
+  authError,
+  methodsError,
   onSubmit,
+  initialTouched,
 }) => {
   const styles = useStyles()
 
@@ -106,43 +99,46 @@ export const SignInForm: FC<SignInFormProps> = ({
     // field), or after a submission attempt.
     validateOnBlur: false,
     onSubmit,
+    initialTouched,
   })
-  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form)
+  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(form, authError)
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
-        <TextField
-          {...getFieldHelpers("email")}
-          onChange={onChangeTrimmed(form)}
-          autoFocus
-          autoComplete="email"
-          className={styles.loginTextField}
-          fullWidth
-          label={Language.emailLabel}
-          type="email"
-          variant="outlined"
-        />
-        <TextField
-          {...getFieldHelpers("password")}
-          autoComplete="current-password"
-          className={styles.loginTextField}
-          fullWidth
-          id="password"
-          label={Language.passwordLabel}
-          type="password"
-          variant="outlined"
-        />
-        {authErrorMessage && <FormHelperText error>{authErrorMessage}</FormHelperText>}
-        {methodsErrorMessage && (
-          <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>
-        )}
-        <div className={styles.submitBtn}>
-          <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
-            {isLoading ? "" : Language.passwordSignIn}
-          </LoadingButton>
-        </div>
+        <Stack>
+          {authError && (
+            <ErrorSummary error={authError} defaultMessage={Language.authErrorMessage} />
+          )}
+          {methodsError && (
+            <ErrorSummary error={methodsError} defaultMessage={Language.methodsErrorMessage} />
+          )}
+          <TextField
+            {...getFieldHelpers("email")}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            autoComplete="email"
+            fullWidth
+            label={Language.emailLabel}
+            type="email"
+            variant="outlined"
+          />
+          <TextField
+            {...getFieldHelpers("password")}
+            autoComplete="current-password"
+            fullWidth
+            id="password"
+            label={Language.passwordLabel}
+            type="password"
+            variant="outlined"
+          />
+          <div>
+            <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
+              {isLoading ? "" : Language.passwordSignIn}
+            </LoadingButton>
+          </div>
+        </Stack>
       </form>
       {authMethods?.github && (
         <>

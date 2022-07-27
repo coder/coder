@@ -3,7 +3,6 @@ import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { Helmet } from "react-helmet"
 import { Navigate, useLocation } from "react-router-dom"
-import { isApiError } from "../../api/errors"
 import { Footer } from "../../components/Footer/Footer"
 import { SignInForm } from "../../components/SignInForm/SignInForm"
 import { pageTitle } from "../../util/page"
@@ -36,12 +35,6 @@ export const LoginPage: React.FC = () => {
   const [authState, authSend] = useActor(xServices.authXService)
   const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
-  const authErrorMessage = isApiError(authState.context.authError)
-    ? authState.context.authError.response.data.message
-    : undefined
-  const getMethodsError = authState.context.getMethodsError
-    ? (authState.context.getMethodsError as Error).message
-    : undefined
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
     authSend({ type: "SIGN_IN", email, password })
@@ -61,8 +54,8 @@ export const LoginPage: React.FC = () => {
               authMethods={authState.context.methods}
               redirectTo={redirectTo}
               isLoading={isLoading}
-              authErrorMessage={authErrorMessage}
-              methodsErrorMessage={getMethodsError}
+              authError={authState.context.authError}
+              methodsError={authState.context.getMethodsError as Error}
               onSubmit={onSubmit}
             />
           </div>
