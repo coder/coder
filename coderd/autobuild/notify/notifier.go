@@ -77,7 +77,10 @@ func (n *Notifier) Poll(ticker <-chan time.Time) {
 		select {
 		case <-n.ctx.Done():
 			return
-		case t := <-ticker:
+		case t, ok := <-ticker:
+			if !ok {
+				return
+			}
 			n.pollOnce(t)
 		}
 	}
