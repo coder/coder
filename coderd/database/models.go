@@ -563,3 +563,10 @@ type WorkspaceResource struct {
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 }
+
+type WorkspaceResourceMetadatum struct {
+	WorkspaceResourceID uuid.UUID      `db:"workspace_resource_id" json:"workspace_resource_id"`
+	Key                 string         `db:"key" json:"key"`
+	Value               sql.NullString `db:"value" json:"value"`
+	Sensitive           bool           `db:"sensitive" json:"sensitive"`
+}
