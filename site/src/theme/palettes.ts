@@ -6,7 +6,7 @@ export const darkPalette: PaletteOptions = {
   primary: {
     main: colors.blue[7],
     contrastText: colors.gray[3],
-    light: colors.blue[5],
+    light: colors.blue[6],
     dark: colors.blue[9],
   },
   secondary: {
