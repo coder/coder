@@ -104,7 +104,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   detailsLink: {
     cursor: "pointer",
-    color: `${lighten(theme.palette.primary.light, 0.2)}`
+    color: `${lighten(theme.palette.primary.light, 0.2)}`,
   },
   details: {
     marginTop: `${theme.spacing(2)}px`,
