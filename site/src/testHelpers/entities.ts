@@ -1,3 +1,4 @@
+import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -584,3 +585,17 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
 export const MockCancellationMessage = {
   message: "Job successfully canceled",
 }
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const makeMockApiError = ({ message, detail, validations }: { message?: string, detail?: string, validations?: FieldError[] }) => (
+  {
+    response: {
+      data: {
+        message: message ?? "Something went wrong.",
+        detail: detail ?? undefined,
+        validations: validations ?? undefined,
+      },
+    },
+    isAxiosError: true,
+  }
+)

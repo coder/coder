@@ -14,7 +14,7 @@ import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import { useFormik } from "formik"
+import { FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError } from "../../util/formUtils"
@@ -59,6 +59,8 @@ export interface WorkspaceScheduleFormProps {
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
+  // for storybook
+  initialTouched?: FormikTouched<WorkspaceScheduleFormValues>
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -183,6 +185,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   isLoading,
   onCancel,
   onSubmit,
+  initialTouched
 }) => {
   const styles = useStyles()
 
@@ -190,6 +193,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     initialValues,
     onSubmit,
     validationSchema,
+    initialTouched
   })
   const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
     form,

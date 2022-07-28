@@ -1,9 +1,9 @@
-import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
+import { makeMockApiError } from "testHelpers/entities"
 import {
   defaultWorkspaceSchedule,
   WorkspaceScheduleForm,
@@ -17,6 +17,14 @@ dayjs.extend(timezone)
 export default {
   title: "components/WorkspaceScheduleForm",
   component: WorkspaceScheduleForm,
+  argTypes: {
+    onCancel: {
+      action: "onCancel"
+    },
+    onSubmit: {
+      action: "onSubmit"
+    }
+  }
 }
 
 const Template: Story<WorkspaceScheduleFormProps> = (args) => <WorkspaceScheduleForm {...args} />
@@ -27,8 +35,6 @@ WorkspaceWillNotShutDown.args = {
     ...defaultWorkspaceSchedule(5),
     ttl: 0,
   },
-  onCancel: () => action("onCancel"),
-  onSubmit: () => action("onSubmit"),
 }
 
 export const WorkspaceWillShutdownInAnHour = Template.bind({})
@@ -37,8 +43,6 @@ WorkspaceWillShutdownInAnHour.args = {
     ...defaultWorkspaceSchedule(5),
     ttl: 1,
   },
-  onCancel: () => action("onCancel"),
-  onSubmit: () => action("onSubmit"),
 }
 
 export const WorkspaceWillShutdownInTwoHours = Template.bind({})
@@ -47,8 +51,6 @@ WorkspaceWillShutdownInTwoHours.args = {
     ...defaultWorkspaceSchedule(2),
     ttl: 2,
   },
-  onCancel: () => action("onCancel"),
-  onSubmit: () => action("onSubmit"),
 }
 
 export const WorkspaceWillShutdownInADay = Template.bind({})
@@ -57,8 +59,6 @@ WorkspaceWillShutdownInADay.args = {
     ...defaultWorkspaceSchedule(2),
     ttl: 24,
   },
-  onCancel: () => action("onCancel"),
-  onSubmit: () => action("onSubmit"),
 }
 
 export const WorkspaceWillShutdownInTwoDays = Template.bind({})
@@ -67,6 +67,13 @@ WorkspaceWillShutdownInTwoDays.args = {
     ...defaultWorkspaceSchedule(2),
     ttl: 48,
   },
-  onCancel: () => action("onCancel"),
-  onSubmit: () => action("onSubmit"),
+}
+
+export const WithError = Template.bind({})
+WithError.args = {
+  initialTouched: { ttl: true },
+  submitScheduleError: makeMockApiError({
+    message: "Something went wrong.",
+    validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }]
+  })
 }
