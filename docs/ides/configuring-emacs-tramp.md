@@ -10,7 +10,18 @@ coder config-ssh
 
 Then you can connect to your workspace by its name in the format: `coder.<name>`.
 
-In Emacs type `C-x d` and then input: `/ssh:coder.<name>:` and hit enter. This will open up Dired on the workspace's home directory.
+In Emacs type `C-x d` and then input: `/-:coder.<name>:` and hit enter. This will open up Dired on the workspace's home directory.
+
+### Using SSH
+By default Emacs TRAMP is setup to use SCP to access files on the Coder workspace instance. However you might want to use SSH if you have a jumpbox or some other complex network setup.
+
+To do so set the following in your Emacs `init.el` file:
+
+```lisp
+(setq tramp-default-method "ssh")
+```
+
+Then when you access the workspace instance via `/-:coder.<name>` Emacs will use SSH. Setting `tramp-default-method` will also tell `ansi-term` mode the correct way to access the remote when directory tracking.
 
 ## Directory Tracking
 ### `ansi-term`
@@ -18,19 +29,23 @@ If you run your terminal in Emacs via `ansi-term` then you might run into a prob
 
 To fix this:
 
-1. In your Emacs `init.el` file add:
-   ```lisp
-   (setq tramp-default-method "ssh")
+1. In your workspace Terraform template be sure to add the following:
+   ```hcl
+   data "coder_workspace" "me" {
+   }
+
+   resource "coder_agent" "main" {
+     # ...
+     env {
+       name = "CODER_WORKSPACE_NAME"
+       value = data.coder_workspace.me.name
+     }
+   }
    ```
-2. Then on your Coder workspace instance be sure to set the hostname to the `coder.<name>` format:
-   ```bash
-   hostname coder.<name>
-   ```
-   This can also be done in the workspace Terraform template by setting workspace instance's hostname to the data `coder_workspace.name` attribute. How this is done depends on how the instance is provisioned.
-3. Next in the shell profile file on the workspace (ex., `~/.bashrc`) add the following:
+2. Next in the shell profile file on the workspace (ex., `~/.bashrc` for Bash and `~/.zshrc` for Zsh) add the following:
    ```bash
    ansi_term_announce_host() {
-       printf '\033AnSiTh %s\n' "$(hostname)"
+       printf '\033AnSiTh %s\n' "coder.$CODER_WORKSPACE_NAME"
    }
 
    ansi_term_announce_user() {
@@ -53,4 +68,7 @@ To fix this:
 
    ansi_term_announce
    ```
-   Ansi Term expects the terminal running inside of it to send escape codes to inform Emacs of the hostname, user, and working directory. The above code sends these escape codes and associated data whenever the terminal logs in and whenever the directory changes. The expression in step 1 lets Emacs know that you are accessing the hostname these escape codes announce via SSH.
+   Ansi Term expects the terminal running inside of it to send escape codes to inform Emacs of the hostname, user, and working directory. The above code sends these escape codes and associated data whenever the terminal logs in and whenever the directory changes.
+
+### `eshell`
+The `eshell` mode will perform directory tracking by default, no additional configuration is needed.
