@@ -1,4 +1,5 @@
 import { Story } from "@storybook/react"
+import { makeMockApiError } from "testHelpers/entities"
 import { LoginErrors, SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
@@ -35,20 +36,15 @@ export const WithLoginError = Template.bind({})
 WithLoginError.args = {
   ...SignedOut.args,
   loginErrors: {
-    [LoginErrors.AUTH_ERROR]: {
-      response: {
-        data: {
-          message: "Email or password was invalid",
-          validations: [
-            {
-              field: "password",
-              detail: "Password is invalid.",
-            },
-          ],
+    [LoginErrors.AUTH_ERROR]: makeMockApiError({
+      message: "Email or password was invalid",
+      validations: [
+        {
+          field: "password",
+          detail: "Password is invalid.",
         },
-      },
-      isAxiosError: true,
-    },
+      ],
+    }),
   },
   initialTouched: {
     password: true,
@@ -59,15 +55,10 @@ export const WithCheckPermissionsError = Template.bind({})
 WithCheckPermissionsError.args = {
   ...SignedOut.args,
   loginErrors: {
-    [LoginErrors.CHECK_PERMISSIONS_ERROR]: {
-      response: {
-        data: {
-          message: "Unable to fetch user permissions",
-          detail: "Resource not found or you do not have access to this resource.",
-        },
-      },
-      isAxiosError: true,
-    },
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: makeMockApiError({
+      message: "Unable to fetch user permissions",
+      detail: "Resource not found or you do not have access to this resource.",
+    }),
   },
 }
 
