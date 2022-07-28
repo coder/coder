@@ -107,8 +107,9 @@ sudo systemctl restart coder.service
 
 ## Kubernetes via Helm
 
-Before proceeding, please ensure that you have both Helm and the [latest version
-of Coder](https://github.com/coder/coder/releases) installed.
+Before proceeding, please ensure that you have both Helm 3.5+ and the
+[latest version of Coder](https://github.com/coder/coder/releases) installed.
+You will also need to have a Kubernetes cluster running K8s 1.19+.
 
 > See our [Helm README](https://github.com/coder/coder/blob/main/helm#readme)
 > file for additional information.
