@@ -101,5 +101,5 @@ Calling the `lsp-register-client` function will tell `lsp-mode` the name of the 
 
 The `connection-local-set-profile-variables` function creates a new connection profile by the name `remote-path-lsp-servers`. The `connection-local-set-profiles` then indicates this `remote-path-lsp-servers` connection profile should be used when connecting to a server named `coder.<WORKSPACE NAME>`. Be sure to replace `<PATH TO ADD>` with the directory in which a LSP server is present.
 
-More details on configuring `lsp-mode` for TRAMP can be found [on the `lsp-mode` documentation](https://emacs-lsp.github.io/lsp-mode/page/remote/).
-The [TRAMP `tramp-remote-path` documentation](https://www.gnu.org/software/emacs/manual/html_node/tramp/Remote-programs.html#Remote-programs) contains more examples and details of connection profiles).
+More details on configuring `lsp-mode` for TRAMP can be found [in the `lsp-mode` documentation](https://emacs-lsp.github.io/lsp-mode/page/remote/).
+The [TRAMP `tramp-remote-path` documentation](https://www.gnu.org/software/emacs/manual/html_node/tramp/Remote-programs.html#Remote-programs) contains more examples and details of connection profiles.
