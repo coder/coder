@@ -38,6 +38,10 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		if err != nil {
 			return xerrors.Errorf("create yamux: %w", err)
 		}
+		go func() {
+			<-ctx.Done()
+			_ = stdio.Close()
+		}()
 		options.Listener = stdio
 	}
 

@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import Collapse from "@material-ui/core/Collapse"
 import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
-import { darken, makeStyles, Theme } from "@material-ui/core/styles"
+import { darken, lighten, makeStyles, Theme } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
@@ -103,6 +103,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   detailsLink: {
     cursor: "pointer",
+    color: `${lighten(theme.palette.primary.light, 0.2)}`,
   },
   details: {
     marginTop: `${theme.spacing(2)}px`,
