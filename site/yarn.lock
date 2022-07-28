@@ -3729,14 +3729,14 @@
   resolved "https://registry.yarnpkg.com/@xmldom/xmldom/-/xmldom-0.7.5.tgz#09fa51e356d07d0be200642b0e4f91d8e6dd408d"
   integrity sha512-V3BIhmY36fXZ1OtVcI9W+FxQqxVLsPKcNjWigIaa81dLC9IolJl5Mt4Cvhmr0flUnjSpTdrbMTSbXqYqV5dT6A==
 
-"@xstate/cli@0.2.1":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.2.1.tgz#78655907813992237ee6d1030ea48c43083b7410"
-  integrity sha512-DNX3webiPGinEJd50uB6j41q5NAOqoMHUIC1fsCaTL+JAWe+gvOT69MievNRJ0c56s/49Vf3bCGrCdHXt/5pGg==
+"@xstate/cli@0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.3.0.tgz#810faa6319fa11811310b1defdd021c4cda2ec26"
+  integrity sha512-Vb47MUhPuoVuRvBLdAmmRl6vc1ELRCSL1OeUQqmHk/GsCdMi+A9hLRzfJW16/k4WhNze8lb4VMbJJzzJp0Y7tg==
   dependencies:
     "@babel/core" "^7.12.10"
     "@xstate/machine-extractor" "0.7.0"
-    "@xstate/tools-shared" "1.1.7"
+    "@xstate/tools-shared" "1.2.0"
     chokidar "^3.5.3"
     commander "^8.0.0"
     xstate "^4.29.0"
@@ -3761,10 +3761,10 @@
     use-isomorphic-layout-effect "^1.0.0"
     use-sync-external-store "^1.0.0"
 
-"@xstate/tools-shared@1.1.7":
-  version "1.1.7"
-  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.1.7.tgz#91c10fc4966c2258c10608aea279ecb8dd17a7f2"
-  integrity sha512-q+GzSHfhx9ld0UK9rqYz/QI+rE6oEP3M9FI5ybmXKOMZ6739YKzdY3iQAfYfLZP8/Y6xdfvcpSmOzfFQvjnpcw==
+"@xstate/tools-shared@1.2.0":
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.2.0.tgz#3ee4a0e684497d37dffd197e551c3488f080357a"
+  integrity sha512-qRy6ABjkgXFYkxHNc1GEFdGjAZWhUnud5zoICYgvieH8g/rOft+neRyaQadIdEjhTmzhSl5fsqFRWAj5pWGSsw==
   dependencies:
     "@xstate/machine-extractor" "0.7.0"
 
