@@ -587,15 +587,21 @@ export const MockCancellationMessage = {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const makeMockApiError = ({ message, detail, validations }: { message?: string, detail?: string, validations?: FieldError[] }) => (
-  {
-    response: {
-      data: {
-        message: message ?? "Something went wrong.",
-        detail: detail ?? undefined,
-        validations: validations ?? undefined,
-      },
+export const makeMockApiError = ({
+  message,
+  detail,
+  validations,
+}: {
+  message?: string
+  detail?: string
+  validations?: FieldError[]
+}) => ({
+  response: {
+    data: {
+      message: message ?? "Something went wrong.",
+      detail: detail ?? undefined,
+      validations: validations ?? undefined,
     },
-    isAxiosError: true,
-  }
-)
+  },
+  isAxiosError: true,
+})

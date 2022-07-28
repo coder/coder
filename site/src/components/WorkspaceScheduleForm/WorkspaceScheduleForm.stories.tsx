@@ -19,12 +19,12 @@ export default {
   component: WorkspaceScheduleForm,
   argTypes: {
     onCancel: {
-      action: "onCancel"
+      action: "onCancel",
     },
     onSubmit: {
-      action: "onSubmit"
-    }
-  }
+      action: "onSubmit",
+    },
+  },
 }
 
 const Template: Story<WorkspaceScheduleFormProps> = (args) => <WorkspaceScheduleForm {...args} />
@@ -74,6 +74,6 @@ WithError.args = {
   initialTouched: { ttl: true },
   submitScheduleError: makeMockApiError({
     message: "Something went wrong.",
-    validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }]
-  })
+    validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }],
+  }),
 }

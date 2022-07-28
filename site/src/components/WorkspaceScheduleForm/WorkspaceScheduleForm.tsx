@@ -185,7 +185,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   isLoading,
   onCancel,
   onSubmit,
-  initialTouched
+  initialTouched,
 }) => {
   const styles = useStyles()
 
@@ -193,7 +193,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     initialValues,
     onSubmit,
     validationSchema,
-    initialTouched
+    initialTouched,
   })
   const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
     form,
