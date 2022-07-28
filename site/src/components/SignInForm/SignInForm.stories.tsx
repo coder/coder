@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { SignInForm, SignInFormProps } from "./SignInForm"
+import { LoginErrors, SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
   title: "components/SignInForm",
@@ -35,7 +35,7 @@ export const WithLoginError = Template.bind({})
 WithLoginError.args = {
   ...SignedOut.args,
   loginErrors: {
-    authError: {
+    [LoginErrors.AUTH_ERROR]: {
       response: {
         data: {
           message: "Email or password was invalid",
@@ -55,27 +55,11 @@ WithLoginError.args = {
   },
 }
 
-export const WithGetUserError = Template.bind({})
-WithGetUserError.args = {
-  ...SignedOut.args,
-  loginErrors: {
-    getUserError: {
-      response: {
-        data: {
-          message: "Unable to fetch user details",
-          detail: "Resource not found or you do not have access to this resource.",
-        },
-      },
-      isAxiosError: true,
-    },
-  },
-}
-
 export const WithCheckPermissionsError = Template.bind({})
 WithCheckPermissionsError.args = {
   ...SignedOut.args,
   loginErrors: {
-    checkPermissionsError: {
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: {
       response: {
         data: {
           message: "Unable to fetch user permissions",
@@ -91,24 +75,7 @@ export const WithAuthMethodsError = Template.bind({})
 WithAuthMethodsError.args = {
   ...SignedOut.args,
   loginErrors: {
-    getMethodsError: new Error("Failed to fetch auth methods"),
-  },
-}
-
-export const WithGetUserAndAuthMethodsErrors = Template.bind({})
-WithGetUserAndAuthMethodsErrors.args = {
-  ...SignedOut.args,
-  loginErrors: {
-    getUserError: {
-      response: {
-        data: {
-          message: "Unable to fetch user details",
-          detail: "Resource not found or you do not have access to this resource.",
-        },
-      },
-      isAxiosError: true,
-    },
-    getMethodsError: new Error("Failed to fetch auth methods"),
+    [LoginErrors.GET_METHODS_ERROR]: new Error("Failed to fetch auth methods"),
   },
 }
 

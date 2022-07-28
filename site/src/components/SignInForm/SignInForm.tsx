@@ -25,7 +25,6 @@ interface BuiltInAuthFormValues {
 
 export enum LoginErrors {
   AUTH_ERROR = "authError",
-  GET_USER_ERROR = "getUserError",
   CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
   GET_METHODS_ERROR = "getMethodsError",
 }
@@ -37,7 +36,6 @@ export const Language = {
   emailRequired: "Please enter an email address.",
   errorMessages: {
     [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
-    [LoginErrors.GET_USER_ERROR]: "Unable to fetch user details.",
     [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
     [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
   },
@@ -79,7 +77,7 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  loginErrors: Record<LoginErrors, Error | unknown>
+  loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
   // initialTouched is only used for testing the error state of the form.
