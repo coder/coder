@@ -6,7 +6,7 @@ export const Language = {
   },
 }
 
-interface FieldError {
+export interface FieldError {
   field: string
   detail: string
 }

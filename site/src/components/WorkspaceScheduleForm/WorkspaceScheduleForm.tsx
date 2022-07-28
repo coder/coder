@@ -7,17 +7,17 @@ import FormLabel from "@material-ui/core/FormLabel"
 import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import { useFormik } from "formik"
+import { FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { FieldErrors } from "../../api/errors"
-import { getFormHelpers } from "../../util/formUtils"
+import { getFormHelpersWithError } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -54,11 +54,13 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleFormProps {
-  fieldErrors?: FieldErrors
+  submitScheduleError?: Error | unknown
   initialValues?: WorkspaceScheduleFormValues
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
+  // for storybook
+  initialTouched?: FormikTouched<WorkspaceScheduleFormValues>
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -178,11 +180,12 @@ export const defaultWorkspaceSchedule = (
 })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
-  fieldErrors,
+  submitScheduleError,
   initialValues = defaultWorkspaceSchedule(),
   isLoading,
   onCancel,
   onSubmit,
+  initialTouched,
 }) => {
   const styles = useStyles()
 
@@ -190,8 +193,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     initialValues,
     onSubmit,
     validationSchema,
+    initialTouched,
   })
-  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, fieldErrors)
+  const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
+    form,
+    submitScheduleError,
+  )
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
@@ -207,6 +214,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <FullPageForm onCancel={onCancel} title="Workspace schedule">
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
+          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
             disabled={isLoading}
@@ -262,7 +270,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           </FormControl>
 
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl))}
+            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
             disabled={isLoading}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
