@@ -30,7 +30,7 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: Language.authErrorMessage }))
+        return res(ctx.status(500), ctx.json({ message: Language.errorMessages.authError }))
       }),
     )
 
@@ -45,7 +45,7 @@ describe("LoginPage", () => {
     act(() => signInButton.click())
 
     // Then
-    const errorMessage = await screen.findByText(Language.authErrorMessage)
+    const errorMessage = await screen.findByText(Language.errorMessages.authError)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })

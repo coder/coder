@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"fmt"
 	"net"
 
 	"golang.org/x/xerrors"
@@ -31,6 +32,12 @@ type ValidationError struct {
 	Field  string `json:"field" validate:"required"`
 	Detail string `json:"detail" validate:"required"`
 }
+
+func (e ValidationError) Error() string {
+	return fmt.Sprintf("field: %s detail: %s", e.Field, e.Detail)
+}
+
+var _ error = (*ValidationError)(nil)
 
 // IsConnectionErr is a convenience function for checking if the source of an
 // error is due to a 'connection refused', 'no such host', etc.
