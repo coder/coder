@@ -19,7 +19,6 @@ coder:
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
   # for information about what environment variables can be set.
-  #
   # Note: The following environment variables are set by default and cannot be
   # overridden:
   # - CODER_ADDRESS: set to 0.0.0.0:80 and cannot be changed.
