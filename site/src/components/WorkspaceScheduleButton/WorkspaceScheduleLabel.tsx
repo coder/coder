@@ -14,18 +14,16 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
     // If it is shutting down, we don't need to display the auto stop label
     return (
       <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-        {shouldDisplayStrongLabel && (
-          <strong className={styles.labelStrong}>{Language.autoStopLabel}</strong>
-        )}
-        {stopLabel}
+        {shouldDisplayStrongLabel && <strong>{Language.autoStopLabel}</strong>}{" "}
+        <span className={styles.value}>{stopLabel}</span>
       </span>
     )
   }
 
   return (
     <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-      <strong className={styles.labelStrong}>{Language.autoStartLabel}</strong>
-      {autoStartDisplay(workspace.autostart_schedule)}
+      <strong>{Language.autoStartLabel}</strong>{" "}
+      <span className={styles.value}>{autoStartDisplay(workspace.autostart_schedule)}</span>
     </span>
   )
 }
@@ -33,13 +31,17 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
 const useStyles = makeStyles((theme) => ({
   labelText: {
     marginRight: theme.spacing(2),
+    lineHeight: "160%",
 
     [theme.breakpoints.down("sm")]: {
       marginRight: 0,
+      width: "100%",
     },
   },
 
-  labelStrong: {
-    marginRight: theme.spacing(0.5),
+  value: {
+    [theme.breakpoints.down("sm")]: {
+      whiteSpace: "nowrap",
+    },
   },
 }))

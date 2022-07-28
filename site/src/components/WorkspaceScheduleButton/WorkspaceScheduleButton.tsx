@@ -154,12 +154,15 @@ const useStyles = makeStyles((theme) => ({
       width: "100%",
       display: "flex",
       alignItems: "center",
-      padding: theme.spacing(1, 2),
+      padding: theme.spacing(1.5, 2),
     },
   },
   actions: {
     [theme.breakpoints.down("sm")]: {
       marginLeft: "auto",
+      display: "flex",
+      paddingLeft: theme.spacing(1),
+      marginRight: -theme.spacing(1),
     },
   },
   scheduleButton: {
