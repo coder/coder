@@ -90,7 +90,7 @@ CannotEdit.args = {
 
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
-   ...WorkspaceOffShort.args,
+  ...WorkspaceOffShort.args,
 }
 SmallViewport.parameters = {
   chromatic: { viewports: [320] },
