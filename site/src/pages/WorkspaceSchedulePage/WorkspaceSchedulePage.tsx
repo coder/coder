@@ -28,6 +28,8 @@ dayjs.extend(timezone)
 
 const Language = {
   forbiddenError: "You don't have permissions to update the schedule for this workspace.",
+  getWorkspaceError: "Failed to fetch workspace.",
+  checkPermissionsError: "Failed to fetch permissions.",
 }
 
 export const formValuesToAutoStartRequest = (
@@ -156,7 +158,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
       userId: me?.id,
     },
   })
-  const { checkPermissionsError, formErrors, getWorkspaceError, permissions, workspace } =
+  const { checkPermissionsError, submitScheduleError, getWorkspaceError, permissions, workspace } =
     scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
@@ -183,6 +185,9 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <ErrorSummary
         error={getWorkspaceError || checkPermissionsError}
+        defaultMessage={
+          getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError
+        }
         retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
       />
     )
@@ -195,7 +200,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
-        fieldErrors={formErrors}
+        submitScheduleError={submitScheduleError}
         initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
