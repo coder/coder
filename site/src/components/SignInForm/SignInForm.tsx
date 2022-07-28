@@ -23,13 +23,22 @@ interface BuiltInAuthFormValues {
   password: string
 }
 
+export enum LoginErrors {
+  AUTH_ERROR = "authError",
+  CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
+  GET_METHODS_ERROR = "getMethodsError",
+}
+
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  authErrorMessage: "Incorrect email or password.",
-  methodsErrorMessage: "Unable to fetch auth methods.",
+  errorMessages: {
+    [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
+    [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
+  },
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
 }
@@ -68,8 +77,7 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  authError?: Error | unknown
-  methodsError?: Error | unknown
+  loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
   // initialTouched is only used for testing the error state of the form.
@@ -80,8 +88,7 @@ export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,
-  authError,
-  methodsError,
+  loginErrors,
   onSubmit,
   initialTouched,
 }) => {
@@ -101,18 +108,24 @@ export const SignInForm: FC<SignInFormProps> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(form, authError)
+  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(
+    form,
+    loginErrors.authError,
+  )
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {authError && (
-            <ErrorSummary error={authError} defaultMessage={Language.authErrorMessage} />
-          )}
-          {methodsError && (
-            <ErrorSummary error={methodsError} defaultMessage={Language.methodsErrorMessage} />
+          {Object.keys(loginErrors).map((errorKey: string) =>
+            loginErrors[errorKey as LoginErrors] ? (
+              <ErrorSummary
+                key={errorKey}
+                error={loginErrors[errorKey as LoginErrors]}
+                defaultMessage={Language.errorMessages[errorKey as LoginErrors]}
+              />
+            ) : null,
           )}
           <TextField
             {...getFieldHelpers("email")}
