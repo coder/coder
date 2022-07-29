@@ -33,6 +33,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
@@ -257,7 +258,7 @@ func TestAgent(t *testing.T) {
 			}
 			gotContent = string(content)
 			return true
-		}, 15*time.Second, 100*time.Millisecond)
+		}, testutil.WaitMedium, testutil.IntervalMedium)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
