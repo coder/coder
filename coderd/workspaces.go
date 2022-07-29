@@ -638,7 +638,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
 			code = http.StatusBadRequest
-			resp.Message = err.Error()
+			resp.Message = "Cannot extend workspace: " + err.Error()
 			return err
 		}
 
