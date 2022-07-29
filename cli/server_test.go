@@ -91,7 +91,11 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		_ = waitAccessURL(t, cfg)
+		//nolint:gocritic // Embedded postgres take a while to fire up.
+		require.Eventually(t, func() bool {
+			rawURL, err := cfg.URL().Read()
+			return err == nil && rawURL != ""
+		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
@@ -355,7 +359,7 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	require.Eventually(t, func() bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitMedium, testutil.IntervalFast, "failed to get access URL")
+	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
 
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err, "failed to parse access URL")
