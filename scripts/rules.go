@@ -86,8 +86,6 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 // to tweak them based on platform (important to avoid CI flakes).
 //nolint:unused,deadcode,varnamelen
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
-	// m.Import("testing")
-	// m.Import("context")
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
 	m.Import("github.com/coder/coder/internal/testutil")
