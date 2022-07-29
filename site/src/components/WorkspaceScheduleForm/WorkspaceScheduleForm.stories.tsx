@@ -77,3 +77,6 @@ WithError.args = {
     validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }],
   }),
 }
+
+export const Loading = Template.bind({})
+Loading.args = { isLoading: true }
