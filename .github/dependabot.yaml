@@ -35,8 +35,10 @@ updates:
       prefix: "chore"
     labels: []
     ignore:
-      update-types:
-      - version-update:semver-patch
+      # Ignore patch updates for all dependencies
+      - dependency-name: "*"
+        update-types:
+        - version-update:semver-patch
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -48,12 +50,15 @@ updates:
       prefix: "chore"
     labels: []
     ignore:
+      # Ignore patch updates for all dependencies
+      - dependency-name: "*"
+        update-types:
+        - version-update:semver-patch
       # Ignore major updates to Node.js types, because they need to
       # correspond to the Node.js engine version
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-          - version-update:semver-patch
 
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
