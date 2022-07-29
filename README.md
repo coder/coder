@@ -1,12 +1,10 @@
 # Coder
 
-[!["GitHub
-Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions)
 [!["Join us on
-Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache=true&logo=discord&colorB=purple)](https://discord.gg/coder)
+Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache=true&logo=discord&colorB=green)](https://discord.gg/coder)
+[![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 [![Twitter
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
-[![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
 Coder creates remote development machines so your team can develop from anywhere.
 
@@ -31,7 +29,7 @@ Coder creates remote development machines so your team can develop from anywhere
 ## Getting Started
 
 > **Note**:
-> Coder is in an alpha state. [Report issues here](https://github.com/coder/coder/issues/new).
+> Coder is in a beta state. [Report issues here](https://github.com/coder/coder/issues/new).
 
 The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS.
 
