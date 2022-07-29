@@ -35,7 +35,7 @@ import (
 const workspaceDefaultTTL = 2 * time.Hour
 
 var (
-	ttlMin = time.Minute
+	ttlMin = time.Minute //nolint:time-naming // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
 
 	errTTLMin                  = xerrors.New("time until shutdown must be at least one minute")
