@@ -1063,14 +1063,15 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineTooSoon,
 	})
-	require.ErrorContains(t, err, "new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
+	require.ErrorContains(t, err, "unexpected status code 400: new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
 	// And with a deadline greater than the template max_ttl should also fail
 	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineExceedsMaxTTL,
 	})
-	require.ErrorContains(t, err, "new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
+
+	require.ErrorContains(t, err, "unexpected status code 400: new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
 
 	// Updating with a deadline 30 minutes in the future should succeed
 	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)

@@ -634,9 +634,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		newDeadline := req.Deadline.UTC()
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
+			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
+			// Normally, we would put the validation error in Validations, but this endpoint is
+			// not tied to a form or specific named user input on the FE.
 			code = http.StatusBadRequest
-			resp.Message = "Bad extend workspace request."
-			resp.Validations = append(resp.Validations, codersdk.ValidationError{Field: "deadline", Detail: err.Error()})
+			resp.Message = err.Error()
 			return err
 		}
 
