@@ -213,7 +213,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		_, err = client.HasFirstUser(ctx)
+		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
 		cancelFunc()
