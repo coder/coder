@@ -51,6 +51,17 @@ WithLoginError.args = {
   },
 }
 
+export const WithGetUserError = Template.bind({})
+WithGetUserError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.GET_USER_ERROR]: makeMockApiError({
+      message: "You are logged out. Please log in to continue.",
+      detail: "API Key is invalid.",
+    }),
+  },
+}
+
 export const WithCheckPermissionsError = Template.bind({})
 WithCheckPermissionsError.args = {
   ...SignedOut.args,
@@ -66,6 +77,18 @@ export const WithAuthMethodsError = Template.bind({})
 WithAuthMethodsError.args = {
   ...SignedOut.args,
   loginErrors: {
+    [LoginErrors.GET_METHODS_ERROR]: new Error("Failed to fetch auth methods"),
+  },
+}
+
+export const WithGetUserAndAuthMethodsError = Template.bind({})
+WithGetUserAndAuthMethodsError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.GET_USER_ERROR]: makeMockApiError({
+      message: "You are logged out. Please log in to continue.",
+      detail: "API Key is invalid.",
+    }),
     [LoginErrors.GET_METHODS_ERROR]: new Error("Failed to fetch auth methods"),
   },
 }
