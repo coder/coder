@@ -86,7 +86,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
 	var buffer bytes.Buffer
