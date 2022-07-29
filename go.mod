@@ -52,6 +52,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
+	github.com/coreos/go-oidc/v3 v3.2.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
 	github.com/elastic/go-sysinfo v1.8.1
@@ -135,7 +136,10 @@ require (
 	tailscale.com v1.26.2
 )
 
-require github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+require (
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+)
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

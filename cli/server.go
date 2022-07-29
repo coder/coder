@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
@@ -84,6 +85,12 @@ func server() *cobra.Command {
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowedTeams         []string
 		oauth2GithubAllowSignups         bool
+		oidcAllowSignups                 bool
+		oidcClientID                     string
+		oidcClientSecret                 string
+		oidcEmailDomain                  string
+		oidcIssuerURL                    string
+		oidcScopes                       []string
 		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
@@ -279,6 +286,32 @@ func server() *cobra.Command {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
+				}
+			}
+
+			if oidcClientSecret != "" {
+				oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
+				if err != nil {
+					return xerrors.Errorf("configure oidc provider: %w", err)
+				}
+				redirectURL, err := accessURLParsed.Parse("/api/v2/users/oidc/callback")
+				if err != nil {
+					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+				}
+				options.OIDCConfig = &coderd.OIDCConfig{
+					OAuth2Config: &oauth2.Config{
+						ClientID:     oidcClientID,
+						ClientSecret: oidcClientSecret,
+						RedirectURL:  redirectURL.String(),
+						Endpoint:     oidcProvider.Endpoint(),
+						Scopes:       oidcScopes,
+					},
+					Provider: oidcProvider,
+					Verifier: oidcProvider.Verifier(&oidc.Config{
+						ClientID: oidcClientID,
+					}),
+					EmailDomain:  oidcEmailDomain,
+					AllowSignups: oidcAllowSignups,
 				}
 			}
 
@@ -636,6 +669,18 @@ func server() *cobra.Command {
 		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
+	cliflag.BoolVarP(root.Flags(), &oidcAllowSignups, "oidc-allow-signups", "", "CODER_OIDC_ALLOW_SIGNUPS", true,
+		"Specifies whether new users can sign up with OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientID, "oidc-client-id", "", "CODER_OIDC_CLIENT_ID", "",
+		"Specifies a client ID to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientSecret, "oidc-client-secret", "", "CODER_OIDC_CLIENT_SECRET", "",
+		"Specifies a client secret to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcEmailDomain, "oidc-email-domain", "", "CODER_OIDC_EMAIL_DOMAIN", "",
+		"Specifies an email domain that clients authenticating with OIDC must match.")
+	cliflag.StringVarP(root.Flags(), &oidcIssuerURL, "oidc-issuer-url", "", "CODER_OIDC_ISSUER_URL", "",
+		"Specifies an issuer URL to use for OIDC.")
+	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
+		"Specifies scopes to grant when authenticating with OIDC.")
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")

@@ -101,6 +101,7 @@ type LoginType string
 const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
+	LoginTypeOIDC     LoginType = "oidc"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
