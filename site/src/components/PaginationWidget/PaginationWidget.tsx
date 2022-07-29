@@ -1,11 +1,10 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createMuiTheme"
 import KeyboardArrowLeft from "@material-ui/icons/KeyboardArrowLeft"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import { CSSProperties } from "react"
 
-type PaginatedWidgetProps = {
+export type PaginationWidgetProps = {
   prevLabel: string
   nextLabel: string
   onPrevClick: () => void
@@ -45,24 +44,13 @@ export const PaginationWidget = ({
   numRecordsPerPage = DEFAULT_RECORDS_PER_PAGE,
   activePage = 1,
   containerStyle,
-}: PaginatedWidgetProps): JSX.Element | null => {
+}: PaginationWidgetProps): JSX.Element | null => {
   const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = activePage === 1 && numPages !== 0
   const lastPageActive = activePage === numPages && numPages !== 0
 
-  const styles = useStyles({ isActive: true })
+  const styles = useStyles()
 
-  console.log("activePage", activePage)
-
-  console.log("firstPageActive", firstPageActive, lastPageActive)
-
-  /**
-   * A paged list will be constructed and can appear as some permutation of the following:
-   * [1, 2, 3, 4, 5]
-   * [1, 2, 3, 4, 5, 'right']
-   * ['left', 6, 7, 8, 9]
-   * [1, 2, 'left', 6, 7, 8, 'right', 18]
-   */
   const buildPagedList = () => {
     if (numPages > NUM_PAGE_BLOCKS) {
       let pages = []
@@ -103,24 +91,23 @@ export const PaginationWidget = ({
 
   return (
     <div style={containerStyle} className={styles.defaultContainerStyles}>
-      <Button aria-label="Previous page" disabled={firstPageActive} onClick={onPrevClick}>
+      <Button
+        className={styles.prevLabelStyles}
+        aria-label="Previous page"
+        disabled={firstPageActive}
+        onClick={onPrevClick}
+      >
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
       </Button>
       {numPages > 0 &&
         buildPagedList().map((page) =>
           typeof page !== "number" ? (
-            <Button
-              style={{ marginLeft: "4px" }} // easiest to use inline-style here because of first-of-type constraints
-              className={styles.pageButton}
-              key={`Page${page}`}
-              disabled
-            >
+            <Button className={styles.pageButton} key={`Page${page}`} disabled>
               <div>...</div>
             </Button>
           ) : (
             <Button
-              style={{ marginLeft: "4px" }} // easiest to use inline-style here because of first-of-type constraints
               className={
                 activePage === page
                   ? `${styles.pageButton} ${styles.activePageButton}`
@@ -145,11 +132,7 @@ export const PaginationWidget = ({
   )
 }
 
-type StyleProps = {
-  isActive?: boolean
-}
-
-const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
+const useStyles = makeStyles((theme) => ({
   defaultContainerStyles: {
     justifyContent: "center",
     alignItems: "center",
@@ -158,29 +141,18 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     padding: "20px",
   },
 
-  //   previousLabelText: {
-  //     color: ({ firstPageActive }) => {
-  //       return firstPageActive ? theme.palette.secondary.contrastText : theme.palette.text.primary
-  //     },
-  //   },
-  //
-  //   nextLabelText: {
-  //     color: ({ lastPageActive }) => {
-  //       return lastPageActive ? theme.palette.secondary.contrastText : theme.palette.text.primary
-  //     },
-  //   },
+  prevLabelStyles: {
+    marginRight: `${theme.spacing(0.5)}px`,
+  },
 
   pageButton: {
-    height: `${theme.spacing(3)}`,
-    width: `${theme.spacing(3)}`,
-
     "&:not(:last-of-type)": {
       marginRight: theme.spacing(0.5),
     },
   },
 
   activePageButton: {
-    borderColor: `${theme.palette.success.main}`,
-    backgroundColor: `${theme.palette.success.dark}`,
+    borderColor: `${theme.palette.info.main}`,
+    backgroundColor: `${theme.palette.info.dark}`,
   },
 }))

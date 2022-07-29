@@ -1,6 +1,5 @@
 import Link from "@material-ui/core/Link"
-import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
-import { FC, useState } from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
 import {
@@ -40,22 +39,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
   ]
-
-  const [activePage, setActivePage] = useState(1)
-
-  return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
-      <PaginationWidget
-        prevLabel="Previous"
-        nextLabel="Next"
-        onPrevClick={() => setActivePage(activePage - 1)}
-        onNextClick={() => setActivePage(activePage + 1)}
-        numRecordsPerPage={15}
-        numRecords={400}
-        activePage={activePage}
-      />
-    </div>
-  )
 
   return (
     <Margins>
