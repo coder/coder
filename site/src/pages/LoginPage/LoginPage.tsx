@@ -40,7 +40,7 @@ export const LoginPage: React.FC = () => {
   const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
   const locationState = location.state ? (location.state as LocationState) : null
-  const isRedirected = locationState !== null ? locationState.isRedirect : false
+  const isRedirected = locationState ? locationState.isRedirect : false
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
     authSend({ type: "SIGN_IN", email, password })
