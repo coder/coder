@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty"
 )
 
@@ -85,7 +86,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	var buffer bytes.Buffer

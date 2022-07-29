@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
@@ -179,7 +180,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
-		AgentInactiveDisconnectTimeout: 5 * time.Second,
+		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
@@ -412,7 +413,7 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return templateVersion
 }
 
@@ -426,7 +427,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
 }
 
@@ -450,7 +451,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 15*time.Second, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	return resources
 }
 
