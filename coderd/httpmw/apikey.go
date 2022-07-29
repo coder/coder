@@ -51,7 +51,7 @@ type OAuth2Configs struct {
 	Github OAuth2Config
 }
 
-const signedOutErrorMessage string = "You are signed out. Please sign in to continue."
+const signedOutErrorMessage string = "You are signed out or your session has expired. Please sign in again to continue."
 
 // ExtractAPIKey requires authentication using a valid API key.
 // It handles extending an API key if it comes close to expiry,
