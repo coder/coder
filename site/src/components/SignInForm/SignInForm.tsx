@@ -25,6 +25,7 @@ interface BuiltInAuthFormValues {
 
 export enum LoginErrors {
   AUTH_ERROR = "authError",
+  GET_USER_ERROR = "getUserError",
   CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
   GET_METHODS_ERROR = "getMethodsError",
 }
@@ -36,6 +37,7 @@ export const Language = {
   emailRequired: "Please enter an email address.",
   errorMessages: {
     [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
+    [LoginErrors.GET_USER_ERROR]: "Failed to fetch user details.",
     [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
     [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
   },

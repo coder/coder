@@ -51,6 +51,11 @@ type OAuth2Configs struct {
 	Github OAuth2Config
 }
 
+const (
+	signedOutErrorMessage string = "You are signed out or your session has expired. Please sign in again to continue."
+	internalErrorMessage  string = "An internal error occurred. Please try again or contact the system administrator."
+)
+
 // ExtractAPIKey requires authentication using a valid API key.
 // It handles extending an API key if it comes close to expiry,
 // updating the last used time in the database.
@@ -83,7 +88,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 			if cookieValue == "" {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -91,7 +97,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key format.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key format.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -100,13 +107,15 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key id.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key id.", codersdk.SessionTokenKey),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key secret.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key secret.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -114,13 +123,14 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					write(http.StatusUnauthorized, codersdk.Response{
-						Message: "API key is invalid.",
+						Message: signedOutErrorMessage,
+						Detail:  "API key is invalid.",
 					})
 					return
 				}
 				write(http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching API key by id.",
-					Detail:  err.Error(),
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
 				})
 				return
 			}
@@ -129,7 +139,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Checking to see if the secret is valid.
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashed[:]) != 1 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: "API key secret is invalid.",
+					Message: signedOutErrorMessage,
+					Detail:  "API key secret is invalid.",
 				})
 				return
 			}
@@ -146,7 +157,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 						oauthConfig = oauth.Github
 					default:
 						write(http.StatusInternalServerError, codersdk.Response{
-							Message: fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
+							Message: internalErrorMessage,
+							Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
 						})
 						return
 					}
@@ -174,7 +186,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Checking if the key is expired.
 			if key.ExpiresAt.Before(now) {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
 				})
 				return
 			}
@@ -216,7 +229,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 				})
 				if err != nil {
 					write(http.StatusInternalServerError, codersdk.Response{
-						Message: fmt.Sprintf("API key couldn't update: %s.", err.Error()),
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
 					})
 					return
 				}
@@ -228,8 +242,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			roles, err := db.GetAuthorizationUserRoles(r.Context(), key.UserID)
 			if err != nil {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Internal error fetching user's roles.",
-					Detail:  err.Error(),
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
 				})
 				return
 			}
