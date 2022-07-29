@@ -355,7 +355,7 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	require.Eventually(t, func() bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
+	}, testutil.WaitMedium, testutil.IntervalFast, "failed to get access URL")
 
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err, "failed to parse access URL")
