@@ -6,8 +6,10 @@ import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
 import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
+import Switch from "@material-ui/core/Switch"
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Section } from "components/Section/Section"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -215,6 +217,11 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
+          <Section title="Start">
+          <FormControlLabel
+            control={<Switch />}
+            label="Auto-start"
+          />
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
             disabled={isLoading}
@@ -268,7 +275,13 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
             {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
           </FormControl>
+          </Section>
 
+          <Section title="Stop">
+          <FormControlLabel
+          control={<Switch />}
+          label="Auto-Stop"
+           />
           <TextField
             {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
             disabled={isLoading}
@@ -276,6 +289,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             label={Language.ttlLabel}
             type="number"
           />
+          </Section>
 
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
