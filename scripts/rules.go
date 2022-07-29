@@ -81,6 +81,45 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
 
+// useStandardTimeoutsAndDelaysInTests ensures all tests use common
+// constants for timeouts and delays in usual scenarios, this allows us
+// to tweak them based on platform (important to avoid CI flakes).
+//nolint:unused,deadcode,varnamelen
+func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
+	// m.Import("testing")
+	// m.Import("context")
+	m.Import("github.com/stretchr/testify/require")
+	m.Import("github.com/stretchr/testify/assert")
+	m.Import("github.com/coder/coder/internal/testutil")
+
+	m.Match(`context.WithTimeout($ctx, $duration)`).
+		Where(m.File().Imports("testing") && !m["duration"].Text.Matches("^testutil\\.")).
+		At(m["duration"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
+
+	m.Match(`
+		$testify.$Eventually($t, func() bool {
+			$*_
+		}, $timeout, $interval, $*_)
+	`).
+		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
+			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
+			!m["timeout"].Text.Matches("^testutil\\.")).
+		At(m["timeout"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
+
+	m.Match(`
+		$testify.$Eventually($t, func() bool {
+			$*_
+		}, $timeout, $interval, $*_)
+	`).
+		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
+			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
+			!m["interval"].Text.Matches("^testutil\\.")).
+		At(m["interval"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
+}
+
 // InTx checks to ensure the database used inside the transaction closure is the transaction
 // database, and not the original database that creates the tx.
 func InTx(m dsl.Matcher) {
