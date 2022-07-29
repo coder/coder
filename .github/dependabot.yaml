@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     labels: []
@@ -28,17 +28,20 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
     labels: []
+    ignore:
+      update-types:
+      - version-update:semver-patch
 
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
@@ -50,11 +53,12 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+          - version-update:semver-patch
 
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
