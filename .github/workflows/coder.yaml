@@ -67,7 +67,6 @@ jobs:
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
-    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -83,7 +82,6 @@ jobs:
     name: style/lint/shellcheck
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    needs: changes
     steps:
       - uses: actions/checkout@v3
       - name: Run ShellCheck
