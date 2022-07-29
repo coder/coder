@@ -9,8 +9,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import {
-  defaultWorkspaceSchedule,
-  defaultWorkspaceScheduleTTL,
+  emptyWorkspaceSchedule,
   WorkspaceScheduleForm,
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
@@ -111,10 +110,10 @@ export const workspaceToInitialValues = (
   const schedule = workspace.autostart_schedule
   const ttlHours = workspace.ttl_ms
     ? Math.round(workspace.ttl_ms / (1000 * 60 * 60))
-    : defaultWorkspaceScheduleTTL
+    : 0
 
   if (!schedule) {
-    return defaultWorkspaceSchedule(ttlHours, defaultTimeZone)
+    return emptyWorkspaceSchedule(ttlHours, defaultTimeZone)
   }
 
   const timezone = extractTimezone(schedule, defaultTimeZone)

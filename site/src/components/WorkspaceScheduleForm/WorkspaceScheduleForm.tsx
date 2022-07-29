@@ -164,6 +164,23 @@ export const validationSchema = Yup.object({
 
 export const defaultWorkspaceScheduleTTL = 8
 
+export const emptyWorkspaceSchedule = (
+  ttl = 0,
+  timezone = dayjs.tz.guess(),
+): WorkspaceScheduleFormValues => ({
+  sunday: false,
+  monday: false,
+  tuesday: false,
+  wednesday: false,
+  thursday: false,
+  friday: false,
+  saturday: false,
+
+  startTime: "",
+  timezone,
+  ttl,
+})
+
 export const defaultWorkspaceSchedule = (
   ttl = defaultWorkspaceScheduleTTL,
   timezone = dayjs.tz.guess(),

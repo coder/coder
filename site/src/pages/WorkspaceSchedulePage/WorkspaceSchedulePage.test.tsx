@@ -166,15 +166,15 @@ describe("WorkspaceSchedulePage", () => {
         },
         {
           sunday: false,
-          monday: true,
-          tuesday: true,
-          wednesday: true,
-          thursday: true,
-          friday: true,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
           saturday: false,
-          startTime: "09:30",
+          startTime: "",
           timezone: "",
-          ttl: 8,
+          ttl: 0,
         },
       ],
 
@@ -187,6 +187,27 @@ describe("WorkspaceSchedulePage", () => {
         },
         {
           sunday: false,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
+          saturday: false,
+          startTime: "",
+          timezone: "",
+          ttl: 2,
+        },
+      ],
+
+      // start schedule only
+      [
+        {
+          ...Mocks.MockWorkspace,
+          autostart_schedule: "CRON_TZ=UTC 30 9 * * 1-5",
+          ttl_ms: undefined,
+        },
+        {
+          sunday: false,
           monday: true,
           tuesday: true,
           wednesday: true,
@@ -194,8 +215,8 @@ describe("WorkspaceSchedulePage", () => {
           friday: true,
           saturday: false,
           startTime: "09:30",
-          timezone: "",
-          ttl: 2,
+          timezone: "UTC",
+          ttl: 0,
         },
       ],
 
