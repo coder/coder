@@ -34,6 +34,43 @@ const PAGES_TO_DISPLAY = PAGE_NEIGHBORS * 2 + 3
 // This gives us maximum number of 7 page blocks to be displayed when the page neighbors value is 1.
 const NUM_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2
 
+/**
+ * Builds a list of pages based on how many pages exist and where the user is in their navigation of those pages.
+ * List result is used to from the buttons that make up the Pagination Widget
+ */
+export const buildPagedList = (numPages: number, activePage: number): (string | number)[] => {
+  if (numPages > NUM_PAGE_BLOCKS) {
+    let pages = []
+    const leftBound = activePage - PAGE_NEIGHBORS
+    const rightBound = activePage + PAGE_NEIGHBORS
+    const beforeLastPage = numPages - 1
+    const startPage = leftBound > 2 ? leftBound : 2
+    const endPage = rightBound < beforeLastPage ? rightBound : beforeLastPage
+
+    pages = range(startPage, endPage)
+
+    const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1
+    const hasLeftOverflow = startPage > 2
+    const hasRightOverflow = endPage < beforeLastPage
+    const leftOverflowPage = "left"
+    const rightOverflowPage = "right"
+
+    if (hasLeftOverflow && !hasRightOverflow) {
+      const extraPages = range(startPage - singleSpillOffset, startPage - 1)
+      pages = [leftOverflowPage, ...extraPages, ...pages]
+    } else if (!hasLeftOverflow && hasRightOverflow) {
+      const extraPages = range(endPage + 1, endPage + singleSpillOffset)
+      pages = [...pages, ...extraPages, rightOverflowPage]
+    } else if (hasLeftOverflow && hasRightOverflow) {
+      pages = [leftOverflowPage, ...pages, rightOverflowPage]
+    }
+
+    return [1, ...pages, numPages]
+  }
+
+  return range(1, numPages)
+}
+
 export const PaginationWidget = ({
   prevLabel,
   nextLabel,
@@ -50,39 +87,6 @@ export const PaginationWidget = ({
   const lastPageActive = activePage === numPages && numPages !== 0
 
   const styles = useStyles()
-
-  const buildPagedList = () => {
-    if (numPages > NUM_PAGE_BLOCKS) {
-      let pages = []
-      const leftBound = activePage - PAGE_NEIGHBORS
-      const rightBound = activePage + PAGE_NEIGHBORS
-      const beforeLastPage = numPages - 1
-      const startPage = leftBound > 2 ? leftBound : 2
-      const endPage = rightBound < beforeLastPage ? rightBound : beforeLastPage
-
-      pages = range(startPage, endPage)
-
-      const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1
-      const hasLeftOverflow = startPage > 2
-      const hasRightOverflow = endPage < beforeLastPage
-      const leftOverflowPage = "left"
-      const rightOverflowPage = "right"
-
-      if (hasLeftOverflow && !hasRightOverflow) {
-        const extraPages = range(startPage - singleSpillOffset, startPage - 1)
-        pages = [leftOverflowPage, ...extraPages, ...pages]
-      } else if (!hasLeftOverflow && hasRightOverflow) {
-        const extraPages = range(endPage + 1, endPage + singleSpillOffset)
-        pages = [...pages, ...extraPages, rightOverflowPage]
-      } else if (hasLeftOverflow && hasRightOverflow) {
-        pages = [leftOverflowPage, ...pages, rightOverflowPage]
-      }
-
-      return [1, ...pages, numPages]
-    }
-
-    return range(1, numPages)
-  }
 
   // No need to display any pagination if we know the number of pages is 1
   if (numPages === 1) {
@@ -101,7 +105,7 @@ export const PaginationWidget = ({
         <div>{prevLabel}</div>
       </Button>
       {numPages > 0 &&
-        buildPagedList().map((page) =>
+        buildPagedList(numPages, activePage).map((page) =>
           typeof page !== "number" ? (
             <Button className={styles.pageButton} key={`Page${page}`} disabled>
               <div>...</div>
