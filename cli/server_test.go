@@ -348,15 +348,17 @@ func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
 }
 
 func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
+	t.Helper()
+
 	var err error
 	var rawURL string
 	require.Eventually(t, func() bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
 
 	accessURL, err := url.Parse(rawURL)
-	require.NoError(t, err)
+	require.NoError(t, err, "failed to parse access URL")
 
 	return accessURL
 }
