@@ -26,9 +26,11 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -56,13 +58,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		var rawURL string
-		require.Eventually(t, func() bool {
-			rawURL, err = cfg.URL().Read()
-			return err == nil && rawURL != ""
-		}, time.Minute, 50*time.Millisecond)
-		accessURL, err := url.Parse(rawURL)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
@@ -95,10 +91,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		require.Eventually(t, func() bool {
-			accessURLRaw, err := cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 3*time.Minute, 250*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
@@ -133,11 +126,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
@@ -213,14 +202,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Verify HTTPS
-		var accessURLRaw string
-		require.Eventually(t, func() bool {
-			var err error
-			accessURLRaw, err = cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 15*time.Second, 25*time.Millisecond)
-		accessURL, err := url.Parse(accessURLRaw)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
 		client := codersdk.New(accessURL)
 		client.HTTPClient = &http.Client{
@@ -258,11 +240,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			serverErr <- root.ExecuteContext(ctx)
 		}()
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 		currentProcess, err := os.FindProcess(os.Getpid())
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
@@ -367,4 +345,18 @@ func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
 	err = pem.Encode(keyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyBytes})
 	require.NoError(t, err)
 	return certFile.Name(), keyFile.Name()
+}
+
+func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
+	var err error
+	var rawURL string
+	require.Eventually(t, func() bool {
+		rawURL, err = cfg.URL().Read()
+		return err == nil && rawURL != ""
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	accessURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return accessURL
 }

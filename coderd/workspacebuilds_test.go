@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -222,7 +223,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	err := client.CancelWorkspaceBuild(context.Background(), build.ID)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
@@ -233,7 +234,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			// provision complete response.
 			assert.Empty(t, build.Job.Error) &&
 			build.Job.Status == codersdk.ProvisionerJobCanceling
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestWorkspaceBuildResources(t *testing.T) {

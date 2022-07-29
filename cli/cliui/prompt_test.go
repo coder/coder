@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 )
@@ -193,7 +194,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && !echo
-	}, 5*time.Second, 50*time.Millisecond, "echo is on while reading password")
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
@@ -203,7 +204,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && echo
-	}, 5*time.Second, 50*time.Millisecond, "echo is off after reading password")
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
 
 // nolint:unused

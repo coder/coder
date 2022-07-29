@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -120,7 +121,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		err = client.CancelTemplateVersion(context.Background(), version.ID)
@@ -131,7 +132,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
 			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 	// TODO(Cian): until we are able to test cancellation properly, validating
 	// Running -> Canceling is the best we can do for now.
@@ -155,7 +156,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
@@ -166,7 +167,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 				// provision complete response.
 				assert.Empty(t, version.Job.Error) &&
 				version.Job.Status == codersdk.ProvisionerJobCanceling
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -541,7 +542,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Eventually(t, func() bool {
 			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
 			return assert.NoError(t, err) && job.Status == codersdk.ProvisionerJobSucceeded
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		<-logsDone
 
@@ -618,7 +619,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobPending
-			}, 5*time.Second, 25*time.Millisecond)
+			}, testutil.WaitShort, testutil.IntervalFast)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			require.NoError(t, err)
@@ -631,7 +632,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobCanceling
-			}, 5*time.Second, 25*time.Millisecond)
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 
 		t.Run("AlreadyCompleted", func(t *testing.T) {
@@ -655,7 +656,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobSucceeded
-			}, 5*time.Second, 25*time.Millisecond)
+			}, testutil.WaitShort, testutil.IntervalFast)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			var apiErr *codersdk.Error

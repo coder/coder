@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -157,7 +158,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.Eventually(t, func() bool {
 		provisionerds, err := client.ProvisionerDaemons(ctx)
 		return assert.NoError(t, err) && len(provisionerds) > 0
-	}, time.Second*10, time.Second)
+	}, testutil.WaitLong, testutil.IntervalSlow)
 
 	provisionerds, err := client.ProvisionerDaemons(ctx)
 	require.NoError(t, err, "fetch provisioners")

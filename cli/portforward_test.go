@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -170,7 +171,7 @@ func TestPortForward(t *testing.T) {
 
 				// Open two connections simultaneously and test them out of
 				// sync.
-				d := net.Dialer{Timeout: 3 * time.Second}
+				d := net.Dialer{Timeout: testutil.WaitShort}
 				c1, err := d.DialContext(ctx, c.network, localAddress)
 				require.NoError(t, err, "open connection 1 to 'local' listener")
 				defer c1.Close()
@@ -216,7 +217,7 @@ func TestPortForward(t *testing.T) {
 
 				// Open a connection to both listener 1 and 2 simultaneously and
 				// then test them out of order.
-				d := net.Dialer{Timeout: 3 * time.Second}
+				d := net.Dialer{Timeout: testutil.WaitShort}
 				c1, err := d.DialContext(ctx, c.network, localAddress1)
 				require.NoError(t, err, "open connection 1 to 'local' listener 1")
 				defer c1.Close()
@@ -269,7 +270,7 @@ func TestPortForward(t *testing.T) {
 
 		// Open two connections simultaneously and test them out of
 		// sync.
-		d := net.Dialer{Timeout: 3 * time.Second}
+		d := net.Dialer{Timeout: testutil.WaitShort}
 		c1, err := d.DialContext(ctx, tcpCase.network, localAddress)
 		require.NoError(t, err, "open connection 1 to 'local' listener")
 		defer c1.Close()
@@ -329,7 +330,7 @@ func TestPortForward(t *testing.T) {
 
 		// Open connections to all items in the "dial" array.
 		var (
-			d     = net.Dialer{Timeout: 3 * time.Second}
+			d     = net.Dialer{Timeout: testutil.WaitShort}
 			conns = make([]net.Conn, len(dials))
 		)
 		for i, a := range dials {
@@ -488,7 +489,7 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {
 	t.Helper()
 	for i := 0; i < 100; i++ {
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(testutil.IntervalMedium)
 
 		data := output.String()
 		if strings.Contains(data, "Ready!") {

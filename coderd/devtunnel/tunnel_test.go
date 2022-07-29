@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/internal/testutil"
 )
 
 const (
@@ -85,15 +86,15 @@ func TestTunnel(t *testing.T) {
 		_, _ = io.Copy(io.Discard, res.Body)
 
 		return res.StatusCode == http.StatusAccepted
-	}, time.Minute, time.Second)
+	}, testutil.WaitShort, testutil.IntervalSlow)
 
 	assert.NoError(t, server.Close())
 	cancelTun()
 
 	select {
 	case <-errCh:
-	case <-time.After(10 * time.Second):
-		t.Error("tunnel did not close after 10 seconds")
+	case <-time.After(testutil.WaitLong):
+		t.Errorf("tunnel did not close after %s", testutil.WaitLong)
 	}
 }
 
@@ -226,7 +227,7 @@ func (f *fakeTunnelServer) requestHTTP() (*http.Response, error) {
 	}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   10 * time.Second,
+		Timeout:   testutil.WaitLong,
 	}
 	return client.Get(fmt.Sprintf("http://[%s]:8090", clientIP))
 }

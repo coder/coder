@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/agent/reaper"
+	"github.com/coder/coder/internal/testutil"
 )
 
 func TestReap(t *testing.T) {
@@ -52,10 +53,9 @@ func TestReap(t *testing.T) {
 
 		expectedPIDs := []int{cmd.Process.Pid, cmd2.Process.Pid}
 
-		deadline := time.NewTimer(time.Second * 5)
 		for i := 0; i < len(expectedPIDs); i++ {
 			select {
-			case <-deadline.C:
+			case <-time.After(testutil.WaitShort):
 				t.Fatalf("Timed out waiting for process")
 			case pid := <-pids:
 				require.Contains(t, expectedPIDs, pid)

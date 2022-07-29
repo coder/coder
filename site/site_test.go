@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/site"
 )
 
@@ -48,7 +49,7 @@ func TestCaching(t *testing.T) {
 	defer srv.Close()
 
 	// Create a context
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
 	testCases := []struct {
@@ -337,7 +338,7 @@ func TestServingBin(t *testing.T) {
 			defer srv.Close()
 
 			// Create a context
-			ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancelFunc()
 
 			for _, tr := range tt.reqs {
