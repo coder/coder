@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +61,7 @@ func TestPrompt(t *testing.T) {
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
-		dataRead, doneReading := context.WithTimeout(context.Background(), time.Second*2)
+		dataRead, doneReading := context.WithTimeout(context.Background(), testutil.WaitShort)
 		go func() {
 			// This will throw an error sometimes. The underlying ptty
 			// has its own cleanup routines in t.Cleanup. Instead of
