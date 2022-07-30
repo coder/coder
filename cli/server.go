@@ -217,8 +217,13 @@ func server() *cobra.Command {
 				accessURL = devTunnel.URL
 			}
 
+			accessURLParsed, err := parseURL(ctx, accessURL)
+			if err != nil {
+				return xerrors.Errorf("parse URL: %w", err)
+			}
+
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, accessURL)
+			isLocal, err := isLocalURL(ctx, accessURLParsed)
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
@@ -227,12 +232,8 @@ func server() *cobra.Command {
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
 				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
-			cmd.Printf("View the Web UI: %s\n", accessURL)
 
-			accessURLParsed, err := url.Parse(accessURL)
-			if err != nil {
-				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
-			}
+			cmd.Printf("View the Web UI: %s\n", accessURLParsed.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -324,7 +325,7 @@ func server() *cobra.Command {
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := url.Parse(telemetryURL)
+			telemetryURL, err := parseURL(ctx, telemetryURL)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
@@ -440,7 +441,7 @@ func server() *cobra.Command {
 			if !hasFirstUser && err == nil {
 				cmd.Println()
 				cmd.Println("Get started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURL))
+				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
 			}
 
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
@@ -670,6 +671,54 @@ func server() *cobra.Command {
 	_ = root.Flags().MarkHidden("spooky")
 
 	return root
+}
+
+// parseURL parses a string into a URL. It works around some technically correct
+// but undesired behavior of url.Parse by prepending a scheme if one does not
+// exist so that the URL does not get parsed improprely.
+func parseURL(ctx context.Context, u string) (*url.URL, error) {
+	var (
+		hasScheme = strings.HasPrefix(u, "http") || strings.HasPrefix(u, "https")
+	)
+
+	if !hasScheme {
+		// Append a scheme if it doesn't have one. Otherwise the hostname
+		// will likely get parsed as the scheme and cause methods like Hostname()
+		// to return an empty string, largely obviating the purpose of this
+		// function.
+		u = "https://" + u
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the specified url is a loopback device and no scheme has been
+	// specified, prefer http over https. It's unlikely anyone intends to use
+	// https on a loopback and if they do they can specify a scheme.
+	if local, _ := isLocalURL(ctx, parsed); local && !hasScheme {
+		parsed.Scheme = "http"
+	}
+
+	return parsed, nil
+}
+
+// isLocalURL returns true if the hostname of the provided URL appears to
+// resolve to a loopback address.
+func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
+	if err != nil {
+		return false, err
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout time.Duration) error {
@@ -920,27 +969,6 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
-}
-
-// isLocalURL returns true if the hostname of the provided URL appears to
-// resolve to a loopback address.
-func isLocalURL(ctx context.Context, urlString string) (bool, error) {
-	parsedURL, err := url.Parse(urlString)
-	if err != nil {
-		return false, err
-	}
-	resolver := &net.Resolver{}
-	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
-	if err != nil {
-		return false, err
-	}
-
-	for _, ip := range ips {
-		if ip.IP.IsLoopback() {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.
