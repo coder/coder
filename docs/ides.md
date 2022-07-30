@@ -3,11 +3,9 @@
 The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
-- VS Code (with [Remote -
-  SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
+- [VS Code Remote SSH](#vs-code-remote)
   extension)
-- JetBrains (with
-  [Gateway](https://www.jetbrains.com/help/idea/remote-development-a.html#launch_gateway)
+- [JetBrains with Gateway](./ides/configuring-gateway.md)
   installed)
   - IntelliJ IDEA
   - CLion
@@ -17,7 +15,7 @@ support should work:
   - RubyMine
   - WebStorm
 - Web IDEs (code-server, JupyterLab, Jetbrains Projector)
-   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+  - Note: These are [configured in the template](./ides/configuring-web-ides.md)
 
 ## SSH configuration
 
@@ -73,11 +71,10 @@ After installing Gateway on your local system, [follow these steps to create a
 Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 
 | Version   | Status  | Notes                                                    |
-|-----------|---------|----------------------------------------------------------|
+| --------- | ------- | -------------------------------------------------------- |
 | 2021.3.2  | Working |                                                          |
 | 2022.1.4  | Working | Windows clients are unable to connect to Linux workspace |
 | 2022.2 RC | Working | Version >= 222.3345.108                                  |
-
 
 ## Web IDEs (Jupyter, code-server, Jetbrains Projector)
 
