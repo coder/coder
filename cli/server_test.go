@@ -148,7 +148,7 @@ func TestServer(t *testing.T) {
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
-	// and that a warning is not printed about it not being externally reachable.
+	// and that a warning is printed about it not being externally reachable.
 	t.Run("NoSchemeRemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -158,7 +158,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "1.2.3.4:3000/",
+			"--access-url", "foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 		)
 		buf := newThreadSafeBuffer()
@@ -177,8 +177,8 @@ func TestServer(t *testing.T) {
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
-		require.NotContains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: https://1.2.3.4:3000/\n")
+		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
+		require.Contains(t, buf.String(), "View the Web UI: https://foobarbaz.mydomain\n")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
