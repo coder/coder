@@ -29,7 +29,7 @@
           "title": "GitHub OAuth",
           "description": "Learn how to set up OAuth using your GitHub organization.",
           "path": "./install/oauth.md"
-        } 
+        }
       ]
     },
     {
@@ -81,6 +81,11 @@
           "title": "Configuring Web IDEs",
           "description": "Learn how to configure web IDEs in your templates",
           "path": "./ides/configuring-web-ides.md"
+        },
+        {
+          "title": "Configuring Jetbrains Gateway",
+          "description": "Learn how to configure Jetbrains Gateway for your workspaces",
+          "path": "./ides/configuring-gateway.md"
         }
       ]
     },
