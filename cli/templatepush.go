@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-func templateUpdate() *cobra.Command {
+func templatePush() *cobra.Command {
 	var (
 		directory     string
 		provisioner   string
@@ -25,9 +25,9 @@ func templateUpdate() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update [template]",
+		Use:   "push [template]",
 		Args:  cobra.MaximumNArgs(1),
-		Short: "Update the source-code of a template from the current directory or as specified by flag",
+		Short: "Push a new template version from the current directory or as specified by flag",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -98,7 +98,7 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Printf("Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

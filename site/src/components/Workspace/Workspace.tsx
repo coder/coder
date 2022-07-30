@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import React, { FC } from "react"
+import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -60,7 +60,7 @@ export const Workspace: FC<WorkspaceProps> = ({
     <Margins>
       <PageHeader
         actions={
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} className={styles.actions}>
             <WorkspaceScheduleButton
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
@@ -123,25 +123,33 @@ export const useStyles = makeStyles((theme) => {
     statusBadge: {
       marginBottom: theme.spacing(3),
     },
+
+    actions: {
+      [theme.breakpoints.down("sm")]: {
+        flexDirection: "column",
+      },
+    },
+
     firstColumnSpacer: {
       flex: 2,
     },
+
     secondColumnSpacer: {
       flex: `0 0 ${spacerWidth}px`,
     },
+
     layout: {
       alignItems: "flex-start",
     },
+
     main: {
       width: "100%",
     },
-    sidebar: {
-      width: theme.spacing(32),
-      flexShrink: 0,
-    },
+
     timelineContents: {
       margin: 0,
     },
+
     timelineTable: {
       border: 0,
     },

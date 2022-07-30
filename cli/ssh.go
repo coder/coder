@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -126,7 +127,7 @@ func ssh() *cobra.Command {
 
 				ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 				wgn, err := peerwg.New(
-					slog.Make(sloghuman.Sink(os.Stderr)),
+					slog.Make(sloghuman.Sink(cmd.ErrOrStderr())),
 					[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
 				)
 				if err != nil {
@@ -191,14 +192,15 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
-			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(os.Stdin.Fd()))
+			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
+			stdinFile, validIn := cmd.InOrStdin().(*os.File)
+			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
+				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(os.Stdin.Fd()), state)
+					_ = term.Restore(int(stdinFile.Fd()), state)
 				}()
 
 				windowChange := listenWindowSize(cmd.Context())
@@ -231,6 +233,11 @@ func ssh() *cobra.Command {
 
 			err = sshSession.Wait()
 			if err != nil {
+				// If the connection drops unexpectedly, we get an ExitMissingError but no other
+				// error details, so try to at least give the user a better message
+				if errors.Is(err, &gossh.ExitMissingError{}) {
+					return xerrors.New("SSH connection ended unexpectedly")
+				}
 				return err
 			}
 

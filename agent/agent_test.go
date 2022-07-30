@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -69,7 +71,7 @@ func TestAgent(t *testing.T) {
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
-	t.Run("SessionTTY", func(t *testing.T) {
+	t.Run("SessionTTYShell", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			// This might be our implementation, or ConPTY itself.
@@ -103,6 +105,29 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("SessionTTYExitCode", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSHSession(t, agent.Metadata{})
+		command := "areallynotrealcommand"
+		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+		ptty := ptytest.New(t)
+		require.NoError(t, err)
+		session.Stdout = ptty.Output()
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Start(command)
+		require.NoError(t, err)
+		err = session.Wait()
+		exitErr := &ssh.ExitError{}
+		require.True(t, xerrors.As(err, &exitErr))
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, 1, exitErr.ExitStatus())
+		} else {
+			assert.Equal(t, 127, exitErr.ExitStatus())
+		}
+	})
+
 	t.Run("LocalForwarding", func(t *testing.T) {
 		t.Parallel()
 		random, err := net.Listen("tcp", "127.0.0.1:0")
@@ -120,10 +145,12 @@ func TestAgent(t *testing.T) {
 		localPort := tcpAddr.Port
 		done := make(chan struct{})
 		go func() {
+			defer close(done)
 			conn, err := local.Accept()
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			_ = conn.Close()
-			close(done)
 		}()
 
 		err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
@@ -399,15 +426,18 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
+		defer listener.Close()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
 			ssh, err := agentConn.SSH()
-			assert.NoError(t, err)
-			go io.Copy(conn, ssh)
-			go io.Copy(ssh, conn)
+			if !assert.NoError(t, err) {
+				_ = conn.Close()
+				return
+			}
+			go agent.Bicopy(context.Background(), conn, ssh)
 		}
 	}()
 	t.Cleanup(func() {

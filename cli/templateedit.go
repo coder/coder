@@ -47,7 +47,7 @@ func templateEdit() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Printf("Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

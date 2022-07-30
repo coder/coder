@@ -1889,6 +1889,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 
 const getTemplates = `-- name: GetTemplates :many
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by FROM templates
+ORDER BY (created_at, id) ASC
 `
 
 func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
@@ -1953,6 +1954,7 @@ WHERE
 			id = ANY($4)
 		ELSE true
 	END
+ORDER BY (created_at, id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {

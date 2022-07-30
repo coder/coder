@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-func TestTemplateUpdate(t *testing.T) {
+func TestTemplatePush(t *testing.T) {
 	t.Parallel()
 	// NewParameter will:
 	//	1. Create a template version with 0 params
@@ -43,7 +43,7 @@ func TestTemplateUpdate(t *testing.T) {
 			Parse:     createTestParseResponse(),
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "update", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -76,7 +76,7 @@ func TestTemplateUpdate(t *testing.T) {
 
 		// Second update of the same source requires no prompt since the params
 		// are carried over.
-		cmd, root = clitest.New(t, "templates", "update", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
 			execDone <- cmd.Execute()
@@ -95,7 +95,7 @@ func TestTemplateUpdate(t *testing.T) {
 			Provision: echo.ProvisionComplete,
 		})
 
-		cmd, root = clitest.New(t, "templates", "update", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
 			execDone <- cmd.Execute()
@@ -122,7 +122,7 @@ func TestTemplateUpdate(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "update", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -175,7 +175,7 @@ func TestTemplateUpdate(t *testing.T) {
 
 		// Don't pass the name of the template, it should use the
 		// directory of the source.
-		cmd, root := clitest.New(t, "templates", "update", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "push", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())

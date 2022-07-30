@@ -1,8 +1,9 @@
-import { PaletteOptions, SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { Theme } from "@material-ui/core/styles"
+import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { Overrides } from "@material-ui/core/styles/overrides"
 import { MONOSPACE_FONT_FAMILY } from "./constants"
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const getOverrides = (palette: PaletteOptions) => {
+export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
     MuiCssBaseline: {
       "@global": {
@@ -29,7 +30,7 @@ export const getOverrides = (palette: PaletteOptions) => {
       root: {
         // Prevents a loading button from collapsing!
         minHeight: 42,
-        fontWeight: "regular",
+        fontWeight: "normal",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         textTransform: "none",
@@ -38,7 +39,7 @@ export const getOverrides = (palette: PaletteOptions) => {
       },
       contained: {
         boxShadow: "none",
-        color: palette.text?.primary,
+        color: palette.text.primary,
         backgroundColor: "hsl(223, 27%, 3%)",
         "&:hover": {
           boxShadow: "none",
@@ -71,10 +72,14 @@ export const getOverrides = (palette: PaletteOptions) => {
         textTransform: "uppercase",
       },
     },
+    MuiTableContainer: {
+      root: {
+        borderRadius: 2,
+        border: `1px solid ${palette.divider}`,
+      },
+    },
     MuiTable: {
       root: {
-        // Gives the appearance of a border!
-        borderRadius: 2,
         background: "hsla(222, 31%, 19%, .5)",
 
         "& td": {
@@ -82,16 +87,22 @@ export const getOverrides = (palette: PaletteOptions) => {
           paddingBottom: 16,
           background: "transparent",
         },
+
+        [breakpoints.down("sm")]: {
+          // Random value based on visual adjustments.
+          // This is used to avoid line breaking on columns
+          minWidth: 1000,
+        },
       },
     },
     MuiTableCell: {
       head: {
-        color: palette.text?.secondary,
+        color: palette.text.secondary,
       },
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
-        background: palette.background?.paper,
+        background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
         padding: 8,
         // This targets the first+last td elements, and also the first+last elements
@@ -116,7 +127,7 @@ export const getOverrides = (palette: PaletteOptions) => {
         },
 
         "& input:-webkit-autofill": {
-          WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
+          WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
         "&:hover .MuiOutlinedInput-notchedOutline": {
           borderColor: palette.divider,

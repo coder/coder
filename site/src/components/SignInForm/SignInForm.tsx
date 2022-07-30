@@ -1,14 +1,15 @@
 import Button from "@material-ui/core/Button"
-import FormHelperText from "@material-ui/core/FormHelperText"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
-import { FormikContextType, useFormik } from "formik"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Stack } from "components/Stack/Stack"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
 import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 
@@ -22,13 +23,24 @@ interface BuiltInAuthFormValues {
   password: string
 }
 
+export enum LoginErrors {
+  AUTH_ERROR = "authError",
+  GET_USER_ERROR = "getUserError",
+  CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
+  GET_METHODS_ERROR = "getMethodsError",
+}
+
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  authErrorMessage: "Incorrect email or password.",
-  methodsErrorMessage: "Unable to fetch auth methods.",
+  errorMessages: {
+    [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
+    [LoginErrors.GET_USER_ERROR]: "Failed to fetch user details.",
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
+    [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
+  },
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
 }
@@ -39,17 +51,6 @@ const validationSchema = Yup.object({
 })
 
 const useStyles = makeStyles((theme) => ({
-  loginBtnWrapper: {
-    marginTop: theme.spacing(6),
-    borderTop: `1px solid ${theme.palette.action.disabled}`,
-    paddingTop: theme.spacing(3),
-  },
-  loginTextField: {
-    marginTop: theme.spacing(2),
-  },
-  submitBtn: {
-    marginTop: theme.spacing(2),
-  },
   buttonIcon: {
     width: 14,
     height: 14,
@@ -78,19 +79,20 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  authErrorMessage?: string
-  methodsErrorMessage?: string
+  loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
 
 export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,
-  authErrorMessage,
-  methodsErrorMessage,
+  loginErrors,
   onSubmit,
+  initialTouched,
 }) => {
   const styles = useStyles()
 
@@ -106,43 +108,52 @@ export const SignInForm: FC<SignInFormProps> = ({
     // field), or after a submission attempt.
     validateOnBlur: false,
     onSubmit,
+    initialTouched,
   })
-  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form)
+  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(
+    form,
+    loginErrors.authError,
+  )
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
-        <TextField
-          {...getFieldHelpers("email")}
-          onChange={onChangeTrimmed(form)}
-          autoFocus
-          autoComplete="email"
-          className={styles.loginTextField}
-          fullWidth
-          label={Language.emailLabel}
-          type="email"
-          variant="outlined"
-        />
-        <TextField
-          {...getFieldHelpers("password")}
-          autoComplete="current-password"
-          className={styles.loginTextField}
-          fullWidth
-          id="password"
-          label={Language.passwordLabel}
-          type="password"
-          variant="outlined"
-        />
-        {authErrorMessage && <FormHelperText error>{authErrorMessage}</FormHelperText>}
-        {methodsErrorMessage && (
-          <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>
-        )}
-        <div className={styles.submitBtn}>
-          <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
-            {isLoading ? "" : Language.passwordSignIn}
-          </LoadingButton>
-        </div>
+        <Stack>
+          {Object.keys(loginErrors).map((errorKey: string) =>
+            loginErrors[errorKey as LoginErrors] ? (
+              <ErrorSummary
+                key={errorKey}
+                error={loginErrors[errorKey as LoginErrors]}
+                defaultMessage={Language.errorMessages[errorKey as LoginErrors]}
+              />
+            ) : null,
+          )}
+          <TextField
+            {...getFieldHelpers("email")}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            autoComplete="email"
+            fullWidth
+            label={Language.emailLabel}
+            type="email"
+            variant="outlined"
+          />
+          <TextField
+            {...getFieldHelpers("password")}
+            autoComplete="current-password"
+            fullWidth
+            id="password"
+            label={Language.passwordLabel}
+            type="password"
+            variant="outlined"
+          />
+          <div>
+            <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
+              {isLoading ? "" : Language.passwordSignIn}
+            </LoadingButton>
+          </div>
+        </Stack>
       </form>
       {authMethods?.github && (
         <>

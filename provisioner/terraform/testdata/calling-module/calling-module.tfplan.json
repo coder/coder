@@ -1,14 +1,14 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.2",
+  "terraform_version": "1.2.5",
   "planned_values": {
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.dev",
+          "address": "coder_agent.main",
           "mode": "managed",
           "type": "coder_agent",
-          "name": "dev",
+          "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
@@ -60,10 +60,10 @@
   },
   "resource_changes": [
     {
-      "address": "coder_agent.dev",
+      "address": "coder_agent.main",
       "mode": "managed",
       "type": "coder_agent",
-      "name": "dev",
+      "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
@@ -158,10 +158,10 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.dev",
+          "address": "coder_agent.main",
           "mode": "managed",
           "type": "coder_agent",
-          "name": "dev",
+          "name": "main",
           "provider_config_key": "coder",
           "expressions": {
             "arch": {
@@ -180,8 +180,8 @@
           "expressions": {
             "script": {
               "references": [
-                "coder_agent.dev.init_script",
-                "coder_agent.dev"
+                "coder_agent.main.init_script",
+                "coder_agent.main"
               ]
             }
           },
@@ -224,7 +224,7 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev",
+      "resource": "coder_agent.main",
       "attribute": [
         "init_script"
       ]

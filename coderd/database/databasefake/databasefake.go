@@ -626,7 +626,8 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
-	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
+	params database.GetWorkspaceBuildByWorkspaceIDParams,
+) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -893,6 +894,12 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
+		slices.SortFunc(templates, func(i, j database.Template) bool {
+			if !i.CreatedAt.Before(j.CreatedAt) {
+				return false
+			}
+			return i.ID.String() < j.ID.String()
+		})
 		return templates, nil
 	}
 
@@ -1069,7 +1076,15 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.templates[:], nil
+	templates := slices.Clone(q.templates)
+	slices.SortFunc(templates, func(i, j database.Template) bool {
+		if !i.CreatedAt.Before(j.CreatedAt) {
+			return false
+		}
+		return i.ID.String() < j.ID.String()
+	})
+
+	return templates, nil
 }
 
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {

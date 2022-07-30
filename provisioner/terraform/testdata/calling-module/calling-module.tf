@@ -14,5 +14,5 @@ resource "coder_agent" "main" {
 
 module "module" {
   source = "./module"
-  script = coder_agent.dev.init_script
+  script = coder_agent.main.init_script
 }

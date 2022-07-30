@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -63,4 +64,10 @@ func Test_formatExamples(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	// Replace with goleak.VerifyTestMain(m) when we enable goleak.
+	os.Exit(m.Run())
+	// goleak.VerifyTestMain(m)
 }

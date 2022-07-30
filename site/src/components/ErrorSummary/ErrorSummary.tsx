@@ -2,14 +2,14 @@ import Button from "@material-ui/core/Button"
 import Collapse from "@material-ui/core/Collapse"
 import IconButton from "@material-ui/core/IconButton"
 import Link from "@material-ui/core/Link"
-import { darken, makeStyles, Theme } from "@material-ui/core/styles"
+import { darken, lighten, makeStyles, Theme } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 
-const Language = {
+export const Language = {
   retryMessage: "Retry",
   unknownErrorMessage: "An unknown error has occurred",
   moreDetails: "More",
@@ -91,7 +91,6 @@ interface StyleProps {
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     background: darken(theme.palette.error.main, 0.6),
-    margin: `${theme.spacing(2)}px`,
     padding: `${theme.spacing(2)}px`,
     borderRadius: theme.shape.borderRadius,
     gap: 0,
@@ -104,6 +103,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   detailsLink: {
     cursor: "pointer",
+    color: `${lighten(theme.palette.primary.light, 0.2)}`,
   },
   details: {
     marginTop: `${theme.spacing(2)}px`,

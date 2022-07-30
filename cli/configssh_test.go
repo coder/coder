@@ -109,9 +109,9 @@ func TestConfigSSH(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
@@ -119,9 +119,9 @@ func TestConfigSSH(t *testing.T) {
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		_ = listener.Close()
-	})
+	}()
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -134,9 +134,6 @@ func TestConfigSSH(t *testing.T) {
 			go io.Copy(ssh, conn)
 		}
 	}()
-	t.Cleanup(func() {
-		_ = listener.Close()
-	})
 
 	sshConfigFile, _ := sshConfigFileNames(t)
 
@@ -173,9 +170,10 @@ func TestConfigSSH(t *testing.T) {
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
 	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
+	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
-	sshCmd.Stderr = os.Stderr
+	sshCmd.Stderr = pty.Output()
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))

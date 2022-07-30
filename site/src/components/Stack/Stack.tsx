@@ -17,6 +17,10 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: ({ direction }: StyleProps) => direction,
     gap: ({ spacing }: StyleProps) => theme.spacing(spacing),
     alignItems: ({ alignItems }: StyleProps) => alignItems,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+    },
   },
 }))
 

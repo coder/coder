@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -173,6 +174,10 @@ func versionCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func isTest() bool {
+	return flag.Lookup("test.v") != nil
 }
 
 // createClient returns a new client from the command context.
@@ -471,8 +476,8 @@ download the server version with: 'curl -L https://coder.com/install.sh | sh -s 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
 		// Trim the leading 'v', our install.sh script does not handle this case well.
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	}
 
 	return nil

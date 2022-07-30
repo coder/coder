@@ -88,7 +88,7 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
@@ -124,10 +124,10 @@ resource "docker_container" "workspace" {
     "sh", "-c",
     <<EOT
     trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
-    ${replace(coder_agent.dev.init_script, "localhost", "host.docker.internal")}
+    ${replace(coder_agent.main.init_script, "localhost", "host.docker.internal")}
     EOT
   ]
-  env = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

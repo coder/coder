@@ -380,7 +380,7 @@ func TestTemplateVersionLogs(t *testing.T) {
 		}},
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	defer cancelFunc()
 	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
 	for {

@@ -17,7 +17,6 @@ import (
 	"net/url"
 	"os"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 // This cannot be ran in parallel because it uses a signal.
@@ -45,8 +45,14 @@ func TestServer(t *testing.T) {
 		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--address", ":0", "--postgres-url", connectionURL)
-		errC := make(chan error)
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--address", ":0",
+			"--postgres-url", connectionURL,
+			"--cache-dir", t.TempDir(),
+		)
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
@@ -75,8 +81,17 @@ func TestServer(t *testing.T) {
 			t.SkipNow()
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		root, cfg := clitest.New(t, "server", "--address", ":0")
-		errC := make(chan error)
+		defer cancelFunc()
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--address", ":0",
+			"--cache-dir", t.TempDir(),
+		)
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		root.SetErr(pty.Output())
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
@@ -90,11 +105,12 @@ func TestServer(t *testing.T) {
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
 		root, _ := clitest.New(t, "server", "postgres-builtin-url")
-		var buf strings.Builder
-		root.SetOutput(&buf)
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
 		err := root.Execute()
 		require.NoError(t, err)
-		require.Contains(t, buf.String(), "psql")
+
+		pty.ExpectMatch("psql")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -102,10 +118,16 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--access-url", "http://1.2.3.4:3000/")
-		var buf strings.Builder
-		errC := make(chan error)
-		root.SetOutput(&buf)
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "http://1.2.3.4:3000/",
+			"--cache-dir", t.TempDir(),
+		)
+		buf := newThreadSafeBuffer()
+		root.SetOutput(buf)
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
@@ -127,8 +149,15 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-min-version", "tls9")
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-min-version", "tls9",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -136,8 +165,15 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-client-auth", "something")
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-client-auth", "something",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -145,8 +181,14 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable")
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--cache-dir", t.TempDir(),
+		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
@@ -156,9 +198,16 @@ func TestServer(t *testing.T) {
 		defer cancelFunc()
 
 		certPath, keyPath := generateTLSCertificate(t)
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0",
-			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
-		errC := make(chan error)
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--tls-enable",
+			"--tls-cert-file", certPath,
+			"--tls-key-file", keyPath,
+			"--cache-dir", t.TempDir(),
+		)
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
@@ -197,8 +246,15 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--in-memory", "--address", ":0", "--provisioner-daemons", "1")
-		serverErr := make(chan error)
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--provisioner-daemons", "1",
+			"--cache-dir", t.TempDir(),
+		)
+		serverErr := make(chan error, 1)
 		go func() {
 			serverErr <- root.ExecuteContext(ctx)
 		}()
@@ -214,14 +270,21 @@ func TestServer(t *testing.T) {
 		// We cannot send more signals here, because it's possible Coder
 		// has already exited, which could cause the test to fail due to interrupt.
 		err = <-serverErr
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 	})
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--trace=true")
-		errC := make(chan error)
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--trace=true",
+			"--cache-dir", t.TempDir(),
+		)
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
@@ -249,10 +312,17 @@ func TestServer(t *testing.T) {
 			snapshot <- ss
 		})
 		server := httptest.NewServer(r)
-		t.Cleanup(server.Close)
+		defer server.Close()
 
-		root, _ := clitest.New(t, "server", "--in-memory", "--address", ":0", "--telemetry", "--telemetry-url", server.URL)
-		errC := make(chan error)
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--telemetry",
+			"--telemetry-url", server.URL,
+			"--cache-dir", t.TempDir(),
+		)
+		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()

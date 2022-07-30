@@ -31,7 +31,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "b",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -44,7 +44,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "first",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -55,10 +55,10 @@ func TestConvertResources(t *testing.T) {
 		}},
 		// Ensures the instance ID authentication type surfaces.
 		"instance-id": {{
-			Name: "dev",
+			Name: "main",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_InstanceId{},
@@ -70,7 +70,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "example",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},

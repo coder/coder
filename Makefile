@@ -176,7 +176,7 @@ test: test-clean
 test-postgres: test-clean test-postgres-docker
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
-		-coverpkg=./...,github.com/coder/coder/codersdk \
+		-coverpkg=./... \
 		-count=1 -race -failfast
 .PHONY: test-postgres
 

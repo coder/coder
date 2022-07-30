@@ -14,4 +14,9 @@ LABEL \
 # The coder binary is injected by scripts/build_docker.sh.
 ADD coder /opt/coder
 
+# Create coder group and user.
+RUN addgroup -g 1000 coder && \
+	adduser -D -g "" -h /home/coder -G coder -u 1000 -S -s /bin/sh coder
+USER coder:coder
+
 ENTRYPOINT [ "/opt/coder", "server" ]

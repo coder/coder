@@ -29,6 +29,20 @@ type PTY interface {
 	Resize(height uint16, width uint16) error
 }
 
+// Process represents a process running in a PTY.  We need to trigger special processing on the PTY
+// on process completion, meaning that we will have goroutines calling Wait() on the process.  Since
+// the caller will also typically wait for the process, and it is not safe for multiple goroutines
+// to Wait() on a process, this abstraction provides a goroutine-safe interface for interacting with
+// the process.
+type Process interface {
+
+	// Wait for the command to complete.  Returned error is as for exec.Cmd.Wait()
+	Wait() error
+
+	// Kill the command process.  Returned error is as for os.Process.Kill()
+	Kill() error
+}
+
 // WithFlags represents a PTY whose flags can be inspected, in particular
 // to determine whether local echo is enabled.
 type WithFlags interface {

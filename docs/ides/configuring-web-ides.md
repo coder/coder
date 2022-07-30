@@ -17,7 +17,7 @@ be used as a Coder application. For example:
 ```hcl
 # Give template users the portainer.io web UI
 resource "coder_app" "portainer" {
-  agent_id      = coder_agent.dev.id
+  agent_id      = coder_agent.main.id
   name          = "portainer"
   icon          = "https://simpleicons.org/icons/portainer.svg"
   url           = "http://localhost:8000"
@@ -69,7 +69,7 @@ You'll also need to specify a `coder_app` resource related to the agent. This is
 
 ```hcl
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
@@ -213,6 +213,9 @@ You can also reference/use to these pre-built templates with JetBrains projector
 - GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
+
+=======
+![PyCharm in Coder](../images/projector-pycharm.png)
 
 > Coder OSS currently does not perform a health check([#2662](https://github.com/coder/coder/issues/2662)) that any IDE or commands in the `startup_script` have completed, so wait a minute or so before opening the JetBrains or code-server icons. As a precaution, you can open Terminal and run `htop` to see if the processes have completed.
 

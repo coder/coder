@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"io"
 	"os"
 	"testing"
 
@@ -219,8 +218,6 @@ func TestTemplateCreate(t *testing.T) {
 			}
 			cmd, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
-			cmd.SetOut(io.Discard)
-			cmd.SetErr(io.Discard)
 
 			return cmd.Execute()
 		}
@@ -233,8 +230,6 @@ func TestTemplateCreate(t *testing.T) {
 			}
 			cmd, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
-			cmd.SetOut(io.Discard)
-			cmd.SetErr(io.Discard)
 
 			return cmd.Execute()
 		}

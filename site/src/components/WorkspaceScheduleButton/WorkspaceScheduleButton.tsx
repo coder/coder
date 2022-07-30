@@ -77,7 +77,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
       <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <span>
+          <span className={styles.actions}>
             <IconButton
               className={styles.iconButton}
               size="small"
@@ -136,22 +136,47 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+    },
   },
   label: {
     borderRight: 0,
-    height: "100%",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
-    // It is from the button props
-    minHeight: 42,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      display: "flex",
+      alignItems: "center",
+      padding: theme.spacing(1.5, 2),
+    },
+  },
+  actions: {
+    [theme.breakpoints.down("sm")]: {
+      marginLeft: "auto",
+      display: "flex",
+      paddingLeft: theme.spacing(1),
+      marginRight: -theme.spacing(1),
+    },
   },
   scheduleButton: {
     border: "none",
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    flexShrink: 0,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      borderLeft: 0,
+      borderTop: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+    },
   },
   iconButton: {
     borderRadius: 2,
