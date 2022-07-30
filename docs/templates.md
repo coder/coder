@@ -95,6 +95,45 @@ The `coder_agent` resource can be configured as described in the
 For example, you can use the `env` property to set environment variables that will be
 inherited by all child processes of the agent, including SSH sessions.
 
+#### startup_script
+
+Use the Coder agent's `startup_script` to run additional commands like
+installing IDEs and clone dotfile and project repos. In this example, the
+project and dotfile repos are specified as Terraform input variables elsewhere
+in the `main.tf` Note the `&` after the `code-server` start to execute
+`code-server` process in the background so the `startup_script` can continue
+with the repo cloning steps.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install code-server
+curl -fsSL https://code-server.dev/install.sh | sh 
+code-server --auth none --port &
+
+# clone repo
+ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+git clone --progress git@github.com:${var.repo}
+
+# use coder CLI to clone and install dotfiles
+coder dotfiles -y ${var.dotfiles_uri}
+
+  EOT  
+}
+```
+
+#### Logging
+
+The output of the `startup_script` are located in
+`/tmp/coder-startup-script.log` within the workspace.
+
+The Coder agent log is located in `/tmp/coder-agent.log` within the workspace.
+
 ### Parameters
 
 Templates often contain _parameters_. These are defined by `variable` blocks in
