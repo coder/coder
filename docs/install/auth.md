@@ -1,8 +1,8 @@
 # Authentication
 
-By default, Coder is accessible via password authentication. Alternatively, you
-can configure Coder to enable logging in through GitHub OAuth or OpenID Connect.
-See below for configuration steps.
+By default, Coder is accessible via password authentication.
+
+The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
 ## GitHub
 
