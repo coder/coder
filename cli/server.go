@@ -372,6 +372,8 @@ func server() *cobra.Command {
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
 					GitHubOAuth:     oauth2GithubClientID != "",
+					OIDCAuth:        oidcClientID != "",
+					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
 					STUN:            len(stunServers) != 0,
 					Tunnel:          tunnel,
