@@ -98,11 +98,7 @@ inherited by all child processes of the agent, including SSH sessions.
 #### startup_script
 
 Use the Coder agent's `startup_script` to run additional commands like
-installing IDEs and clone dotfile and project repos. In this example, the
-project and dotfile repos are specified as Terraform input variables elsewhere
-in the `main.tf` Note the `&` after the `code-server` start to execute
-`code-server` process in the background so the `startup_script` can continue
-with the repo cloning steps.
+installing IDEs, [cloning dotfile](./dotfiles.md#templates), and cloning project repos.
 
 ```hcl
 resource "coder_agent" "coder" {
@@ -113,8 +109,15 @@ resource "coder_agent" "coder" {
 #!/bin/bash
 
 # install code-server
-curl -fsSL https://code-server.dev/install.sh | sh 
+curl -fsSL https://code-server.dev/install.sh | sh
+
+# The & prevents the startup_script from blocking so the
+# next commands can run.
 code-server --auth none --port &
+
+# var.repo and var.dotfiles_uri is specified
+# elsewhere in the Terraform code as input
+# variables.
 
 # clone repo
 ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
@@ -123,16 +126,9 @@ git clone --progress git@github.com:${var.repo}
 # use coder CLI to clone and install dotfiles
 coder dotfiles -y ${var.dotfiles_uri}
 
-  EOT  
+  EOT
 }
 ```
-
-#### Logging
-
-The output of the `startup_script` are located in
-`/tmp/coder-startup-script.log` within the workspace.
-
-The Coder agent log is located in `/tmp/coder-agent.log` within the workspace.
 
 ### Parameters
 

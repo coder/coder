@@ -83,8 +83,8 @@
           "path": "./ides/configuring-web-ides.md"
         },
         {
-          "title": "Configuring Jetbrains Gateway",
-          "description": "Learn how to configure Jetbrains Gateway for your workspaces",
+          "title": "Configuring JetBrains Gateway",
+          "description": "Learn how to configure JetBrains Gateway for your workspaces",
           "path": "./ides/configuring-gateway.md"
         }
       ]

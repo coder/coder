@@ -4,9 +4,7 @@ The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
 - [VS Code Remote SSH](#vs-code-remote)
-  extension)
 - [JetBrains with Gateway](./ides/configuring-gateway.md)
-  installed)
   - IntelliJ IDEA
   - CLion
   - GoLand
