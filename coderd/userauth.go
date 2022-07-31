@@ -214,7 +214,7 @@ type OIDCConfig struct {
 	httpmw.OAuth2Config
 
 	Verifier *oidc.IDTokenVerifier
-	// EmailDomain is an optional domain to require when authenticating.
+	// EmailDomain is the domain to enforce when a user authenticates.
 	EmailDomain  string
 	AllowSignups bool
 }
