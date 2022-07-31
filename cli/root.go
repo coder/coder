@@ -407,7 +407,7 @@ type example struct {
 	Command     string
 }
 
-// formatExamples formats the exampels as width wrapped bulletpoint
+// formatExamples formats the examples as width wrapped bulletpoint
 // descriptions with the command underneath.
 func formatExamples(examples ...example) string {
 	wrap := cliui.Styles.Wrap.Copy()

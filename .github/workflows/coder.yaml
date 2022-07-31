@@ -30,6 +30,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: typos-action
+        uses: crate-ci/typos@v1.0.4
+        with:
+          config: .github/workflows/typos.toml
+      - name: Fix Helper
+        if: ${{ failure() }}
+        run: |
+          echo "::notice:: you can automatically fix typos from your CLI:
+          cargo install typos-cli
+          typos -c .github/workflows/typos.toml -w"
+
   changes:
     runs-on: ubuntu-latest
     outputs:

@@ -30,7 +30,7 @@ const useStyles = makeStyles((theme) => ({
   cell: {
     // This must override all padding for all rules on a TableCell.
     // Otherwise, the link will not cover the entire region.
-    // It's unfortuante to use `!important`, but this seems to be
+    // It's unfortunate to use `!important`, but this seems to be
     // a reasonable use-case.
     padding: "0 !important",
   },
