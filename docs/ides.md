@@ -3,11 +3,9 @@
 The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
-- VS Code (with [Remote -
-  SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
+- [VS Code Remote SSH](#vs-code-remote)
   extension)
-- JetBrains (with
-  [Gateway](https://www.jetbrains.com/help/idea/remote-development-a.html#launch_gateway)
+- [JetBrains with Gateway](./ides/configuring-gateway.md)
   installed)
   - IntelliJ IDEA
   - CLion
@@ -17,7 +15,7 @@ support should work:
   - RubyMine
   - WebStorm
 - Web IDEs (code-server, JupyterLab, Jetbrains Projector)
-   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+  - Note: These are [configured in the template](./ides/configuring-web-ides.md)
 
 ## SSH configuration
 
@@ -53,7 +51,8 @@ Code, connected to your Coder workspace for compute, etc.
 
 1. Open VS Code locally.
 
-1. Install the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
+1. Install the [Remote -
+   SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
    extension.
 
 1. In VS Code's left-hand nav bar, click **Remote Explorer** and right-click on
@@ -61,39 +60,21 @@ Code, connected to your Coder workspace for compute, etc.
 
 ## JetBrains Gateway
 
-Gateway operates in a client-server model, using an SSH connection to the remote host to install
-and start the server.
+Gateway operates in a client-server model, using an SSH connection to the remote
+host to install and start the server.
 
-Setting up Gateway also involves picking a project directory, so if you have not already done so,
-you may wish to open a terminal on your Coder workspace and check out a copy of the project you
-intend to work on.
+Setting up Gateway also involves picking a project directory, so if you have not
+already done so, you may wish to open a terminal on your Coder workspace and
+check out a copy of the project you intend to work on.
 
-After installing Gateway on your local system, you may connect to a Coder workspace as follows
+After installing Gateway on your local system, [follow these steps to create a
+Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 
-1. Open Gateway, make sure "SSH" is selected under "Remote Development"
-2. Click "New Connection"
-3. In the resulting dialog, click the gear icon to the right of "Connection:"
-4. Hit the "+" button to add a new SSH connection
-   1. For the Host, enter `coder.<workspace name>`
-   2. For the Port, enter `22` (this is ignored by Coder)
-   3. For the Username, enter `coder`
-   4. For the Authentication Type, select "OpenSSH config and authentication agent"
-   5. Make sure the checkbox for "Parse config file ~/.ssh/config" is checked.
-   6. Click "Test Connection" to ensure you setting are ok.
-   7. Click "OK"
-5. Select the connection you just added.
-6. Click "Check Connection and Continue"
-7. Select the JetBrains IDE for your project and the project directory
-   1. Use an SSH terminal to your workspace to create a directory or check out code if you haven't
-      already.
-8. Click "Download and Start IDE" to connect.
-
-| Version   | Status      | Notes                                                      |
-|-----------|-------------|------------------------------------------------------------|
-| 2021.3.2  | Working     |                                                            |
-| 2022.1.1  | Working     | Windows clients are unable to connect to Linux workspace   |
-| 2022.2 RC | Not working | [GitHub Issue](https://github.com/coder/coder/issues/3125) |
-
+| Version   | Status  | Notes                                                    |
+| --------- | ------- | -------------------------------------------------------- |
+| 2021.3.2  | Working |                                                          |
+| 2022.1.4  | Working | Windows clients are unable to connect to Linux workspace |
+| 2022.2 RC | Working | Version >= 222.3345.108                                  |
 
 ## Web IDEs (Jupyter, code-server, Jetbrains Projector)
 
