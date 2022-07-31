@@ -2,11 +2,19 @@ package coderd_test
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/golang-jwt/jwt"
 	"github.com/google/go-github/v43/github"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -16,13 +24,18 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-type oauth2Config struct{}
+type oauth2Config struct {
+	token *oauth2.Token
+}
 
 func (*oauth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
 }
 
-func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (o *oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	if o.token != nil {
+		return o.token, nil
+	}
 	return &oauth2.Token{
 		AccessToken: "token",
 	}, nil
@@ -249,6 +262,117 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 }
 
+func TestUserOIDC(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name         string
+		Claims       jwt.MapClaims
+		AllowSignups bool
+		EmailDomain  string
+		Username     string
+		StatusCode   int
+	}{{
+		Name: "EmailNotVerified",
+		Claims: jwt.MapClaims{
+			"email": "kyle@kwc.io",
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusForbidden,
+	}, {
+		Name: "NotInRequiredEmailDomain",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain:  "coder.com",
+		StatusCode:   http.StatusForbidden,
+	}, {
+		Name:         "EmptyClaims",
+		Claims:       jwt.MapClaims{},
+		AllowSignups: true,
+		StatusCode:   http.StatusBadRequest,
+	}, {
+		Name: "NoSignups",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		StatusCode: http.StatusForbidden,
+	}, {
+		Name: "UsernameFromEmail",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "UsernameFromClaims",
+		Claims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "hotdog",
+		},
+		Username:     "hotdog",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}} {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			config := createOIDCConfig(t, tc.Claims)
+			config.AllowSignups = tc.AllowSignups
+			config.EmailDomain = tc.EmailDomain
+			client := coderdtest.New(t, &coderdtest.Options{
+				OIDCConfig: config,
+			})
+			resp := oidcCallback(t, client)
+			assert.Equal(t, tc.StatusCode, resp.StatusCode)
+
+			if tc.Username != "" {
+				client.SessionToken = resp.Cookies()[0].Value
+				user, err := client.User(context.Background(), "me")
+				require.NoError(t, err)
+				require.Equal(t, tc.Username, user.Username)
+			}
+		})
+	}
+}
+
+// createOIDCConfig generates a new OIDCConfig that returns a static token
+// with the claims provided.
+func createOIDCConfig(t *testing.T, claims jwt.MapClaims) *coderd.OIDCConfig {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
+	claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
+	require.NoError(t, err)
+
+	verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
+		PublicKeys: []crypto.PublicKey{key.Public()},
+	}, &oidc.Config{
+		SkipClientIDCheck: true,
+	})
+
+	return &coderd.OIDCConfig{
+		OAuth2Config: &oauth2Config{
+			token: (&oauth2.Token{
+				AccessToken: "token",
+			}).WithExtra(map[string]interface{}{
+				"id_token": signed,
+			}),
+		},
+		Verifier: verifier,
+	}
+}
+
 func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -267,5 +391,28 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	t.Cleanup(func() {
 		_ = res.Body.Close()
 	})
+	return res
+}
+
+func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
+	t.Helper()
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	state := "somestate"
+	oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback?code=asd&state=" + state)
+	require.NoError(t, err)
+	req, err := http.NewRequest("GET", oauthURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  "oauth_state",
+		Value: state,
+	})
+	res, err := client.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	t.Log(string(data))
 	return res
 }

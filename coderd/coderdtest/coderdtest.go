@@ -63,6 +63,7 @@ type Options struct {
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
@@ -189,6 +190,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
+		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,

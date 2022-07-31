@@ -306,7 +306,6 @@ func server() *cobra.Command {
 						Endpoint:     oidcProvider.Endpoint(),
 						Scopes:       oidcScopes,
 					},
-					Provider: oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: oidcClientID,
 					}),

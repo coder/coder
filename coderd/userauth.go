@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/username"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -219,7 +220,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 type OIDCConfig struct {
 	httpmw.OAuth2Config
 
-	Provider *oidc.Provider
 	Verifier *oidc.IDTokenVerifier
 	// EmailDomain is an optional domain to require when authenticating.
 	EmailDomain  string
@@ -267,11 +267,29 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if claims.Email == "" {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No email found in OIDC payload!",
+		})
+		return
+	}
 	if !claims.Verified {
 		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", claims.Email),
 		})
 		return
+	}
+	// The username is a required property in Coder. We make a best-effort
+	// attempt at using what the claims provide, but if that fails we will
+	// generate a random username.
+	if !username.Valid(claims.Username) {
+		// If no username is provided, we can default to use the email address.
+		// This will be converted in the from function below, so it's safe
+		// to keep the domain.
+		if claims.Username == "" {
+			claims.Username = claims.Email
+		}
+		claims.Username = username.From(claims.Username)
 	}
 	if api.OIDCConfig.EmailDomain != "" {
 		if !strings.HasSuffix(claims.Email, api.OIDCConfig.EmailDomain) {
@@ -319,6 +337,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get user by email.",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	_, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
