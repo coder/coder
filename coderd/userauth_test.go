@@ -319,6 +319,18 @@ func TestUserOIDC(t *testing.T) {
 		Username:     "hotdog",
 		AllowSignups: true,
 		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		// Services like Okta return the email as the username:
+		// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
+		Name: "UsernameAsEmail",
+		Claims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "kyle@kwc.io",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
