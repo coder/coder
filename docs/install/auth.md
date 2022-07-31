@@ -40,7 +40,7 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OpenID Connect with Google
 
-> Any OpenID connect provider can be used with Coder (e.g. Okta, Azure Active Directory, GitLab, Auth0). This example with Google should be used as guidance.
+> We describe how to set up the most popular OIDC provider, Google, but any (Okta, Azure Active Directory, GitLab, Auth0, etc.) may be used.
 
 ### Step 1: Configure the OAuth application on Google Cloud
 
