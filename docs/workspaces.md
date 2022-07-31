@@ -49,6 +49,15 @@ The workspace will be stopped and started:
 coder update <workspace-name>
 ```
 
+## Logging
+
+Coder stores MacOS and Linux logs at the following locations:
+
+| Service          | Location                        |
+| ---------------- | ------------------------------- |
+| `startup_script` | `/tmp/coder-startup-script.log` |
+| Agent            | `/tmp/coder-agent.log`          |
+
 ---
 
 ## Up next
