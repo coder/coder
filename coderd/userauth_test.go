@@ -340,6 +340,46 @@ func TestUserOIDC(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		resp := oidcCallback(t, client)
+		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
+	})
+
+	t.Run("NoIDToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: &coderd.OIDCConfig{
+				OAuth2Config: &oauth2Config{},
+			},
+		})
+		resp := oidcCallback(t, client)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("BadVerify", func(t *testing.T) {
+		t.Parallel()
+		verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
+			PublicKeys: []crypto.PublicKey{},
+		}, &oidc.Config{})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: &coderd.OIDCConfig{
+				OAuth2Config: &oauth2Config{
+					token: (&oauth2.Token{
+						AccessToken: "token",
+					}).WithExtra(map[string]interface{}{
+						"id_token": "invalid",
+					}),
+				},
+				Verifier: verifier,
+			},
+		})
+		resp := oidcCallback(t, client)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
 }
 
 // createOIDCConfig generates a new OIDCConfig that returns a static token

@@ -48,13 +48,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, _ *http.Request) {
 }
 
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
-	if api.GithubOAuth2Config == nil {
-		httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
-			Message: "GitHub authentication is not enabled!",
-		})
-		return
-	}
-
 	state := httpmw.OAuth2(r)
 
 	oauthClient := oauth2.NewClient(r.Context(), oauth2.StaticTokenSource(state.Token))
@@ -227,13 +220,6 @@ type OIDCConfig struct {
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
-	if api.OIDCConfig == nil {
-		httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
-			Message: "OpenID Connect authentication is not enabled!",
-		})
-		return
-	}
-
 	state := httpmw.OAuth2(r)
 
 	// See the example here: https://github.com/coreos/go-oidc
