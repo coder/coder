@@ -148,7 +148,7 @@ func TestServer(t *testing.T) {
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
-	// and that a warning is printed about it not being externally reachable.
+	// and that a warning is printed for a host that cannot be resolved.
 	t.Run("NoSchemeRemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())

@@ -229,7 +229,7 @@ func server() *cobra.Command {
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
 
@@ -678,7 +678,7 @@ func server() *cobra.Command {
 // exist so that the URL does not get parsed improprely.
 func parseURL(ctx context.Context, u string) (*url.URL, error) {
 	var (
-		hasScheme = strings.HasPrefix(u, "http") || strings.HasPrefix(u, "https")
+		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
 	)
 
 	if !hasScheme {
