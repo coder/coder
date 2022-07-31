@@ -26,9 +26,9 @@
       "path": "./install.md",
       "children": [
         {
-          "title": "GitHub OAuth",
-          "description": "Learn how to set up OAuth using your GitHub organization.",
-          "path": "./install/oauth.md"
+          "title": "Authentication",
+          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "path": "./install/auth.md"
         }
       ]
     },
