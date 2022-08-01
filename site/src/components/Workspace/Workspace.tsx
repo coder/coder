@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
@@ -14,6 +15,13 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+
+export enum WorkspaceErrors {
+  GET_RESOURCES_ERROR = "getResourcesError",
+  GET_BUILDS_ERROR = "getBuildsError",
+  BUILD_ERROR = "buildError",
+  CANCELLATION_MESSAGE = "cancellationMessage",
+}
 
 export interface WorkspaceProps {
   bannerProps: {
@@ -31,9 +39,9 @@ export interface WorkspaceProps {
   handleCancel: () => void
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
-  getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  workspaceErrors: Partial<Record<WorkspaceErrors, Error>>
 }
 
 /**
@@ -49,15 +57,23 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleCancel,
   workspace,
   resources,
-  getResourcesError,
   builds,
   canUpdateWorkspace,
+  workspaceErrors,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
 
   return (
     <Margins>
+      <Stack spacing={1}>
+        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] && (
+          <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+        )}
+        {workspaceErrors[WorkspaceErrors.CANCELLATION_MESSAGE] && (
+          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_MESSAGE]} dismissible />
+        )}
+      </Stack>
       <PageHeader
         actions={
           <Stack direction="row" spacing={1} className={styles.actions}>
@@ -101,14 +117,18 @@ export const Workspace: FC<WorkspaceProps> = ({
           {!!resources && !!resources.length && (
             <Resources
               resources={resources}
-              getResourcesError={getResourcesError}
+              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
             />
           )}
 
           <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
-            <BuildsTable builds={builds} className={styles.timelineTable} />
+            {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+              <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+            ) : (
+              <BuildsTable builds={builds} className={styles.timelineTable} />
+            )}
           </WorkspaceSection>
         </Stack>
       </Stack>

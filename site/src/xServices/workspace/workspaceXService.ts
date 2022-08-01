@@ -35,7 +35,7 @@ export interface WorkspaceContext {
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
-  cancellationMessage: string
+  cancellationMessage: Types.Message
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
@@ -213,7 +213,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -228,7 +228,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -243,7 +243,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -258,7 +258,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignCancellationMessage", "displayCancellationError"],
+                    actions: ["assignCancellationMessage"],
                   },
                 },
               },
@@ -395,9 +395,6 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: event.data,
         }),
-      displayBuildError: () => {
-        displayError(Language.buildError)
-      },
       clearBuildError: (_) =>
         assign({
           buildError: undefined,
@@ -410,9 +407,6 @@ export const workspaceMachine = createMachine(
         assign({
           cancellationMessage: undefined,
         }),
-      displayCancellationError: (context) => {
-        displayError(context.cancellationMessage)
-      },
       assignRefreshWorkspaceError: (_, event) =>
         assign({
           refreshWorkspaceError: event.data,
