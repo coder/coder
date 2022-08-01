@@ -108,8 +108,8 @@ docker cp "$temp_container_id":/etc/group ./group 1>&2
 docker cp "$temp_container_id":/etc/passwd ./passwd 1>&2
 docker rm "$temp_container_id" 1>&2
 
-echo "coder:x:1000:coder" >> ./group
-echo "coder:x:1000:1000::/:/bin/sh" >> ./passwd
+echo "coder:x:1000:coder" >>./group
+echo "coder:x:1000:1000::/:/bin/sh" >>./passwd
 
 docker buildx build \
 	--platform "$arch" \
