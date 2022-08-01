@@ -2,7 +2,7 @@ import { useMachine, useSelector } from "@xstate/react"
 import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspacesPage/schedule"
 import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspacesPage/ttl"
 import React, { useContext, useEffect, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -175,8 +175,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   }
 
   if (!username || !workspaceName) {
-    navigate("/workspaces")
-    return null
+    return <Navigate to="/workspaces" />
   }
 
   if (
@@ -228,12 +227,10 @@ export const WorkspaceSchedulePage: React.FC = () => {
   }
 
   if (scheduleState.matches("submitSuccess")) {
-    navigate(`/@${username}/${workspaceName}`)
-    return <FullScreenLoader />
+    return <Navigate to={`/@${username}/${workspaceName}`} />
   }
 
   // Theoretically impossible - log and bail
   console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
-  navigate("/")
-  return null
+  return <Navigate to="/" />
 }

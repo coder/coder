@@ -273,7 +273,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           <Section title="Stop">
             <FormControlLabel
               control={<Switch checked={autoStop.enabled} onChange={toggleAutoStop} />}
-              label="Auto-Stop"
+              label="Auto-stop"
             />
             <TextField
               {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
