@@ -12,7 +12,7 @@ support should work:
   - Rider
   - RubyMine
   - WebStorm
-- Web IDEs (code-server, JupyterLab, Jetbrains Projector)
+- Web IDEs (code-server, JupyterLab, JetBrains Projector)
   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
 - [Emacs](./ides/configuring-emacs-tramp.md)
 
