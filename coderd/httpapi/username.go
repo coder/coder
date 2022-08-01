@@ -1,4 +1,4 @@
-package username
+package httpapi
 
 import (
 	"regexp"
@@ -8,37 +8,37 @@ import (
 )
 
 var (
-	valid   = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
-	replace = regexp.MustCompile("[^a-zA-Z0-9-]*")
+	usernameValid   = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
+	usernameReplace = regexp.MustCompile("[^a-zA-Z0-9-]*")
 )
 
-// Valid returns whether the input string is a valid username.
-func Valid(str string) bool {
+// UsernameValid returns whether the input string is a valid username.
+func UsernameValid(str string) bool {
 	if len(str) > 32 {
 		return false
 	}
 	if len(str) < 1 {
 		return false
 	}
-	return valid.MatchString(str)
+	return usernameValid.MatchString(str)
 }
 
-// From returns a best-effort username from the provided string.
+// UsernameFrom returns a best-effort username from the provided string.
 //
 // It first attempts to validate the incoming string, which will
 // be returned if it is valid. It then will attempt to extract
 // the username from an email address. If no success happens during
 // these steps, a random username will be returned.
-func From(str string) string {
-	if Valid(str) {
+func UsernameFrom(str string) string {
+	if UsernameValid(str) {
 		return str
 	}
 	emailAt := strings.LastIndex(str, "@")
 	if emailAt >= 0 {
 		str = str[:emailAt]
 	}
-	str = replace.ReplaceAllString(str, "")
-	if Valid(str) {
+	str = usernameReplace.ReplaceAllString(str, "")
+	if UsernameValid(str) {
 		return str
 	}
 	return strings.ReplaceAll(namesgenerator.GetRandomName(1), "_", "-")

@@ -1,11 +1,11 @@
-package username_test
+package httpapi_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/username"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 func TestValid(t *testing.T) {
@@ -59,7 +59,7 @@ func TestValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, testCase.Valid, username.Valid(testCase.Username))
+			require.Equal(t, testCase.Valid, httpapi.UsernameValid(testCase.Username))
 		})
 	}
 }
@@ -89,9 +89,9 @@ func TestFrom(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.From, func(t *testing.T) {
 			t.Parallel()
-			converted := username.From(testCase.From)
+			converted := httpapi.UsernameFrom(testCase.From)
 			t.Log(converted)
-			require.True(t, username.Valid(converted))
+			require.True(t, httpapi.UsernameValid(converted))
 			if testCase.Match == "" {
 				require.NotEqual(t, testCase.From, converted)
 			} else {

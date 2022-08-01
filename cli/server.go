@@ -290,6 +290,13 @@ func server() *cobra.Command {
 			}
 
 			if oidcClientSecret != "" {
+				if oidcClientID == "" {
+					return xerrors.Errorf("OIDC client ID be set!")
+				}
+				if oidcIssuerURL == "" {
+					return xerrors.Errorf("OIDC issuer URL must be set!")
+				}
+
 				oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)

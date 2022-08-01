@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"github.com/coder/coder/coderd/username"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -38,7 +37,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		return username.Valid(str)
+		return UsernameValid(str)
 	})
 	if err != nil {
 		panic(err)

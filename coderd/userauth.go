@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/username"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -268,14 +267,14 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	if !username.Valid(claims.Username) {
+	if !httpapi.UsernameValid(claims.Username) {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
 		// to keep the domain.
 		if claims.Username == "" {
 			claims.Username = claims.Email
 		}
-		claims.Username = username.From(claims.Username)
+		claims.Username = httpapi.UsernameFrom(claims.Username)
 	}
 	if api.OIDCConfig.EmailDomain != "" {
 		if !strings.HasSuffix(claims.Email, api.OIDCConfig.EmailDomain) {
