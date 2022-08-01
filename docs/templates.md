@@ -293,6 +293,12 @@ practices:
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
+### Template name length limits 
+
+Templates cannot exceed 32 characters. If your local template directory name or
+name given in `coder templates create` is greater than 32 characters, the
+template will fail to upload and give a validation error.
+
 ## Change Management
 
 We recommend source controlling your templates as you would other code.
