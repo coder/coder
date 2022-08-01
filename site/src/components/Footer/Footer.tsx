@@ -21,7 +21,9 @@ export interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
   const styles = useFooterStyles()
 
-  const githubUrl = `https://github.com/coder/coder/issues/new?labels=bug,needs+grooming&title=Bug+in+${buildInfo?.version}:&template=external_bug_report.md`
+  const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
+
+<!--- Ask a question or leave feedback! -->`)}`
   const discordUrl = `https://discord.gg/coder`
 
   return (
