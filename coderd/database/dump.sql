@@ -27,7 +27,8 @@ CREATE TYPE log_source AS ENUM (
 
 CREATE TYPE login_type AS ENUM (
     'password',
-    'github'
+    'github',
+    'oidc'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (

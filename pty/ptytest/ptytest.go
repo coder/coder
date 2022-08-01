@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/pty"
+	"github.com/coder/coder/testutil"
 )
 
 func New(t *testing.T) *PTY {
@@ -85,7 +86,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
 	var buffer bytes.Buffer

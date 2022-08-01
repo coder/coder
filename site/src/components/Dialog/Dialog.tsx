@@ -90,7 +90,7 @@ const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
 }
 
 /**
- * Quickly handels most modals actions, some combination of a cancel and confirm button
+ * Quickly handles most modals actions, some combination of a cancel and confirm button
  */
 export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   cancelText = "Cancel",

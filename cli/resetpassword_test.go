@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 // nolint:paralleltest
@@ -53,7 +53,7 @@ func TestResetPassword(t *testing.T) {
 	require.Eventually(t, func() bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, 15*time.Second, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err)
 	client := codersdk.New(accessURL)

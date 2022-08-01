@@ -136,7 +136,7 @@ func (c *Channel) init() {
 		c.closeMutex.Unlock()
 
 		// pion/webrtc will return an io.ErrShortBuffer when a read
-		// is triggerred with a buffer size less than the chunks written.
+		// is triggered with a buffer size less than the chunks written.
 		//
 		// This makes sense when considering UDP connections, because
 		// buffering of data that has no transmit guarantees is likely

@@ -30,11 +30,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: typos-action
+        uses: crate-ci/typos@v1.0.4
+        with:
+          config: .github/workflows/typos.toml
+      - name: Fix Helper
+        if: ${{ failure() }}
+        run: |
+          echo "::notice:: you can automatically fix typos from your CLI:
+          cargo install typos-cli
+          typos -c .github/workflows/typos.toml -w"
+
   changes:
     runs-on: ubuntu-latest
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       sh: ${{ steps.filter.outputs.sh }}
+      ts: ${{ steps.filter.outputs.ts }}
     steps:
       - uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
@@ -50,6 +67,11 @@ jobs:
               # - '.github/**'
             sh:
               - "**.sh"
+            ts:
+              - "**.tsx?"
+              - "**.jsx?"
+              - "**.lock"
+              - "**.json"
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
@@ -269,7 +291,11 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
+          test_timeout=5m
+          if [[ "${{ matrix.os }}" == windows* ]]; then
+            test_timeout=10m
+          fi
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=$test_timeout -short -failfast $COVERAGE_FLAGS
 
       - name: Upload DataDog Trace
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -603,3 +629,47 @@ jobs:
           DD_CATEGORY: e2e
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+  chromatic:
+    # REMARK: this is only used to build storybook and deploy it to Chromatic.
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.ts == 'true'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # Required by Chromatic for build-over-build history, otherwise we
+          # only get 1 commit on shallow checkout.
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: cd site && yarn
+
+      # This step is not meant for mainline because any detected changes to
+      # storybook snapshots will require manual approval/review in order for
+      # the check to pass. This is desired in PRs, but not in mainline.
+      - name: Publish to Chromatic (non-mainline)
+        if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
+        uses: chromaui/action@v1
+        with:
+          buildScriptName: "storybook:build"
+          exitOnceUploaded: true
+          # Chromatic states its fine to make this token public. See:
+          # https://www.chromatic.com/docs/github-actions#forked-repositories
+          projectToken: 695c25b6cb65
+          workingDir: "./site"
+
+      # This is a separate step for mainline only that auto accepts and changes
+      # instead of holding CI up. Since we squash/merge, this is defensive to
+      # avoid the same changeset from requiring review once squashed into
+      # main. Chromatic is supposed to be able to detect that we use squash
+      # commits, but it's good to be defensive in case, otherwise CI remains
+      # infinitely "in progress" in mainline unless we re-review each build.
+      - name: Publish to Chromatic (mainline)
+        if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
+        uses: chromaui/action@v1
+        with:
+          autoAcceptChanges: true
+          buildScriptName: "storybook:build"
+          projectToken: 695c25b6cb65
+          workingDir: "./site"

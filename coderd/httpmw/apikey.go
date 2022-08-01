@@ -49,6 +49,7 @@ func AuthorizationUserRoles(r *http.Request) database.GetAuthorizationUserRolesR
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
 	Github OAuth2Config
+	OIDC   OAuth2Config
 }
 
 const (
@@ -155,6 +156,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 					switch key.LoginType {
 					case database.LoginTypeGithub:
 						oauthConfig = oauth.Github
+					case database.LoginTypeOIDC:
+						oauthConfig = oauth.OIDC
 					default:
 						write(http.StatusInternalServerError, codersdk.Response{
 							Message: internalErrorMessage,

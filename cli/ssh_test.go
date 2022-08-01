@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
@@ -77,7 +78,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
@@ -124,7 +125,7 @@ func TestSSH(t *testing.T) {
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
@@ -215,7 +216,7 @@ func TestSSH(t *testing.T) {
 			}
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmd, root := clitest.New(t,

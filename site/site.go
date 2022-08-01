@@ -580,13 +580,13 @@ func sha1HashFile(name string) ([]byte, error) {
 	return []byte(hex.EncodeToString(b)), nil
 }
 
-func extractBin(dest string, r io.Reader) (numExtraced int, err error) {
+func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 	opts := []zstd.DOption{
 		// Concurrency doesn't help us when decoding the tar and
 		// can actually slow us down.
 		zstd.WithDecoderConcurrency(1),
 		// Ignoring checksums can give a slight performance
-		// boost but it's probalby not worth the reduced safety.
+		// boost but it's probably not worth the reduced safety.
 		zstd.IgnoreChecksum(false),
 		// Allow the decoder to use more memory giving us a 2-3x
 		// performance boost.

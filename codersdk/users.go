@@ -174,6 +174,7 @@ type CreateOrganizationRequest struct {
 type AuthMethods struct {
 	Password bool `json:"password"`
 	Github   bool `json:"github"`
+	OIDC     bool `json:"oidc"`
 }
 
 // HasFirstUser returns whether the first user has been created.
