@@ -31,6 +31,7 @@ Started.args = {
   resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
   builds: [Mocks.MockWorkspaceBuild],
   canUpdateWorkspace: true,
+  workspaceErrors: {},
 }
 
 export const WithoutUpdateAccess = Template.bind({})

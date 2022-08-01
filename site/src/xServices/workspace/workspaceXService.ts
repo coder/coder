@@ -35,7 +35,7 @@ export interface WorkspaceContext {
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
-  cancellationMessage: Types.Message
+  cancellationMessage: Error | unknown
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
