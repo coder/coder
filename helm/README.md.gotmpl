@@ -1,0 +1,23 @@
+# Coder Helm Chart
+
+This directory contains the Helm chart used to deploy Coder onto a Kubernetes
+cluster. It contains the minimum required components to run Coder on Kubernetes,
+and notably (compared to Coder Classic) does not include a database server.
+
+## Getting Started
+
+> ⚠️ **Warning**: The main branch in this repository does not represent the
+> latest release of Coder. Please reference our installation docs for
+> instructions on a tagged release.
+
+View
+[our docs](https://coder.com/docs/coder-oss/latest/install#kubernetes-via-helm)
+for detailed installation instructions.
+
+## Values
+
+| Key                 | Type | Description | Default                         |
+| ------------------- | ---- | ----------- | ------------------------------- |
+{{- range .Values }}
+| {{ .Key }} | {{ .Type }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} |
+{{- end }}
