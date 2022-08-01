@@ -16,18 +16,18 @@ resource "null_resource" "about" {}
 
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
-  pair {
+  item {
     key = "hello"
     value = "world"
   }
-  pair {
+  item {
     key = "null"
   }
-  pair {
+  item {
     key = "empty"
     value = ""
   }
-  pair {
+  item {
     key = "secret"
     value = "squirrel"
     sensitive = true

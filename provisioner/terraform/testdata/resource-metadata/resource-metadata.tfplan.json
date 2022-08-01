@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.5",
+  "terraform_version": "1.2.6",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -29,7 +29,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "pair": [
+            "item": [
               {
                 "key": "hello",
                 "sensitive": false,
@@ -53,7 +53,7 @@
             ]
           },
           "sensitive_values": {
-            "pair": [
+            "item": [
               {},
               {},
               {},
@@ -117,7 +117,7 @@
         ],
         "before": null,
         "after": {
-          "pair": [
+          "item": [
             {
               "key": "hello",
               "sensitive": false,
@@ -142,7 +142,7 @@
         },
         "after_unknown": {
           "id": true,
-          "pair": [
+          "item": [
             {
               "is_null": true
             },
@@ -160,7 +160,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "pair": [
+          "item": [
             {},
             {},
             {},
@@ -200,8 +200,7 @@
       },
       "null": {
         "name": "null",
-        "full_name": "registry.terraform.io/hashicorp/null",
-        "version_constraint": "~> 3.0.0"
+        "full_name": "registry.terraform.io/hashicorp/null"
       }
     },
     "root_module": {
@@ -229,7 +228,7 @@
           "name": "about_info",
           "provider_config_key": "coder",
           "expressions": {
-            "pair": [
+            "item": [
               {
                 "key": {
                   "constant_value": "hello"

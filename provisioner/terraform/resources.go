@@ -36,7 +36,7 @@ type agentAppAttributes struct {
 // A mapping of attributes on the "coder_metadata" resource.
 type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
-	Items      []metadataItem `mapstructure:"pair"`
+	Items      []metadataItem `mapstructure:"item"`
 }
 
 type metadataItem struct {
