@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/site"
+	"github.com/coder/coder/testutil"
 )
 
 func TestCaching(t *testing.T) {

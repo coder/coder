@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/agent/reaper"
-	"github.com/coder/coder/internal/testutil"
+	"github.com/coder/coder/testutil"
 )
 
 func TestReap(t *testing.T) {

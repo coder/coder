@@ -30,8 +30,8 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 // This cannot be ran in parallel because it uses a signal.

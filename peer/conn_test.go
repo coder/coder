@@ -20,8 +20,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/testutil"
 )
 
 var (

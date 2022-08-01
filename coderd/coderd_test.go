@@ -38,9 +38,9 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {

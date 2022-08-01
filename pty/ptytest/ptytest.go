@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty"
+	"github.com/coder/coder/testutil"
 )
 
 func New(t *testing.T) *PTY {

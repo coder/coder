@@ -88,7 +88,7 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
-	m.Import("github.com/coder/coder/internal/testutil")
+	m.Import("github.com/coder/coder/testutil")
 
 	m.Match(`context.WithTimeout($ctx, $duration)`).
 		Where(m.File().Imports("testing") && !m["duration"].Text.Matches("^testutil\\.")).

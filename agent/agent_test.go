@@ -33,12 +33,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {

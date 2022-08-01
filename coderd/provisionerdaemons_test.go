@@ -11,8 +11,8 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestProvisionerDaemons(t *testing.T) {

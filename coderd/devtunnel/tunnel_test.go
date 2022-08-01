@@ -25,7 +25,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/devtunnel"
-	"github.com/coder/coder/internal/testutil"
+	"github.com/coder/coder/testutil"
 )
 
 const (

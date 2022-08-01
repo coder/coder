@@ -8,8 +8,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestList(t *testing.T) {

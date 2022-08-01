@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPrompt(t *testing.T) {

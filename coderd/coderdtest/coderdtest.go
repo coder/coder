@@ -52,11 +52,11 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 type Options struct {

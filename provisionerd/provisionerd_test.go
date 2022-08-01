@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/internal/testutil"
 	"github.com/coder/coder/provisionerd/runner"
+	"github.com/coder/coder/testutil"
 
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"

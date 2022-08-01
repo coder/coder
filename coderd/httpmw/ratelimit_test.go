@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/internal/testutil"
+	"github.com/coder/coder/testutil"
 )
 
 func TestRateLimit(t *testing.T) {
