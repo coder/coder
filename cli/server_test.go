@@ -162,11 +162,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
@@ -194,11 +190,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
