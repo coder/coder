@@ -1,8 +1,10 @@
+import Box from "@material-ui/core/Box"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
+import KeyIcon from "@material-ui/icons/VpnKey"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
@@ -23,15 +25,27 @@ interface BuiltInAuthFormValues {
   password: string
 }
 
+export enum LoginErrors {
+  AUTH_ERROR = "authError",
+  GET_USER_ERROR = "getUserError",
+  CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
+  GET_METHODS_ERROR = "getMethodsError",
+}
+
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  authErrorMessage: "Incorrect email or password.",
-  methodsErrorMessage: "Unable to fetch auth methods.",
+  errorMessages: {
+    [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
+    [LoginErrors.GET_USER_ERROR]: "Failed to fetch user details.",
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
+    [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
+  },
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
+  oidcSignIn: "OpenID Connect",
 }
 
 const validationSchema = Yup.object({
@@ -68,8 +82,7 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   redirectTo: string
-  authError?: Error | unknown
-  methodsError?: Error | unknown
+  loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
   // initialTouched is only used for testing the error state of the form.
@@ -80,8 +93,7 @@ export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isLoading,
-  authError,
-  methodsError,
+  loginErrors,
   onSubmit,
   initialTouched,
 }) => {
@@ -101,18 +113,24 @@ export const SignInForm: FC<SignInFormProps> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(form, authError)
+  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(
+    form,
+    loginErrors.authError,
+  )
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {authError && (
-            <ErrorSummary error={authError} defaultMessage={Language.authErrorMessage} />
-          )}
-          {methodsError && (
-            <ErrorSummary error={methodsError} defaultMessage={Language.methodsErrorMessage} />
+          {Object.keys(loginErrors).map((errorKey: string) =>
+            loginErrors[errorKey as LoginErrors] ? (
+              <ErrorSummary
+                key={errorKey}
+                error={loginErrors[errorKey as LoginErrors]}
+                defaultMessage={Language.errorMessages[errorKey as LoginErrors]}
+              />
+            ) : null,
           )}
           <TextField
             {...getFieldHelpers("email")}
@@ -140,7 +158,7 @@ export const SignInForm: FC<SignInFormProps> = ({
           </div>
         </Stack>
       </form>
-      {authMethods?.github && (
+      {(authMethods?.github || authMethods?.oidc) && (
         <>
           <div className={styles.divider}>
             <div className={styles.dividerLine} />
@@ -148,24 +166,43 @@ export const SignInForm: FC<SignInFormProps> = ({
             <div className={styles.dividerLine} />
           </div>
 
-          <div>
-            <Link
-              underline="none"
-              href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-                redirectTo,
-              )}`}
-            >
-              <Button
-                startIcon={<GitHubIcon className={styles.buttonIcon} />}
-                disabled={isLoading}
-                fullWidth
-                type="submit"
-                variant="contained"
+          <Box display="grid" gridGap="16px">
+            {authMethods.github && (
+              <Link
+                underline="none"
+                href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+                  redirectTo,
+                )}`}
               >
-                {Language.githubSignIn}
-              </Button>
-            </Link>
-          </div>
+                <Button
+                  startIcon={<GitHubIcon className={styles.buttonIcon} />}
+                  disabled={isLoading}
+                  fullWidth
+                  type="submit"
+                  variant="contained"
+                >
+                  {Language.githubSignIn}
+                </Button>
+              </Link>
+            )}
+
+            {authMethods.oidc && (
+              <Link
+                underline="none"
+                href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(redirectTo)}`}
+              >
+                <Button
+                  startIcon={<KeyIcon className={styles.buttonIcon} />}
+                  disabled={isLoading}
+                  fullWidth
+                  type="submit"
+                  variant="contained"
+                >
+                  {Language.oidcSignIn}
+                </Button>
+              </Link>
+            )}
+          </Box>
         </>
       )}
     </>

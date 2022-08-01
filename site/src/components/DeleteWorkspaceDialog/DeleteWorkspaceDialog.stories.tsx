@@ -1,5 +1,4 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import React from "react"
 import { DeleteWorkspaceDialog, DeleteWorkspaceDialogProps } from "./DeleteWorkspaceDialog"
 
 export default {

@@ -21,15 +21,16 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 // This cannot be ran in parallel because it uses a signal.
@@ -56,13 +57,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		var rawURL string
-		require.Eventually(t, func() bool {
-			rawURL, err = cfg.URL().Read()
-			return err == nil && rawURL != ""
-		}, time.Minute, 50*time.Millisecond)
-		accessURL, err := url.Parse(rawURL)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
@@ -95,10 +90,11 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
+		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
-			accessURLRaw, err := cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 3*time.Minute, 250*time.Millisecond)
+			rawURL, err := cfg.URL().Read()
+			return err == nil && rawURL != ""
+		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
@@ -113,7 +109,10 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("psql")
 	})
 
-	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
+	// Validate that an http scheme is prepended to a loopback
+	// access URL and that a warning is printed that it may not be externally
+	// reachable.
+	t.Run("NoSchemeLocalAccessURL", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
@@ -122,7 +121,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "http://1.2.3.4:3000/",
+			"--access-url", "localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
 		buf := newThreadSafeBuffer()
@@ -133,16 +132,70 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
+		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
+		require.Contains(t, buf.String(), "View the Web UI: http://localhost:3000/\n")
+	})
 
-		assert.NotContains(t, buf.String(), "Workspaces must be able to reach Coder from this URL")
+	// Validate that an https scheme is prepended to a remote access URL
+	// and that a warning is printed for a host that cannot be resolved.
+	t.Run("NoSchemeRemoteAccessURL", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "foobarbaz.mydomain",
+			"--cache-dir", t.TempDir(),
+		)
+		buf := newThreadSafeBuffer()
+		root.SetOutput(buf)
+		errC := make(chan error, 1)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		// Just wait for startup
+		_ = waitAccessURL(t, cfg)
+
+		cancelFunc()
+		require.ErrorIs(t, <-errC, context.Canceled)
+		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
+		require.Contains(t, buf.String(), "View the Web UI: https://foobarbaz.mydomain\n")
+	})
+
+	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "https://google.com",
+			"--cache-dir", t.TempDir(),
+		)
+		buf := newThreadSafeBuffer()
+		root.SetOutput(buf)
+		errC := make(chan error, 1)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		// Just wait for startup
+		_ = waitAccessURL(t, cfg)
+
+		cancelFunc()
+		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NotContains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
+		require.Contains(t, buf.String(), "View the Web UI: https://google.com\n")
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
@@ -213,14 +266,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Verify HTTPS
-		var accessURLRaw string
-		require.Eventually(t, func() bool {
-			var err error
-			accessURLRaw, err = cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 15*time.Second, 25*time.Millisecond)
-		accessURL, err := url.Parse(accessURLRaw)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
 		client := codersdk.New(accessURL)
 		client.HTTPClient = &http.Client{
@@ -231,7 +277,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		_, err = client.HasFirstUser(ctx)
+		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
 		cancelFunc()
@@ -258,11 +304,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			serverErr <- root.ExecuteContext(ctx)
 		}()
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 		currentProcess, err := os.FindProcess(os.Getpid())
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
@@ -367,4 +409,20 @@ func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
 	err = pem.Encode(keyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyBytes})
 	require.NoError(t, err)
 	return certFile.Name(), keyFile.Name()
+}
+
+func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
+	t.Helper()
+
+	var err error
+	var rawURL string
+	require.Eventually(t, func() bool {
+		rawURL, err = cfg.URL().Read()
+		return err == nil && rawURL != ""
+	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
+
+	accessURL, err := url.Parse(rawURL)
+	require.NoError(t, err, "failed to parse access URL")
+
+	return accessURL
 }

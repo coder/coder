@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 type Options struct {
@@ -63,6 +64,7 @@ type Options struct {
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
@@ -179,7 +181,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
-		AgentInactiveDisconnectTimeout: 5 * time.Second,
+		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
@@ -189,6 +191,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
+		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
@@ -412,7 +415,7 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return templateVersion
 }
 
@@ -426,7 +429,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
 }
 
@@ -450,7 +453,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 15*time.Second, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	return resources
 }
 

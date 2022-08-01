@@ -28,6 +28,7 @@ export interface AgentGitSSHKey {
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
+  readonly oidc: boolean
 }
 
 // From codersdk/workspaceagents.go

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestProvisionerJobLogs_Unit(t *testing.T) {
@@ -63,7 +64,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			{ID: uuid.New(), JobID: jobID, Stage: "Stage3"},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// wow there are a lot of DB rows we touch...

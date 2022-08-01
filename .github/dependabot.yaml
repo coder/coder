@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     labels: []
@@ -28,23 +28,32 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-
-  - package-ecosystem: "npm"
-    directory: "/site/"
-    schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
     labels: []
     ignore:
+      # Ignore patch updates for all dependencies
+      - dependency-name: "*"
+        update-types:
+        - version-update:semver-patch
+
+  - package-ecosystem: "npm"
+    directory: "/site/"
+    schedule:
+      interval: "monthly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+    ignore:
+      # Ignore patch updates for all dependencies
+      - dependency-name: "*"
+        update-types:
+        - version-update:semver-patch
       # Ignore major updates to Node.js types, because they need to
       # correspond to the Node.js engine version
       - dependency-name: "@types/node"
@@ -54,7 +63,7 @@ updates:
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
