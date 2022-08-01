@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -16,8 +15,7 @@ import (
 )
 
 var (
-	validate      *validator.Validate
-	usernameRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
+	validate *validator.Validate
 )
 
 // This init is used to create a validator and register validation-specific
@@ -39,13 +37,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		if len(str) > 32 {
-			return false
-		}
-		if len(str) < 1 {
-			return false
-		}
-		return usernameRegex.MatchString(str)
+		return UsernameValid(str)
 	})
 	if err != nil {
 		panic(err)

@@ -99,5 +99,26 @@ WithGithub.args = {
   authMethods: {
     password: true,
     github: true,
+    oidc: false,
+  },
+}
+
+export const WithOIDC = Template.bind({})
+WithOIDC.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: true,
+    github: false,
+    oidc: true,
+  },
+}
+
+export const WithGithubAndOIDC = Template.bind({})
+WithGithubAndOIDC.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: true,
+    github: true,
+    oidc: true,
   },
 }
