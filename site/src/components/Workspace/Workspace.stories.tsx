@@ -75,7 +75,7 @@ Error.args = {
     [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
       message: "A workspace build is already active.",
     }),
-  }
+  },
 }
 
 export const Deleting = Template.bind({})
@@ -104,7 +104,7 @@ Canceled.args = {
     [WorkspaceErrors.CANCELLATION_MESSAGE]: Mocks.makeMockApiError({
       message: "Job has been marked as canceled...",
     }),
-  }
+  },
 }
 
 export const Outdated = Template.bind({})
@@ -120,7 +120,7 @@ GetBuildsError.args = {
     [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
       message: "There is a problem fetching builds.",
     }),
-  }
+  },
 }
 
 export const GetResourcesError = Template.bind({})
@@ -130,5 +130,5 @@ GetResourcesError.args = {
     [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
       message: "There is a problem fetching workspace resources.",
     }),
-  }
+  },
 }
