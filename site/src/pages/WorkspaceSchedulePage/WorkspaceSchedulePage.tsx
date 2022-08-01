@@ -1,29 +1,19 @@
 import { useMachine, useSelector } from "@xstate/react"
-import * as cronParser from "cron-parser"
-import dayjs from "dayjs"
-import timezone from "dayjs/plugin/timezone"
-import utc from "dayjs/plugin/utc"
-import React, { useContext, useEffect } from "react"
+import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspacesPage/schedule"
+import { ttlMsToAutoStop, emptyTTL, defaultTTL } from "pages/WorkspacesPage/ttl"
+import React, { useContext, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import {
-  emptyWorkspaceSchedule,
   WorkspaceScheduleForm,
   WorkspaceScheduleFormValues,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
-import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
-
-// REMARK: timezone plugin depends on UTC
-//
-// SEE: https://day.js.org/docs/en/timezone/timezone
-dayjs.extend(utc)
-dayjs.extend(timezone)
 
 const Language = {
   forbiddenError: "You don't have permissions to update the schedule for this workspace.",
@@ -103,46 +93,6 @@ export const formValuesToTTLRequest = (
   }
 }
 
-export const workspaceToInitialValues = (
-  workspace: TypesGen.Workspace,
-  defaultTimeZone = "",
-): WorkspaceScheduleFormValues => {
-  const schedule = workspace.autostart_schedule
-  const ttlHours = workspace.ttl_ms
-    ? Math.round(workspace.ttl_ms / (1000 * 60 * 60))
-    : 0
-
-  if (!schedule) {
-    return emptyWorkspaceSchedule(ttlHours, defaultTimeZone)
-  }
-
-  const timezone = extractTimezone(schedule, defaultTimeZone)
-
-  const expression = cronParser.parseExpression(stripTimezone(schedule))
-
-  const HH = expression.fields.hour.join("").padStart(2, "0")
-  const mm = expression.fields.minute.join("").padStart(2, "0")
-
-  const weeklyFlags = [false, false, false, false, false, false, false]
-
-  for (const day of expression.fields.dayOfWeek) {
-    weeklyFlags[day % 7] = true
-  }
-
-  return {
-    sunday: weeklyFlags[0],
-    monday: weeklyFlags[1],
-    tuesday: weeklyFlags[2],
-    wednesday: weeklyFlags[3],
-    thursday: weeklyFlags[4],
-    friday: weeklyFlags[5],
-    saturday: weeklyFlags[6],
-    startTime: `${HH}:${mm}`,
-    timezone,
-    ttl: ttlHours,
-  }
-}
-
 export const WorkspaceSchedulePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const navigate = useNavigate()
@@ -165,6 +115,63 @@ export const WorkspaceSchedulePage: React.FC = () => {
   useEffect(() => {
     username && workspaceName && scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, scheduleSend])
+
+  const getAutoStart = (workspace?: TypesGen.Workspace) => scheduleToAutoStart(workspace?.autostart_schedule)
+  const getAutoStop = (workspace?: TypesGen.Workspace) => ttlMsToAutoStop(workspace?.ttl_ms)
+
+  const [autoStart, setAutoStart] = useState(getAutoStart(workspace))
+  const [autoStop, setAutoStop] = useState(getAutoStop(workspace))
+
+  useEffect(() => {
+    setAutoStart(getAutoStart(workspace))
+    setAutoStop(getAutoStop(workspace))
+  }, [workspace])
+
+  const onToggleAutoStart = () => {
+    if (autoStart.enabled) {
+      setAutoStart({
+        enabled: false,
+        schedule: emptySchedule
+      })
+    } else {
+      if (workspace?.autostart_schedule) {
+        // repopulate saved schedule
+        setAutoStart({
+          enabled: true,
+          schedule: getAutoStart(workspace).schedule
+        })
+      } else {
+        // populate with defaults
+        setAutoStart({
+          enabled: true,
+          schedule: defaultSchedule()
+        })
+      }
+    }
+  }
+
+  const onToggleAutoStop = () => {
+    if (autoStop.enabled) {
+      setAutoStop({
+        enabled: false,
+        ttl: emptyTTL
+      })
+    } else {
+      if (workspace?.ttl_ms) {
+        // repopulate saved ttl
+        setAutoStop({
+          enabled: true,
+          ttl: getAutoStop(workspace).ttl
+        })
+      } else {
+        // set default
+        setAutoStop({
+          enabled: true,
+          ttl: defaultTTL
+        })
+      }
+    }
+  }
 
   if (!username || !workspaceName) {
     navigate("/workspaces")
@@ -200,7 +207,10 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
-        initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
+        autoStart={autoStart}
+        toggleAutoStart={onToggleAutoStart}
+        autoStop={autoStop}
+        toggleAutoStop={onToggleAutoStop}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)

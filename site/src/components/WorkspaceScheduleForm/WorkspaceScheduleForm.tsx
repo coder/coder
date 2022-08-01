@@ -17,6 +17,8 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
+import { AutoStart } from "pages/WorkspacesPage/schedule"
+import { AutoStop } from "pages/WorkspacesPage/ttl"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError } from "../../util/formUtils"
@@ -57,7 +59,10 @@ export const Language = {
 
 export interface WorkspaceScheduleFormProps {
   submitScheduleError?: Error | unknown
-  initialValues?: WorkspaceScheduleFormValues
+  autoStart: AutoStart
+  toggleAutoStart: () => void
+  autoStop: AutoStop
+  toggleAutoStop: () => void
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -162,54 +167,23 @@ export const validationSchema = Yup.object({
     .max(24 * 7 /* 7 days */),
 })
 
-export const defaultWorkspaceScheduleTTL = 8
-
-export const emptyWorkspaceSchedule = (
-  ttl = 0,
-  timezone = dayjs.tz.guess(),
-): WorkspaceScheduleFormValues => ({
-  sunday: false,
-  monday: false,
-  tuesday: false,
-  wednesday: false,
-  thursday: false,
-  friday: false,
-  saturday: false,
-
-  startTime: "",
-  timezone,
-  ttl,
-})
-
-export const defaultWorkspaceSchedule = (
-  ttl = defaultWorkspaceScheduleTTL,
-  timezone = dayjs.tz.guess(),
-): WorkspaceScheduleFormValues => ({
-  sunday: false,
-  monday: true,
-  tuesday: true,
-  wednesday: true,
-  thursday: true,
-  friday: true,
-  saturday: false,
-
-  startTime: "09:30",
-  timezone,
-  ttl,
-})
-
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
-  initialValues = defaultWorkspaceSchedule(),
+  autoStart,
+  toggleAutoStart,
+  autoStop,
+  toggleAutoStop,
   isLoading,
   onCancel,
   onSubmit,
   initialTouched,
 }) => {
   const styles = useStyles()
+  const initialValues = { ...autoStart.schedule, ttl: autoStop.ttl }
 
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
+    enableReinitialize: true,
     onSubmit,
     validationSchema,
     initialTouched,
@@ -236,12 +210,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
           <Section title="Start">
           <FormControlLabel
-            control={<Switch />}
+            control={<Switch checked={autoStart.enabled} onChange={toggleAutoStart} />}
             label="Auto-start"
           />
           <TextField
             {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={isLoading}
+            disabled={isLoading || !autoStart.enabled}
             InputLabelProps={{
               shrink: true,
             }}
@@ -251,7 +225,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <TextField
             {...formHelpers("timezone")}
-            disabled={isLoading}
+            disabled={isLoading || !autoStart.enabled}
             InputLabelProps={{
               shrink: true,
             }}
@@ -276,7 +250,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={isLoading}
+                      disabled={isLoading || !autoStart.enabled}
                       onChange={form.handleChange}
                       name={checkbox.name}
                       color="primary"
@@ -296,12 +270,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <Section title="Stop">
           <FormControlLabel
-          control={<Switch />}
+          control={<Switch checked={autoStop.enabled} onChange={toggleAutoStop} />}
           label="Auto-Stop"
            />
           <TextField
             {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
-            disabled={isLoading}
+            disabled={isLoading || !autoStop.enabled}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
