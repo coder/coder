@@ -46,7 +46,6 @@ export const WorkspacePage: React.FC = () => {
     cancellationMessage,
   } = workspaceState.context
 
-  console.log(cancellationMessage)
   const canUpdateWorkspace = !!permissions?.updateWorkspace
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)

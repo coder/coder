@@ -41,7 +41,7 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
-  workspaceErrors: Partial<Record<WorkspaceErrors, Error>>
+  workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
 }
 
 /**
@@ -117,7 +117,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           {!!resources && !!resources.length && (
             <Resources
               resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
+              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR] as Error}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
             />

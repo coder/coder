@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/entities"
-import { Workspace, WorkspaceProps } from "./Workspace"
+import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 
 export default {
   title: "components/Workspace",
@@ -71,6 +71,11 @@ Error.args = {
       transition: "start",
     },
   },
+  workspaceErrors: {
+    [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
+      message: "A workspace build is already active.",
+    }),
+  }
 }
 
 export const Deleting = Template.bind({})
@@ -95,10 +100,35 @@ export const Canceled = Template.bind({})
 Canceled.args = {
   ...Started.args,
   workspace: Mocks.MockCanceledWorkspace,
+  workspaceErrors: {
+    [WorkspaceErrors.CANCELLATION_MESSAGE]: Mocks.makeMockApiError({
+      message: "Job has been marked as canceled...",
+    }),
+  }
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
   ...Started.args,
   workspace: Mocks.MockOutdatedWorkspace,
+}
+
+export const GetBuildsError = Template.bind({})
+GetBuildsError.args = {
+  ...Started.args,
+  workspaceErrors: {
+    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
+      message: "There is a problem fetching builds.",
+    }),
+  }
+}
+
+export const GetResourcesError = Template.bind({})
+GetResourcesError.args = {
+  ...Started.args,
+  workspaceErrors: {
+    [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
+      message: "There is a problem fetching workspace resources.",
+    }),
+  }
 }
