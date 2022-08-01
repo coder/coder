@@ -49,8 +49,6 @@ The workspace will be stopped and started:
 coder update <workspace-name>
 ```
 
----
-
 ## Up next
-<doc page="./dotfiles.md"></doc>
-<doc page="./ides.md"></doc>
+- Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
+- Learn about using [IDEs](./ides.md)

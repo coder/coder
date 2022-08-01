@@ -98,4 +98,4 @@ Azure, Google Cloud, Kubernetes, and more.
 
 
 ## Up next
-<doc page="./templates.md"></doc>
+- Learn about [Templates](./templates.md)

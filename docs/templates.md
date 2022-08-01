@@ -236,7 +236,7 @@ We recommend source controlling your templates as you would other code.
 CI is as simple as running `coder templates update` with the appropriate
 credentials.
 
----
+
 ## Next Steps
-<doc page="./templates/authentication.md"></doc>
-<doc page="./workspaces.md"></doc>
+- Learn about [Authentication & Secrets](templates/authentication.md)
+- Learn about [Workspaces](workspaces.md)
