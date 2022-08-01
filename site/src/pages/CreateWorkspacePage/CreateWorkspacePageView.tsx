@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useState } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
@@ -35,6 +35,8 @@ export interface CreateWorkspacePageViewProps {
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
 }
 
 export const validationSchema = Yup.object({
@@ -53,6 +55,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
       },
       enableReinitialize: true,
       validationSchema,
+      initialTouched: props.initialTouched,
       onSubmit: (request) => {
         if (!props.templateSchema) {
           throw new Error("No template schema loaded")

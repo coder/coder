@@ -106,4 +106,7 @@ CreateWorkspaceError.args = {
       ],
     }),
   },
+  initialTouched: {
+    name: true,
+  },
 }
