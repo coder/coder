@@ -249,6 +249,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
+		"GET:/api/v2/users/oidc/callback":          {NoAuthorize: true},
 
 		// All workspaceagents endpoints do not use rbac
 		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},

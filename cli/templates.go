@@ -26,8 +26,8 @@ func templates() *cobra.Command {
 				Command:     "coder templates plan my-template",
 			},
 			example{
-				Description: "Update the template. Your developers can update their workspaces",
-				Command:     "coder templates update my-template",
+				Description: "Push an update to the template. Your developers can update their workspaces",
+				Command:     "coder templates push my-template",
 			},
 		),
 	}
@@ -37,7 +37,7 @@ func templates() *cobra.Command {
 		templateInit(),
 		templateList(),
 		templatePlan(),
-		templateUpdate(),
+		templatePush(),
 		templateVersions(),
 		templateDelete(),
 		templatePull(),

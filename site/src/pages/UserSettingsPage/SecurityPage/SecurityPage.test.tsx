@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { Language as ErrorSummaryLanguage } from "components/ErrorSummary/ErrorSummary"
-import React from "react"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
