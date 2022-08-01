@@ -86,6 +86,3 @@ export const getValidationErrorMessage = (error: Error | ApiError | unknown): st
 
 export const getErrorDetail = (error: Error | ApiError | unknown): string | undefined | null =>
   isApiError(error) ? error.response.data.detail : error instanceof Error ? error.stack : null
-
-export const getErrorIfErrorType = (error: Error | unknown): Error | undefined =>
-  error instanceof Error ? error : undefined

@@ -29,7 +29,7 @@ const Language = {
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
-  getResourcesError?: Error
+  getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
 }

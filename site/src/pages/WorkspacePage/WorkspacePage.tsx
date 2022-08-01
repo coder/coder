@@ -1,6 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine, useSelector } from "@xstate/react"
-import { getErrorIfErrorType } from "api/errors"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import React, { useContext, useEffect } from "react"
@@ -122,10 +121,10 @@ export const WorkspacePage: React.FC = () => {
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
           workspaceErrors={{
-            [WorkspaceErrors.GET_RESOURCES_ERROR]: getErrorIfErrorType(getResourcesError),
-            [WorkspaceErrors.GET_BUILDS_ERROR]: getErrorIfErrorType(getBuildsError),
-            [WorkspaceErrors.BUILD_ERROR]: getErrorIfErrorType(buildError),
-            [WorkspaceErrors.CANCELLATION_MESSAGE]: getErrorIfErrorType(cancellationMessage),
+            [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
+            [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
+            [WorkspaceErrors.BUILD_ERROR]: buildError,
+            [WorkspaceErrors.CANCELLATION_MESSAGE]: cancellationMessage,
           }}
         />
         <DeleteWorkspaceDialog

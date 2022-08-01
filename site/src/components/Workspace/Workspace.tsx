@@ -117,7 +117,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           {!!resources && !!resources.length && (
             <Resources
               resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR] as Error}
+              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
             />
