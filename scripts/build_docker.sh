@@ -95,14 +95,27 @@ ln -P Dockerfile "$temp_dir/"
 
 cd "$temp_dir"
 
-build_args=(
-	--platform "$arch"
-	--build-arg "CODER_VERSION=$version"
-	--tag "$image_tag"
-)
-
 log "--- Building Docker image for $arch ($image_tag)"
-docker buildx build "${build_args[@]}" . 1>&2
+
+# Pull the base image, copy the /etc/group and /etc/passwd files out of it, and
+# add the coder group and user. We have to do this in a separate step instead of
+# using the RUN directive in the Dockerfile because you can't use RUN if you're
+# building the image for a different architecture than the host.
+docker pull --platform "$arch" alpine:latest
+
+temp_container_id="$(docker create --platform "$arch" alpine:latest)"
+docker cp "$temp_container_id":/etc/group ./group
+docker cp "$temp_container_id":/etc/passwd ./passwd
+docker rm "$temp_container_id"
+
+echo "coder:x:1000:coder" >> ./group
+echo "coder:x:1000:1000::/:/bin/sh" >> ./passwd
+
+docker buildx build \
+	--platform "$arch" \
+	--build-arg "CODER_VERSION=$version" \
+	--tag "$image_tag" \
+	. 1>&2
 
 cdroot
 rm -rf "$temp_dir"
