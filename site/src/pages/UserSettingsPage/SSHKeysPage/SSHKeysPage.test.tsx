@@ -4,6 +4,7 @@ import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackba
 import { MockGitSSHKey, renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { Language as authXServiceLanguage } from "../../../xServices/auth/authXService"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
+import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView"
 
 describe("SSH keys Page", () => {
   it("shows the SSH key", async () => {
@@ -26,7 +27,7 @@ describe("SSH keys Page", () => {
 
         // Click on the "Regenerate" button to display the confirm dialog
         const regenerateButton = screen.getByRole("button", {
-          name: SSHKeysPageLanguage.regenerateLabel,
+          name: SSHKeysPageViewLanguage.regenerateLabel,
         })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
@@ -72,7 +73,7 @@ describe("SSH keys Page", () => {
 
         // Click on the "Regenerate" button to display the confirm dialog
         const regenerateButton = screen.getByRole("button", {
-          name: SSHKeysPageLanguage.regenerateLabel,
+          name: SSHKeysPageViewLanguage.regenerateLabel,
         })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
@@ -85,7 +86,7 @@ describe("SSH keys Page", () => {
         fireEvent.click(confirmButton)
 
         // Check if the error message is displayed
-        await screen.findByText(authXServiceLanguage.errorRegenerateSSHKey)
+        await screen.findByText(SSHKeysPageViewLanguage.errorRegenerateSSHKey)
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1)

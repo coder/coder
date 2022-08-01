@@ -21,7 +21,7 @@ variable "step1_docker_host_warning" {
   the Coder host, which is not necessarily your local machine.
 
   You can specify a different host in the template file and
-  surpress this warning.
+  suppress this warning.
   EOF
   validation {
     condition     = contains(["Continue using /var/run/docker.sock on the Coder host"], var.step1_docker_host_warning)

@@ -1,12 +1,12 @@
 import { Story } from "@storybook/react"
-import { SignInForm, SignInFormProps } from "./SignInForm"
+import { makeMockApiError } from "testHelpers/entities"
+import { LoginErrors, SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
   title: "components/SignInForm",
   component: SignInForm,
   argTypes: {
     isLoading: "boolean",
-    authErrorMessage: "string",
     onSubmit: { action: "Submit" },
   },
 }
@@ -16,7 +16,7 @@ const Template: Story<SignInFormProps> = (args: SignInFormProps) => <SignInForm 
 export const SignedOut = Template.bind({})
 SignedOut.args = {
   isLoading: false,
-  authErrorMessage: undefined,
+  loginErrors: {},
   onSubmit: () => {
     return Promise.resolve()
   },
@@ -33,12 +33,64 @@ Loading.args = {
 }
 
 export const WithLoginError = Template.bind({})
-WithLoginError.args = { ...SignedOut.args, authErrorMessage: "Email or password was invalid" }
+WithLoginError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.AUTH_ERROR]: makeMockApiError({
+      message: "Email or password was invalid",
+      validations: [
+        {
+          field: "password",
+          detail: "Password is invalid.",
+        },
+      ],
+    }),
+  },
+  initialTouched: {
+    password: true,
+  },
+}
+
+export const WithGetUserError = Template.bind({})
+WithGetUserError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.GET_USER_ERROR]: makeMockApiError({
+      message: "You are logged out. Please log in to continue.",
+      detail: "API Key is invalid.",
+    }),
+  },
+}
+
+export const WithCheckPermissionsError = Template.bind({})
+WithCheckPermissionsError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.CHECK_PERMISSIONS_ERROR]: makeMockApiError({
+      message: "Unable to fetch user permissions",
+      detail: "Resource not found or you do not have access to this resource.",
+    }),
+  },
+}
 
 export const WithAuthMethodsError = Template.bind({})
 WithAuthMethodsError.args = {
   ...SignedOut.args,
-  methodsErrorMessage: "Failed to fetch auth methods",
+  loginErrors: {
+    [LoginErrors.GET_METHODS_ERROR]: new Error("Failed to fetch auth methods"),
+  },
+}
+
+export const WithGetUserAndAuthMethodsError = Template.bind({})
+WithGetUserAndAuthMethodsError.args = {
+  ...SignedOut.args,
+  loginErrors: {
+    [LoginErrors.GET_USER_ERROR]: makeMockApiError({
+      message: "You are logged out. Please log in to continue.",
+      detail: "API Key is invalid.",
+    }),
+    [LoginErrors.GET_METHODS_ERROR]: new Error("Failed to fetch auth methods"),
+  },
 }
 
 export const WithGithub = Template.bind({})
@@ -47,5 +99,26 @@ WithGithub.args = {
   authMethods: {
     password: true,
     github: true,
+    oidc: false,
+  },
+}
+
+export const WithOIDC = Template.bind({})
+WithOIDC.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: true,
+    github: false,
+    oidc: true,
+  },
+}
+
+export const WithGithubAndOIDC = Template.bind({})
+WithGithubAndOIDC.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: true,
+    github: true,
+    oidc: true,
   },
 }

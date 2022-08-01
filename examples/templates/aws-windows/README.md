@@ -44,7 +44,7 @@ instances provisioned by Coder:
             "Resource": "*"
         },
         {
-            "Sid": "CoderResouces",
+            "Sid": "CoderResources",
             "Effect": "Allow",
             "Action": [
                 "ec2:DescribeInstances",

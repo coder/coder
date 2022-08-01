@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/pty"
+	"github.com/coder/coder/testutil"
 )
 
 func New(t *testing.T) *PTY {
@@ -27,7 +27,7 @@ func New(t *testing.T) *PTY {
 	return create(t, ptty, "cmd")
 }
 
-func Start(t *testing.T, cmd *exec.Cmd) (*PTY, *os.Process) {
+func Start(t *testing.T, cmd *exec.Cmd) (*PTY, pty.Process) {
 	ptty, ps, err := pty.Start(cmd)
 	require.NoError(t, err)
 	return create(t, ptty, cmd.Args[0]), ps
@@ -86,7 +86,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
 	var buffer bytes.Buffer

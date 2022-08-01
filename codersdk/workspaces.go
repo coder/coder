@@ -192,7 +192,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace ttl: %w", err)
+		return xerrors.Errorf("update workspace time until shutdown: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -212,7 +212,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	path := fmt.Sprintf("/api/v2/workspaces/%s/extend", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("extend workspace ttl: %w", err)
+		return xerrors.Errorf("extend workspace time until shutdown: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {

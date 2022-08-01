@@ -1,11 +1,11 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
-import React from "react"
+import { Language as ErrorSummaryLanguage } from "components/ErrorSummary/ErrorSummary"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
-import { Language, SecurityPage } from "./SecurityPage"
+import { SecurityPage } from "./SecurityPage"
 
 const renderPage = () => {
   return renderWithAuth(
@@ -65,8 +65,9 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText("Incorrect password.")
+      const errorMessage = await screen.findAllByText("Incorrect password.")
       expect(errorMessage).toBeDefined()
+      expect(errorMessage).toHaveLength(2)
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
     })
@@ -87,8 +88,9 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText("Invalid password.")
+      const errorMessage = await screen.findAllByText("Invalid password.")
       expect(errorMessage).toBeDefined()
+      expect(errorMessage).toHaveLength(2)
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
     })
@@ -103,7 +105,7 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText(Language.unknownError)
+      const errorMessage = await screen.findByText(ErrorSummaryLanguage.unknownErrorMessage)
       expect(errorMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)

@@ -34,6 +34,7 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
+ORDER BY (created_at, id) ASC
 ;
 
 -- name: GetTemplateByOrganizationAndName :one
@@ -49,7 +50,9 @@ LIMIT
 	1;
 
 -- name: GetTemplates :many
-SELECT * FROM templates;
+SELECT * FROM templates
+ORDER BY (created_at, id) ASC
+;
 
 -- name: InsertTemplate :one
 INSERT INTO

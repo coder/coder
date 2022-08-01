@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/testutil"
 )
 
 var (
@@ -109,7 +110,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
@@ -128,7 +129,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
 		exchange(t, client, server)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
@@ -148,7 +149,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
@@ -196,7 +197,7 @@ func TestConn(t *testing.T) {
 		srv, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		defer srv.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		go func() {
 			sch, err := server.Accept(ctx)
@@ -314,7 +315,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		go func() {
 			channel, err := client.CreateChannel(ctx, "test", nil)

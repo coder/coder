@@ -30,7 +30,7 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: Language.authErrorMessage }))
+        return res(ctx.status(500), ctx.json({ message: Language.errorMessages.authError }))
       }),
     )
 
@@ -45,17 +45,18 @@ describe("LoginPage", () => {
     act(() => signInButton.click())
 
     // Then
-    const errorMessage = await screen.findByText(Language.authErrorMessage)
+    const errorMessage = await screen.findByText(Language.errorMessages.authError)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })
 
   it("shows an error if fetching auth methods fails", async () => {
     // Given
+    const apiErrorMessage = "Unable to fetch methods"
     server.use(
       // Make login fail
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
+        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }))
       }),
     )
 
@@ -63,7 +64,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    const errorMessage = await screen.findByText(Language.methodsErrorMessage)
+    const errorMessage = await screen.findByText(apiErrorMessage)
     expect(errorMessage).toBeDefined()
   })
 

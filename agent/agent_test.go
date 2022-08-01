@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -36,6 +38,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -69,7 +72,7 @@ func TestAgent(t *testing.T) {
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
-	t.Run("SessionTTY", func(t *testing.T) {
+	t.Run("SessionTTYShell", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			// This might be our implementation, or ConPTY itself.
@@ -101,6 +104,29 @@ func TestAgent(t *testing.T) {
 		ptty.WriteLine("exit")
 		err = session.Wait()
 		require.NoError(t, err)
+	})
+
+	t.Run("SessionTTYExitCode", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSHSession(t, agent.Metadata{})
+		command := "areallynotrealcommand"
+		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+		ptty := ptytest.New(t)
+		require.NoError(t, err)
+		session.Stdout = ptty.Output()
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Start(command)
+		require.NoError(t, err)
+		err = session.Wait()
+		exitErr := &ssh.ExitError{}
+		require.True(t, xerrors.As(err, &exitErr))
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, 1, exitErr.ExitStatus())
+		} else {
+			assert.Equal(t, 127, exitErr.ExitStatus())
+		}
 	})
 
 	t.Run("LocalForwarding", func(t *testing.T) {
@@ -232,7 +258,7 @@ func TestAgent(t *testing.T) {
 			}
 			gotContent = string(content)
 			return true
-		}, 15*time.Second, 100*time.Millisecond)
+		}, testutil.WaitMedium, testutil.IntervalMedium)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 

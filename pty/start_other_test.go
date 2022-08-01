@@ -7,6 +7,10 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/pty/ptytest"
@@ -20,7 +24,20 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
-		pty, _ := ptytest.Start(t, exec.Command("echo", "test"))
+		pty, ps := ptytest.Start(t, exec.Command("echo", "test"))
 		pty.ExpectMatch("test")
+		err := ps.Wait()
+		require.NoError(t, err)
+	})
+
+	t.Run("Kill", func(t *testing.T) {
+		t.Parallel()
+		_, ps := ptytest.Start(t, exec.Command("sleep", "30"))
+		err := ps.Kill()
+		assert.NoError(t, err)
+		err = ps.Wait()
+		var exitErr *exec.ExitError
+		require.True(t, xerrors.As(err, &exitErr))
+		assert.NotEqual(t, 0, exitErr.ExitCode())
 	})
 }

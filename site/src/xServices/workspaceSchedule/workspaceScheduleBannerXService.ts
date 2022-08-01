@@ -2,6 +2,7 @@
  * @fileoverview workspaceScheduleBanner is an xstate machine backing a form,
  * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
+import { getErrorMessage } from "api/errors"
 import dayjs from "dayjs"
 import { createMachine } from "xstate"
 import * as API from "../../api/api"
@@ -51,8 +52,9 @@ export const workspaceScheduleBannerMachine = createMachine(
   },
   {
     actions: {
-      displayFailureMessage: () => {
-        displayError(Language.errorExtension)
+      // This error does not have a detail, so using the snackbar is okay
+      displayFailureMessage: (_, event) => {
+        displayError(getErrorMessage(event.data, Language.errorExtension))
       },
       displaySuccessMessage: () => {
         displaySuccess(Language.successExtension)

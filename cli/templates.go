@@ -26,8 +26,8 @@ func templates() *cobra.Command {
 				Command:     "coder templates plan my-template",
 			},
 			example{
-				Description: "Update the template. Your developers can update their workspaces",
-				Command:     "coder templates update my-template",
+				Description: "Push an update to the template. Your developers can update their workspaces",
+				Command:     "coder templates push my-template",
 			},
 		),
 	}
@@ -37,7 +37,7 @@ func templates() *cobra.Command {
 		templateInit(),
 		templateList(),
 		templatePlan(),
-		templateUpdate(),
+		templatePush(),
 		templateVersions(),
 		templateDelete(),
 		templatePull(),
@@ -71,7 +71,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) st
 			template.OrganizationID.String(),
 			template.Provisioner,
 			template.ActiveVersionID.String(),
-			cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+			cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
 			(time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
 			(time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		})

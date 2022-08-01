@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
@@ -68,6 +69,7 @@ func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
+
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
@@ -75,8 +77,12 @@ func TestSSH(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		cmdDone := tGo(t, func() {
-			err := cmd.Execute()
+			err := cmd.ExecuteContext(ctx)
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
@@ -85,9 +91,9 @@ func TestSSH(t *testing.T) {
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
-		t.Cleanup(func() {
+		defer func() {
 			_ = agentCloser.Close()
-		})
+		}()
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
@@ -113,6 +119,14 @@ func TestSSH(t *testing.T) {
 
 		clientOutput, clientInput := io.Pipe()
 		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
@@ -120,7 +134,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetOut(serverInput)
 		cmd.SetErr(io.Discard)
 		cmdDone := tGo(t, func() {
-			err := cmd.Execute()
+			err := cmd.ExecuteContext(ctx)
 			assert.NoError(t, err)
 		})
 
@@ -132,9 +146,13 @@ func TestSSH(t *testing.T) {
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		require.NoError(t, err)
+		defer conn.Close()
+
 		sshClient := ssh.NewClient(conn, channels, requests)
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
+		defer session.Close()
+
 		command := "sh -c exit"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe /c exit"
@@ -198,6 +216,9 @@ func TestSSH(t *testing.T) {
 			}
 		})
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		cmd, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
@@ -210,7 +231,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(io.Discard)
 		cmdDone := tGo(t, func() {
-			err := cmd.Execute()
+			err := cmd.ExecuteContext(ctx)
 			assert.NoError(t, err)
 		})
 

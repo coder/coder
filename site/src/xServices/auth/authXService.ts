@@ -1,14 +1,12 @@
-import { AxiosError } from "axios"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
   successSecurityUpdate: "Updated password.",
   successRegenerateSSHKey: "SSH Key regenerated successfully",
-  errorRegenerateSSHKey: "Error on regenerate the SSH Key",
 }
 
 export const checks = {
@@ -49,8 +47,10 @@ type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown
+  // The getMethods API call does not return an ApiError.
+  // It can only error out in a generic fashion.
   getMethodsError?: Error | unknown
-  authError?: Error | AxiosError | unknown
+  authError?: Error | unknown
   updateProfileError?: Error | unknown
   updateSecurityError?: Error | unknown
   me?: TypesGen.User
@@ -129,7 +129,7 @@ const sshState = {
             ],
             onError: [
               {
-                actions: ["assignRegenerateSSHKeyError", "notifySSHKeyRegenerationError"],
+                actions: ["assignRegenerateSSHKeyError"],
                 target: "#authState.signedIn.ssh.loaded.idle",
               },
             ],
@@ -194,12 +194,12 @@ export const authMachine =
           },
         },
         signingIn: {
+          entry: "clearAuthError",
           invoke: {
             src: "signIn",
             id: "signIn",
             onDone: [
               {
-                actions: "clearAuthError",
                 target: "gettingUser",
               },
             ],
@@ -213,12 +213,13 @@ export const authMachine =
           tags: "loading",
         },
         gettingUser: {
+          entry: "clearGetUserError",
           invoke: {
             src: "getMe",
             id: "getMe",
             onDone: [
               {
-                actions: ["assignMe", "clearGetUserError"],
+                actions: ["assignMe"],
                 target: "gettingPermissions",
               },
             ],
@@ -486,9 +487,6 @@ export const authMachine =
         }),
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
-        },
-        notifySSHKeyRegenerationError: () => {
-          displayError(Language.errorRegenerateSSHKey)
         },
       },
     },
