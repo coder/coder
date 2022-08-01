@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestCreate(t *testing.T) {
@@ -88,7 +89,7 @@ func TestCreate(t *testing.T) {
 
 		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		clitest.SetupConfig(t, member, root)
-		cmdCtx, done := context.WithTimeout(context.Background(), 10*time.Second)
+		cmdCtx, done := context.WithTimeout(context.Background(), testutil.WaitLong)
 		go func() {
 			defer done()
 			err := cmd.ExecuteContext(cmdCtx)

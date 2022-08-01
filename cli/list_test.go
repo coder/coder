@@ -3,13 +3,13 @@ package cli_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestList(t *testing.T) {
@@ -29,7 +29,7 @@ func TestList(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 		done := make(chan any)
 		go func() {

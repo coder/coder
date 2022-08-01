@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/testutil"
 )
 
 func TestRateLimit(t *testing.T) {
@@ -27,6 +27,6 @@ func TestRateLimit(t *testing.T) {
 			rec := httptest.NewRecorder()
 			rtr.ServeHTTP(rec, req)
 			return rec.Result().StatusCode == http.StatusTooManyRequests
-		}, 5*time.Second, time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }

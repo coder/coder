@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -257,7 +258,7 @@ func TestAgent(t *testing.T) {
 			}
 			gotContent = string(content)
 			return true
-		}, 15*time.Second, 100*time.Millisecond)
+		}, testutil.WaitMedium, testutil.IntervalMedium)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +12,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestProvisionerDaemons(t *testing.T) {
@@ -41,7 +41,7 @@ func TestProvisionerDaemons(t *testing.T) {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
 			return assert.NoError(t, err) && version.Job.Error != ""
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
