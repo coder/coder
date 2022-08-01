@@ -78,6 +78,5 @@ Coder with Docker has the following advantages:
     Open up a web application or [SSH in](../ides.md#ssh-configuration).
 
 ## Next Steps
-
-- [Learn more about template configuration](../templates.md)
-- [Configure more IDEs](../ides/configuring-web-ides.md)
+<doc page="./templates.md"></doc>
+<doc page="./ides/configuring-web-ides.md"></doc>
