@@ -221,6 +221,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             }}
             label={Language.startTimeLabel}
             type="time"
+            fullWidth
           />
 
           <TextField
@@ -231,6 +232,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             }}
             label={Language.timezoneLabel}
             select
+            fullWidth
           >
             {zones.map((zone) => (
               <MenuItem key={zone} value={zone}>
@@ -279,6 +281,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
+            fullWidth
           />
           </Section>
 
