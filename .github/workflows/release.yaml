@@ -102,7 +102,7 @@ jobs:
 
           # build and (maybe) push Docker images for each architecture
           images=()
-          for arch in amd64; do
+          for arch in amd64 armv7 arm64; do
             img="$(
               ./scripts/build_docker.sh \
                 ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
