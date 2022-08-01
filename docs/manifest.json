@@ -86,8 +86,8 @@
           "path": "./ides/configuring-web-ides.md"
         },
         {
-          "title": "Configuring Emacs (with TRAMP)",
-          "description": "Learn how to configure Emacs in Coder",
+          "title": "Configuring Emacs",
+          "description": "Learn how to configure Emacs with TRAMP in Coder",
           "path": "./ides/configuring-emacs-tramp.md"
         }
       ]

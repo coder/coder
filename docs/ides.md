@@ -17,8 +17,8 @@ support should work:
   - RubyMine
   - WebStorm
 - Web IDEs (code-server, JupyterLab, Jetbrains Projector)
-   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
-- Emacs (with [TRAMP](./ides/configuring-emacs-tramp.md))
+  - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+- [Emacs](./ides/configuring-emacs-tramp.md)
 
 ## SSH configuration
 
@@ -90,11 +90,10 @@ After installing Gateway on your local system, you may connect to a Coder worksp
 8. Click "Download and Start IDE" to connect.
 
 | Version   | Status      | Notes                                                      |
-|-----------|-------------|------------------------------------------------------------|
+| --------- | ----------- | ---------------------------------------------------------- |
 | 2021.3.2  | Working     |                                                            |
 | 2022.1.1  | Working     | Windows clients are unable to connect to Linux workspace   |
 | 2022.2 RC | Not working | [GitHub Issue](https://github.com/coder/coder/issues/3125) |
-
 
 ## Web IDEs (Jupyter, code-server, Jetbrains Projector)
 
