@@ -46,7 +46,7 @@ const config: Configuration = {
 
       // webpack-dev-server uses a webSocket to communicate with the browser
       // for HMR. By setting this to auto://0.0.0.0/ws, we allow the browser
-      // to set the protocal, hostname and port automatically for us.
+      // to set the protocol, hostname and port automatically for us.
       webSocketURL: "auto://0.0.0.0:0/ws",
     },
     devMiddleware: {

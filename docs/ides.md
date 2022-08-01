@@ -12,7 +12,7 @@ support should work:
   - Rider
   - RubyMine
   - WebStorm
-- Web IDEs (code-server, JupyterLab, Jetbrains Projector)
+- Web IDEs (code-server, JupyterLab, JetBrains Projector)
   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
 
 ## SSH configuration
@@ -74,6 +74,6 @@ Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 | 2022.1.4  | Working | Windows clients are unable to connect to Linux workspace |
 | 2022.2 RC | Working | Version >= 222.3345.108                                  |
 
-## Web IDEs (Jupyter, code-server, Jetbrains Projector)
+## Web IDEs (Jupyter, code-server, JetBrains Projector)
 
 Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).
