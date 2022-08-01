@@ -329,7 +329,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Message: fmt.Sprintf("Workspace %q already exists in the %q template.", createWorkspace.Name, template.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
-				Detail: "this value is already in use and should be unique",
+				Detail: "This value is already in use and should be unique.",
 			}},
 		})
 		return

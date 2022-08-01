@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, useFormik } from "formik"
 import { FC, useState } from "react"
 import * as Yup from "yup"
@@ -9,21 +10,29 @@ import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
 import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { Stack } from "../../components/Stack/Stack"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 
 export const Language = {
   templateLabel: "Template",
   nameLabel: "Name",
 }
 
+export enum CreateWorkspaceErrors {
+  GET_TEMPLATES_ERROR = "getTemplatesError",
+  GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
+  CREATE_WORKSPACE_ERROR = "createWorkspaceError",
+}
+
 export interface CreateWorkspacePageViewProps {
   loadingTemplates: boolean
   loadingTemplateSchema: boolean
   creatingWorkspace: boolean
+  hasTemplateErrors: boolean
   templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
+  createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
 }
@@ -62,18 +71,45 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (props)
             source_value: value,
           })
         })
-        return props.onSubmit({
+        props.onSubmit({
           ...request,
           parameter_values: createRequests,
         })
+        form.setSubmitting(false)
       },
     })
-  const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(form)
+
+  const getFieldHelpers = getFormHelpersWithError<TypesGen.CreateWorkspaceRequest>(
+    form,
+    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR],
+  )
+
+  if (props.hasTemplateErrors) {
+    return (
+      <Stack>
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] && (
+          <ErrorSummary
+            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
+          />
+        )}
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] && (
+          <ErrorSummary
+            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
+          />
+        )}
+      </Stack>
+    )
+  }
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
+          {props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR] && (
+            <ErrorSummary
+              error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
+            />
+          )}
           <TextField
             disabled
             fullWidth
