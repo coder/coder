@@ -40,8 +40,7 @@ export const emptySchedule = {
   timezone: "",
 }
 
-export const defaultSchedule = (
-): AutoStartSchedule  => ({
+export const defaultSchedule = (): AutoStartSchedule => ({
   sunday: false,
   monday: true,
   tuesday: true,
@@ -85,7 +84,7 @@ export const scheduleToAutoStart = (schedule?: string): AutoStart => {
   if (schedule) {
     return {
       enabled: true,
-      schedule: transformSchedule(schedule)
+      schedule: transformSchedule(schedule),
     }
   } else {
     return { enabled: false, schedule: emptySchedule }

@@ -1,6 +1,6 @@
 import { useMachine, useSelector } from "@xstate/react"
 import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspacesPage/schedule"
-import { ttlMsToAutoStop, emptyTTL, defaultTTL } from "pages/WorkspacesPage/ttl"
+import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspacesPage/ttl"
 import React, { useContext, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -116,7 +116,8 @@ export const WorkspaceSchedulePage: React.FC = () => {
     username && workspaceName && scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, scheduleSend])
 
-  const getAutoStart = (workspace?: TypesGen.Workspace) => scheduleToAutoStart(workspace?.autostart_schedule)
+  const getAutoStart = (workspace?: TypesGen.Workspace) =>
+    scheduleToAutoStart(workspace?.autostart_schedule)
   const getAutoStop = (workspace?: TypesGen.Workspace) => ttlMsToAutoStop(workspace?.ttl_ms)
 
   const [autoStart, setAutoStart] = useState(getAutoStart(workspace))
@@ -131,20 +132,20 @@ export const WorkspaceSchedulePage: React.FC = () => {
     if (autoStart.enabled) {
       setAutoStart({
         enabled: false,
-        schedule: emptySchedule
+        schedule: emptySchedule,
       })
     } else {
       if (workspace?.autostart_schedule) {
         // repopulate saved schedule
         setAutoStart({
           enabled: true,
-          schedule: getAutoStart(workspace).schedule
+          schedule: getAutoStart(workspace).schedule,
         })
       } else {
         // populate with defaults
         setAutoStart({
           enabled: true,
-          schedule: defaultSchedule()
+          schedule: defaultSchedule(),
         })
       }
     }
@@ -154,20 +155,20 @@ export const WorkspaceSchedulePage: React.FC = () => {
     if (autoStop.enabled) {
       setAutoStop({
         enabled: false,
-        ttl: emptyTTL
+        ttl: emptyTTL,
       })
     } else {
       if (workspace?.ttl_ms) {
         // repopulate saved ttl
         setAutoStop({
           enabled: true,
-          ttl: getAutoStop(workspace).ttl
+          ttl: getAutoStop(workspace).ttl,
         })
       } else {
         // set default
         setAutoStop({
           enabled: true,
-          ttl: defaultTTL
+          ttl: defaultTTL,
         })
       }
     }
