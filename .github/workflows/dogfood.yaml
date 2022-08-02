@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - run: |
-          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$( git rev-parse --abbrev-ref HEAD | tr / - )" >> $GITHUB_ENV
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -35,5 +35,6 @@ jobs:
           context: "{{defaultContext}}:dogfood"
           push: true
           tags: "codercom/oss-dogfood:${{ env.BRANCH_NAME }}"
+          tags: "codercom/oss-dogfood"
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
