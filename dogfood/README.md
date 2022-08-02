@@ -11,7 +11,7 @@ The startup script runs your `~/personalize` file if it exists.
 Coder dogfoods on a beefy, single Teraswitch machine.
 
 - We decided to use a bare metal provider for best-in-class cost-to-performance.
-- We decided to use a single machine for to leverage vertical scaling for fast parallelized builds and tests.
+- We decided to use a single machine (vertical scaling) for fast parallelized builds and tests.
 
 ## Provisioner Configuration
 
