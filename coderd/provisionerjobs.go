@@ -241,6 +241,14 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
@@ -266,7 +274,13 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			}
 			agents = append(agents, apiAgent)
 		}
-		apiResources = append(apiResources, convertWorkspaceResource(resource, agents))
+		metadata := make([]database.WorkspaceResourceMetadatum, 0)
+		for _, field := range resourceMetadata {
+			if field.WorkspaceResourceID == resource.ID {
+				metadata = append(metadata, field)
+			}
+		}
+		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiResources)

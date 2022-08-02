@@ -29,20 +29,6 @@ describe("UserDropdownContent", () => {
     expect(screen.getByText(MockAdminRole.display_name)).toBeDefined()
   })
 
-  it("has the correct link for the documentation item", () => {
-    process.env.CODER_VERSION = "v0.5.4"
-    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
-
-    const link = screen.getByText(Language.docsLabel).closest("a")
-    if (!link) {
-      throw new Error("Anchor tag not found for the documentation menu item")
-    }
-
-    expect(link.getAttribute("href")).toBe(
-      `https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`,
-    )
-  })
-
   it("has the correct link for the account item", () => {
     render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
 

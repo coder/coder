@@ -3895,6 +3895,80 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getWorkspaceResourceMetadataByResourceID = `-- name: GetWorkspaceResourceMetadataByResourceID :many
+SELECT
+	workspace_resource_id, key, value, sensitive
+FROM
+	workspace_resource_metadata
+WHERE
+	workspace_resource_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceMetadataByResourceID(ctx context.Context, workspaceResourceID uuid.UUID) ([]WorkspaceResourceMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourceMetadataByResourceID, workspaceResourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResourceMetadatum
+	for rows.Next() {
+		var i WorkspaceResourceMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceResourceID,
+			&i.Key,
+			&i.Value,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceResourceMetadataByResourceIDs = `-- name: GetWorkspaceResourceMetadataByResourceIDs :many
+SELECT
+	workspace_resource_id, key, value, sensitive
+FROM
+	workspace_resource_metadata
+WHERE
+	workspace_resource_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourceMetadataByResourceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResourceMetadatum
+	for rows.Next() {
+		var i WorkspaceResourceMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceResourceID,
+			&i.Key,
+			&i.Value,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
 	id, created_at, job_id, transition, type, name
@@ -4001,6 +4075,37 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Transition,
 		&i.Type,
 		&i.Name,
+	)
+	return i, err
+}
+
+const insertWorkspaceResourceMetadata = `-- name: InsertWorkspaceResourceMetadata :one
+INSERT INTO
+	workspace_resource_metadata (workspace_resource_id, key, value, sensitive)
+VALUES
+	($1, $2, $3, $4) RETURNING workspace_resource_id, key, value, sensitive
+`
+
+type InsertWorkspaceResourceMetadataParams struct {
+	WorkspaceResourceID uuid.UUID      `db:"workspace_resource_id" json:"workspace_resource_id"`
+	Key                 string         `db:"key" json:"key"`
+	Value               sql.NullString `db:"value" json:"value"`
+	Sensitive           bool           `db:"sensitive" json:"sensitive"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) (WorkspaceResourceMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceResourceMetadata,
+		arg.WorkspaceResourceID,
+		arg.Key,
+		arg.Value,
+		arg.Sensitive,
+	)
+	var i WorkspaceResourceMetadatum
+	err := row.Scan(
+		&i.WorkspaceResourceID,
+		&i.Key,
+		&i.Value,
+		&i.Sensitive,
 	)
 	return i, err
 }
