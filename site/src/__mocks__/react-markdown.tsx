@@ -1,6 +1,6 @@
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 
-const ReactMarkdown: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+const ReactMarkdown: FC<PropsWithChildren<unknown>> = ({ children }) => {
   return <div data-testid="markdown">{children}</div>
 }
 

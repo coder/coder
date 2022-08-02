@@ -6,7 +6,7 @@ interface StyleProps {
   highlight?: boolean
 }
 
-export const TableCellData: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const TableCellData: React.FC<React.ReactNode> = ({ children }) => {
   return <Stack spacing={0}>{children}</Stack>
 }
 

@@ -1,7 +1,7 @@
 import Avatar from "@material-ui/core/Avatar"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "../../util/firstLetter"
 import {
@@ -18,7 +18,7 @@ export interface AvatarDataProps {
   avatar?: React.ReactNode
 }
 
-export const AvatarData: FC<React.PropsWithChildren<AvatarDataProps>> = ({
+export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
   title,
   subtitle,
   link,
