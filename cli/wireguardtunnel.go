@@ -46,6 +46,9 @@ func wireguardPortForward() *cobra.Command {
 			},
 		),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			specs, err := parsePortForwards(tcpForwards, nil, nil)
 			if err != nil {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
@@ -63,7 +66,7 @@ func wireguardPortForward() *cobra.Command {
 				return err
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
 			if err != nil {
 				return err
 			}
@@ -71,13 +74,13 @@ func wireguardPortForward() *cobra.Command {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 				if err != nil {
 					return err
 				}
 			}
 
-			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)

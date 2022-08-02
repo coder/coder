@@ -55,6 +55,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
+	github.com/coreos/go-oidc/v3 v3.2.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
 	github.com/elastic/go-sysinfo v1.8.1
@@ -65,7 +66,7 @@ require (
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi/v5 v5.0.7
-	github.com/go-chi/httprate v0.5.3
+	github.com/go-chi/httprate v0.6.0
 	github.com/go-chi/render v1.0.1
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.11.0
@@ -108,7 +109,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	github.com/tabbed/pqtype v0.1.1
-	github.com/unrolled/secure v1.11.0
+	github.com/unrolled/secure v1.12.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.8.0
 	go.uber.org/atomic v1.9.0
@@ -119,7 +120,7 @@ require (
 	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220624220833-87e55d714810
+	golang.org/x/sys v0.0.0-20220708085239-5a0f0661e09d
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.11
@@ -127,7 +128,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-00010101000000-000000000000
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
-	google.golang.org/api v0.86.0
+	google.golang.org/api v0.90.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -138,7 +139,10 @@ require (
 	tailscale.com v1.26.2
 )
 
-require github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+require (
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+)
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -201,7 +205,7 @@ require (
 	github.com/josharian/native v1.0.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.1.2-0.20220408201609-d380b505068b // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.15.8
+	github.com/klauspost/compress v1.15.9
 	github.com/kortschak/wol v0.0.0-20200729010619-da482cc4850a // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
@@ -220,7 +224,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
-	github.com/nhatthm/otelsql v0.3.4
+	github.com/nhatthm/otelsql v0.4.0
 	github.com/niklasfasching/go-org v1.6.5 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -272,7 +276,7 @@ require (
 	go.opentelemetry.io/otel v1.8.0
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.8.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0
-	go.opentelemetry.io/otel/metric v0.30.0 // indirect
+	go.opentelemetry.io/otel/metric v0.31.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.8.0
 	go.opentelemetry.io/otel/trace v1.8.0
 	go.opentelemetry.io/proto/otlp v0.18.0 // indirect

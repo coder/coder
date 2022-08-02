@@ -7,19 +7,19 @@ terraform {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
   auth = "google-instance-identity"
 }
 
-resource "null_resource" "dev" {
+resource "null_resource" "main" {
   depends_on = [
-    coder_agent.dev
+    coder_agent.main
   ]
 }
 
-resource "coder_agent_instance" "dev" {
-  agent_id    = coder_agent.dev.id
+resource "coder_agent_instance" "main" {
+  agent_id    = coder_agent.main.id
   instance_id = "example"
 }

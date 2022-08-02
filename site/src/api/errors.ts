@@ -6,7 +6,7 @@ export const Language = {
   },
 }
 
-interface FieldError {
+export interface FieldError {
   field: string
   detail: string
 }
@@ -83,3 +83,6 @@ export const getValidationErrorMessage = (error: Error | ApiError | unknown): st
     isApiError(error) && error.response.data.validations ? error.response.data.validations : []
   return validationErrors.map((error) => error.detail).join("\n")
 }
+
+export const getErrorDetail = (error: Error | ApiError | unknown): string | undefined | null =>
+  isApiError(error) ? error.response.data.detail : error instanceof Error ? error.stack : null

@@ -95,6 +95,41 @@ The `coder_agent` resource can be configured as described in the
 For example, you can use the `env` property to set environment variables that will be
 inherited by all child processes of the agent, including SSH sessions.
 
+#### startup_script
+
+Use the Coder agent's `startup_script` to run additional commands like
+installing IDEs, [cloning dotfile](./dotfiles.md#templates), and cloning project repos.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install code-server
+curl -fsSL https://code-server.dev/install.sh | sh
+
+# The & prevents the startup_script from blocking so the
+# next commands can run.
+code-server --auth none --port &
+
+# var.repo and var.dotfiles_uri is specified
+# elsewhere in the Terraform code as input
+# variables.
+
+# clone repo
+ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+git clone --progress git@github.com:${var.repo}
+
+# use coder CLI to clone and install dotfiles
+coder dotfiles -y ${var.dotfiles_uri}
+
+  EOT
+}
+```
+
 ### Parameters
 
 Templates often contain _parameters_. These are defined by `variable` blocks in
@@ -107,13 +142,13 @@ Terraform. There are two types of parameters:
   values are often personalization settings such as "preferred region"
   or "workspace image".
 
-The template sample below uses *admin and user parameters* to allow developers to
+The template sample below uses _admin and user parameters_ to allow developers to
 create workspaces from any image as long as it is in the proper registry:
 
 ```hcl
 variable "image_registry_url" {
-  description = "The image registry developers can sele"
-  default     = "artifactory1.organization.com`
+  description = "The image registry developers can select"
+  default     = "artifactory1.organization.com"
   sensitive   = true # admin (template-wide) parameter
 }
 
@@ -188,7 +223,6 @@ resource "kubernetes_pod" "podName" {
 }
 ```
 
-
 #### Delete workspaces
 
 When a workspace is deleted, the Coder server essentially runs a
@@ -218,7 +252,7 @@ sets a few environment variables based on the username and email address of the 
 that you can make Git commits immediately without any manual configuration:
 
 ```tf
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   # ...
   env = {
     GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
@@ -256,8 +290,8 @@ practices:
 - Ensure the resource has `curl` installed
 - Ensure the resource can reach your Coder URL
 - Manually connect to the resource (e.g., `docker exec` or AWS console)
-  - The Coder agent logs are typically stored in (`/var/log/coder-agent.log`)
-
+  - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
+  - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
 ## Change Management
 

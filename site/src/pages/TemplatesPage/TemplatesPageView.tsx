@@ -3,13 +3,13 @@ import { fade, makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
+import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
+import { createDayString } from "util/createDayString"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -30,8 +30,6 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
-
-dayjs.extend(relativeTime)
 
 export const Language = {
   developerCount: (ownerCount: number): string => {
@@ -97,73 +95,77 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
         )}
       </PageHeader>
 
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>{Language.nameLabel}</TableCell>
-            <TableCell>{Language.usedByLabel}</TableCell>
-            <TableCell>{Language.lastUpdatedLabel}</TableCell>
-            <TableCell>{Language.createdByLabel}</TableCell>
-            <TableCell width="1%"></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {props.loading && <TableLoader />}
-          {!props.loading && !props.templates?.length && (
+      <TableContainer>
+        <Table>
+          <TableHead>
             <TableRow>
-              <TableCell colSpan={999}>
-                <EmptyState
-                  message={Language.emptyMessage}
-                  description={
-                    props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms
-                  }
-                  descriptionClassName={styles.emptyDescription}
-                  cta={<CodeExample code="coder template init" />}
-                />
-              </TableCell>
+              <TableCell>{Language.nameLabel}</TableCell>
+              <TableCell>{Language.usedByLabel}</TableCell>
+              <TableCell>{Language.lastUpdatedLabel}</TableCell>
+              <TableCell>{Language.createdByLabel}</TableCell>
+              <TableCell width="1%"></TableCell>
             </TableRow>
-          )}
-          {props.templates?.map((template) => {
-            const templatePageLink = `/templates/${template.name}`
-            return (
-              <TableRow
-                key={template.id}
-                hover
-                data-testid={`template-${template.id}`}
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    navigate(templatePageLink)
-                  }
-                }}
-                className={styles.clickableTableRow}
-              >
-                <TableCellLink to={templatePageLink}>
-                  <AvatarData
-                    title={template.name}
-                    subtitle={template.description}
-                    highlightTitle
+          </TableHead>
+          <TableBody>
+            {props.loading && <TableLoader />}
+            {!props.loading && !props.templates?.length && (
+              <TableRow>
+                <TableCell colSpan={999}>
+                  <EmptyState
+                    message={Language.emptyMessage}
+                    description={
+                      props.canCreateTemplate
+                        ? Language.emptyDescription
+                        : Language.emptyViewNoPerms
+                    }
+                    descriptionClassName={styles.emptyDescription}
+                    cta={<CodeExample code="coder template init" />}
                   />
-                </TableCellLink>
-
-                <TableCellLink to={templatePageLink}>
-                  {Language.developerCount(template.workspace_owner_count)}
-                </TableCellLink>
-
-                <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                  {dayjs().to(dayjs(template.updated_at))}
-                </TableCellLink>
-                <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
-                <TableCellLink to={templatePageLink}>
-                  <div className={styles.arrowCell}>
-                    <KeyboardArrowRight className={styles.arrowRight} />
-                  </div>
-                </TableCellLink>
+                </TableCell>
               </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+            )}
+            {props.templates?.map((template) => {
+              const templatePageLink = `/templates/${template.name}`
+              return (
+                <TableRow
+                  key={template.id}
+                  hover
+                  data-testid={`template-${template.id}`}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      navigate(templatePageLink)
+                    }
+                  }}
+                  className={styles.clickableTableRow}
+                >
+                  <TableCellLink to={templatePageLink}>
+                    <AvatarData
+                      title={template.name}
+                      subtitle={template.description}
+                      highlightTitle
+                    />
+                  </TableCellLink>
+
+                  <TableCellLink to={templatePageLink}>
+                    {Language.developerCount(template.workspace_owner_count)}
+                  </TableCellLink>
+
+                  <TableCellLink data-chromatic="ignore" to={templatePageLink}>
+                    {createDayString(template.updated_at)}
+                  </TableCellLink>
+                  <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
+                  <TableCellLink to={templatePageLink}>
+                    <div className={styles.arrowCell}>
+                      <KeyboardArrowRight className={styles.arrowRight} />
+                    </div>
+                  </TableCellLink>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Margins>
   )
 }

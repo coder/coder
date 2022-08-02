@@ -20,8 +20,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
@@ -83,6 +85,12 @@ func server() *cobra.Command {
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowedTeams         []string
 		oauth2GithubAllowSignups         bool
+		oidcAllowSignups                 bool
+		oidcClientID                     string
+		oidcClientSecret                 string
+		oidcEmailDomain                  string
+		oidcIssuerURL                    string
+		oidcScopes                       []string
 		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
@@ -106,10 +114,20 @@ func server() *cobra.Command {
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printLogo(cmd, spooky)
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
+
+			// Main command context for managing cancellation
+			// of running services.
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
+			// Clean up idle connections at the end, e.g.
+			// embedded-postgres can leave an idle connection
+			// which is caught by goleaks.
+			defer http.DefaultClient.CloseIdleConnections()
 
 			var (
 				tracerProvider *sdktrace.TracerProvider
@@ -117,20 +135,18 @@ func server() *cobra.Command {
 				sqlDriver      = "postgres"
 			)
 			if trace {
-				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
+				tracerProvider, err = tracing.TracerProvider(ctx, "coderd")
 				if err != nil {
-					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
+					logger.Warn(ctx, "failed to start telemetry exporter", slog.Error(err))
 				} else {
+					// allow time for traces to flush even if command context is canceled
 					defer func() {
-						// allow time for traces to flush even if command context is canceled
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
-						_ = tracerProvider.Shutdown(ctx)
+						_ = shutdownWithTimeout(tracerProvider, 5*time.Second)
 					}()
 
 					d, err := tracing.PostgresDriver(tracerProvider, "coderd.database")
 					if err != nil {
-						logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
+						logger.Warn(ctx, "failed to start postgres tracing driver", slog.Error(err))
 					} else {
 						sqlDriver = d
 					}
@@ -143,14 +159,16 @@ func server() *cobra.Command {
 			if !inMemoryDatabase && postgresURL == "" {
 				var closeFunc func() error
 				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
-				postgresURL, closeFunc, err = startBuiltinPostgres(cmd.Context(), config, logger)
+				postgresURL, closeFunc, err = startBuiltinPostgres(ctx, config, logger)
 				if err != nil {
 					return err
 				}
 				builtinPostgres = true
 				defer func() {
+					cmd.Printf("Stopping built-in PostgreSQL...\n")
 					// Gracefully shut PostgreSQL down!
 					_ = closeFunc()
+					cmd.Printf("Stopped built-in PostgreSQL\n")
 				}()
 			}
 
@@ -189,9 +207,9 @@ func server() *cobra.Command {
 			}
 
 			var (
-				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
-				devTunnel              = (*devtunnel.Tunnel)(nil)
-				devTunnelErrChan       = make(<-chan error, 1)
+				ctxTunnel, closeTunnel = context.WithCancel(ctx)
+				devTunnel              *devtunnel.Tunnel
+				devTunnelErr           <-chan error
 			)
 			defer closeTunnel()
 
@@ -199,32 +217,33 @@ func server() *cobra.Command {
 			// needs to be changed to use the tunnel.
 			if tunnel {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment\n")
-				devTunnel, devTunnelErrChan, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+				devTunnel, devTunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
 				accessURL = devTunnel.URL
 			}
 
+			accessURLParsed, err := parseURL(ctx, accessURL)
+			if err != nil {
+				return xerrors.Errorf("parse URL: %w", err)
+			}
+
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(cmd.Context(), accessURL)
+			isLocal, err := isLocalURL(ctx, accessURLParsed)
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
-			cmd.Printf("View the Web UI: %s\n", accessURL)
 
-			accessURLParsed, err := url.Parse(accessURL)
-			if err != nil {
-				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
-			}
+			cmd.Printf("View the Web UI: %s\n", accessURLParsed.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
-			googleTokenValidator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
+			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
 			if err != nil {
 				return err
 			}
@@ -241,6 +260,7 @@ func server() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create turn server: %w", err)
 			}
+			defer turnServer.Close()
 
 			iceServers := make([]webrtc.ICEServer, 0)
 			for _, stunServer := range stunServers {
@@ -270,6 +290,38 @@ func server() *cobra.Command {
 				}
 			}
 
+			if oidcClientSecret != "" {
+				if oidcClientID == "" {
+					return xerrors.Errorf("OIDC client ID be set!")
+				}
+				if oidcIssuerURL == "" {
+					return xerrors.Errorf("OIDC issuer URL must be set!")
+				}
+
+				oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
+				if err != nil {
+					return xerrors.Errorf("configure oidc provider: %w", err)
+				}
+				redirectURL, err := accessURLParsed.Parse("/api/v2/users/oidc/callback")
+				if err != nil {
+					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+				}
+				options.OIDCConfig = &coderd.OIDCConfig{
+					OAuth2Config: &oauth2.Config{
+						ClientID:     oidcClientID,
+						ClientSecret: oidcClientSecret,
+						RedirectURL:  redirectURL.String(),
+						Endpoint:     oidcProvider.Endpoint(),
+						Scopes:       oidcScopes,
+					},
+					Verifier: oidcProvider.Verifier(&oidc.Config{
+						ClientID: oidcClientID,
+					}),
+					EmailDomain:  oidcEmailDomain,
+					AllowSignups: oidcAllowSignups,
+				}
+			}
+
 			if inMemoryDatabase {
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
@@ -278,6 +330,8 @@ func server() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
+				defer sqlDB.Close()
+
 				err = sqlDB.Ping()
 				if err != nil {
 					return xerrors.Errorf("ping postgres: %w", err)
@@ -287,13 +341,14 @@ func server() *cobra.Command {
 					return xerrors.Errorf("migrate up: %w", err)
 				}
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(cmd.Context(), sqlDB, postgresURL)
+				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
+				defer options.Pubsub.Close()
 			}
 
-			deploymentID, err := options.Database.GetDeploymentID(cmd.Context())
+			deploymentID, err := options.Database.GetDeploymentID(ctx)
 			if errors.Is(err, sql.ErrNoRows) {
 				err = nil
 			}
@@ -302,14 +357,14 @@ func server() *cobra.Command {
 			}
 			if deploymentID == "" {
 				deploymentID = uuid.NewString()
-				err = options.Database.InsertDeploymentID(cmd.Context(), deploymentID)
+				err = options.Database.InsertDeploymentID(ctx, deploymentID)
 				if err != nil {
 					return xerrors.Errorf("set deployment id: %w", err)
 				}
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := url.Parse(telemetryURL)
+			telemetryURL, err := parseURL(ctx, telemetryURL)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
@@ -325,6 +380,8 @@ func server() *cobra.Command {
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
 					GitHubOAuth:     oauth2GithubClientID != "",
+					OIDCAuth:        oidcClientID != "",
+					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
 					STUN:            len(stunServers) != 0,
 					Tunnel:          tunnel,
@@ -336,6 +393,8 @@ func server() *cobra.Command {
 			}
 
 			coderAPI := coderd.New(options)
+			defer coderAPI.Close()
+
 			client := codersdk.New(localURL)
 			if tlsEnable {
 				// Secure transport isn't needed for locally communicating!
@@ -348,71 +407,82 @@ func server() *cobra.Command {
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
-			var _ = pprof.Handler
+			_ = pprof.Handler
 			if pprofEnabled {
 				//nolint:revive
-				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
+				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
 			}
 			if promEnabled {
 				//nolint:revive
-				defer serveHandler(cmd.Context(), logger, promhttp.Handler(), promAddress, "prometheus")()
+				defer serveHandler(ctx, logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
 
+			// Since errCh only has one buffered slot, all routines
+			// sending on it must be wrapped in a select/default to
+			// avoid leaving dangling goroutines waiting for the
+			// channel to be consumed.
 			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
+			defer func() {
+				// We have no graceful shutdown of provisionerDaemons
+				// here because that's handled at the end of main, this
+				// is here in case the program exits early.
+				for _, daemon := range provisionerDaemons {
+					_ = daemon.Close()
+				}
+			}()
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), coderAPI, logger, cacheDir, errCh, false)
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cacheDir, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
-				provisionerDaemons = append(provisionerDaemons, daemonClose)
+				provisionerDaemons = append(provisionerDaemons, daemon)
+			}
+
+			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
+			defer shutdownConns()
+			server := &http.Server{
+				// These errors are typically noise like "TLS: EOF". Vault does similar:
+				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
+				ErrorLog: log.New(io.Discard, "", 0),
+				Handler:  coderAPI.Handler,
+				BaseContext: func(_ net.Listener) context.Context {
+					return shutdownConnsCtx
+				},
 			}
 			defer func() {
-				for _, provisionerDaemon := range provisionerDaemons {
-					_ = provisionerDaemon.Close()
-				}
+				_ = shutdownWithTimeout(server, 5*time.Second)
 			}()
 
-			shutdownConnsCtx, shutdownConns := context.WithCancel(cmd.Context())
-			defer shutdownConns()
-			go func() {
-				server := http.Server{
-					// These errors are typically noise like "TLS: EOF". Vault does similar:
-					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-					ErrorLog: log.New(io.Discard, "", 0),
-					Handler:  coderAPI.Handler,
-					BaseContext: func(_ net.Listener) context.Context {
-						return shutdownConnsCtx
-					},
-				}
-
-				wg := errgroup.Group{}
-				wg.Go(func() error {
-					// Make sure to close the tunnel listener if we exit so the
-					// errgroup doesn't wait forever!
-					if tunnel {
-						defer devTunnel.Listener.Close()
-					}
-
-					return server.Serve(listener)
-				})
-
+			eg := errgroup.Group{}
+			eg.Go(func() error {
+				// Make sure to close the tunnel listener if we exit so the
+				// errgroup doesn't wait forever!
 				if tunnel {
-					wg.Go(func() error {
-						defer listener.Close()
-
-						return server.Serve(devTunnel.Listener)
-					})
+					defer devTunnel.Listener.Close()
 				}
 
-				errCh <- wg.Wait()
+				return server.Serve(listener)
+			})
+			if tunnel {
+				eg.Go(func() error {
+					defer listener.Close()
+
+					return server.Serve(devTunnel.Listener)
+				})
+			}
+			go func() {
+				select {
+				case errCh <- eg.Wait():
+				default:
+				}
 			}()
 
-			hasFirstUser, err := client.HasFirstUser(cmd.Context())
+			hasFirstUser, err := client.HasFirstUser(ctx)
 			if !hasFirstUser && err == nil {
 				cmd.Println()
 				cmd.Println("Get started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURL))
+				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
 			}
 
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
@@ -425,8 +495,13 @@ func server() *cobra.Command {
 
 			autobuildPoller := time.NewTicker(autobuildPollInterval)
 			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(cmd.Context(), options.Database, logger, autobuildPoller.C)
+			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
+
+			// This is helpful for tests, but can be silently ignored.
+			// Coder may be ran as users that don't have permission to write in the homedir,
+			// such as via the systemd service.
+			_ = config.URL().Write(client.URL.String())
 
 			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
 			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
@@ -434,66 +509,103 @@ func server() *cobra.Command {
 			// signal.Stop() until graceful shutdown finished--this means we swallow additional
 			// SIGINT after the first.  To get out of a graceful shutdown, the user can send SIGQUIT
 			// with ctrl+\ or SIGTERM with `kill`.
-			stopChan := make(chan os.Signal, 1)
-			defer signal.Stop(stopChan)
-			signal.Notify(stopChan, os.Interrupt)
+			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+			defer stop()
 
-			// This is helpful for tests, but can be silently ignored.
-			// Coder may be ran as users that don't have permission to write in the homedir,
-			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
-
+			// Currently there is no way to ask the server to shut
+			// itself down, so any exit signal will result in a non-zero
+			// exit of the server.
+			var exitErr error
 			select {
-			case <-cmd.Context().Done():
-				coderAPI.Close()
-				return cmd.Context().Err()
-			case err := <-devTunnelErrChan:
-				if err != nil {
-					return err
+			case <-ctx.Done():
+				exitErr = ctx.Err()
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
+					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
+				))
+			case exitErr = <-devTunnelErr:
+				if exitErr == nil {
+					exitErr = xerrors.New("dev tunnel closed unexpectedly")
 				}
-			case err := <-errCh:
-				shutdownConns()
-				coderAPI.Close()
-				return err
-			case <-stopChan:
+			case exitErr = <-errCh:
 			}
+			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+				cmd.Printf("Unexpected error, shutting down server: %s\n", exitErr)
+			}
+
+			// Begin clean shut down stage, we try to shut down services
+			// gracefully in an order that gives the best experience.
+			// This procedure should not differ greatly from the order
+			// of `defer`s in this function, but allows us to inform
+			// the user about what's going on and handle errors more
+			// explicitly.
+
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
-				return xerrors.Errorf("notify systemd: %w", err)
-			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
-				"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
-
-			for _, provisionerDaemon := range provisionerDaemons {
-				if verbose {
-					cmd.Println("Shutting down provisioner daemon...")
-				}
-				err = provisionerDaemon.Shutdown(cmd.Context())
-				if err != nil {
-					cmd.PrintErrf("Failed to shutdown provisioner daemon: %s\n", err)
-					continue
-				}
-				err = provisionerDaemon.Close()
-				if err != nil {
-					return xerrors.Errorf("close provisioner daemon: %w", err)
-				}
-				if verbose {
-					cmd.Println("Gracefully shut down provisioner daemon!")
-				}
+				cmd.Printf("Notify systemd failed: %s", err)
 			}
 
+			// Stop accepting new connections without interrupting
+			// in-flight requests, give in-flight requests 5 seconds to
+			// complete.
+			cmd.Println("Shutting down API server...")
+			err = shutdownWithTimeout(server, 5*time.Second)
+			if err != nil {
+				cmd.Printf("API server shutdown took longer than 5s: %s", err)
+			} else {
+				cmd.Printf("Gracefully shut down API server\n")
+			}
+			// Cancel any remaining in-flight requests.
+			shutdownConns()
+
+			// Shut down provisioners before waiting for WebSockets
+			// connections to close.
+			var wg sync.WaitGroup
+			for i, provisionerDaemon := range provisionerDaemons {
+				id := i + 1
+				provisionerDaemon := provisionerDaemon
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					if verbose {
+						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
+					}
+					err := shutdownWithTimeout(provisionerDaemon, 5*time.Second)
+					if err != nil {
+						cmd.PrintErrf("Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						return
+					}
+					err = provisionerDaemon.Close()
+					if err != nil {
+						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
+						return
+					}
+					if verbose {
+						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
+					}
+				}()
+			}
+			wg.Wait()
+
+			cmd.Println("Waiting for WebSocket connections to close...")
+			_ = coderAPI.Close()
+			cmd.Println("Done wainting for WebSocket connections")
+
+			// Close tunnel after we no longer have in-flight connections.
 			if tunnel {
 				cmd.Println("Waiting for tunnel to close...")
 				closeTunnel()
-				<-devTunnelErrChan
+				<-devTunnelErr
+				cmd.Println("Done waiting for tunnel")
 			}
 
 			// Ensures a last report can be sent before exit!
 			options.Telemetry.Close()
-			cmd.Println("Waiting for WebSocket connections to close...")
-			shutdownConns()
-			coderAPI.Close()
-			return nil
+
+			// Trigger context cancellation for any remaining services.
+			cancel()
+
+			return exitErr
 		},
 	}
 
@@ -516,7 +628,7 @@ func server() *cobra.Command {
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -566,7 +678,20 @@ func server() *cobra.Command {
 		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
-	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", true, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.BoolVarP(root.Flags(), &oidcAllowSignups, "oidc-allow-signups", "", "CODER_OIDC_ALLOW_SIGNUPS", true,
+		"Specifies whether new users can sign up with OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientID, "oidc-client-id", "", "CODER_OIDC_CLIENT_ID", "",
+		"Specifies a client ID to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientSecret, "oidc-client-secret", "", "CODER_OIDC_CLIENT_SECRET", "",
+		"Specifies a client secret to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcEmailDomain, "oidc-email-domain", "", "CODER_OIDC_EMAIL_DOMAIN", "",
+		"Specifies an email domain that clients authenticating with OIDC must match.")
+	cliflag.StringVarP(root.Flags(), &oidcIssuerURL, "oidc-issuer-url", "", "CODER_OIDC_ISSUER_URL", "",
+		"Specifies an issuer URL to use for OIDC.")
+	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
+		"Specifies scopes to grant when authenticating with OIDC.")
+	enableTelemetryByDefault := !isTest()
+	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
 	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
@@ -601,16 +726,85 @@ func server() *cobra.Command {
 	return root
 }
 
+// parseURL parses a string into a URL. It works around some technically correct
+// but undesired behavior of url.Parse by prepending a scheme if one does not
+// exist so that the URL does not get parsed improprely.
+func parseURL(ctx context.Context, u string) (*url.URL, error) {
+	var (
+		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
+	)
+
+	if !hasScheme {
+		// Append a scheme if it doesn't have one. Otherwise the hostname
+		// will likely get parsed as the scheme and cause methods like Hostname()
+		// to return an empty string, largely obviating the purpose of this
+		// function.
+		u = "https://" + u
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the specified url is a loopback device and no scheme has been
+	// specified, prefer http over https. It's unlikely anyone intends to use
+	// https on a loopback and if they do they can specify a scheme.
+	if local, _ := isLocalURL(ctx, parsed); local && !hasScheme {
+		parsed.Scheme = "http"
+	}
+
+	return parsed, nil
+}
+
+// isLocalURL returns true if the hostname of the provided URL appears to
+// resolve to a loopback address.
+func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
+	if err != nil {
+		return false, err
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.Shutdown(ctx)
+}
+
 // nolint:revive
 func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
-	logger slog.Logger, cacheDir string, errChan chan error, dev bool) (*provisionerd.Server, error) {
-	err := os.MkdirAll(cacheDir, 0700)
+	logger slog.Logger, cacheDir string, errCh chan error, dev bool,
+) (srv *provisionerd.Server, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
+
+	err = os.MkdirAll(cacheDir, 0o700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
 	go func() {
+		<-ctx.Done()
+		_ = terraformClient.Close()
+		_ = terraformServer.Close()
+	}()
+	go func() {
+		defer cancel()
+
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
@@ -619,7 +813,10 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 			Logger:    logger,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
-			errChan <- err
+			select {
+			case errCh <- err:
+			default:
+			}
 		}
 	}()
 
@@ -635,9 +832,19 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 	if dev {
 		echoClient, echoServer := provisionersdk.TransportPipe()
 		go func() {
+			<-ctx.Done()
+			_ = echoClient.Close()
+			_ = echoServer.Close()
+		}()
+		go func() {
+			defer cancel()
+
 			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})
 			if err != nil {
-				errChan <- err
+				select {
+				case errCh <- err:
+				default:
+				}
 			}
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
@@ -796,8 +1003,8 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			})
 			return memberships, err
 		},
-		Team: func(ctx context.Context, client *http.Client, org, teamSlug string) (*github.Team, error) {
-			team, _, err := github.NewClient(client).Teams.GetTeamBySlug(ctx, org, teamSlug)
+		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
+			team, _, err := github.NewClient(client).Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
 			return team, err
 		},
 	}, nil
@@ -815,27 +1022,6 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
-}
-
-// isLocalURL returns true if the hostname of the provided URL appears to
-// resolve to a loopback address.
-func isLocalURL(ctx context.Context, urlString string) (bool, error) {
-	parsedURL, err := url.Parse(urlString)
-	if err != nil {
-		return false, err
-	}
-	resolver := &net.Resolver{}
-	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
-	if err != nil {
-		return false, err
-	}
-
-	for _, ip := range ips {
-		if ip.IP.IsLoopback() {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.

@@ -35,7 +35,7 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch           = var.docker_arch
   os             = "linux"
   startup_script = "code-server --auth none"
@@ -53,7 +53,7 @@ resource "coder_agent" "dev" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = "http://localhost:8080/?folder=/home/coder"
   icon     = "/icon/code.svg"
 }
@@ -70,8 +70,8 @@ resource "docker_container" "workspace" {
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "127.0.0.1", "host.docker.internal")]
+  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

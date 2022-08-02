@@ -43,9 +43,6 @@ const renderWorkspacePage = async () => {
 
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
-  // open the workspace action popover so we have access to all available ctas
-  const trigger = await screen.findByTestId("workspace-actions-button")
-  trigger.click()
   // REMARK: exact here because the "Start" button and "START" label for
   //         workspace schedule could otherwise conflict.
   const button = await screen.findByText(label, { exact: true })
@@ -122,7 +119,15 @@ describe("Workspace Page", () => {
     const cancelWorkspaceMock = jest
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }))
-    await testButton(Language.cancel, cancelWorkspaceMock)
+
+    await renderWorkspacePage()
+
+    const cancelButton = await screen.findByRole("button", {
+      name: "cancel action",
+    })
+    await waitFor(() => fireEvent.click(cancelButton))
+
+    expect(cancelWorkspaceMock).toBeCalled()
   })
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)

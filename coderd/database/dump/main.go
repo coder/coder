@@ -19,6 +19,11 @@ func main() {
 	defer closeFn()
 
 	cmd := exec.Command(
+		"docker",
+		"run",
+		"--rm",
+		"--network=host",
+		"postgres:13",
 		"pg_dump",
 		"--schema-only",
 		connection,

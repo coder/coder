@@ -18,7 +18,8 @@ func update() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "update",
+		Use:         "update <workspace>",
+		Args:        cobra.ExactArgs(1),
 		Short:       "Update a workspace to the latest template version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -30,7 +31,7 @@ func update() *cobra.Command {
 				return err
 			}
 			if !workspace.Outdated && !alwaysPrompt {
-				_, _ = fmt.Printf("Workspace isn't outdated!\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workspace isn't outdated!\n")
 				return nil
 			}
 			template, err := client.Template(cmd.Context(), workspace.TemplateID)
@@ -74,7 +75,7 @@ func update() *cobra.Command {
 				if !ok {
 					break
 				}
-				_, _ = fmt.Printf("Output: %s\n", log.Output)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Output: %s\n", log.Output)
 			}
 			return nil
 		},

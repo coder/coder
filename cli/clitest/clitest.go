@@ -25,6 +25,12 @@ func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
 	dir := t.TempDir()
 	root := config.Root(dir)
 	cmd.SetArgs(append([]string{"--global-config", dir}, args...))
+
+	// We could consider using writers
+	// that log via t.Log here instead.
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
 	return cmd, root
 }
 

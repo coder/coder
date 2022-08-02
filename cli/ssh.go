@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,6 +46,9 @@ func ssh() *cobra.Command {
 		Short:       "SSH into a workspace",
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
@@ -62,14 +66,14 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], shuffle)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -79,19 +83,16 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var (
-				sshClient  *gossh.Client
-				sshSession *gossh.Session
-			)
+			var newSSHClient func() (*gossh.Client, error)
 
 			if !wireguard {
-				conn, err := client.DialWorkspaceAgent(cmd.Context(), workspaceAgent.ID, nil)
+				conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 				if err != nil {
 					return err
 				}
 				defer conn.Close()
 
-				stopPolling := tryPollWorkspaceAutostop(cmd.Context(), client, workspace)
+				stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 				defer stopPolling()
 
 				if stdio {
@@ -99,6 +100,8 @@ func ssh() *cobra.Command {
 					if err != nil {
 						return err
 					}
+					defer rawSSH.Close()
+
 					go func() {
 						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
 					}()
@@ -106,15 +109,7 @@ func ssh() *cobra.Command {
 					return nil
 				}
 
-				sshClient, err = conn.SSHClient()
-				if err != nil {
-					return err
-				}
-
-				sshSession, err = sshClient.NewSession()
-				if err != nil {
-					return err
-				}
+				newSSHClient = conn.SSHClient
 			} else {
 				// TODO: more granual control of Tailscale logging.
 				// peerwg.Logf = tslogger.Discard
@@ -171,6 +166,20 @@ func ssh() *cobra.Command {
 				// 	return err
 				// }
 			}
+			defer sshClient.Close()
+
+			sshSession, err := sshClient.NewSession()
+			if err != nil {
+				return err
+			}
+			defer sshSession.Close()
+
+			// Ensure context cancellation is propagated to the
+			// SSH session, e.g. to cancel `Wait()` at the end.
+			go func() {
+				<-ctx.Done()
+				_ = sshSession.Close()
+			}()
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
@@ -186,25 +195,29 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
-			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(os.Stdin.Fd()))
+			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
+			stdinFile, validIn := cmd.InOrStdin().(*os.File)
+			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
+				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(os.Stdin.Fd()), state)
+					_ = term.Restore(int(stdinFile.Fd()), state)
 				}()
 
-				windowChange := listenWindowSize(cmd.Context())
+				windowChange := listenWindowSize(ctx)
 				go func() {
 					for {
 						select {
-						case <-cmd.Context().Done():
+						case <-ctx.Done():
 							return
 						case <-windowChange:
 						}
-						width, height, _ := term.GetSize(int(stdoutFile.Fd()))
+						width, height, err := term.GetSize(int(stdoutFile.Fd()))
+						if err != nil {
+							continue
+						}
 						_ = sshSession.WindowChange(height, width)
 					}
 				}()
@@ -217,15 +230,24 @@ func ssh() *cobra.Command {
 
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
-			sshSession.Stderr = cmd.OutOrStdout()
+			sshSession.Stderr = cmd.ErrOrStderr()
 
 			err = sshSession.Shell()
 			if err != nil {
 				return err
 			}
 
+			// Put cancel at the top of the defer stack to initiate
+			// shutdown of services.
+			defer cancel()
+
 			err = sshSession.Wait()
 			if err != nil {
+				// If the connection drops unexpectedly, we get an ExitMissingError but no other
+				// error details, so try to at least give the user a better message
+				if errors.Is(err, &gossh.ExitMissingError{}) {
+					return xerrors.New("SSH connection ended unexpectedly")
+				}
 				return err
 			}
 
@@ -247,16 +269,14 @@ func ssh() *cobra.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
-	ctx := cmd.Context()
-
+func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
 		err            error
 	)
 	if shuffle {
-		workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		if err != nil {

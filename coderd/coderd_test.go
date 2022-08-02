@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -97,6 +98,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		t.Cleanup(func() { close(tickerCh) })
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
+
 		lifecycleExecutor := executor.New(
 			ctx,
 			db,
@@ -110,11 +113,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			return ctx
 		}
 		srv.Start()
+		t.Cleanup(srv.Close)
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
 		turnServer, err := turnconn.New(nil)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = turnServer.Close()
+		})
 
 		validator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
@@ -141,9 +148,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		_ = coderdtest.NewProvisionerDaemon(t, coderAPI)
 		t.Cleanup(func() {
-			cancelFunc()
-			_ = turnServer.Close()
-			srv.Close()
 			_ = coderAPI.Close()
 		})
 
@@ -156,9 +160,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	// so we wait for it to occur.
 	require.Eventually(t, func() bool {
 		provisionerds, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		return len(provisionerds) > 0
-	}, time.Second*10, time.Second)
+		return assert.NoError(t, err) && len(provisionerds) > 0
+	}, testutil.WaitLong, testutil.IntervalSlow)
 
 	provisionerds, err := client.ProvisionerDaemons(ctx)
 	require.NoError(t, err, "fetch provisioners")
@@ -250,6 +253,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
+		"GET:/api/v2/users/oidc/callback":          {NoAuthorize: true},
 
 		// All workspaceagents endpoints do not use rbac
 		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},

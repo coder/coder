@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceBuild(t *testing.T) {
@@ -220,17 +222,19 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	require.Eventually(t, func() bool {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
-		require.NoError(t, err)
-		return build.Job.Status == codersdk.ProvisionerJobRunning
-	}, 5*time.Second, 25*time.Millisecond)
+		return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
+	}, testutil.WaitShort, testutil.IntervalFast)
 	err := client.CancelWorkspaceBuild(context.Background(), build.ID)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), build.ID)
-		require.NoError(t, err)
-		return build.Job.Status == codersdk.ProvisionerJobCanceled
-	}, 5*time.Second, 25*time.Millisecond)
+		return assert.NoError(t, err) &&
+			// The job will never actually cancel successfully because it will never send a
+			// provision complete response.
+			assert.Empty(t, build.Job.Error) &&
+			build.Job.Status == codersdk.ProvisionerJobCanceling
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestWorkspaceBuildResources(t *testing.T) {
@@ -324,7 +328,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	defer cancelFunc()
 	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before.Add(-time.Hour))
 	require.NoError(t, err)
 	for {

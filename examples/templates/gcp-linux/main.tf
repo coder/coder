@@ -45,7 +45,7 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"
@@ -75,11 +75,11 @@ resource "google_compute_instance" "dev" {
   # it.
   metadata_startup_script = <<EOMETA
 #!/usr/bin/env sh
-set -eux pipefail
+set -eux
 
 mkdir /root || true
 cat <<'EOCODER' > /root/coder_agent.sh
-${coder_agent.dev.init_script}
+${coder_agent.main.init_script}
 EOCODER
 chmod +x /root/coder_agent.sh
 

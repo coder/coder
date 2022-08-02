@@ -19,7 +19,7 @@ See `params.sample.yaml` for more information.
 This template has the following predefined parameters:
 
 - `docker_host`: Path to (or address of) the Docker socket.
-  > You can determine the correct value for this by runnning
+  > You can determine the correct value for this by running
   > `docker context ls`.
 - `docker_arch`: Architecture of the host running Docker.
   This can be `amd64`, `arm64`, or `armv7`.

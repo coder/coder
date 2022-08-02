@@ -72,7 +72,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "linux"
@@ -109,7 +109,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.dev.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
 

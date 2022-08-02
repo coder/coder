@@ -3,11 +3,11 @@ import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { useActor } from "@xstate/react"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
+import { createDayString } from "util/createDayString"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
@@ -17,8 +17,6 @@ import {
 } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
-
-dayjs.extend(relativeTime)
 
 const Language = {
   upToDateLabel: "Up to date",
@@ -31,7 +29,6 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
   const theme: Theme = useTheme()
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
-  const status = getDisplayStatus(theme, workspace.latest_build)
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
 
@@ -58,7 +55,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       <TableCellLink to={workspacePageLink}>
         <AvatarData
           title={initiatedBy}
-          subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
+          subtitle={createDayString(workspace.latest_build.created_at)}
         />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
@@ -77,7 +74,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       </TableCellLink>
 
       <TableCellLink to={workspacePageLink}>
-        <span style={{ color: status.color }}>{status.status}</span>
+        <WorkspaceStatusBadge build={workspace.latest_build} />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <div className={styles.arrowCell}>

@@ -3,12 +3,8 @@
 The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
-- VS Code (with [Remote -
-  SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
-  extension)
-- JetBrains (with
-  [Gateway](https://www.jetbrains.com/help/idea/remote-development-a.html#launch_gateway)
-  installed)
+- [VS Code Remote SSH](#vs-code-remote)
+- [JetBrains with Gateway](./ides/configuring-gateway.md)
   - IntelliJ IDEA
   - CLion
   - GoLand
@@ -16,8 +12,9 @@ support should work:
   - Rider
   - RubyMine
   - WebStorm
-- Web IDEs (code-server, JupyterLab, Jetbrains Projector)
-   - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+- Web IDEs (code-server, JupyterLab, JetBrains Projector)
+  - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+- [Emacs](./ides/configuring-emacs-tramp.md)
 
 ## SSH configuration
 
@@ -53,12 +50,31 @@ Code, connected to your Coder workspace for compute, etc.
 
 1. Open VS Code locally.
 
-1. Install the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
+1. Install the [Remote -
+   SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
    extension.
 
 1. In VS Code's left-hand nav bar, click **Remote Explorer** and right-click on
    a workspace to connect.
 
-## Web IDEs (Jupyter, code-server, Jetbrains Projector)
+## JetBrains Gateway
+
+Gateway operates in a client-server model, using an SSH connection to the remote
+host to install and start the server.
+
+Setting up Gateway also involves picking a project directory, so if you have not
+already done so, you may wish to open a terminal on your Coder workspace and
+check out a copy of the project you intend to work on.
+
+After installing Gateway on your local system, [follow these steps to create a
+Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
+
+| Version   | Status  | Notes                                                    |
+| --------- | ------- | -------------------------------------------------------- |
+| 2021.3.2  | Working |                                                          |
+| 2022.1.4  | Working | Windows clients are unable to connect to Linux workspace |
+| 2022.2 RC | Working | Version >= 222.3345.108                                  |
+
+## Web IDEs (Jupyter, code-server, JetBrains Projector)
 
 Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).

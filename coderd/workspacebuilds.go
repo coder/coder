@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -681,7 +682,35 @@ func convertWorkspaceBuild(
 	}
 }
 
-func convertWorkspaceResource(resource database.WorkspaceResource, agents []codersdk.WorkspaceAgent) codersdk.WorkspaceResource {
+func convertWorkspaceResource(resource database.WorkspaceResource, agents []codersdk.WorkspaceAgent, metadata []database.WorkspaceResourceMetadatum) codersdk.WorkspaceResource {
+	metadataMap := map[string]database.WorkspaceResourceMetadatum{}
+
+	// implicit metadata fields come first
+	metadataMap["type"] = database.WorkspaceResourceMetadatum{
+		Key:       "type",
+		Value:     sql.NullString{String: resource.Type, Valid: true},
+		Sensitive: false,
+	}
+	// explicit metadata fields come afterward, and can override implicit ones
+	for _, field := range metadata {
+		metadataMap[field.Key] = field
+	}
+
+	var convertedMetadata []codersdk.WorkspaceResourceMetadata
+	for _, field := range metadataMap {
+		if field.Value.Valid {
+			convertedField := codersdk.WorkspaceResourceMetadata{
+				Key:       field.Key,
+				Value:     field.Value.String,
+				Sensitive: field.Sensitive,
+			}
+			convertedMetadata = append(convertedMetadata, convertedField)
+		}
+	}
+	slices.SortFunc(convertedMetadata, func(a, b codersdk.WorkspaceResourceMetadata) bool {
+		return a.Key < b.Key
+	})
+
 	return codersdk.WorkspaceResource{
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
@@ -690,5 +719,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Agents:     agents,
+		Metadata:   convertedMetadata,
 	}
 }

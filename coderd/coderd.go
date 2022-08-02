@@ -62,6 +62,7 @@ type Options struct {
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
+	OIDCConfig           *OIDCConfig
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
@@ -113,6 +114,7 @@ func New(options *Options) *API {
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
+		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
@@ -267,6 +269,10 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
 					r.Get("/callback", api.userOAuth2Github)
 				})
+			})
+			r.Route("/oidc/callback", func(r chi.Router) {
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig))
+				r.Get("/", api.userOIDC)
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(

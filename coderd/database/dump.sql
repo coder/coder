@@ -27,7 +27,8 @@ CREATE TYPE log_source AS ENUM (
 
 CREATE TYPE login_type AS ENUM (
     'password',
-    'github'
+    'github',
+    'oidc'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -287,7 +288,7 @@ CREATE TABLE workspace_agents (
     disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
-    auth_instance_id character varying(64),
+    auth_instance_id character varying,
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
     operating_system character varying(64) NOT NULL,
@@ -327,6 +328,13 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
+);
+
+CREATE TABLE workspace_resource_metadata (
+    workspace_resource_id uuid NOT NULL,
+    key character varying(1024) NOT NULL,
+    value character varying(65536),
+    sensitive boolean NOT NULL
 );
 
 CREATE TABLE workspace_resources (
@@ -434,6 +442,9 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
 
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
+
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
@@ -518,6 +529,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

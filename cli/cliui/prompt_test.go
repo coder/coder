@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPrompt(t *testing.T) {
@@ -61,7 +61,7 @@ func TestPrompt(t *testing.T) {
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
-		dataRead, doneReading := context.WithTimeout(context.Background(), time.Second*2)
+		dataRead, doneReading := context.WithTimeout(context.Background(), testutil.WaitShort)
 		go func() {
 			// This will throw an error sometimes. The underlying ptty
 			// has its own cleanup routines in t.Cleanup. Instead of
@@ -165,9 +165,6 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cob
 }
 
 func TestPasswordTerminalState(t *testing.T) {
-	// TODO: fix this test so that it runs reliably
-	t.Skip()
-
 	if os.Getenv("TEST_SUBPROCESS") == "1" {
 		passwordHelper()
 		return
@@ -185,27 +182,28 @@ func TestPasswordTerminalState(t *testing.T) {
 	// connect the child process's stdio to the PTY directly, not via a pipe
 	cmd.Stdin = ptty.Input().Reader
 	cmd.Stdout = ptty.Output().Writer
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = ptty.Output().Writer
 	err := cmd.Start()
 	require.NoError(t, err)
 	process := cmd.Process
 	defer process.Kill()
 
 	ptty.ExpectMatch("Password: ")
-	time.Sleep(100 * time.Millisecond) // wait for child process to turn off echo and start reading input
 
-	echo, err := ptyWithFlags.EchoEnabled()
-	require.NoError(t, err)
-	require.False(t, echo, "echo is on while reading password")
+	require.Eventually(t, func() bool {
+		echo, err := ptyWithFlags.EchoEnabled()
+		return err == nil && !echo
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
 	_, err = process.Wait()
 	require.NoError(t, err)
 
-	echo, err = ptyWithFlags.EchoEnabled()
-	require.NoError(t, err)
-	require.True(t, echo, "echo is off after reading password")
+	require.Eventually(t, func() bool {
+		echo, err := ptyWithFlags.EchoEnabled()
+		return err == nil && echo
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
 
 // nolint:unused

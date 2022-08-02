@@ -15,14 +15,13 @@ import (
 )
 
 func list() *cobra.Command {
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List all workspaces",
 		Aliases:     []string{"ls"},
+		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

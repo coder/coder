@@ -80,5 +80,14 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		apiAgents = append(apiAgents, convertedAgent)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceResource(workspaceResource, apiAgents))
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceID(r.Context(), workspaceResource.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resource metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceResource(workspaceResource, apiAgents, metadata))
 }

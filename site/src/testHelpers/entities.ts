@@ -1,3 +1,4 @@
+import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -98,7 +99,10 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "running",
 }
-
+export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "pending",
+}
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -236,6 +240,15 @@ export const MockDeletedWorkspace: TypesGen.Workspace = {
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
+export const MockQueuedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockPendingProvisionerJob,
+    transition: "start",
+  },
+}
+
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
@@ -291,6 +304,7 @@ export const MockUserAgent: Types.UserAgent = {
 export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
+  oidc: false,
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -572,3 +586,23 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
 export const MockCancellationMessage = {
   message: "Job successfully canceled",
 }
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const makeMockApiError = ({
+  message,
+  detail,
+  validations,
+}: {
+  message?: string
+  detail?: string
+  validations?: FieldError[]
+}) => ({
+  response: {
+    data: {
+      message: message ?? "Something went wrong.",
+      detail: detail ?? undefined,
+      validations: validations ?? undefined,
+    },
+  },
+  isAxiosError: true,
+})

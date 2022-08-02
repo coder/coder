@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPortForward(t *testing.T) {
@@ -119,23 +119,13 @@ func TestPortForward(t *testing.T) {
 					t.Skip("Unix socket forwarding isn't supported on Windows")
 				}
 
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
 				require.NoError(t, err, "create UDP listener")
 				return l
 			},
 			setupLocal: func(t *testing.T) (string, string) {
-				tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-				require.NoError(t, err, "create temp dir for unix listener")
-				t.Cleanup(func() {
-					_ = os.RemoveAll(tmpDir)
-				})
-
+				tmpDir := t.TempDir()
 				path := filepath.Join(tmpDir, "test.sock")
 				return path, path
 			},
@@ -168,7 +158,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -181,7 +171,7 @@ func TestPortForward(t *testing.T) {
 
 				// Open two connections simultaneously and test them out of
 				// sync.
-				d := net.Dialer{Timeout: 3 * time.Second}
+				d := net.Dialer{Timeout: testutil.WaitShort}
 				c1, err := d.DialContext(ctx, c.network, localAddress)
 				require.NoError(t, err, "open connection 1 to 'local' listener")
 				defer c1.Close()
@@ -214,7 +204,7 @@ func TestPortForward(t *testing.T) {
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
-				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				cmd.SetOut(buf)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
@@ -227,7 +217,7 @@ func TestPortForward(t *testing.T) {
 
 				// Open a connection to both listener 1 and 2 simultaneously and
 				// then test them out of order.
-				d := net.Dialer{Timeout: 3 * time.Second}
+				d := net.Dialer{Timeout: testutil.WaitShort}
 				c1, err := d.DialContext(ctx, c.network, localAddress1)
 				require.NoError(t, err, "open connection 1 to 'local' listener 1")
 				defer c1.Close()
@@ -267,7 +257,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
@@ -280,7 +270,7 @@ func TestPortForward(t *testing.T) {
 
 		// Open two connections simultaneously and test them out of
 		// sync.
-		d := net.Dialer{Timeout: 3 * time.Second}
+		d := net.Dialer{Timeout: testutil.WaitShort}
 		c1, err := d.DialContext(ctx, tcpCase.network, localAddress)
 		require.NoError(t, err, "open connection 1 to 'local' listener")
 		defer c1.Close()
@@ -327,7 +317,7 @@ func TestPortForward(t *testing.T) {
 		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
-		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		cmd.SetOut(buf)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
@@ -340,7 +330,7 @@ func TestPortForward(t *testing.T) {
 
 		// Open connections to all items in the "dial" array.
 		var (
-			d     = net.Dialer{Timeout: 3 * time.Second}
+			d     = net.Dialer{Timeout: testutil.WaitShort}
 			conns = make([]net.Conn, len(dials))
 		)
 		for i, a := range dials {
@@ -499,7 +489,7 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {
 	t.Helper()
 	for i := 0; i < 100; i++ {
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(testutil.IntervalMedium)
 
 		data := output.String()
 		if strings.Contains(data, "Ready!") {

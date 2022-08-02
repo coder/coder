@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -173,6 +174,10 @@ func versionCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func isTest() bool {
+	return flag.Lookup("test.v") != nil
 }
 
 // createClient returns a new client from the command context.
@@ -402,7 +407,7 @@ type example struct {
 	Command     string
 }
 
-// formatExamples formats the exampels as width wrapped bulletpoint
+// formatExamples formats the examples as width wrapped bulletpoint
 // descriptions with the command underneath.
 func formatExamples(examples ...example) string {
 	wrap := cliui.Styles.Wrap.Copy()
@@ -455,6 +460,11 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	clientVersion := buildinfo.Version()
 
 	info, err := client.BuildInfo(cmd.Context())
+	// Avoid printing errors that are connection-related.
+	if codersdk.IsConnectionErr(err) {
+		return nil
+	}
+
 	if err != nil {
 		return xerrors.Errorf("build info: %w", err)
 	}
@@ -466,8 +476,8 @@ download the server version with: 'curl -L https://coder.com/install.sh | sh -s 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
 		// Trim the leading 'v', our install.sh script does not handle this case well.
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	}
 
 	return nil

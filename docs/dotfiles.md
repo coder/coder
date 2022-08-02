@@ -22,7 +22,7 @@ variable "dotfiles_uri" {
   default = ""
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   ...
   startup_script = var.dotfiles_uri != "" ? "coder dotfiles -y ${var.dotfiles_uri}" : null
 }
@@ -41,7 +41,7 @@ In such cases:
 - Set the `startup_script` to call a `~/personalize` script that the user can edit
 
 ```hcl
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   ...
   startup_script = "/home/coder/personalize"
 }

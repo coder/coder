@@ -21,13 +21,20 @@ const (
 )
 
 type WorkspaceResource struct {
-	ID         uuid.UUID           `json:"id"`
-	CreatedAt  time.Time           `json:"created_at"`
-	JobID      uuid.UUID           `json:"job_id"`
-	Transition WorkspaceTransition `json:"workspace_transition"`
-	Type       string              `json:"type"`
-	Name       string              `json:"name"`
-	Agents     []WorkspaceAgent    `json:"agents,omitempty"`
+	ID         uuid.UUID                   `json:"id"`
+	CreatedAt  time.Time                   `json:"created_at"`
+	JobID      uuid.UUID                   `json:"job_id"`
+	Transition WorkspaceTransition         `json:"workspace_transition"`
+	Type       string                      `json:"type"`
+	Name       string                      `json:"name"`
+	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
+	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
+}
+
+type WorkspaceResourceMetadata struct {
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	Sensitive bool   `json:"sensitive"`
 }
 
 type WorkspaceAgent struct {
