@@ -2,25 +2,23 @@
 
 Ammar is this template's admin.
 
-This template runs the `gcr.io/coder-dogfood/master/coder-dev-ubuntu` Docker
-image in a `sysbox-runc` container.
-
 ## Personalization
 
 The startup script runs your `~/personalize` file if it exists.
 
-## How is this hosted?
+## Hosting
 
-Coder dogfoods on a beefy, single Teraswitch machine. We decided to use
-a bare metal provider for best-in-class cost-to-performance. We decided to
-use a single machine for crazy fast parallelized builds and tests.
+Coder dogfoods on a beefy, single Teraswitch machine.
 
-## How is the provisioner configured?
+- We decided to use a bare metal provider for best-in-class cost-to-performance.
+- We decided to use a single machine for to leverage vertical scaling for fast parallelized builds and tests.
 
-Our dogfood VM runs an SSH tunnel to our dogfood Docker host's docker socket.
-The socket is mounted on `/var/run/dogfood-docker.sock`.
+## Provisioner Configuration
 
-The SSH command can be found hanging out in the screen session named
-`forward`.
+Our dogfood coderd box runs an SSH tunnel to our dogfood Docker host's docker socket.
 
-The tunnel and corresponding SSH key is under the root user.
+The socket is mounted onto `/var/run/dogfood-docker.sock` in the coderd box.
+
+The SSH tunnel command can be found hanging out in the screen session named `forward`.
+
+The tunnel and corresponding SSH key is owned by root.
