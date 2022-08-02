@@ -16,6 +16,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - run: |
+          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -30,6 +34,6 @@ jobs:
         with:
           context: "{{defaultContext}}:dogfood"
           push: true
-          tags: "codercom/oss-dogfood:${{ github.ref_name }}"
+          tags: "codercom/oss-dogfood:${{ env.BRANCH_NAME }}"
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
