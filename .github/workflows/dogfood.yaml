@@ -1,0 +1,24 @@
+name: coder
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+    paths:
+      - "dogfood/**"
+  pull_request:
+    paths:
+      - "dogfood/**"
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: build
+        run: |
+          cd dogfood
+          make build
