@@ -2,7 +2,7 @@ import { FC, useMemo } from "react"
 import { useParams } from "react-router-dom"
 import { WorkspaceAppErrorPageView } from "./WorkspaceAppErrorPageView"
 
-const WorkspaceAppErrorView: FC = () => {
+const WorkspaceAppErrorView: FC<React.PropsWithChildren<unknown>> = () => {
   const { app } = useParams()
   const message = useMemo(() => {
     const tag = document.getElementById("api-response")

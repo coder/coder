@@ -9,7 +9,7 @@ export interface CodeBlockProps {
   className?: string
 }
 
-export const CodeBlock: FC<CodeBlockProps> = ({ lines, ctas, className = "" }) => {
+export const CodeBlock: FC<React.PropsWithChildren<CodeBlockProps>> = ({ lines, ctas, className = "" }) => {
   const styles = useStyles()
 
   return (

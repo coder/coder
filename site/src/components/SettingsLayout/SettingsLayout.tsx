@@ -20,7 +20,7 @@ const menuItems = [
   { label: Language.sshKeysLabel, path: "/settings/ssh-keys" },
 ]
 
-export const SettingsLayout: FC = () => {
+export const SettingsLayout: FC<React.PropsWithChildren<unknown>> = () => {
   return (
     <AuthAndFrame>
       <Box display="flex" flexDirection="column">

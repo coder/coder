@@ -34,7 +34,7 @@ export interface TemplatePageViewProps {
   templateVersions?: TemplateVersion[]
 }
 
-export const TemplatePageView: FC<TemplatePageViewProps> = ({
+export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
   template,
   activeTemplateVersion,
   templateResources,

@@ -31,7 +31,7 @@ export interface AccountFormProps {
   initialTouched?: FormikTouched<AccountFormValues>
 }
 
-export const AccountForm: FC<AccountFormProps> = ({
+export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
   email,
   isLoading,
   onSubmit,

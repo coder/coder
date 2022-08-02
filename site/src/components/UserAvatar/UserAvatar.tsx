@@ -7,6 +7,6 @@ export interface UserAvatarProps {
   username: string
 }
 
-export const UserAvatar: FC<UserAvatarProps> = ({ username, className }) => {
+export const UserAvatar: FC<React.PropsWithChildren<UserAvatarProps>> = ({ username, className }) => {
   return <Avatar className={className}>{firstLetter(username)}</Avatar>
 }

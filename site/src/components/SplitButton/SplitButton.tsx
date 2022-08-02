@@ -49,7 +49,7 @@ export const SplitButton = <T,>({
   options,
   startIcon,
   textTransform,
-}: SplitButtonProps<T>): ReturnType<React.FC> => {
+}: SplitButtonProps<T>): ReturnType<React.FC<React.PropsWithChildren<unknown>>> => {
   const [isPopperOpen, setIsPopperOpen] = useState<boolean>(false)
 
   const anchorRef = useRef<HTMLDivElement>(null)

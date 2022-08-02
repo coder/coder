@@ -39,7 +39,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormSection: FC<FormSectionProps> = ({ title, description, children }) => {
+export const FormSection: FC<React.PropsWithChildren<FormSectionProps>> = ({ title, description, children }) => {
   const styles = useStyles()
 
   return (

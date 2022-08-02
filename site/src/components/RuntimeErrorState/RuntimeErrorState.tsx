@@ -55,13 +55,13 @@ const ErrorStateDescription = ({ emailBody }: { emailBody?: string }) => {
         {Language.link}
       </Link>
     </Typography>
-  )
+  );
 }
 
 /**
  * An error UI that is displayed when our error boundary (ErrorBoundary.tsx) is triggered
  */
-export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({ error }) => {
+export const RuntimeErrorState: React.FC<React.PropsWithChildren<RuntimeErrorStateProps>> = ({ error }) => {
   const styles = useStyles()
   const [reportState, dispatch] = useReducer(reducer, { error, mappedStack: null })
 

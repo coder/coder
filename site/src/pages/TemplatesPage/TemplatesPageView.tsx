@@ -57,7 +57,7 @@ export const Language = {
   createdByLabel: "Created by",
 }
 
-const TemplateHelpTooltip: React.FC = () => {
+const TemplateHelpTooltip: React.FC<React.PropsWithChildren<unknown>> = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
@@ -77,7 +77,7 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
 

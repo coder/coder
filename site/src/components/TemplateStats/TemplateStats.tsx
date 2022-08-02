@@ -18,7 +18,7 @@ export interface TemplateStatsProps {
   activeVersion: TemplateVersion
 }
 
-export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion }) => {
+export const TemplateStats: FC<React.PropsWithChildren<TemplateStatsProps>> = ({ template, activeVersion }) => {
   const styles = useStyles()
 
   return (

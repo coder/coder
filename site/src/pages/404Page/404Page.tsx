@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 
-export const NotFoundPage: FC = () => {
+export const NotFoundPage: FC<React.PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
 
   return (

@@ -7,7 +7,7 @@ export interface PageHeaderProps {
   className?: string
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions, className }) => {
+export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({ children, actions, className }) => {
   const styles = useStyles()
 
   return (
@@ -22,13 +22,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ children, actions, class
   )
 }
 
-export const PageHeaderTitle: React.FC = ({ children }) => {
+export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return <h1 className={styles.title}>{children}</h1>
 }
 
-export const PageHeaderSubtitle: React.FC = ({ children }) => {
+export const PageHeaderSubtitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return <h2 className={styles.subtitle}>{children}</h2>

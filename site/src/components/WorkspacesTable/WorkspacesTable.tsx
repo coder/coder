@@ -22,7 +22,7 @@ export interface WorkspacesTableProps {
   filter?: string
 }
 
-export const WorkspacesTable: FC<WorkspacesTableProps> = ({ isLoading, workspaceRefs, filter }) => {
+export const WorkspacesTable: FC<React.PropsWithChildren<WorkspacesTableProps>> = ({ isLoading, workspaceRefs, filter }) => {
   return (
     <TableContainer>
       <Table>

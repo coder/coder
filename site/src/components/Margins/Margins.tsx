@@ -24,7 +24,7 @@ interface MarginsProps {
   size?: Size
 }
 
-export const Margins: FC<MarginsProps> = ({ children, size = "regular" }) => {
+export const Margins: FC<React.PropsWithChildren<MarginsProps>> = ({ children, size = "regular" }) => {
   const styles = useStyles({ maxWidth: widthBySize[size] })
   return <div className={styles.margins}>{children}</div>
 }

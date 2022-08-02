@@ -31,10 +31,9 @@ const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 
-export const AppRouter: FC = () => {
+export const AppRouter: FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-
   return (
     <Suspense fallback={<></>}>
       <Routes>

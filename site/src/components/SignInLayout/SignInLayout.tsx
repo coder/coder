@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { FC, ReactNode } from "react"
 import { Footer } from "../../components/Footer/Footer"
 
 export const useStyles = makeStyles((theme) => ({
@@ -21,7 +21,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const SignInLayout: FC = ({ children }) => {
+export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
   const styles = useStyles()
 
   return (

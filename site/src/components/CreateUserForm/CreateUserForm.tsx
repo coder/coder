@@ -35,7 +35,7 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
-export const CreateUserForm: FC<CreateUserFormProps> = ({
+export const CreateUserForm: FC<React.PropsWithChildren<CreateUserFormProps>> = ({
   onSubmit,
   onCancel,
   formErrors,

@@ -7,7 +7,7 @@ import { pageTitle } from "../../util/page"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
 import { CreateWorkspaceErrors, CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
-const CreateWorkspacePage: FC = () => {
+const CreateWorkspacePage: FC<React.PropsWithChildren<unknown>> = () => {
   const organizationId = useOrganizationId()
   const { template } = useParams()
   const templateName = template ? template : ""

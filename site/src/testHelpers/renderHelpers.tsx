@@ -15,7 +15,7 @@ import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
 
-export const WrapperComponent: FC = ({ children }) => {
+export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   return (
     <HistoryRouter history={history}>
       <XServiceProvider>

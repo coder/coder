@@ -24,7 +24,7 @@ interface XServiceContextType {
  */
 export const XServiceContext = createContext({} as XServiceContextType)
 
-export const XServiceProvider: React.FC = ({ children }) => {
+export const XServiceProvider: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const navigate = useNavigate()
   const redirectToUsersPage = () => {
     navigate("users")

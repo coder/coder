@@ -49,7 +49,7 @@ export interface SecurityFormProps {
   initialTouched?: FormikTouched<SecurityFormValues>
 }
 
-export const SecurityForm: React.FC<SecurityFormProps> = ({
+export const SecurityForm: React.FC<React.PropsWithChildren<SecurityFormProps>> = ({
   isLoading,
   onSubmit,
   initialValues,

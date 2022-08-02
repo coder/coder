@@ -5,4 +5,4 @@ import { FC } from "react"
  * for reporting whether or not the Dashboard is online. It should be
  * accessible by humans and services.
  */
-export const HealthzPage: FC = () => <div>ok</div>
+export const HealthzPage: FC<React.PropsWithChildren<unknown>> = () => <div>ok</div>

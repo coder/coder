@@ -8,7 +8,7 @@ export type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
   variant?: BorderedMenuVariant
 }
 
-export const BorderedMenu: FC<BorderedMenuProps> = ({ children, variant, ...rest }) => {
+export const BorderedMenu: FC<React.PropsWithChildren<BorderedMenuProps>> = ({ children, variant, ...rest }) => {
   const styles = useStyles()
 
   return (

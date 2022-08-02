@@ -8,7 +8,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 
-export const CliAuthenticationPage: React.FC = () => {
+export const CliAuthenticationPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context

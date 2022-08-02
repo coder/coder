@@ -27,7 +27,7 @@ export interface UserDropdownContentProps {
   onSignOut: () => void
 }
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+export const UserDropdownContent: FC<React.PropsWithChildren<UserDropdownContentProps>> = ({
   user,
   onPopoverClose,
   onSignOut,

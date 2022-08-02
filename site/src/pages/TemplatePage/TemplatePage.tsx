@@ -18,7 +18,7 @@ const useTemplateName = () => {
   return template
 }
 
-export const TemplatePage: FC = () => {
+export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
   const [templateState] = useMachine(templateMachine, {

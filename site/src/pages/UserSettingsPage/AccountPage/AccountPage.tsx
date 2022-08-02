@@ -8,7 +8,7 @@ export const Language = {
   title: "Account",
 }
 
-export const AccountPage: React.FC = () => {
+export const AccountPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, updateProfileError } = authState.context

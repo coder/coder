@@ -23,7 +23,7 @@ const Language = {
   outdatedLabel: "Outdated",
 }
 
-export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ workspaceRef }) => {
+export const WorkspacesRow: FC<React.PropsWithChildren<{ workspaceRef: WorkspaceItemMachineRef }>> = ({ workspaceRef }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const theme: Theme = useTheme()

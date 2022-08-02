@@ -16,7 +16,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FullScreenLoader: FC = () => {
+export const FullScreenLoader: FC<React.PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
 
   return (

@@ -24,7 +24,7 @@ interface TableBodyProps {
   filter?: string
 }
 
-export const WorkspacesTableBody: FC<TableBodyProps> = ({ isLoading, workspaceRefs, filter }) => {
+export const WorkspacesTableBody: FC<React.PropsWithChildren<TableBodyProps>> = ({ isLoading, workspaceRefs, filter }) => {
   if (isLoading) {
     return <TableLoader />
   }

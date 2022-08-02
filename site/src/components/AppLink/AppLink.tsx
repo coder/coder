@@ -17,7 +17,7 @@ export interface AppLinkProps {
   appIcon?: TypesGen.WorkspaceApp["icon"]
 }
 
-export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, appIcon }) => {
+export const AppLink: FC<React.PropsWithChildren<AppLinkProps>> = ({ userName, workspaceName, appName, appIcon }) => {
   const styles = useStyles()
   const href = `/@${userName}/${workspaceName}/apps/${appName}`
 

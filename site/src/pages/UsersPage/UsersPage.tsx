@@ -19,7 +19,7 @@ export const Language = {
   activateDialogMessagePrefix: "Do you want to activate the user",
 }
 
-export const UsersPage: React.FC = () => {
+export const UsersPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
   const {

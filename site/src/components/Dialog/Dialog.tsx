@@ -22,7 +22,7 @@ export interface DialogTitleProps {
 /**
  * Override of Material UI's DialogTitle that allows for a supertitle and background icon
  */
-export const DialogTitle: React.FC<DialogTitleProps> = ({ title, icon: Icon, superTitle }) => {
+export const DialogTitle: React.FC<React.PropsWithChildren<DialogTitleProps>> = ({ title, icon: Icon, superTitle }) => {
   const styles = useTitleStyles()
   return (
     <MuiDialogTitle disableTypography>
@@ -92,7 +92,7 @@ const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
 /**
  * Quickly handles most modals actions, some combination of a cancel and confirm button
  */
-export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
+export const DialogActionButtons: React.FC<React.PropsWithChildren<DialogActionButtonsProps>> = ({
   cancelText = "Cancel",
   confirmText = "Confirm",
   confirmLoading = false,
@@ -309,7 +309,7 @@ export type DialogSearchProps = Omit<
  * Formats a search bar right below the title of a Dialog. Passes all props
  * through to the Material UI OutlinedInput component contained within.
  */
-export const DialogSearch: React.FC<DialogSearchProps> = (props) => {
+export const DialogSearch: React.FC<React.PropsWithChildren<DialogSearchProps>> = (props) => {
   const styles = useSearchStyles()
   return (
     <div className={styles.root}>
@@ -356,7 +356,7 @@ export type DialogProps = MuiDialogProps
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/dialogs/
  */
-export const Dialog: React.FC<DialogProps> = (props) => {
+export const Dialog: React.FC<React.PropsWithChildren<DialogProps>> = (props) => {
   // Wrapped so we can add custom attributes below
   return <MuiDialog {...props} />
 }

@@ -13,7 +13,7 @@ export const Language = {
   resourceTooltipLink: "Persistent and ephemeral resources",
 }
 
-export const ResourcesHelpTooltip: React.FC = () => {
+export const ResourcesHelpTooltip: React.FC<React.PropsWithChildren<unknown>> = () => {
   return (
     <HelpTooltip size="small">
       <HelpTooltipTitle>{Language.resourceTooltipTitle}</HelpTooltipTitle>

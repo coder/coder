@@ -39,7 +39,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void
 }
 
-export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
+export const WorkspaceActions: FC<React.PropsWithChildren<WorkspaceActionsProps>> = ({
   workspace,
   handleStart,
   handleStop,

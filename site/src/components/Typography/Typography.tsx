@@ -18,7 +18,7 @@ export interface TypographyProps extends MuiTypographyProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/typography/
  */
-export const Typography: React.FC<TypographyProps> = ({ className, short, ...rest }) => {
+export const Typography: React.FC<React.PropsWithChildren<TypographyProps>> = ({ className, short, ...rest }) => {
   const styles = useStyles()
 
   let classes = combineClasses({ [styles.short]: short })

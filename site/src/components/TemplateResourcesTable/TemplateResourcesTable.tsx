@@ -23,7 +23,7 @@ export interface TemplateResourcesProps {
   resources: WorkspaceResource[]
 }
 
-export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({ resources }) => {
+export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResourcesProps>> = ({ resources }) => {
   const styles = useStyles()
 
   return (

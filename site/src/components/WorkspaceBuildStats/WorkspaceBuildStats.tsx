@@ -15,7 +15,7 @@ export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
 }
 
-export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => {
+export const WorkspaceBuildStats: FC<React.PropsWithChildren<WorkspaceBuildStatsProps>> = ({ build }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayWorkspaceBuildStatus(theme, build)

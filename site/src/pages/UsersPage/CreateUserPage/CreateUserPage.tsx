@@ -13,7 +13,7 @@ export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 
-export const CreateUserPage: React.FC = () => {
+export const CreateUserPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const myOrgId = useSelector(xServices.authXService, selectOrgId)
   const [usersState, usersSend] = useActor(xServices.usersXService)

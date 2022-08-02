@@ -21,7 +21,7 @@ export interface SSHKeysPageViewProps {
   onRegenerateClick: () => void
 }
 
-export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
+export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> = ({
   isLoading,
   hasLoaded,
   getSSHKeyError,

@@ -13,7 +13,7 @@ interface AuthAndFrameProps {
 /**
  * Wraps page in RequireAuth and renders it between Navbar and Footer
  */
-export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
+export const AuthAndFrame: FC<React.PropsWithChildren<AuthAndFrameProps>> = ({ children }) => {
   const styles = useStyles()
   const xServices = useContext(XServiceContext)
 

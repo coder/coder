@@ -25,7 +25,7 @@ export interface WorkspaceStatsProps {
   handleUpdate: () => void
 }
 
-export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
+export const WorkspaceStats: FC<React.PropsWithChildren<WorkspaceStatsProps>> = ({ workspace, handleUpdate }) => {
   const styles = useStyles()
   const theme = useTheme()
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)

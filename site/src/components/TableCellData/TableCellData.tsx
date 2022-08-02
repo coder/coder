@@ -6,11 +6,11 @@ interface StyleProps {
   highlight?: boolean
 }
 
-export const TableCellData: React.FC = ({ children }) => {
+export const TableCellData: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   return <Stack spacing={0}>{children}</Stack>
 }
 
-export const TableCellDataPrimary: React.FC<{ highlight?: boolean }> = ({
+export const TableCellDataPrimary: React.FC<React.PropsWithChildren<{ highlight?: boolean }>> = ({
   children,
   highlight,
 }) => {
@@ -19,7 +19,7 @@ export const TableCellDataPrimary: React.FC<{ highlight?: boolean }> = ({
   return <span className={styles.primary}>{children}</span>
 }
 
-export const TableCellDataSecondary: React.FC = ({ children }) => {
+export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return <span className={styles.secondary}>{children}</span>

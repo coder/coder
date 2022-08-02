@@ -25,7 +25,7 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/snackbars/
  */
-export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
+export const EnterpriseSnackbar: FC<React.PropsWithChildren<EnterpriseSnackbarProps>> = ({
   onClose,
   variant = "info",
   ContentProps = {},

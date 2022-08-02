@@ -3,7 +3,7 @@ import React, { useContext } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
 import { NavbarView } from "../NavbarView/NavbarView"
 
-export const Navbar: React.FC = () => {
+export const Navbar: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, permissions } = authState.context

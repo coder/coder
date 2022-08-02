@@ -18,9 +18,9 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const TerminalPage: FC<{
+const TerminalPage: FC<React.PropsWithChildren<{
   readonly renderer?: XTerm.RendererType
-}> = ({ renderer }) => {
+}>> = ({ renderer }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const styles = useStyles()

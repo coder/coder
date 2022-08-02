@@ -33,7 +33,7 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({
+export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
   getResourcesError,
   workspace,

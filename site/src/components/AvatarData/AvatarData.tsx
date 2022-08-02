@@ -18,7 +18,7 @@ export interface AvatarDataProps {
   avatar?: React.ReactNode
 }
 
-export const AvatarData: FC<AvatarDataProps> = ({
+export const AvatarData: FC<React.PropsWithChildren<AvatarDataProps>> = ({
   title,
   subtitle,
   link,
