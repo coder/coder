@@ -86,6 +86,11 @@
           "title": "Configuring JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
           "path": "./ides/configuring-gateway.md"
+        },
+        {
+          "title": "Configuring Emacs",
+          "description": "Learn how to configure Emacs with TRAMP in Coder",
+          "path": "./ides/configuring-emacs-tramp.md"
         }
       ]
     },

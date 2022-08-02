@@ -328,6 +328,13 @@ CREATE TABLE workspace_builds (
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
+CREATE TABLE workspace_resource_metadata (
+    workspace_resource_id uuid NOT NULL,
+    key character varying(1024) NOT NULL,
+    value character varying(65536),
+    sensitive boolean NOT NULL
+);
+
 CREATE TABLE workspace_resources (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -433,6 +440,9 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
 
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
+
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
@@ -517,6 +527,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

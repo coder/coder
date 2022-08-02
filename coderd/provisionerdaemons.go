@@ -829,6 +829,25 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
 	}
+
+	for _, metadatum := range protoResource.Metadata {
+		var value sql.NullString
+		if !metadatum.IsNull {
+			value.String = metadatum.Value
+			value.Valid = true
+		}
+
+		_, err := db.InsertWorkspaceResourceMetadata(ctx, database.InsertWorkspaceResourceMetadataParams{
+			WorkspaceResourceID: resource.ID,
+			Key:                 metadatum.Key,
+			Value:               value,
+			Sensitive:           metadatum.Sensitive,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
