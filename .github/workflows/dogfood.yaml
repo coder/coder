@@ -34,7 +34,6 @@ jobs:
         with:
           context: "{{defaultContext}}:dogfood"
           push: true
-          tags:
-            - "codercom/oss-dogfood:${{ env.BRANCH_NAME }},codercom/oss-dogfood"
+          tags: "codercom/oss-dogfood:${{ env.BRANCH_NAME }},codercom/oss-dogfood:latest"
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
