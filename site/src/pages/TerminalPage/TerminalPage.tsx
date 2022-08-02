@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -18,9 +18,11 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const TerminalPage: FC<React.PropsWithChildren<{
-  readonly renderer?: XTerm.RendererType
-}>> = ({ renderer }) => {
+const TerminalPage: FC<
+  React.PropsWithChildren<{
+    readonly renderer?: XTerm.RendererType
+  }>
+> = ({ renderer }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const styles = useStyles()

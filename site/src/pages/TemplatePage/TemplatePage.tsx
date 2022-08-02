@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useParams } from "react-router-dom"
 import { Loader } from "../../components/Loader/Loader"
 import { useOrganizationId } from "../../hooks/useOrganizationId"

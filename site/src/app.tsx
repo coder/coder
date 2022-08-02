@@ -9,7 +9,7 @@ import { dark } from "./theme"
 import "./theme/globalFonts"
 import { XServiceProvider } from "./xServices/StateContext"
 
-export const App: FC<React.PropsWithChildren<unknown>> = () => {
+export const App: FC = () => {
   return (
     <Router>
       <ThemeProvider theme={dark}>

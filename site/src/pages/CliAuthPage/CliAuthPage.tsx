@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext, useEffect, useState } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { getApiKey } from "../../api/api"
 import { CliAuthToken } from "../../components/CliAuthToken/CliAuthToken"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
