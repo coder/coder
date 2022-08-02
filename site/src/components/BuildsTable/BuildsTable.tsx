@@ -30,7 +30,10 @@ export interface BuildsTableProps {
   className?: string
 }
 
-export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({ builds, className }) => {
+export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
+  builds,
+  className,
+}) => {
   const { username, workspace: workspaceName } = useParams()
   const isLoading = !builds
   const theme: Theme = useTheme()

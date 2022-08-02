@@ -5,7 +5,9 @@ import { WrapperComponent } from "../../testHelpers/renderHelpers"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 namespace Helpers {
-  export const Component: FC<React.PropsWithChildren<ConfirmDialogProps>> = (props: ConfirmDialogProps) => {
+  export const Component: FC<React.PropsWithChildren<ConfirmDialogProps>> = (
+    props: ConfirmDialogProps,
+  ) => {
     return (
       <WrapperComponent>
         <ConfirmDialog {...props} />

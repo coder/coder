@@ -29,7 +29,11 @@ export interface ParameterInputProps {
   onChange: (value: string) => void
 }
 
-export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = ({ disabled, onChange, schema }) => {
+export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = ({
+  disabled,
+  onChange,
+  schema,
+}) => {
   const styles = useStyles()
 
   return (
@@ -42,7 +46,11 @@ export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = 
   )
 }
 
-const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = ({ disabled, onChange, schema }) => {
+const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = ({
+  disabled,
+  onChange,
+  schema,
+}) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <RadioGroup

@@ -27,7 +27,7 @@ const iconByResource: Record<string, typeof MemoryIcon> = {
 
 export type ResourceAvatarProps = { type: string }
 
-export const ResourceAvatar: React.FC<React.PropsWithChildren<ResourceAvatarProps>> = ({ type }) => {
+export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ type }) => {
   // this resource can return undefined
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const IconComponent = iconByResource[type] ?? HelpIcon

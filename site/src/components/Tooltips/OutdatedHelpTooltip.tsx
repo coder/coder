@@ -19,7 +19,10 @@ interface TooltipProps {
   ariaLabel?: string
 }
 
-export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({ onUpdateVersion, ariaLabel }) => {
+export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
+  onUpdateVersion,
+  ariaLabel,
+}) => {
   return (
     <HelpTooltip size="small">
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>

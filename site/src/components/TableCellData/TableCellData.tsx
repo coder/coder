@@ -19,7 +19,9 @@ export const TableCellDataPrimary: React.FC<React.PropsWithChildren<{ highlight?
   return <span className={styles.primary}>{children}</span>
 }
 
-export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles()
 
   return <span className={styles.secondary}>{children}</span>

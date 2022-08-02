@@ -12,11 +12,9 @@ export interface DeleteWorkspaceDialogProps {
   handleCancel: () => void
 }
 
-export const DeleteWorkspaceDialog: React.FC<React.PropsWithChildren<DeleteWorkspaceDialogProps>> = ({
-  isOpen,
-  handleCancel,
-  handleConfirm,
-}) => (
+export const DeleteWorkspaceDialog: React.FC<
+  React.PropsWithChildren<DeleteWorkspaceDialogProps>
+> = ({ isOpen, handleCancel, handleConfirm }) => (
   <ConfirmDialog
     type="delete"
     hideCancel={false}

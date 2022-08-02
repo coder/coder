@@ -57,7 +57,7 @@ export interface WorkspaceScheduleButtonProps {
   canUpdateWorkspace: boolean
 }
 
-export const WorkspaceScheduleButton: React.FC<React.PropsWithChildren<WorkspaceScheduleButtonProps>> = ({
+export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = ({
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,

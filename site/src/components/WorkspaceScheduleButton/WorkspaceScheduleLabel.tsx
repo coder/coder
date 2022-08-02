@@ -4,7 +4,7 @@ import { combineClasses } from "../../util/combineClasses"
 import { autoStartDisplay, autoStopDisplay, isShuttingDown, Language } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 
-export const WorkspaceScheduleLabel: React.FC<React.PropsWithChildren<{ workspace: Workspace }>> = ({ workspace }) => {
+export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
   const styles = useStyles()
 
   if (isWorkspaceOn(workspace)) {

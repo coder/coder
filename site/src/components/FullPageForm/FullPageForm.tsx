@@ -19,7 +19,12 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({ title, detail, onCancel, children }) => {
+export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
+  title,
+  detail,
+  onCancel,
+  children,
+}) => {
   const styles = useStyles()
   return (
     <main className={styles.root}>

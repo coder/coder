@@ -8,7 +8,10 @@ export interface DropdownContentProps {
 }
 
 /* secondary workspace CTAs */
-export const DropdownContent: FC<React.PropsWithChildren<DropdownContentProps>> = ({ secondaryActions, buttonMapping }) => {
+export const DropdownContent: FC<React.PropsWithChildren<DropdownContentProps>> = ({
+  secondaryActions,
+  buttonMapping,
+}) => {
   const styles = useStyles()
 
   return (

@@ -41,7 +41,7 @@ export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
 }
 
-export const WorkspaceBuildLogs: FC<React.PropsWithChildren<WorkspaceBuildLogsProps>> = ({ logs }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()

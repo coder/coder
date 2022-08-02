@@ -10,7 +10,11 @@ export interface TabPanelProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabPanel: FC<React.PropsWithChildren<TabPanelProps>> = ({ children, title, menuItems }) => {
+export const TabPanel: FC<React.PropsWithChildren<TabPanelProps>> = ({
+  children,
+  title,
+  menuItems,
+}) => {
   const styles = useStyles()
 
   return (

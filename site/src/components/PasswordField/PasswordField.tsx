@@ -8,7 +8,10 @@ import React, { useCallback, useState } from "react"
 
 type PasswordFieldProps = Omit<TextFieldProps, "InputProps" | "type">
 
-export const PasswordField: React.FC<React.PropsWithChildren<PasswordFieldProps>> = ({ variant = "outlined", ...rest }) => {
+export const PasswordField: React.FC<React.PropsWithChildren<PasswordFieldProps>> = ({
+  variant = "outlined",
+  ...rest
+}) => {
   const styles = useStyles()
   const [showPassword, setShowPassword] = useState<boolean>(false)
 

@@ -43,7 +43,9 @@ export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
 })
 
-export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (props) => {
+export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
+  props,
+) => {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
   useStyles()
 

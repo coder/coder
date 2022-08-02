@@ -1,7 +1,7 @@
 import React, { Component, ReactNode } from "react"
 import { RuntimeErrorState } from "../RuntimeErrorState/RuntimeErrorState"
 
-type ErrorBoundaryProps = Record<string, any>
+type ErrorBoundaryProps = React.PropsWithChildren<unknown>
 
 interface ErrorBoundaryState {
   error: Error | null

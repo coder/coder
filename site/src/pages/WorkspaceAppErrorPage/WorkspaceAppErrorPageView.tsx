@@ -6,7 +6,9 @@ export interface WorkspaceAppErrorPageViewProps {
   message: string
 }
 
-export const WorkspaceAppErrorPageView: FC<React.PropsWithChildren<WorkspaceAppErrorPageViewProps>> = (props) => {
+export const WorkspaceAppErrorPageView: FC<
+  React.PropsWithChildren<WorkspaceAppErrorPageViewProps>
+> = (props) => {
   const styles = useStyles()
 
   return (

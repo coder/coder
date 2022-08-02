@@ -33,7 +33,11 @@ const useHelpTooltip = () => {
   return helpTooltipContext
 }
 
-export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = ({ children, open, size = "medium" }) => {
+export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = ({
+  children,
+  open,
+  size = "medium",
+}) => {
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(!!open)
@@ -104,7 +108,10 @@ export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({ ch
   return <p className={styles.text}>{children}</p>
 }
 
-export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>> = ({ children, href }) => {
+export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>> = ({
+  children,
+  href,
+}) => {
   const styles = useStyles()
 
   return (
@@ -115,11 +122,13 @@ export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>
   )
 }
 
-export const HelpTooltipAction: React.FC<React.PropsWithChildren<{
-  icon: Icon
-  onClick: () => void
-  ariaLabel?: string
-}>> = ({ children, icon: Icon, onClick, ariaLabel }) => {
+export const HelpTooltipAction: React.FC<
+  React.PropsWithChildren<{
+    icon: Icon
+    onClick: () => void
+    ariaLabel?: string
+  }>
+> = ({ children, icon: Icon, onClick, ariaLabel }) => {
   const styles = useStyles()
   const tooltip = useHelpTooltip()
 
