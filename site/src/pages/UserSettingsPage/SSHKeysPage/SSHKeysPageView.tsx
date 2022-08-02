@@ -41,13 +41,16 @@ export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> 
     <Stack>
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
-      {getSSHKeyError && <ErrorSummary error={getSSHKeyError} />}
-      {regenerateSSHKeyError && (
+
+      {getSSHKeyError ? <ErrorSummary error={getSSHKeyError} /> : <></>}
+      {regenerateSSHKeyError ? (
         <ErrorSummary
           error={regenerateSSHKeyError}
           defaultMessage={Language.errorRegenerateSSHKey}
           dismissible
         />
+      ) : (
+        <></>
       )}
       {hasLoaded && sshKey && (
         <>

@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { CSSProperties } from "@material-ui/core/styles/withStyles"
-import { FC, PropsWithChildren } from "react"
+import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 
 type Direction = "column" | "row"
@@ -11,6 +11,7 @@ export interface StackProps {
   spacing?: number
   alignItems?: CSSProperties["alignItems"]
   justifyContent?: CSSProperties["justifyContent"]
+  children: ReactNode
 }
 
 type StyleProps = Omit<StackProps, "className">
@@ -29,7 +30,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const Stack: FC<PropsWithChildren<StackProps>> = ({
+export const Stack: FC<StackProps> = ({
   children,
   className,
   direction = "column",

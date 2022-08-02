@@ -51,7 +51,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateProfileError && <ErrorSummary error={updateProfileError} />}
+          {updateProfileError ? <ErrorSummary error={updateProfileError} /> : <></>}
           <TextField
             disabled
             fullWidth

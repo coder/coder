@@ -68,40 +68,42 @@ export const SecurityForm: React.FC<React.PropsWithChildren<SecurityFormProps>> 
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateSecurityError && <ErrorSummary error={updateSecurityError} />}
-          <TextField
-            {...getFieldHelpers("old_password")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="old_password"
-            fullWidth
-            label={Language.oldPasswordLabel}
-            variant="outlined"
-            type="password"
-          />
-          <TextField
-            {...getFieldHelpers("password")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="password"
-            fullWidth
-            label={Language.newPasswordLabel}
-            variant="outlined"
-            type="password"
-          />
-          <TextField
-            {...getFieldHelpers("confirm_password")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="confirm_password"
-            fullWidth
-            label={Language.confirmPasswordLabel}
-            variant="outlined"
-            type="password"
-          />
+          <>
+            {updateSecurityError && <ErrorSummary error={updateSecurityError} />}
+            <TextField
+              {...getFieldHelpers("old_password")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="old_password"
+              fullWidth
+              label={Language.oldPasswordLabel}
+              variant="outlined"
+              type="password"
+            />
+            <TextField
+              {...getFieldHelpers("password")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="password"
+              fullWidth
+              label={Language.newPasswordLabel}
+              variant="outlined"
+              type="password"
+            />
+            <TextField
+              {...getFieldHelpers("confirm_password")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="confirm_password"
+              fullWidth
+              label={Language.confirmPasswordLabel}
+              variant="outlined"
+              type="password"
+            />
 
-          <div>
-            <LoadingButton loading={isLoading} type="submit" variant="contained">
-              {isLoading ? "" : Language.updatePassword}
-            </LoadingButton>
-          </div>
+            <div>
+              <LoadingButton loading={isLoading} type="submit" variant="contained">
+                {isLoading ? "" : Language.updatePassword}
+              </LoadingButton>
+            </div>
+          </>
         </Stack>
       </form>
     </>
