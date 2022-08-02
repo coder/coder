@@ -68,10 +68,7 @@ jobs:
             sh:
               - "**.sh"
             ts:
-              - "**.tsx?"
-              - "**.jsx?"
-              - "**.lock"
-              - "**.json"
+              - 'site/**'
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
