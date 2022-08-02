@@ -236,7 +236,7 @@ func ssh() *cobra.Command {
 
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
-			sshSession.Stderr = cmd.OutOrStdout()
+			sshSession.Stderr = cmd.ErrOrStderr()
 
 			err = sshSession.Shell()
 			if err != nil {
