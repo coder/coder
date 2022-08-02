@@ -30,6 +30,6 @@ jobs:
         with:
           context: "{{defaultContext}}:dogfood"
           push: true
-          tags: "codercom/oss-dogfood:${{ env.GITHUB_REF }}"
+          tags: "codercom/oss-dogfood:${{ github.ref_name }}"
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
