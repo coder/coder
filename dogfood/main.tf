@@ -23,7 +23,7 @@ provider "coder" {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "main" {
+resource "coder_agent" "dev" {
   arch           = "amd64"
   os             = "linux"
   startup_script = <<EOF
@@ -38,7 +38,7 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.main.id
+  agent_id = coder_agent.dev.id
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
@@ -51,7 +51,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "gcr.io/coder-dogfood/master/coder-dev-ubuntu:latest"
+  image = "docker.io/codercom/oss-dogfood:latest"
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
