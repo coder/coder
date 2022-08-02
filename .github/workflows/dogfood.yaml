@@ -18,6 +18,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Cache Docker
+        id: cache-docker
+        uses: actions/cache@v3
+        with:
+          path: |
+            /var/lib/docker
+          key: ${{ hashFiles('dogfood/**') }}
       - name: build
         run: |
           cd dogfood
