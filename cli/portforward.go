@@ -55,6 +55,9 @@ func portForward() *cobra.Command {
 			},
 		),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			specs, err := parsePortForwards(tcpForwards, udpForwards, unixForwards)
 			if err != nil {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
@@ -72,7 +75,7 @@ func portForward() *cobra.Command {
 				return err
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], false)
+			workspace, agent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
 			if err != nil {
 				return err
 			}
@@ -80,13 +83,13 @@ func portForward() *cobra.Command {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 				if err != nil {
 					return err
 				}
 			}
 
-			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, agent.ID)
@@ -96,7 +99,7 @@ func portForward() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(cmd.Context(), agent.ID, nil)
+			conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil)
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
@@ -104,7 +107,6 @@ func portForward() *cobra.Command {
 
 			// Start all listeners.
 			var (
-				ctx, cancel       = context.WithCancel(cmd.Context())
 				wg                = new(sync.WaitGroup)
 				listeners         = make([]net.Listener, len(specs))
 				closeAllListeners = func() {
@@ -116,11 +118,11 @@ func portForward() *cobra.Command {
 					}
 				}
 			)
-			defer cancel()
+			defer closeAllListeners()
+
 			for i, spec := range specs {
 				l, err := listenAndPortForward(ctx, cmd, conn, wg, spec)
 				if err != nil {
-					closeAllListeners()
 					return err
 				}
 				listeners[i] = l
@@ -129,7 +131,10 @@ func portForward() *cobra.Command {
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
 			var closeErr error
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
+
 				sigs := make(chan os.Signal, 1)
 				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
