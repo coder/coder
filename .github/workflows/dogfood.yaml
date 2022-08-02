@@ -12,6 +12,7 @@ on:
     paths:
       - "dogfood/**"
   workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
