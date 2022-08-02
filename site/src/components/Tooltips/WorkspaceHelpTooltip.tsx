@@ -16,7 +16,7 @@ const Language = {
   workspaceTooltipLink3: "Editors and IDEs",
 }
 
-export const WorkspaceHelpTooltip: FC<React.PropsWithChildren<unknown>> = () => {
+export const WorkspaceHelpTooltip: FC = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>

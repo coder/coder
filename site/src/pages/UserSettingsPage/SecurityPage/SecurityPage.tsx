@@ -8,7 +8,7 @@ export const Language = {
   title: "Security",
 }
 
-export const SecurityPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const SecurityPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, updateSecurityError } = authState.context

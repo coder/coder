@@ -25,7 +25,7 @@ const variantFromMsgType = (type: MsgType) => {
   }
 }
 
-export const GlobalSnackbar: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const GlobalSnackbar: React.FC = () => {
   const styles = useStyles()
   const [open, setOpen] = useState<boolean>(false)
   const [notification, setNotification] = useState<NotificationMsg>()

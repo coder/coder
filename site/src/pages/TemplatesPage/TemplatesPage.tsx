@@ -6,7 +6,7 @@ import { XServiceContext } from "../../xServices/StateContext"
 import { templatesMachine } from "../../xServices/templates/templatesXService"
 import { TemplatesPageView } from "./TemplatesPageView"
 
-const TemplatesPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+const TemplatesPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const [templatesState] = useMachine(templatesMachine)

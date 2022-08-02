@@ -1,6 +1,6 @@
 import { useSelector } from "@xstate/react"
 import { SetupPage } from "pages/SetupPage/SetupPage"
-import { FC, lazy, Suspense, useContext } from "react"
+import { FC, lazy, ReactNode, Suspense, useContext } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
@@ -31,7 +31,7 @@ const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 
-export const AppRouter: FC<React.PropsWithChildren<unknown>> = () => {
+export const AppRouter: FC<{ children: ReactNode }> = ({ children }) => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
   return (
@@ -46,7 +46,7 @@ export const AppRouter: FC<React.PropsWithChildren<unknown>> = () => {
           }
         />
 
-        <Route path="login" element={<LoginPage />} />
+        <Route path="login" element={<LoginPage>{children}</LoginPage>} />
         <Route path="setup" element={<SetupPage />} />
         <Route path="healthz" element={<HealthzPage />} />
         <Route

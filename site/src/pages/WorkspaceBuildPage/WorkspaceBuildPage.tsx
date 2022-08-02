@@ -6,7 +6,7 @@ import { pageTitle } from "../../util/page"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 
-export const WorkspaceBuildPage: FC<React.PropsWithChildren<unknown>> = () => {
+export const WorkspaceBuildPage: FC = () => {
   const { username, workspace: workspaceName, buildNumber } = useParams()
   const [buildState] = useMachine(workspaceBuildMachine, {
     context: { username, workspaceName, buildNumber, timeCursor: new Date() },

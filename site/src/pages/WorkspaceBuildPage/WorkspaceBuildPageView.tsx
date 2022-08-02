@@ -18,7 +18,7 @@ export interface WorkspaceBuildPageViewProps {
   build: WorkspaceBuild | undefined
 }
 
-export const WorkspaceBuildPageView: FC<React.PropsWithChildren<WorkspaceBuildPageViewProps>> = ({ logs, build }) => {
+export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, build }) => {
   return (
     <Margins>
       <PageHeader>

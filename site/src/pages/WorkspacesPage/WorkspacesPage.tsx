@@ -7,7 +7,7 @@ import { pageTitle } from "util/page"
 import { workspacesMachine } from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
-const WorkspacesPage: FC<React.PropsWithChildren<unknown>> = () => {
+const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine)
   const [searchParams, setSearchParams] = useSearchParams()
   const { workspaceRefs } = workspacesState.context

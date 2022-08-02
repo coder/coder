@@ -57,7 +57,7 @@ export const Language = {
   createdByLabel: "Created by",
 }
 
-const TemplateHelpTooltip: React.FC<React.PropsWithChildren<unknown>> = () => {
+const TemplateHelpTooltip: React.FC = () => {
   return (
     <HelpTooltip>
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>

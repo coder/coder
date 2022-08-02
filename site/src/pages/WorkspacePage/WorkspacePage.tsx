@@ -19,7 +19,7 @@ import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedul
 
 dayjs.extend(minMax)
 
-export const WorkspacePage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)

@@ -4,7 +4,7 @@ import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import { Loader } from "../Loader/Loader"
 
-export const TableLoader: FC<React.PropsWithChildren<unknown>> = () => {
+export const TableLoader: FC = () => {
   const styles = useStyles()
 
   return (
