@@ -229,7 +229,7 @@ func TestSSH(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		cmd.SetErr(io.Discard)
+		cmd.SetErr(pty.Output())
 		cmdDone := tGo(t, func() {
 			err := cmd.ExecuteContext(ctx)
 			assert.NoError(t, err)
@@ -248,9 +248,6 @@ func TestSSH(t *testing.T) {
 
 		// And we're done.
 		pty.WriteLine("exit")
-		// Read output to prevent hang on macOS, see:
-		// https://github.com/coder/coder/issues/2122
-		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 }
