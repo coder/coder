@@ -16,7 +16,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    steps:
       - name: Get branch name
         id: branch-name
         uses: tj-actions/branch-names@v5.4
