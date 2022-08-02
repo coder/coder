@@ -28,4 +28,4 @@ jobs:
       - name: build
         run: |
           cd dogfood
-          make build-docker
+          make docker-build
