@@ -124,6 +124,7 @@ func Root() *cobra.Command {
 		resetPassword(),
 		schedules(),
 		server(),
+		session(),
 		show(),
 		ssh(),
 		start(),
