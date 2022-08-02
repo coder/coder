@@ -131,6 +131,7 @@ func Root() *cobra.Command {
 		stop(),
 		templates(),
 		update(),
+		upgrade(),
 		users(),
 		versionCmd(),
 		wireguardPortForward(),
