@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v3
       - run: |
           echo "BRANCH_NAME=$( git rev-parse --abbrev-ref HEAD | tr / - )" >> $GITHUB_ENV
+          source $GITHUB_ENV && echo $BRANCH_NAME
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
