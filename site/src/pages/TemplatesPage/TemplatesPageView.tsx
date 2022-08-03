@@ -101,7 +101,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
                     href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
                     target="_blank"
                   >
-                    create a new template
+                    manage templates
                   </Link>{" "}
                   from the CLI.
                 </>
