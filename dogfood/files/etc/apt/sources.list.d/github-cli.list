@@ -1,0 +1,1 @@
+deb [signed-by=/usr/share/keyrings/github-cli.gpg] https://cli.github.com/packages stable main
