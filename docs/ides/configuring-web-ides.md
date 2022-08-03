@@ -235,13 +235,13 @@ resource "coder_agent" "coder" {
   dir  = "/home/coder"
   startup_script = <<-EOF
 pip3 install jupyterlab
-jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/ --ServerApp.token='' --ip='*'
+jupyter lab --ServerApp.token='' --ip='*'
 EOF
 }
 
 resource "coder_app" "jupyter" {
   agent_id = coder_agent.coder.id
-  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter"
+  url = "http://localhost:8888/lab"
   icon = "/icon/jupyter.svg"
 }
 ```
