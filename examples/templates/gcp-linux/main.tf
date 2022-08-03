@@ -83,7 +83,7 @@ if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
   echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
 fi
 
-exec sudo -u "${local.linux_user}" sh -c '${coder_agent.main.init_script}
+exec sudo -u "${local.linux_user}" sh -c '${coder_agent.main.init_script}'
 EOMETA
 }
 
