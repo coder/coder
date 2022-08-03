@@ -30,6 +30,59 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: typos-action
+        uses: crate-ci/typos@v1.0.4
+        with:
+          config: .github/workflows/typos.toml
+      - name: Fix Helper
+        if: ${{ failure() }}
+        run: |
+          echo "::notice:: you can automatically fix typos from your CLI:
+          cargo install typos-cli
+          typos -c .github/workflows/typos.toml -w"
+
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      sh: ${{ steps.filter.outputs.sh }}
+      ts: ${{ steps.filter.outputs.ts }}
+    steps:
+      - uses: actions/checkout@v3
+      # For pull requests it's not necessary to checkout the code
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            all:
+              - '**'
+            docs:
+              - 'docs/**'
+              # For testing:
+              # - '.github/**'
+            sh:
+              - "**.sh"
+            ts:
+              - 'site/**'
+      - id: debug
+        run: |
+          echo "${{ toJSON(steps.filter )}}"
+
+  # Debug step
+  debug-inputs:
+    needs:
+      - changes
+    runs-on: ubuntu-latest
+    steps:
+      - id: log
+        run: |
+          echo "${{ toJSON(needs) }}"
+
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
@@ -85,8 +138,10 @@ jobs:
 
   gen:
     name: "style/gen"
-    timeout-minutes: 5
+    timeout-minutes: 8
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false'
     steps:
       - uses: actions/checkout@v3
 
@@ -111,9 +166,27 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
-      - run: curl -sSL
-          https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz
-          | sudo tar -C /usr/bin -xz sqlc
+
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+
+      - name: Go Build Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
 
       - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
@@ -180,7 +253,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
@@ -188,7 +261,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -198,21 +271,31 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
       - name: Test with Mock Database
+        id: test
         shell: bash
-        env:
-          GOCOUNT: ${{ runner.os == 'Windows' && 1 || 2 }}
-          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
-        run: gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage"
-          -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=5m -count=$GOCOUNT -short -failfast
+        run: |
+          # Code coverage is more computationally expensive and also
+          # prevents test caching, so we disable it on alternate operating
+          # systems.
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            echo ::set-output name=cover::true
+            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
+          else
+            echo ::set-output name=cover::false
+          fi
+          set -x
+          test_timeout=5m
+          if [[ "${{ matrix.os }}" == windows* ]]; then
+            test_timeout=10m
+          fi
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=$test_timeout -short -failfast $COVERAGE_FLAGS
 
       - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
@@ -221,18 +304,25 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
+        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
-          fail_ci_if_error: false
 
   test-go-postgres:
     name: "test/go/postgres"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v3
 
@@ -250,7 +340,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
@@ -258,7 +348,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - name: Install goreleaser
+      - name: Install gotestsum
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -268,33 +358,11 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - name: Start PostgreSQL Database
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-          PGDATA: /tmp
-        run: |
-          docker run \
-            -e POSTGRES_PASSWORD=postgres \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_DB=postgres \
-            -e PGDATA=/tmp \
-            -p 5432:5432 \
-            -d postgres:11 \
-            -c shared_buffers=1GB \
-            -c max_connections=1000
-          while ! pg_isready -h 127.0.0.1
-          do
-              echo "$(date) - waiting for database to start"
-              sleep 0.5
-          done
-
       - name: Test with PostgreSQL Database
-        run: "make test-postgres"
+        run: make test-postgres
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -305,24 +373,32 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-${{ matrix.os }}
-          # this flakes and sometimes fails the build 
-          fail_ci_if_error: false
 
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+    needs: changes
+    if: |
+      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      && needs.changes.outputs.docs-only == 'false'
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
@@ -366,18 +442,35 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
 
       - name: Build site
         run: make -B site/out/index.html
 
       - name: Build Release
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          version: latest
-          args: release --snapshot --rm-dist --skip-sign
+        run: |
+          set -euo pipefail
+          go mod download
+
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            --compress 22 \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build linux amd64 packages
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --package-linux \
+            linux:amd64 \
+            windows:amd64
 
       - name: Install Release
         run: |
@@ -394,8 +487,12 @@ jobs:
         with:
           name: coder
           path: |
-            ./dist/coder_*_linux_amd64.tar.gz
-            ./dist/coder_*_windows_amd64.zip
+            ./dist/*.zip
+            ./dist/*.exe
+            ./dist/*.tar.gz
+            ./dist/*.apk
+            ./dist/*.deb
+            ./dist/*.rpm
           retention-days: 7
 
   test-js:
@@ -432,13 +529,16 @@ jobs:
         working-directory: site
 
       - uses: codecov/codecov-action@v3
+        # This action has a tendency to error out unexpectedly, it has
+        # the `fail_ci_if_error` option that defaults to `false`, but
+        # that is no guarantee, see:
+        # https://github.com/codecov/codecov-action/issues/788
+        continue-on-error: true
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-          # this flakes and sometimes fails the build 
-          fail_ci_if_error: false
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -450,6 +550,9 @@ jobs:
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
+    needs:
+      - changes
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -466,9 +569,7 @@ jobs:
           path: |
             **/node_modules
             .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
+          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v3
@@ -477,16 +578,12 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.2
+          terraform_version: 1.1.9
           terraform_wrapper: false
 
       - uses: actions/setup-node@v3
         with:
           node-version: "14"
-
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          install-only: true
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -508,6 +605,7 @@ jobs:
 
       - name: Build
         run: |
+          sudo npm install -g prettier
           make -B site/out/index.html
 
       - run: yarn playwright:install
@@ -528,3 +626,47 @@ jobs:
           DD_CATEGORY: e2e
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+  chromatic:
+    # REMARK: this is only used to build storybook and deploy it to Chromatic.
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.ts == 'true'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # Required by Chromatic for build-over-build history, otherwise we
+          # only get 1 commit on shallow checkout.
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: cd site && yarn
+
+      # This step is not meant for mainline because any detected changes to
+      # storybook snapshots will require manual approval/review in order for
+      # the check to pass. This is desired in PRs, but not in mainline.
+      - name: Publish to Chromatic (non-mainline)
+        if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
+        uses: chromaui/action@v1
+        with:
+          buildScriptName: "storybook:build"
+          exitOnceUploaded: true
+          # Chromatic states its fine to make this token public. See:
+          # https://www.chromatic.com/docs/github-actions#forked-repositories
+          projectToken: 695c25b6cb65
+          workingDir: "./site"
+
+      # This is a separate step for mainline only that auto accepts and changes
+      # instead of holding CI up. Since we squash/merge, this is defensive to
+      # avoid the same changeset from requiring review once squashed into
+      # main. Chromatic is supposed to be able to detect that we use squash
+      # commits, but it's good to be defensive in case, otherwise CI remains
+      # infinitely "in progress" in mainline unless we re-review each build.
+      - name: Publish to Chromatic (mainline)
+        if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
+        uses: chromaui/action@v1
+        with:
+          autoAcceptChanges: true
+          buildScriptName: "storybook:build"
+          projectToken: 695c25b6cb65
+          workingDir: "./site"

@@ -1,3 +1,4 @@
+import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -98,11 +99,15 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "running",
 }
-
+export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "pending",
+}
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
-  created_at: "",
-  updated_at: "",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version",
   readme: `---
@@ -112,6 +117,8 @@ name:Template test
 You can add instructions here
 
 [Some link info](https://coder.com)`,
+  created_by_id: "test-creator-id",
+  created_by_name: "test_creator",
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -226,9 +233,21 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
 }
-export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
+export const MockDeletedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildDelete,
+}
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
+
+export const MockQueuedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockPendingProvisionerJob,
+    transition: "start",
+  },
+}
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
@@ -247,6 +266,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
+  wireguard_public_key: "",
+  disco_public_key: "",
+  ipv6: "",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -282,6 +304,7 @@ export const MockUserAgent: Types.UserAgent = {
 export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
+  oidc: false,
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -563,3 +586,23 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
 export const MockCancellationMessage = {
   message: "Job successfully canceled",
 }
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const makeMockApiError = ({
+  message,
+  detail,
+  validations,
+}: {
+  message?: string
+  detail?: string
+  validations?: FieldError[]
+}) => ({
+  response: {
+    data: {
+      message: message ?? "Something went wrong.",
+      detail: detail ?? undefined,
+      validations: validations ?? undefined,
+    },
+  },
+  isAxiosError: true,
+})

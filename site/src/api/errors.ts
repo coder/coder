@@ -6,7 +6,7 @@ export const Language = {
   },
 }
 
-interface FieldError {
+export interface FieldError {
   field: string
   detail: string
 }
@@ -27,7 +27,8 @@ export const isApiError = (err: any): err is ApiError => {
     const response = err.response?.data
 
     return (
-      typeof response.message === "string" && (typeof response.errors === "undefined" || Array.isArray(response.errors))
+      typeof response.message === "string" &&
+      (typeof response.errors === "undefined" || Array.isArray(response.errors))
     )
   }
 
@@ -40,7 +41,8 @@ export const isApiError = (err: any): err is ApiError => {
  * @param error ApiError
  * @returns true if the ApiError contains error messages for specific form fields.
  */
-export const hasApiFieldErrors = (error: ApiError): boolean => Array.isArray(error.response.data.validations)
+export const hasApiFieldErrors = (error: ApiError): boolean =>
+  Array.isArray(error.response.data.validations)
 
 export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): FieldErrors => {
   const result: FieldErrors = {}
@@ -60,5 +62,27 @@ export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): Fi
  * @param defaultMessage
  * @returns error's message if ApiError or Error, else defaultMessage
  */
-export const getErrorMessage = (error: Error | ApiError | unknown, defaultMessage: string): string =>
-  isApiError(error) ? error.response.data.message : error instanceof Error ? error.message : defaultMessage
+export const getErrorMessage = (
+  error: Error | ApiError | unknown,
+  defaultMessage: string,
+): string =>
+  isApiError(error)
+    ? error.response.data.message
+    : error instanceof Error
+    ? error.message
+    : defaultMessage
+
+/**
+ *
+ * @param error
+ * @returns a combined validation error message if the error is an ApiError
+ * and contains validation messages for different form fields.
+ */
+export const getValidationErrorMessage = (error: Error | ApiError | unknown): string => {
+  const validationErrors =
+    isApiError(error) && error.response.data.validations ? error.response.data.validations : []
+  return validationErrors.map((error) => error.detail).join("\n")
+}
+
+export const getErrorDetail = (error: Error | ApiError | unknown): string | undefined | null =>
+  isApiError(error) ? error.response.data.detail : error instanceof Error ? error.stack : null

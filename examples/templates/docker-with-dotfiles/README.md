@@ -1,6 +1,6 @@
 ---
 name: Develop in Docker with a dotfiles URL
-description: Run workspaces on a Docker host using registry images 
+description: Run workspaces on a Docker host using registry images
 tags: [local, docker]
 ---
 
@@ -10,7 +10,7 @@ This is an example for deploying workspaces with a prompt for the users' dotfile
 
 ## Getting started
 
-Run `coder templates init` and select this template. Follow the instructions that appear. 
+Run `coder templates init` and select this template. Follow the instructions that appear.
 
 ## How it works
 
@@ -27,7 +27,7 @@ variable "dotfiles_uri" {
   default = ""
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   ...
   startup_script = var.dotfiles_uri != "" ? "/tmp/tmp.coder*/coder dotfiles -y ${var.dotfiles_uri}" : null
 }

@@ -41,6 +41,13 @@ const (
 	ParameterTypeSystemHCL  ParameterTypeSystem = "hcl"
 )
 
+type ComputedParameter struct {
+	Parameter
+	SourceValue        string    `json:"source_value"`
+	SchemaID           uuid.UUID `json:"schema_id"`
+	DefaultSourceValue bool      `json:"default_source_value"`
+}
+
 // Parameter represents a set value for the scope.
 type Parameter struct {
 	ID                uuid.UUID                  `json:"id"`

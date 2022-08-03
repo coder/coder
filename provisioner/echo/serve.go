@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
@@ -15,6 +16,25 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
+
+const (
+	ParameterExecKey = "echo.exec"
+
+	errorKey   = "error"
+	successKey = "success"
+)
+
+func ParameterError(s string) string {
+	return formatExecValue(errorKey, s)
+}
+
+func ParameterSucceed() string {
+	return formatExecValue(successKey, "")
+}
+
+func formatExecValue(key, value string) string {
+	return fmt.Sprintf("%s=%s", key, value)
+}
 
 var (
 	// ParseComplete is a helper to indicate an empty parse completion.
@@ -29,6 +49,21 @@ var (
 			Complete: &proto.Provision_Complete{},
 		},
 	}}
+
+	ParameterSuccess = []*proto.ParameterSchema{
+		{
+			AllowOverrideSource: true,
+			Name:                ParameterExecKey,
+			Description:         "description 1",
+			DefaultSource: &proto.ParameterSource{
+				Scheme: proto.ParameterSource_DATA,
+				Value:  formatExecValue(successKey, ""),
+			},
+			DefaultDestination: &proto.ParameterDestination{
+				Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+			},
+		},
+	}
 )
 
 // Serve starts the echo provisioner.
@@ -82,6 +117,27 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return err
 	}
 	request := msg.GetStart()
+	if request == nil {
+		// A cancel could occur here!
+		return nil
+	}
+
+	for _, param := range request.ParameterValues {
+		if param.Name == ParameterExecKey {
+			toks := strings.Split(param.Value, "=")
+			if len(toks) < 2 {
+				break
+			}
+
+			switch toks[0] {
+			case errorKey:
+				return xerrors.Errorf("returning error: %v", toks[1])
+			default:
+				// Do nothing
+			}
+		}
+	}
+
 	for index := 0; ; index++ {
 		extension := ".protobuf"
 		if request.DryRun {

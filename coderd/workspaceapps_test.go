@@ -36,9 +36,10 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	go server.Serve(ln)
 	tcpAddr, _ := ln.Addr().(*net.TCPAddr)
 
-	client, coderAPI := coderdtest.NewWithAPI(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerD: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, coderAPI)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
@@ -84,6 +85,21 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
+
+	t.Run("RedirectsWithoutAuth", func(t *testing.T) {
+		t.Parallel()
+		client := codersdk.New(client.URL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/login", location.Path)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
 
 	t.Run("RedirectsWithSlash", func(t *testing.T) {
 		t.Parallel()

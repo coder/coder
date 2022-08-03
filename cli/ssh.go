@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,13 +19,18 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
+	tslogger "tailscale.com/types/logger"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/peer/peerwg"
 )
 
 var workspacePollInterval = time.Minute
@@ -37,6 +43,7 @@ func ssh() *cobra.Command {
 		forwardAgent   bool
 		identityAgent  string
 		wsPollInterval time.Duration
+		wireguard      bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -44,6 +51,9 @@ func ssh() *cobra.Command {
 		Short:       "SSH into a workspace",
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
@@ -61,52 +71,121 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], shuffle)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, agent.ID)
+					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(cmd.Context(), agent.ID, nil)
-			if err != nil {
-				return err
-			}
-			defer conn.Close()
+			var newSSHClient func() (*gossh.Client, error)
 
-			stopPolling := tryPollWorkspaceAutostop(cmd.Context(), client, workspace)
-			defer stopPolling()
-
-			if stdio {
-				rawSSH, err := conn.SSH()
+			if !wireguard {
+				conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 				if err != nil {
 					return err
 				}
-				go func() {
-					_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
-				}()
-				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
-				return nil
+				defer conn.Close()
+
+				stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+				defer stopPolling()
+
+				if stdio {
+					rawSSH, err := conn.SSH()
+					if err != nil {
+						return err
+					}
+					defer rawSSH.Close()
+
+					go func() {
+						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+					}()
+					_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+					return nil
+				}
+
+				newSSHClient = conn.SSHClient
+			} else {
+				// TODO: more granual control of Tailscale logging.
+				peerwg.Logf = tslogger.Discard
+
+				ipv6 := peerwg.UUIDToNetaddr(uuid.New())
+				wgn, err := peerwg.New(
+					slog.Make(sloghuman.Sink(cmd.ErrOrStderr())),
+					[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
+				)
+				if err != nil {
+					return xerrors.Errorf("create wireguard network: %w", err)
+				}
+				defer wgn.Close()
+
+				err = client.PostWireguardPeer(ctx, workspace.ID, peerwg.Handshake{
+					Recipient:      workspaceAgent.ID,
+					NodePublicKey:  wgn.NodePrivateKey.Public(),
+					DiscoPublicKey: wgn.DiscoPublicKey,
+					IPv6:           ipv6,
+				})
+				if err != nil {
+					return xerrors.Errorf("post wireguard peer: %w", err)
+				}
+
+				err = wgn.AddPeer(peerwg.Handshake{
+					Recipient:      workspaceAgent.ID,
+					DiscoPublicKey: workspaceAgent.DiscoPublicKey,
+					NodePublicKey:  workspaceAgent.WireguardPublicKey,
+					IPv6:           workspaceAgent.IPv6.IP(),
+				})
+				if err != nil {
+					return xerrors.Errorf("add workspace agent as peer: %w", err)
+				}
+
+				if stdio {
+					rawSSH, err := wgn.SSH(ctx, workspaceAgent.IPv6.IP())
+					if err != nil {
+						return err
+					}
+					defer rawSSH.Close()
+
+					go func() {
+						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+					}()
+					_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+					return nil
+				}
+
+				newSSHClient = func() (*gossh.Client, error) {
+					return wgn.SSHClient(ctx, workspaceAgent.IPv6.IP())
+				}
 			}
-			sshClient, err := conn.SSHClient()
+
+			sshClient, err := newSSHClient()
 			if err != nil {
 				return err
 			}
+			defer sshClient.Close()
 
 			sshSession, err := sshClient.NewSession()
 			if err != nil {
 				return err
 			}
+			defer sshSession.Close()
+
+			// Ensure context cancellation is propagated to the
+			// SSH session, e.g. to cancel `Wait()` at the end.
+			go func() {
+				<-ctx.Done()
+				_ = sshSession.Close()
+			}()
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
@@ -122,25 +201,29 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
-			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(os.Stdin.Fd()))
+			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
+			stdinFile, validIn := cmd.InOrStdin().(*os.File)
+			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
+				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(os.Stdin.Fd()), state)
+					_ = term.Restore(int(stdinFile.Fd()), state)
 				}()
 
-				windowChange := listenWindowSize(cmd.Context())
+				windowChange := listenWindowSize(ctx)
 				go func() {
 					for {
 						select {
-						case <-cmd.Context().Done():
+						case <-ctx.Done():
 							return
 						case <-windowChange:
 						}
-						width, height, _ := term.GetSize(int(stdoutFile.Fd()))
+						width, height, err := term.GetSize(int(stdoutFile.Fd()))
+						if err != nil {
+							continue
+						}
 						_ = sshSession.WindowChange(height, width)
 					}
 				}()
@@ -153,15 +236,24 @@ func ssh() *cobra.Command {
 
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
-			sshSession.Stderr = cmd.OutOrStdout()
+			sshSession.Stderr = cmd.ErrOrStderr()
 
 			err = sshSession.Shell()
 			if err != nil {
 				return err
 			}
 
+			// Put cancel at the top of the defer stack to initiate
+			// shutdown of services.
+			defer cancel()
+
 			err = sshSession.Wait()
 			if err != nil {
+				// If the connection drops unexpectedly, we get an ExitMissingError but no other
+				// error details, so try to at least give the user a better message
+				if errors.Is(err, &gossh.ExitMissingError{}) {
+					return xerrors.New("SSH connection ended unexpectedly")
+				}
 				return err
 			}
 
@@ -174,6 +266,8 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
+	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
+	_ = cmd.Flags().MarkHidden("wireguard")
 
 	return cmd
 }
@@ -181,16 +275,14 @@ func ssh() *cobra.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
-	ctx := cmd.Context()
-
+func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
 		err            error
 	)
 	if shuffle {
-		workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		if err != nil {

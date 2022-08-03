@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -26,7 +29,7 @@ var (
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
 	workspaceCommand = map[string]string{
-		"workspaces": " ",
+		"workspaces": "",
 	}
 )
 
@@ -37,17 +40,22 @@ const (
 	varAgentURL        = "agent-url"
 	varGlobalConfig    = "global-config"
 	varNoOpen          = "no-open"
+	varNoVersionCheck  = "no-version-warning"
 	varForceTty        = "force-tty"
+	varVerbose         = "verbose"
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
+
+	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
+)
+
+var (
+	errUnauthenticated = xerrors.New(notLoggedInMessage)
+	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
 func init() {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
+	// Set cobra template functions in init to avoid conflicts in tests.
+	cobra.AddTemplateFuncs(templateFunctions)
 }
 
 func Root() *cobra.Command {
@@ -57,44 +65,83 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		Example: `  Start a Coder server.
-  ` + cliui.Styles.Code.Render("$ coder server") + `
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			err := func() error {
+				if cliflag.IsSetBool(cmd, varNoVersionCheck) {
+					return nil
+				}
 
-  Get started by creating a template from an example.
-  ` + cliui.Styles.Code.Render("$ coder templates init"),
+				// Login handles checking the versions itself since it
+				// has a handle to an unauthenticated client.
+				// Server is skipped for obvious reasons.
+				if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "gitssh" {
+					return nil
+				}
+
+				client, err := createClient(cmd)
+				// If the client is unauthenticated we can ignore the check.
+				// The child commands should handle an unauthenticated client.
+				if xerrors.Is(err, errUnauthenticated) {
+					return nil
+				}
+				if err != nil {
+					return xerrors.Errorf("create client: %w", err)
+				}
+				return checkVersions(cmd, client)
+			}()
+			if err != nil {
+				// Just log the error here. We never want to fail a command
+				// due to a pre-run.
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+					cliui.Styles.Warn.Render("check versions error: %s"), err)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+			}
+		},
+		Example: formatExamples(
+			example{
+				Description: "Start a Coder server",
+				Command:     "coder server",
+			},
+			example{
+				Description: "Get started by creating a template from an example",
+				Command:     "coder templates init",
+			},
+		),
 	}
 
 	cmd.AddCommand(
 		configSSH(),
 		create(),
-		delete(),
+		deleteWorkspace(),
 		dotfiles(),
 		gitssh(),
 		list(),
 		login(),
 		logout(),
+		parameters(),
+		portForward(),
 		publickey(),
 		resetPassword(),
 		schedules(),
 		server(),
 		show(),
+		ssh(),
 		start(),
 		state(),
 		stop(),
-		ssh(),
 		templates(),
 		update(),
 		users(),
-		portForward(),
-		workspaceAgent(),
 		versionCmd(),
-		parameters(),
+		wireguardPortForward(),
+		workspaceAgent(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
-	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
+	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
@@ -104,6 +151,7 @@ func Root() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
+	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output")
 
 	return cmd
 }
@@ -111,9 +159,8 @@ func Root() *cobra.Command {
 // versionCmd prints the coder version
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "version",
-		Short:   "Show coder version",
-		Example: "coder version",
+		Use:   "version",
+		Short: "Show coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var str strings.Builder
 			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
@@ -129,6 +176,10 @@ func versionCmd() *cobra.Command {
 	}
 }
 
+func isTest() bool {
+	return flag.Lookup("test.v") != nil
+}
+
 // createClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
@@ -139,7 +190,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -154,7 +205,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		if err != nil {
 			// If the configuration files are absent, the user is logged out
 			if os.IsNotExist(err) {
-				return nil, xerrors.New(notLoggedInMessage)
+				return nil, errUnauthenticated
 			}
 			return nil, err
 		}
@@ -261,6 +312,30 @@ func isTTYOut(cmd *cobra.Command) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
+var templateFunctions = template.FuncMap{
+	"usageHeader":        usageHeader,
+	"isWorkspaceCommand": isWorkspaceCommand,
+}
+
+func usageHeader(s string) string {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	return cliui.Styles.Placeholder.Render(s)
+}
+
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspaces"]; ok {
+		return true
+	}
+	var ws bool
+	cmd.VisitParents(func(cmd *cobra.Command) {
+		if _, ok := cmd.Annotations["workspaces"]; ok {
+			ws = true
+		}
+	})
+	return ws
+}
+
 func usageTemplate() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
@@ -281,19 +356,21 @@ func usageTemplate() string {
 {{.Example}}
 {{end}}
 
+{{- $isRootHelp := (not .HasParent)}}
 {{- if .HasAvailableSubCommands}}
 {{usageHeader "Commands:"}}
   {{- range .Commands}}
-    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
+    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
 {{end}}
 
-{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{- if (and $isRootHelp .HasAvailableSubCommands)}}
 {{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
   {{rpad .Name .NamePadding }} {{.Short}}
     {{- end}}
   {{- end}}
@@ -301,12 +378,12 @@ func usageTemplate() string {
 
 {{- if .HasAvailableLocalFlags}}
 {{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{.LocalFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
 {{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{.InheritedFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}
@@ -323,8 +400,85 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 {{end}}`
 }
 
+// example represents a standard example for command usage, to be used
+// with formatExamples.
+type example struct {
+	Description string
+	Command     string
+}
+
+// formatExamples formats the examples as width wrapped bulletpoint
+// descriptions with the command underneath.
+func formatExamples(examples ...example) string {
+	wrap := cliui.Styles.Wrap.Copy()
+	wrap.PaddingLeft(4)
+	var sb strings.Builder
+	for i, e := range examples {
+		if len(e.Description) > 0 {
+			_, _ = sb.WriteString("  - " + wrap.Render(e.Description + ":")[4:] + "\n\n    ")
+		}
+		// We add 1 space here because `cliui.Styles.Code` adds an extra
+		// space. This makes the code block align at an even 2 or 6
+		// spaces for symmetry.
+		_, _ = sb.WriteString(" " + cliui.Styles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		if i < len(examples)-1 {
+			_, _ = sb.WriteString("\n\n")
+		}
+	}
+	return sb.String()
+}
+
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
 func FormatCobraError(err error, cmd *cobra.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
-	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
+
+	var (
+		httpErr *codersdk.Error
+		output  strings.Builder
+	)
+
+	if xerrors.As(err, &httpErr) {
+		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
+	}
+
+	// If the httpErr is nil then we just have a regular error in which
+	// case we want to print out what's happening.
+	if httpErr == nil || cliflag.IsSetBool(cmd, varVerbose) {
+		_, _ = fmt.Fprintln(&output, err.Error())
+	}
+
+	_, _ = fmt.Fprint(&output, helpErrMsg)
+
+	return cliui.Styles.Error.Render(output.String())
+}
+
+func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
+	if cliflag.IsSetBool(cmd, varNoVersionCheck) {
+		return nil
+	}
+
+	clientVersion := buildinfo.Version()
+
+	info, err := client.BuildInfo(cmd.Context())
+	// Avoid printing errors that are connection-related.
+	if codersdk.IsConnectionErr(err) {
+		return nil
+	}
+
+	if err != nil {
+		return xerrors.Errorf("build info: %w", err)
+	}
+
+	fmtWarningText := `version mismatch: client %s, server %s
+download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
+`
+
+	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
+		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
+		// Trim the leading 'v', our install.sh script does not handle this case well.
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+	}
+
+	return nil
 }

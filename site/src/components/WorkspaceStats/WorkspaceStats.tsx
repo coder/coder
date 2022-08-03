@@ -1,13 +1,13 @@
 import Link from "@material-ui/core/Link"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
-import dayjs from "dayjs"
+import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { combineClasses } from "util/combineClasses"
+import { createDayString } from "util/createDayString"
+import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
-import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
-import { getDisplayStatus } from "../../util/workspace"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -17,19 +17,21 @@ const Language = {
   lastBuiltLabel: "Last Built",
   outdated: "Outdated",
   upToDate: "Up to date",
+  byLabel: "Last Built by",
 }
 
 export interface WorkspaceStatsProps {
   workspace: Workspace
+  handleUpdate: () => void
 }
 
-export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
   const styles = useStyles()
   const theme = useTheme()
-  const status = getDisplayStatus(theme, workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
 
   return (
-    <WorkspaceSection title={Language.workspaceDetails} contentsProps={{ className: styles.stats }}>
+    <div className={styles.stats} aria-label={Language.workspaceDetails}>
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.templateLabel}</span>
         <Link
@@ -45,7 +47,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
         <span className={styles.statsLabel}>{Language.versionLabel}</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
-            <span style={{ color: theme.palette.error.main }}>{Language.outdated}</span>
+            <span className={styles.outdatedLabel}>
+              {Language.outdated}
+              <OutdatedHelpTooltip onUpdateVersion={handleUpdate} ariaLabel="update version" />
+            </span>
           ) : (
             <span style={{ color: theme.palette.text.secondary }}>{Language.upToDate}</span>
           )}
@@ -55,19 +60,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace }) => {
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
         <span className={styles.statsValue} data-chromatic="ignore">
-          {dayjs().to(dayjs(workspace.latest_build.created_at))}
+          {createDayString(workspace.latest_build.created_at)}
         </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.statusLabel}</span>
-        <span className={styles.statsValue}>
-          <span style={{ color: status.color }} role="status">
-            {status.status}
-          </span>
-        </span>
+        <span className={styles.statsLabel}>{Language.byLabel}</span>
+        <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
-    </WorkspaceSection>
+    </div>
   )
 }
 
@@ -76,7 +77,8 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     backgroundColor: theme.palette.background.paper,
-    borderRadius: CardRadius,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
@@ -88,7 +90,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "20%",
+    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },
@@ -125,5 +127,11 @@ const useStyles = makeStyles((theme) => ({
   link: {
     color: theme.palette.text.primary,
     fontWeight: 600,
+  },
+  outdatedLabel: {
+    color: theme.palette.error.main,
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
   },
 }))

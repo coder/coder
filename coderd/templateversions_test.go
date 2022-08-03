@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"testing"
 	"time"
@@ -12,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestTemplateVersion(t *testing.T) {
@@ -117,18 +116,27 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return false
+			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		err = client.CancelTemplateVersion(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Eventually(t, func() bool {
+			var err error
+			version, err = client.TemplateVersion(context.Background(), version.ID)
+			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
-	t.Run("Success", func(t *testing.T) {
+	// TODO(Cian): until we are able to test cancellation properly, validating
+	// Running -> Canceling is the best we can do for now.
+	t.Run("Canceling", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -143,18 +151,23 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return false
+			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, 5*time.Second, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 		err := client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(context.Background(), version.ID)
-			require.NoError(t, err)
-			return version.Job.Status == codersdk.ProvisionerJobCanceled
-		}, 5*time.Second, 25*time.Millisecond)
+			return assert.NoError(t, err) &&
+				// The job will never actually cancel successfully because it will never send a
+				// provision complete response.
+				assert.Empty(t, version.Job.Error) &&
+				version.Job.Status == codersdk.ProvisionerJobCanceling
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -246,17 +259,30 @@ func TestTemplateVersionParameters(t *testing.T) {
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:           "example",
-							RedisplayValue: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "hello",
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								Name:           "example",
+								RedisplayValue: true,
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  "hello",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							{
+								Name:           "abcd",
+								RedisplayValue: true,
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  "world",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-						}},
+						},
 					},
 				},
 			}},
@@ -266,8 +292,9 @@ func TestTemplateVersionParameters(t *testing.T) {
 		params, err := client.TemplateVersionParameters(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, params)
-		require.Len(t, params, 1)
+		require.Len(t, params, 2)
 		require.Equal(t, "hello", params[0].SourceValue)
+		require.Equal(t, "world", params[1].SourceValue)
 	})
 }
 
@@ -354,7 +381,7 @@ func TestTemplateVersionLogs(t *testing.T) {
 		}},
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	defer cancelFunc()
 	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
 	for {
@@ -514,10 +541,8 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// Wait for the job to complete
 		require.Eventually(t, func() bool {
 			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-			assert.NoError(t, err)
-
-			return job.Status == codersdk.ProvisionerJobSucceeded
-		}, 5*time.Second, 25*time.Millisecond)
+			return assert.NoError(t, err) && job.Status == codersdk.ProvisionerJobSucceeded
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		<-logsDone
 
@@ -555,18 +580,31 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
-			client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
+
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{{
-					Type: &proto.Provision_Response_Log{
-						Log: &proto.Log{},
+				Provision: []*proto.Provision_Response{
+					{
+						Type: &proto.Provision_Response_Log{
+							Log: &proto.Log{},
+						},
 					},
-				}},
+					{
+						Type: &proto.Provision_Response_Complete{
+							Complete: &proto.Provision_Complete{},
+						},
+					},
+				},
 			})
-			forceCompleteTemplateVersionJob(t, api.Database, client, version)
 
+			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+			closer.Close()
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 				ParameterValues: []codersdk.CreateParameterRequest{},
@@ -575,22 +613,26 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobRunning
-			}, 5*time.Second, 25*time.Millisecond)
+				return job.Status == codersdk.ProvisionerJobPending
+			}, testutil.WaitShort, testutil.IntervalFast)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceled
-			}, 5*time.Second, 25*time.Millisecond)
+				return job.Status == codersdk.ProvisionerJobCanceling
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 
 		t.Run("AlreadyCompleted", func(t *testing.T) {
@@ -608,11 +650,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				job, err := client.TemplateVersionDryRun(context.Background(), version.ID, job.ID)
-				assert.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobSucceeded
-			}, 5*time.Second, 25*time.Millisecond)
+			}, testutil.WaitShort, testutil.IntervalFast)
 
 			err = client.CancelTemplateVersionDryRun(context.Background(), version.ID, job.ID)
 			var apiErr *codersdk.Error
@@ -622,17 +666,30 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 		t.Run("AlreadyCanceled", func(t *testing.T) {
 			t.Parallel()
-			client, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+			defer closer.Close()
+
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{{
-					Type: &proto.Provision_Response_Log{
-						Log: &proto.Log{},
+				Provision: []*proto.Provision_Response{
+					{
+						Type: &proto.Provision_Response_Log{
+							Log: &proto.Log{},
+						},
 					},
-				}},
+					{
+						Type: &proto.Provision_Response_Complete{
+							Complete: &proto.Provision_Complete{},
+						},
+					},
+				},
 			})
-			forceCompleteTemplateVersionJob(t, api.Database, client, version)
+
+			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+			closer.Close()
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(context.Background(), version.ID, codersdk.CreateTemplateVersionDryRunRequest{
@@ -752,24 +809,4 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			}
 		})
 	}
-}
-
-func forceCompleteTemplateVersionJob(t *testing.T, db database.Store, client *codersdk.Client, version codersdk.TemplateVersion) {
-	t.Helper()
-
-	// HACK: we need the template version job to be finished so the dry-run job
-	// can be created. We do this by canceling the job and then marking it as
-	// successful.
-	err := client.CancelTemplateVersion(context.Background(), version.ID)
-	require.NoError(t, err)
-	err = db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:        version.Job.ID,
-		UpdatedAt: time.Now(),
-		CompletedAt: sql.NullTime{
-			Time:  time.Now(),
-			Valid: true,
-		},
-		Error: sql.NullString{},
-	})
-	require.NoError(t, err)
 }

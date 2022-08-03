@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type workspaceBuildParamContextKey struct{}
@@ -37,7 +38,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace build.",
 					Detail:  err.Error(),
 				})

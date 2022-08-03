@@ -14,6 +14,13 @@ Example.args = {
   subtitle: "coder@coder.com",
 }
 
+export const WithHighlightTitle = Template.bind({})
+WithHighlightTitle.args = {
+  title: "coder",
+  subtitle: "coder@coder.com",
+  highlightTitle: true,
+}
+
 export const WithLink = Template.bind({})
 WithLink.args = {
   title: "coder",

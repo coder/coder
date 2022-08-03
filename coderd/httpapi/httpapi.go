@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/coder/coder/codersdk"
 )
 
 var (
-	validate      *validator.Validate
-	usernameRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
+	validate *validator.Validate
 )
 
 // This init is used to create a validator and register validation-specific
@@ -37,55 +37,23 @@ func init() {
 		if !ok {
 			return false
 		}
-		if len(str) > 32 {
-			return false
-		}
-		if len(str) < 1 {
-			return false
-		}
-		return usernameRegex.MatchString(str)
+		return UsernameValid(str)
 	})
 	if err != nil {
 		panic(err)
 	}
 }
 
-// Response represents a generic HTTP response.
-type Response struct {
-	// Message is an actionable message that depicts actions the request took.
-	// These messages should be fully formed sentences with proper punctuation.
-	// Examples:
-	// - "A user has been created."
-	// - "Failed to create a user."
-	Message string `json:"message"`
-	// Detail is a debug message that provides further insight into why the
-	// action failed. This information can be technical and a regular golang
-	// err.Error() text.
-	// - "database: too many open connections"
-	// - "stat: too many open files"
-	Detail string `json:"detail,omitempty"`
-	// Validations are form field-specific friendly error messages. They will be
-	// shown on a form field in the UI. These can also be used to add additional
-	// context if there is a set of errors in the primary 'Message'.
-	Validations []Error `json:"validations,omitempty"`
-}
-
-// Error represents a scoped error to a user input.
-type Error struct {
-	Field  string `json:"field" validate:"required"`
-	Detail string `json:"detail" validate:"required"`
-}
-
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
-	Write(rw, http.StatusNotFound, Response{
+	Write(rw, http.StatusNotFound, codersdk.Response{
 		Message: "Resource not found or you do not have access to this resource",
 	})
 }
 
 func Forbidden(rw http.ResponseWriter) {
-	Write(rw, http.StatusForbidden, Response{
+	Write(rw, http.StatusForbidden, codersdk.Response{
 		Message: "Forbidden.",
 	})
 }
@@ -114,7 +82,7 @@ func Write(rw http.ResponseWriter, status int, response interface{}) {
 func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
-		Write(rw, http.StatusBadRequest, Response{
+		Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
 		})
@@ -123,21 +91,21 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err = validate.Struct(value)
 	var validationErrors validator.ValidationErrors
 	if errors.As(err, &validationErrors) {
-		apiErrors := make([]Error, 0, len(validationErrors))
+		apiErrors := make([]codersdk.ValidationError, 0, len(validationErrors))
 		for _, validationError := range validationErrors {
-			apiErrors = append(apiErrors, Error{
+			apiErrors = append(apiErrors, codersdk.ValidationError{
 				Field:  validationError.Field(),
 				Detail: fmt.Sprintf("Validation failed for tag %q with value: \"%v\"", validationError.Tag(), validationError.Value()),
 			})
 		}
-		Write(rw, http.StatusBadRequest, Response{
+		Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Validation failed.",
 			Validations: apiErrors,
 		})
 		return false
 	}
 	if err != nil {
-		Write(rw, http.StatusInternalServerError, Response{
+		Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error validating request body payload.",
 			Detail:  err.Error(),
 		})

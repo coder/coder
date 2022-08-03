@@ -12,8 +12,9 @@ import (
 
 func users() *cobra.Command {
 	cmd := &cobra.Command{
-		Short: "Create, remove, and list users",
-		Use:   "users",
+		Short:   "Create, remove, and list users",
+		Use:     "users",
+		Aliases: []string{"user"},
 	}
 	cmd.AddCommand(
 		userCreate(),
@@ -34,7 +35,7 @@ func displayUsers(filterColumns []string, users ...codersdk.User) string {
 	tableWriter.AppendHeader(header)
 	tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, filterColumns))
 	tableWriter.SortBy([]table.SortBy{{
-		Name: "Username",
+		Name: "username",
 	}})
 	for _, user := range users {
 		tableWriter.AppendRow(table.Row{

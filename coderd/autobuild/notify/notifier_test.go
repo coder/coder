@@ -90,9 +90,10 @@ func TestNotifier(t *testing.T) {
 			}
 			var wg sync.WaitGroup
 			go func() {
+				defer wg.Done()
 				n := notify.New(cond, testCase.Countdown...)
+				defer n.Close()
 				n.Poll(ch)
-				wg.Done()
 			}()
 			wg.Add(1)
 			for _, tick := range testCase.Ticks {

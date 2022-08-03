@@ -1,11 +1,11 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
-import React from "react"
+import { Language as ErrorSummaryLanguage } from "components/ErrorSummary/ErrorSummary"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
-import { Language, SecurityPage } from "./SecurityPage"
+import { SecurityPage } from "./SecurityPage"
 
 const renderPage = () => {
   return renderWithAuth(
@@ -24,16 +24,22 @@ const newData = {
 
 const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Old Password"))
-  fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: newData.old_password } })
+  fireEvent.change(screen.getByLabelText("Old Password"), {
+    target: { value: newData.old_password },
+  })
   fireEvent.change(screen.getByLabelText("New Password"), { target: { value: newData.password } })
-  fireEvent.change(screen.getByLabelText("Confirm Password"), { target: { value: newData.confirm_password } })
+  fireEvent.change(screen.getByLabelText("Confirm Password"), {
+    target: { value: newData.confirm_password },
+  })
   fireEvent.click(screen.getByText(SecurityForm.Language.updatePassword))
 }
 
 describe("SecurityPage", () => {
   describe("when it is a success", () => {
     it("shows the success message", async () => {
-      jest.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
+      jest
+        .spyOn(API, "updateUserPassword")
+        .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
       const { user } = renderPage()
       await fillAndSubmitForm()
 
@@ -59,8 +65,9 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText("Incorrect password.")
+      const errorMessage = await screen.findAllByText("Incorrect password.")
       expect(errorMessage).toBeDefined()
+      expect(errorMessage).toHaveLength(2)
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
     })
@@ -71,15 +78,19 @@ describe("SecurityPage", () => {
       jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
         isAxiosError: true,
         response: {
-          data: { message: "Invalid password.", validations: [{ detail: "Invalid password.", field: "password" }] },
+          data: {
+            message: "Invalid password.",
+            validations: [{ detail: "Invalid password.", field: "password" }],
+          },
         },
       })
 
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText("Invalid password.")
+      const errorMessage = await screen.findAllByText("Invalid password.")
       expect(errorMessage).toBeDefined()
+      expect(errorMessage).toHaveLength(2)
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
     })
@@ -94,7 +105,7 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText(Language.unknownError)
+      const errorMessage = await screen.findByText(ErrorSummaryLanguage.unknownErrorMessage)
       expect(errorMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)

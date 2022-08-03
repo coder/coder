@@ -16,18 +16,20 @@ func templates() *cobra.Command {
 		Use:     "templates",
 		Short:   "Create, manage, and deploy templates",
 		Aliases: []string{"template"},
-		Example: `
-  - Create a template for developers to create workspaces
-
-    ` + cliui.Styles.Code.Render("$ coder templates create") + `
-
-  - Make changes to your template, and plan the changes
-
-    ` + cliui.Styles.Code.Render("$ coder templates plan <name>") + `
-
-  - Update the template. Your developers can update their workspaces
-
-    ` + cliui.Styles.Code.Render("$ coder templates update <name>"),
+		Example: formatExamples(
+			example{
+				Description: "Create a template for developers to create workspaces",
+				Command:     "coder templates create",
+			},
+			example{
+				Description: "Make changes to your template, and plan the changes",
+				Command:     "coder templates plan my-template",
+			},
+			example{
+				Description: "Push an update to the template. Your developers can update their workspaces",
+				Command:     "coder templates push my-template",
+			},
+		),
 	}
 	cmd.AddCommand(
 		templateCreate(),
@@ -35,7 +37,7 @@ func templates() *cobra.Command {
 		templateInit(),
 		templateList(),
 		templatePlan(),
-		templateUpdate(),
+		templatePush(),
 		templateVersions(),
 		templateDelete(),
 		templatePull(),
@@ -69,7 +71,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) st
 			template.OrganizationID.String(),
 			template.Provisioner,
 			template.ActiveVersionID.String(),
-			cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+			cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
 			(time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
 			(time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		})

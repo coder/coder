@@ -1,9 +1,9 @@
-import { useMachine } from "@xstate/react"
+import { useMachine, useSelector } from "@xstate/react"
 import * as cronParser from "cron-parser"
 import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import React, { useEffect } from "react"
+import React, { useContext, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -16,6 +16,8 @@ import {
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
 import { extractTimezone, stripTimezone } from "../../util/schedule"
+import { selectUser } from "../../xServices/auth/authSelectors"
+import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 
 // REMARK: timezone plugin depends on UTC
@@ -23,6 +25,12 @@ import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceSc
 // SEE: https://day.js.org/docs/en/timezone/timezone
 dayjs.extend(utc)
 dayjs.extend(timezone)
+
+const Language = {
+  forbiddenError: "You don't have permissions to update the schedule for this workspace.",
+  getWorkspaceError: "Failed to fetch workspace.",
+  checkPermissionsError: "Failed to fetch permissions.",
+}
 
 export const formValuesToAutoStartRequest = (
   values: WorkspaceScheduleFormValues,
@@ -87,7 +95,9 @@ export const formValuesToAutoStartRequest = (
   }
 }
 
-export const formValuesToTTLRequest = (values: WorkspaceScheduleFormValues): TypesGen.UpdateWorkspaceTTLRequest => {
+export const formValuesToTTLRequest = (
+  values: WorkspaceScheduleFormValues,
+): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
     ttl_ms: values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
@@ -99,7 +109,9 @@ export const workspaceToInitialValues = (
   defaultTimeZone = "",
 ): WorkspaceScheduleFormValues => {
   const schedule = workspace.autostart_schedule
-  const ttlHours = workspace.ttl_ms ? Math.round(workspace.ttl_ms / (1000 * 60 * 60)) : defaultWorkspaceScheduleTTL
+  const ttlHours = workspace.ttl_ms
+    ? Math.round(workspace.ttl_ms / (1000 * 60 * 60))
+    : defaultWorkspaceScheduleTTL
 
   if (!schedule) {
     return defaultWorkspaceSchedule(ttlHours, defaultTimeZone)
@@ -137,8 +149,17 @@ export const WorkspaceSchedulePage: React.FC = () => {
   const navigate = useNavigate()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
-  const { formErrors, getWorkspaceError, workspace } = scheduleState.context
+
+  const xServices = useContext(XServiceContext)
+  const me = useSelector(xServices.authXService, selectUser)
+
+  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
+    context: {
+      userId: me?.id,
+    },
+  })
+  const { checkPermissionsError, submitScheduleError, getWorkspaceError, permissions, workspace } =
+    scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
   // scheduleSend should not change.
@@ -149,19 +170,37 @@ export const WorkspaceSchedulePage: React.FC = () => {
   if (!username || !workspaceName) {
     navigate("/workspaces")
     return null
-  } else if (scheduleState.matches("idle") || scheduleState.matches("gettingWorkspace") || !workspace) {
+  }
+
+  if (
+    scheduleState.matches("idle") ||
+    scheduleState.matches("gettingWorkspace") ||
+    scheduleState.matches("gettingPermissions") ||
+    !workspace
+  ) {
     return <FullScreenLoader />
-  } else if (scheduleState.matches("error")) {
+  }
+
+  if (scheduleState.matches("error")) {
     return (
       <ErrorSummary
-        error={getWorkspaceError}
+        error={getWorkspaceError || checkPermissionsError}
+        defaultMessage={
+          getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError
+        }
         retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
       />
     )
-  } else if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
+  }
+
+  if (!permissions?.updateWorkspace) {
+    return <ErrorSummary error={Error(Language.forbiddenError)} />
+  }
+
+  if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {
     return (
       <WorkspaceScheduleForm
-        fieldErrors={formErrors}
+        submitScheduleError={submitScheduleError}
         initialValues={workspaceToInitialValues(workspace, dayjs.tz.guess())}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
@@ -176,13 +215,15 @@ export const WorkspaceSchedulePage: React.FC = () => {
         }}
       />
     )
-  } else if (scheduleState.matches("submitSuccess")) {
+  }
+
+  if (scheduleState.matches("submitSuccess")) {
     navigate(`/@${username}/${workspaceName}`)
     return <FullScreenLoader />
-  } else {
-    // Theoretically impossible - log and bail
-    console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
-    navigate("/")
-    return null
   }
+
+  // Theoretically impossible - log and bail
+  console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
+  navigate("/")
+  return null
 }

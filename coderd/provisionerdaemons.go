@@ -23,10 +23,13 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -38,7 +41,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
@@ -253,6 +256,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceTransition: transition,
 					WorkspaceName:       workspace.Name,
 					WorkspaceOwner:      owner.Username,
+					WorkspaceOwnerEmail: owner.Email,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),
 				},
@@ -329,6 +333,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "UpdateJob starting", slog.F("job_id", parsedID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job: %w", err)
@@ -366,25 +371,34 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			insertParams.Stage = append(insertParams.Stage, log.Stage)
 			insertParams.Source = append(insertParams.Source, logSource)
 			insertParams.Output = append(insertParams.Output, log.Output)
+			server.Logger.Debug(ctx, "job log",
+				slog.F("job_id", parsedID),
+				slog.F("stage", log.Stage),
+				slog.F("output", log.Output))
 		}
 		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
+			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
-		data, err := json.Marshal(logs)
+		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
+		data, err := json.Marshal(provisionerJobLogsMessage{Logs: logs})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal job log: %w", err)
 		}
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
+			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)
 		}
+		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
 
 	if len(request.Readme) > 0 {
 		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
-			JobID:  job.ID,
-			Readme: string(request.Readme),
+			JobID:     job.ID,
+			Readme:    string(request.Readme),
+			UpdatedAt: database.Now(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)
@@ -392,7 +406,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	}
 
 	if len(request.ParameterSchemas) > 0 {
-		for _, protoParameter := range request.ParameterSchemas {
+		for index, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
@@ -415,6 +429,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 
 				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
 				AllowOverrideSource:      protoParameter.AllowOverrideSource,
+
+				Index: int32(index),
 			}
 
 			// It's possible a parameter doesn't define a default source!
@@ -486,6 +502,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "FailJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
@@ -536,6 +553,16 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
+
+	data, err := json.Marshal(provisionerJobLogsMessage{EndOfLogs: true})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal job log: %w", err)
+	}
+	err = server.Pubsub.Publish(provisionerJobLogsChannel(jobID), data)
+	if err != nil {
+		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		return nil, xerrors.Errorf("publish end of job logs: %w", err)
+	}
 	return &proto.Empty{}, nil
 }
 
@@ -545,6 +572,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	server.Logger.Debug(ctx, "CompleteJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job by id: %w", err)
@@ -697,6 +725,17 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			reflect.TypeOf(completed.Type).String())
 	}
 
+	data, err := json.Marshal(provisionerJobLogsMessage{EndOfLogs: true})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal job log: %w", err)
+	}
+	err = server.Pubsub.Publish(provisionerJobLogsChannel(jobID), data)
+	if err != nil {
+		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		return nil, xerrors.Errorf("publish end of job logs: %w", err)
+	}
+
+	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
 }
 
@@ -714,17 +753,17 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
-	for _, agent := range protoResource.Agents {
+	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
-		if agent.GetInstanceId() != "" {
+		if prAgent.GetInstanceId() != "" {
 			instanceID = sql.NullString{
-				String: agent.GetInstanceId(),
+				String: prAgent.GetInstanceId(),
 				Valid:  true,
 			}
 		}
 		var env pqtype.NullRawMessage
-		if agent.Env != nil {
-			data, err := json.Marshal(agent.Env)
+		if prAgent.Env != nil {
+			data, err := json.Marshal(prAgent.Env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
@@ -734,36 +773,40 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 		authToken := uuid.New()
-		if agent.GetToken() != "" {
-			authToken, err = uuid.Parse(agent.GetToken())
+		if prAgent.GetToken() != "" {
+			authToken, err = uuid.Parse(prAgent.GetToken())
 			if err != nil {
 				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
 			}
 		}
 
+		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                   uuid.New(),
+			ID:                   agentID,
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
-			Name:                 agent.Name,
+			Name:                 prAgent.Name,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,
-			Architecture:         agent.Architecture,
+			Architecture:         prAgent.Architecture,
 			EnvironmentVariables: env,
-			Directory:            agent.Directory,
-			OperatingSystem:      agent.OperatingSystem,
+			Directory:            prAgent.Directory,
+			OperatingSystem:      prAgent.OperatingSystem,
 			StartupScript: sql.NullString{
-				String: agent.StartupScript,
-				Valid:  agent.StartupScript != "",
+				String: prAgent.StartupScript,
+				Valid:  prAgent.StartupScript != "",
 			},
+			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
+			WireguardNodePublicKey:  dbtypes.NodePublic{},
+			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
-		for _, app := range agent.Apps {
+		for _, app := range prAgent.Apps {
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -786,6 +829,25 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
 	}
+
+	for _, metadatum := range protoResource.Metadata {
+		var value sql.NullString
+		if !metadatum.IsNull {
+			value.String = metadatum.Value
+			value.Valid = true
+		}
+
+		_, err := db.InsertWorkspaceResourceMetadata(ctx, database.InsertWorkspaceResourceMetadataParams{
+			WorkspaceResourceID: resource.ID,
+			Key:                 metadatum.Key,
+			Value:               value,
+			Sensitive:           metadatum.Sensitive,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 

@@ -67,6 +67,17 @@ func login() *cobra.Command {
 			}
 
 			client := codersdk.New(serverURL)
+
+			// Try to check the version of the server prior to logging in.
+			// It may be useful to warn the user if they are trying to login
+			// on a very old client.
+			err = checkVersions(cmd, client)
+			if err != nil {
+				// Checking versions isn't a fatal error so we print a warning
+				// and proceed.
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(err.Error()))
+			}
+
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
 				return xerrors.Errorf("has initial user: %w", err)
@@ -80,7 +91,7 @@ func login() *cobra.Command {
 					}
 					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
-						Default:   "yes",
+						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
 					})
 					if errors.Is(err, cliui.Canceled) {
@@ -122,26 +133,29 @@ func login() *cobra.Command {
 				}
 
 				if password == "" {
-					password, err = cliui.Prompt(cmd, cliui.PromptOptions{
-						Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
-						Secret:   true,
-						Validate: cliui.ValidateNotEmpty,
-					})
-					if err != nil {
-						return xerrors.Errorf("specify password prompt: %w", err)
-					}
-					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-						Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
-						Secret: true,
-						Validate: func(s string) error {
-							if s != password {
-								return xerrors.Errorf("Passwords do not match")
-							}
-							return nil
-						},
-					})
-					if err != nil {
-						return xerrors.Errorf("confirm password prompt: %w", err)
+					var matching bool
+
+					for !matching {
+						password, err = cliui.Prompt(cmd, cliui.PromptOptions{
+							Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
+							Secret:   true,
+							Validate: cliui.ValidateNotEmpty,
+						})
+						if err != nil {
+							return xerrors.Errorf("specify password prompt: %w", err)
+						}
+						confirm, err := cliui.Prompt(cmd, cliui.PromptOptions{
+							Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
+							Secret: true,
+						})
+						if err != nil {
+							return xerrors.Errorf("confirm password prompt: %w", err)
+						}
+
+						matching = confirm == password
+						if !matching {
+							_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render("Passwords do not match"))
+						}
 					}
 				}
 

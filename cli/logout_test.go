@@ -41,7 +41,7 @@ func TestLogout(t *testing.T) {
 			assert.NoFileExists(t, string(config.Session()))
 		}()
 
-		pty.ExpectMatch("Are you sure you want to logout?")
+		pty.ExpectMatch("Are you sure you want to log out?")
 		pty.WriteLine("yes")
 		pty.ExpectMatch("You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
@@ -152,19 +152,19 @@ func TestLogout(t *testing.T) {
 			err = os.Chmod(string(config), 0500)
 			require.NoError(t, err)
 		}
-		t.Cleanup(func() {
+		defer func() {
 			if runtime.GOOS == "windows" {
 				// Closing the opened files for cleanup.
 				err = urlFile.Close()
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				err = sessionFile.Close()
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			} else {
 				// Setting the permissions back for cleanup.
-				err = os.Chmod(string(config), 0700)
-				require.NoError(t, err)
+				err = os.Chmod(string(config), 0o700)
+				assert.NoError(t, err)
 			}
-		})
+		}()
 
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
@@ -186,7 +186,7 @@ func TestLogout(t *testing.T) {
 			assert.Regexp(t, errRegex, err.Error())
 		}()
 
-		pty.ExpectMatch("Are you sure you want to logout?")
+		pty.ExpectMatch("Are you sure you want to log out?")
 		pty.WriteLine("yes")
 		<-logoutChan
 	})

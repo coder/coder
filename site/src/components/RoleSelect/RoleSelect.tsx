@@ -16,7 +16,13 @@ export interface RoleSelectProps {
   open?: boolean
 }
 
-export const RoleSelect: FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
+export const RoleSelect: FC<RoleSelectProps> = ({
+  roles,
+  selectedRoles,
+  loading,
+  onChange,
+  open,
+}) => {
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")

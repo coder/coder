@@ -1,4 +1,9 @@
-import { Language, ttlShutdownAt, validationSchema, WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import {
+  Language,
+  ttlShutdownAt,
+  validationSchema,
+  WorkspaceScheduleFormValues,
+} from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {

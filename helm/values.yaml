@@ -1,0 +1,71 @@
+# coder -- Primary configuration for `coder server`.
+coder:
+  # NOTE: this is currently not used as coder v2 does not support high
+  #       availability yet.
+  # # coder.replicaCount -- The number of Kubernetes deployment replicas.
+  # replicaCount: 1
+
+  # coder.image -- The image to use for Coder.
+  image:
+    # coder.image.repo -- The repository of the image.
+    repo: "ghcr.io/coder/coder"
+    # coder.image.tag -- The tag of the image, defaults to {{.Chart.AppVersion}}
+    # if not set.
+    tag: ""
+    # coder.image.pullPolicy -- The pull policy to use for the image. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+    pullPolicy: IfNotPresent
+
+  # coder.env -- The environment variables to set for Coder. These can be used
+  # to configure all aspects of `coder server`. Please see `coder server --help`
+  # for information about what environment variables can be set.
+  #
+  # Note: The following environment variables are set by default and cannot be
+  # overridden:
+  # - CODER_ADDRESS: set to 0.0.0.0:80 and cannot be changed.
+  # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
+  # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
+  # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
+  env:
+    - name: CODER_ACCESS_URL
+      value: "https://coder.example.com"
+    #- name: CODER_PG_CONNECTION_URL
+    #  value: "postgres://coder:password@postgres:5432/coder?sslmode=disable"
+
+  # coder.tls -- The TLS configuration for Coder.
+  tls:
+    # coder.tls.secretName -- The name of the secret containing the TLS
+    # certificate. The secret should exist in the same namespace as the Helm
+    # deployment and should be of type "kubernetes.io/tls". The secret will be
+    # automatically mounted into the pod if specified, and the correct
+    # "CODER_TLS_*" environment variables will be set for you.
+    secretName: ""
+
+  # coder.resources -- The resources to request for Coder. These are optional
+  # and are not set by default.
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  # coder.service -- The Service object to expose for Coder.
+  service:
+    # coder.service.enable -- Whether to create the Service object.
+    enable: true
+    # coder.service.type -- The type of service to expose. See:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+    type: LoadBalancer
+    # coder.service.externalTrafficPolicy -- The external traffic policy to use.
+    # You may need to change this to "Local" to preserve the source IP address
+    # in some situations.
+    # https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    externalTrafficPolicy: Cluster
+    # coder.service.loadBalancerIP -- The IP address of the LoadBalancer. If not
+    # specified, a new IP will be generated each time the load balancer is
+    # recreated. It is recommended to manually create a static IP address in
+    # your cloud and specify it here in production to avoid accidental IP
+    # address changes.
+    loadBalancerIP: ""

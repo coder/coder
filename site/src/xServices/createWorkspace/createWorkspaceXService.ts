@@ -1,6 +1,11 @@
 import { assign, createMachine } from "xstate"
 import { createWorkspace, getTemplates, getTemplateVersionSchema } from "../../api/api"
-import { CreateWorkspaceRequest, ParameterSchema, Template, Workspace } from "../../api/typesGenerated"
+import {
+  CreateWorkspaceRequest,
+  ParameterSchema,
+  Template,
+  Workspace,
+} from "../../api/typesGenerated"
 
 type CreateWorkspaceContext = {
   organizationId: string
@@ -10,6 +15,9 @@ type CreateWorkspaceContext = {
   templateSchema?: ParameterSchema[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
+  createWorkspaceError?: Error | unknown
+  getTemplatesError?: Error | unknown
+  getTemplateSchemaError?: Error | unknown
 }
 
 type CreateWorkspaceEvent = {
@@ -39,6 +47,7 @@ export const createWorkspaceMachine = createMachine(
     tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
     states: {
       gettingTemplates: {
+        entry: "clearGetTemplatesError",
         invoke: {
           src: "getTemplates",
           onDone: [
@@ -52,11 +61,13 @@ export const createWorkspaceMachine = createMachine(
             },
           ],
           onError: {
+            actions: ["assignGetTemplatesError"],
             target: "error",
           },
         },
       },
       gettingTemplateSchema: {
+        entry: "clearGetTemplateSchemaError",
         invoke: {
           src: "getTemplateSchema",
           onDone: {
@@ -64,6 +75,7 @@ export const createWorkspaceMachine = createMachine(
             target: "fillingParams",
           },
           onError: {
+            actions: ["assignGetTemplateSchemaError"],
             target: "error",
           },
         },
@@ -77,6 +89,7 @@ export const createWorkspaceMachine = createMachine(
         },
       },
       creatingWorkspace: {
+        entry: "clearCreateWorkspaceError",
         invoke: {
           src: "createWorkspace",
           onDone: {
@@ -84,7 +97,8 @@ export const createWorkspaceMachine = createMachine(
             target: "created",
           },
           onError: {
-            target: "error",
+            actions: ["assignCreateWorkspaceError"],
+            target: "fillingParams",
           },
         },
       },
@@ -136,6 +150,24 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
+      }),
+      assignCreateWorkspaceError: assign({
+        createWorkspaceError: (_, event) => event.data,
+      }),
+      clearCreateWorkspaceError: assign({
+        createWorkspaceError: (_) => undefined,
+      }),
+      assignGetTemplatesError: assign({
+        getTemplatesError: (_, event) => event.data,
+      }),
+      clearGetTemplatesError: assign({
+        getTemplatesError: (_) => undefined,
+      }),
+      assignGetTemplateSchemaError: assign({
+        getTemplateSchemaError: (_, event) => event.data,
+      }),
+      clearGetTemplateSchemaError: assign({
+        getTemplateSchemaError: (_) => undefined,
       }),
     },
   },

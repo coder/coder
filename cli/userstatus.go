@@ -13,30 +13,35 @@ import (
 // createUserStatusCommand sets a user status.
 func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 	var verb string
+	var pastVerb string
 	var aliases []string
 	var short string
 	switch sdkStatus {
 	case codersdk.UserStatusActive:
 		verb = "activate"
+		pastVerb = "activated"
 		aliases = []string{"active"}
 		short = "Update a user's status to 'active'. Active users can fully interact with the platform"
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
+		pastVerb = "suspended"
 		aliases = []string{"rm", "delete"}
 		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
 
-	var (
-		columns []string
-	)
+	var columns []string
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Args:    cobra.ExactArgs(1),
 		Aliases: aliases,
-		Example: fmt.Sprintf("coder users %s example_user", verb),
+		Example: formatExamples(
+			example{
+				Command: fmt.Sprintf("coder users %s example_user", verb),
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -66,7 +71,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err
@@ -76,6 +81,8 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)
 			return nil
 		},
 	}

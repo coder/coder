@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -42,7 +43,11 @@ type Options struct {
 	Database  database.Store
 	Pubsub    database.Pubsub
 
+	// CacheDir is used for caching files served by the API.
+	CacheDir string
+
 	AgentConnectionUpdateFrequency time.Duration
+	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Specific routes may have their own limiters.
@@ -52,6 +57,7 @@ type Options struct {
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
+	OIDCConfig           *OIDCConfig
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
@@ -64,6 +70,10 @@ type Options struct {
 func New(options *Options) *API {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
+	}
+	if options.AgentInactiveDisconnectTimeout == 0 {
+		// Multiply the update by two to allow for some lag-time.
+		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
@@ -78,17 +88,27 @@ func New(options *Options) *API {
 		}
 	}
 
+	siteCacheDir := options.CacheDir
+	if siteCacheDir != "" {
+		siteCacheDir = filepath.Join(siteCacheDir, "site")
+	}
+	binFS, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
+	if err != nil {
+		panic(xerrors.Errorf("read site bin failed: %w", err))
+	}
+
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
 		Handler:     r,
-		siteHandler: site.Handler(site.FS()),
+		siteHandler: site.Handler(site.FS(), binFS),
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
-
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
+	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
-	})
+		OIDC:   options.OIDCConfig,
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	r.Use(
 		func(next http.Handler) http.Handler {
@@ -103,10 +123,10 @@ func New(options *Options) *API {
 	apps := func(r chi.Router) {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			apiKeyMiddleware,
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 		)
-		r.Get("/*", api.workspaceAppsProxyPath)
+		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
@@ -116,7 +136,7 @@ func New(options *Options) *API {
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
 			})
 		})
@@ -126,7 +146,7 @@ func New(options *Options) *API {
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, httpapi.Response{
+			httpapi.Write(w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})
@@ -241,6 +261,10 @@ func New(options *Options) *API {
 					r.Get("/callback", api.userOAuth2Github)
 				})
 			})
+			r.Route("/oidc/callback", func(r chi.Router) {
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig))
+				r.Get("/", api.userOIDC)
+			})
 			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
@@ -269,7 +293,11 @@ func New(options *Options) *API {
 
 					r.Post("/authorization", api.checkPermissions)
 
-					r.Post("/keys", api.postAPIKey)
+					r.Route("/keys", func(r chi.Router) {
+						r.Post("/", api.postAPIKey)
+						r.Get("/{keyid}", api.apiKey)
+					})
+
 					r.Route("/organizations", func(r chi.Router) {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
@@ -294,6 +322,9 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
+				r.Get("/wireguardlisten", api.workspaceAgentWireguardListener)
+				r.Post("/keys", api.postWorkspaceAgentKeys)
+				r.Get("/derp", api.derpMap)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -302,10 +333,12 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
+				r.Get("/derp", api.derpMap)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {

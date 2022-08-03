@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -26,6 +27,37 @@ func TestTemplate(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_, err := client.Template(context.Background(), template.ID)
 		require.NoError(t, err)
+	})
+
+	t.Run("WorkspaceCount", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAdmin())
+		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// Create 3 workspaces with 3 users. 2 workspaces exist, 1 is deleted
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		memberWorkspace := coderdtest.CreateWorkspace(t, member, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, member, memberWorkspace.LatestBuild.ID)
+
+		deletedWorkspace := coderdtest.CreateWorkspace(t, memberWithDeleted, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, deletedWorkspace.LatestBuild.ID)
+		build, err := client.CreateWorkspaceBuild(ctx, deletedWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		template, err = client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		require.Equal(t, 2, int(template.WorkspaceOwnerCount), "workspace count")
 	})
 }
 
@@ -166,6 +198,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
 		}
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)

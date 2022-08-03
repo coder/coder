@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.1"
+      version = "0.4.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -21,7 +21,7 @@ variable "step1_docker_host_warning" {
   the Coder host, which is not necessarily your local machine.
 
   You can specify a different host in the template file and
-  surpress this warning.
+  suppress this warning.
   EOF
   validation {
     condition     = contains(["Continue using /var/run/docker.sock on the Coder host"], var.step1_docker_host_warning)
@@ -60,7 +60,7 @@ provider "coder" {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = var.step2_arch
   os   = "linux"
 }
@@ -107,9 +107,9 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  # Use the docker gateway if the access URL is 127.0.0.1 
-  command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  # Use the docker gateway if the access URL is 127.0.0.1
+  command = ["sh", "-c", replace(coder_agent.main.init_script, "127.0.0.1", "host.docker.internal")]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

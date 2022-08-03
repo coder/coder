@@ -29,16 +29,29 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
     try {
       await window.navigator.clipboard.writeText(text)
       setIsCopied(true)
-
       window.setTimeout(() => {
         setIsCopied(false)
       }, 1000)
     } catch (err) {
-      const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
-      if (err instanceof Error) {
-        wrappedErr.stack = err.stack
+      const input = document.createElement("input")
+      input.value = text
+      document.body.appendChild(input)
+      input.focus()
+      input.select()
+      const result = document.execCommand("copy")
+      document.body.removeChild(input)
+      if (result) {
+        setIsCopied(true)
+        window.setTimeout(() => {
+          setIsCopied(false)
+        }, 1000)
+      } else {
+        const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
+        if (err instanceof Error) {
+          wrappedErr.stack = err.stack
+        }
+        console.error(wrappedErr)
       }
-      console.error(wrappedErr)
     }
   }
 
@@ -50,7 +63,11 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
           onClick={copyToClipboard}
           size="small"
         >
-          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
+          {isCopied ? (
+            <Check className={styles.fileCopyIcon} />
+          ) : (
+            <FileCopyIcon className={styles.fileCopyIcon} />
+          )}
           {ctaCopy && <div className={styles.buttonCopy}>{ctaCopy}</div>}
         </IconButton>
       </div>
@@ -65,8 +82,6 @@ const useStyles = makeStyles((theme) => ({
   },
   copyButton: {
     borderRadius: 7,
-    background: theme.palette.background.default,
-    color: theme.palette.primary.contrastText,
     padding: theme.spacing(0.85),
     minWidth: 32,
 

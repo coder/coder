@@ -16,6 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/xerrors"
+
+	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pion/webrtc/v3"
@@ -35,6 +38,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -68,7 +72,7 @@ func TestAgent(t *testing.T) {
 		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
-	t.Run("SessionTTY", func(t *testing.T) {
+	t.Run("SessionTTYShell", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			// This might be our implementation, or ConPTY itself.
@@ -102,6 +106,29 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("SessionTTYExitCode", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSHSession(t, agent.Metadata{})
+		command := "areallynotrealcommand"
+		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+		ptty := ptytest.New(t)
+		require.NoError(t, err)
+		session.Stdout = ptty.Output()
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Start(command)
+		require.NoError(t, err)
+		err = session.Wait()
+		exitErr := &ssh.ExitError{}
+		require.True(t, xerrors.As(err, &exitErr))
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, 1, exitErr.ExitStatus())
+		} else {
+			assert.Equal(t, 127, exitErr.ExitStatus())
+		}
+	})
+
 	t.Run("LocalForwarding", func(t *testing.T) {
 		t.Parallel()
 		random, err := net.Listen("tcp", "127.0.0.1:0")
@@ -119,10 +146,12 @@ func TestAgent(t *testing.T) {
 		localPort := tcpAddr.Port
 		done := make(chan struct{})
 		go func() {
+			defer close(done)
 			conn, err := local.Accept()
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			_ = conn.Close()
-			close(done)
 		}()
 
 		err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
@@ -144,6 +173,20 @@ func TestAgent(t *testing.T) {
 		file, err := client.Create(tempFile)
 		require.NoError(t, err)
 		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("SCP", func(t *testing.T) {
+		t.Parallel()
+		sshClient, err := setupAgent(t, agent.Metadata{}, 0).SSHClient()
+		require.NoError(t, err)
+		scpClient, err := scp.NewClientBySSH(sshClient)
+		require.NoError(t, err)
+		tempFile := filepath.Join(t.TempDir(), "scp")
+		content := "hello world"
+		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
 		require.NoError(t, err)
 		_, err = os.Stat(tempFile)
 		require.NoError(t, err)
@@ -191,7 +234,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
-		tempPath := filepath.Join(os.TempDir(), "content.txt")
+		tempPath := filepath.Join(t.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
 			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
@@ -209,11 +252,13 @@ func TestAgent(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				// Windows uses UTF16! 🪟🪟🪟
 				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-				require.NoError(t, err)
+				if !assert.NoError(t, err) {
+					return false
+				}
 			}
 			gotContent = string(content)
 			return true
-		}, 15*time.Second, 100*time.Millisecond)
+		}, testutil.WaitMedium, testutil.IntervalMedium)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
@@ -309,12 +354,7 @@ func TestAgent(t *testing.T) {
 						t.Skip("Unix socket forwarding isn't supported on Windows")
 					}
 
-					tmpDir, err := os.MkdirTemp("", "coderd_agent_test_")
-					require.NoError(t, err, "create temp dir for unix listener")
-					t.Cleanup(func() {
-						_ = os.RemoveAll(tmpDir)
-					})
-
+					tmpDir := t.TempDir()
 					l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
 					require.NoError(t, err, "create UDP listener")
 					return l
@@ -387,15 +427,18 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
+		defer listener.Close()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
 			ssh, err := agentConn.SSH()
-			assert.NoError(t, err)
-			go io.Copy(conn, ssh)
-			go io.Copy(ssh, conn)
+			if !assert.NoError(t, err) {
+				_ = conn.Close()
+				return
+			}
+			go agent.Bicopy(context.Background(), conn, ssh)
 		}
 	}()
 	t.Cleanup(func() {

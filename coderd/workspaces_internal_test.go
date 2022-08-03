@@ -27,8 +27,16 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "Owner/Name",
 			Query: "Foo/Bar",
 			Expected: database.GetWorkspacesParams{
-				OwnerUsername: "Foo",
-				Name:          "Bar",
+				OwnerUsername: "foo",
+				Name:          "bar",
+			},
+		},
+		{
+			Name:  "Owner/NameWithSpaces",
+			Query: "     Foo/Bar     ",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsername: "foo",
+				Name:          "bar",
 			},
 		},
 		{
@@ -40,7 +48,7 @@ func TestSearchWorkspace(t *testing.T) {
 		},
 		{
 			Name:  "Name+Param",
-			Query: "workspace-name template:docker",
+			Query: "workspace-name TEMPLATE:docker",
 			Expected: database.GetWorkspacesParams{
 				Name:         "workspace-name",
 				TemplateName: "docker",
@@ -48,7 +56,7 @@ func TestSearchWorkspace(t *testing.T) {
 		},
 		{
 			Name:  "OnlyParams",
-			Query: "name:workspace-name template:docker owner:alice",
+			Query: "name:workspace-name template:docker OWNER:Alice",
 			Expected: database.GetWorkspacesParams{
 				Name:          "workspace-name",
 				TemplateName:  "docker",

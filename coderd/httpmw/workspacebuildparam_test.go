@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -29,7 +30,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		)
 		r := httptest.NewRequest("GET", "/", nil)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -107,7 +108,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractAPIKey(db, nil, false),
 			httpmw.ExtractWorkspaceBuildParam(db),
 			httpmw.ExtractWorkspaceParam(db),
 		)

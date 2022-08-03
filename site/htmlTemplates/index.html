@@ -10,17 +10,25 @@
 
 <head>
   <meta charset="utf-8" />
-  <!-- Force desktop view on mobile viewport -->
-  <meta name="viewport" content="width=1024" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#17172E" />
   <meta name="application-name" content="Coder" />
   <meta property="og:type" content="website" />
   <meta property="csp-nonce" content="{{ .CSP.Nonce }}" />
   <meta property="csrf-token" content="{{ .CSRF.Token }}" />
-  <meta id="api-response" data-statuscode="{{ .APIResponse.StatusCode }}" data-message="{{ .APIResponse.Message }}" />
-  <link rel="mask-icon" href="/static/favicon.svg" color="#000000" crossorigin="use-credentials" />
-  <link rel="alternate icon" type="image/png" href="/favicon.png" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta
+    id="api-response"
+    data-statuscode="{{ .APIResponse.StatusCode }}"
+    data-message="{{ .APIResponse.Message }}"
+  />
+  <!-- We need to set data-react-helmet to be able to override it in the workspace page -->
+  <link
+    rel="alternate icon"
+    type="image/png"
+    href="/favicons/favicon.png"
+    data-react-helmet="true"
+  />
+  <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" data-react-helmet="true" />
 </head>
 
 <body>

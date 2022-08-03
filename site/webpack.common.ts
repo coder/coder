@@ -41,7 +41,7 @@ const dashboardHTMLPluginConfig = new HtmlWebpackPlugin({
 export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }): Configuration => ({
   // entry defines each "page" or "chunk". In v1, we have two "pages":
   // dashboard and terminal. This is desired because the terminal has the xterm
-  // vendor, and it is undesireable to load all of xterm on a dashboard
+  // vendor, and it is undesirable to load all of xterm on a dashboard
   // page load.
   //
   // The object key determines the chunk 'name'. This can be used in `output`
@@ -93,6 +93,10 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     ],
   },
 
+  cache: {
+    type: "filesystem",
+  },
+
   // resolve extend/modify how modules are resolved.
   //
   // REMARK: Do not add aliases here, unless they cannot be defined in a
@@ -103,6 +107,7 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     //
     // See: https://webpack.js.org/guides/typescript/
     extensions: [".tsx", ".ts", ".js"],
+    modules: [path.resolve(__dirname, "src"), "node_modules"],
   },
 
   // plugins customize the build process

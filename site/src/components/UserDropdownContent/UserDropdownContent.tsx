@@ -27,7 +27,11 @@ export interface UserDropdownContentProps {
   onSignOut: () => void
 }
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({ user, onPopoverClose, onSignOut }) => {
+export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+  user,
+  onPopoverClose,
+  onSignOut,
+}) => {
   const styles = useStyles()
 
   return (
@@ -61,7 +65,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({ user, onPopo
       <Divider />
 
       <a
-        href={`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`}
+        href="https://coder.com/docs/coder-oss"
         target="_blank"
         rel="noreferrer"
         className={styles.link}
@@ -138,7 +142,7 @@ const useStyles = makeStyles((theme) => ({
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.light, 0.05),
       transition: "background-color 0.3s ease",
     },
   },

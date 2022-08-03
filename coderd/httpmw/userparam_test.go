@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestUserParam(t *testing.T) {
@@ -29,7 +30,7 @@ func TestUserParam(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.SessionTokenKey,
+			Name:  codersdk.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -56,7 +57,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
+		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 
@@ -72,7 +73,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
+		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 
@@ -91,7 +92,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
+		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 

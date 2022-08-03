@@ -16,7 +16,9 @@ import (
 
 // This is the exact version of Terraform used internally
 // when Terraform is missing on the system.
-const terraformVersion = "1.1.9"
+var terraformVersion = version.Must(version.NewVersion("1.2.1"))
+var minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
+var maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
 
 var (
 	// The minimum version of Terraform supported by the provisioner.
@@ -31,6 +33,8 @@ var (
 	}()
 )
 
+var terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+
 type ServeOptions struct {
 	*provisionersdk.ServeOptions
 
@@ -41,15 +45,51 @@ type ServeOptions struct {
 	Logger     slog.Logger
 }
 
+func absoluteBinaryPath(ctx context.Context) (string, error) {
+	binaryPath, err := safeexec.LookPath("terraform")
+	if err != nil {
+		return "", xerrors.Errorf("Terraform binary not found: %w", err)
+	}
+
+	// If the "coder" binary is in the same directory as
+	// the "terraform" binary, "terraform" is returned.
+	//
+	// We must resolve the absolute path for other processes
+	// to execute this properly!
+	absoluteBinary, err := filepath.Abs(binaryPath)
+	if err != nil {
+		return "", xerrors.Errorf("Terraform binary absolute path not found: %w", err)
+	}
+
+	// Checking the installed version of Terraform.
+	version, err := versionFromBinaryPath(ctx, absoluteBinary)
+	if err != nil {
+		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
+	}
+
+	if version.LessThan(minTerraformVersion) || version.GreaterThan(maxTerraformVersion) {
+		return "", terraformMinorVersionMismatch
+	}
+
+	return absoluteBinary, nil
+}
+
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
-		binaryPath, err := safeexec.LookPath("terraform")
+		absoluteBinary, err := absoluteBinaryPath(ctx)
 		if err != nil {
+			// This is an early exit to prevent extra execution in case the context is canceled.
+			// It generally happens in unit tests since this method is asynchronous and
+			// the unit test kills the app before this is complete.
+			if xerrors.Is(err, context.Canceled) {
+				return xerrors.Errorf("absolute binary context canceled: %w", err)
+			}
+
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
-				Version:    version.Must(version.NewVersion(terraformVersion)),
+				Version:    terraformVersion,
 			}
 
 			execPath, err := installer.Install(ctx)
@@ -58,15 +98,6 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			}
 			options.BinaryPath = execPath
 		} else {
-			// If the "coder" binary is in the same directory as
-			// the "terraform" binary, "terraform" is returned.
-			//
-			// We must resolve the absolute path for other processes
-			// to execute this properly!
-			absoluteBinary, err := filepath.Abs(binaryPath)
-			if err != nil {
-				return xerrors.Errorf("absolute: %w", err)
-			}
 			options.BinaryPath = absoluteBinary
 		}
 	}

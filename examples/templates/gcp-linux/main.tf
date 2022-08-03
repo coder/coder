@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.3.4"
+      version = "0.4.3"
     }
     google = {
       source  = "hashicorp/google"
@@ -36,7 +36,7 @@ data "coder_workspace" "me" {
 }
 
 resource "google_compute_disk" "root" {
-  name  = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
   image = "debian-cloud/debian-9"
@@ -45,7 +45,7 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"
@@ -54,7 +54,7 @@ resource "coder_agent" "dev" {
 resource "google_compute_instance" "dev" {
   zone         = var.zone
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"
   network_interface {
     network = "default"
@@ -70,12 +70,12 @@ resource "google_compute_instance" "dev" {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
-  # The startup script runs as root with no $HOME environment set up, so instead of directly 
+  # The startup script runs as root with no $HOME environment set up, so instead of directly
   # running the agent init script, create a user (with a homedir, default shell and sudo
   # permissions) and execute the init script as that user.
   metadata_startup_script = <<EOMETA
 #!/usr/bin/env sh
-set -eux pipefail
+set -eux
 
 # If user does not exist, create it and set up passwordless sudo
 if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
@@ -83,7 +83,7 @@ if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
   echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
 fi
 
-exec sudo -u "${local.linux_user}" sh -c '${coder_agent.dev.init_script}'
+exec sudo -u "${local.linux_user}" sh -c '${coder_agent.main.init_script}
 EOMETA
 }
 

@@ -27,7 +27,8 @@ CREATE TYPE log_source AS ENUM (
 
 CREATE TYPE login_type AS ENUM (
     'password',
-    'github'
+    'github',
+    'oidc'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -99,7 +100,8 @@ CREATE TABLE api_keys (
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
     oauth_id_token text DEFAULT ''::text NOT NULL,
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    lifetime_seconds bigint DEFAULT 86400 NOT NULL
+    lifetime_seconds bigint DEFAULT 86400 NOT NULL,
+    ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL
 );
 
 CREATE TABLE audit_logs (
@@ -181,7 +183,8 @@ CREATE TABLE parameter_schemas (
     validation_error character varying(256) NOT NULL,
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
-    validation_value_type character varying(64) NOT NULL
+    validation_value_type character varying(64) NOT NULL,
+    index integer NOT NULL
 );
 
 CREATE TABLE parameter_values (
@@ -245,7 +248,8 @@ CREATE TABLE template_versions (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
-    job_id uuid NOT NULL
+    job_id uuid NOT NULL,
+    created_by uuid
 );
 
 CREATE TABLE templates (
@@ -284,14 +288,17 @@ CREATE TABLE workspace_agents (
     disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
-    auth_instance_id character varying(64),
+    auth_instance_id character varying,
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
     operating_system character varying(64) NOT NULL,
     startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
-    directory character varying(4096) DEFAULT ''::character varying NOT NULL
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    wireguard_node_ipv6 inet DEFAULT '::'::inet NOT NULL,
+    wireguard_node_public_key character varying(128) DEFAULT 'nodekey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
+    wireguard_disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL
 );
 
 CREATE TABLE workspace_apps (
@@ -319,6 +326,13 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
+);
+
+CREATE TABLE workspace_resource_metadata (
+    workspace_resource_id uuid NOT NULL,
+    key character varying(1024) NOT NULL,
+    value character varying(65536),
+    sensitive boolean NOT NULL
 );
 
 CREATE TABLE workspace_resources (
@@ -400,9 +414,6 @@ ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
 
 ALTER TABLE ONLY templates
-    ADD CONSTRAINT templates_organization_id_name_key UNIQUE (organization_id, name);
-
-ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
@@ -429,6 +440,9 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
 
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
+
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
@@ -453,13 +467,11 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text));
-
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
-CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 
@@ -487,6 +499,9 @@ ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
@@ -512,6 +527,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

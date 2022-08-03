@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.3.4"
+      version = "0.4.3"
     }
   }
 }
@@ -36,6 +36,22 @@ variable "region" {
   }
 }
 
+variable "instance_type" {
+  description = "What instance type should your workspace use?"
+  default     = "t3.micro"
+  validation {
+    condition = contains([
+      "t3.micro",
+      "t3.small",
+      "t3.medium",
+      "t3.large",
+      "t3.xlarge",
+      "t3.2xlarge",
+    ], var.instance_type)
+    error_message = "Invalid instance type!"
+  }
+}
+
 provider "aws" {
   region = var.region
 }
@@ -56,7 +72,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "linux"
@@ -93,7 +109,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.dev.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
 
@@ -130,7 +146,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
-  instance_type     = "t3.xlarge"
+  instance_type     = "${var.instance_type}"
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {

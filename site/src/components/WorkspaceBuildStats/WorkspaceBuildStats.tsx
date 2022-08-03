@@ -5,7 +5,11 @@ import { Link as RouterLink } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
+import {
+  displayWorkspaceBuildDuration,
+  getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceBuildStatus,
+} from "../../util/workspace"
 
 export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
@@ -15,6 +19,7 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayWorkspaceBuildStatus(theme, build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
 
   return (
     <div className={styles.stats}>
@@ -49,7 +54,14 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Action</span>
-        <span className={combineClasses([styles.statsValue, styles.capitalize])}>{build.transition}</span>
+        <span className={combineClasses([styles.statsValue, styles.capitalize])}>
+          {build.transition}
+        </span>
+      </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>Initiated by</span>
+        <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
     </div>
   )
@@ -72,7 +84,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "16%",
+    minWidth: "13%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

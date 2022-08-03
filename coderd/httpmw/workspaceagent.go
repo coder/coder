@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type workspaceAgentContextKey struct{}
@@ -28,31 +29,30 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(SessionTokenKey)
+			cookie, err := r.Cookie(codersdk.SessionTokenKey)
 			if err != nil {
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("Cookie %q must be provided.", SessionTokenKey),
+				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
 			token, err := uuid.Parse(cookie.Value)
 			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("Parse token %q: %s.", cookie.Value, err),
+				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+					Message: "Agent token is invalid.",
 				})
 				return
 			}
 			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
-			if errors.Is(err, sql.ErrNoRows) {
+			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 						Message: "Agent token is invalid.",
 					})
 					return
 				}
-			}
-			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})

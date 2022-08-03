@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -32,6 +33,7 @@ type ComputedValue struct {
 	database.ParameterValue
 	SchemaID           uuid.UUID `json:"schema_id"`
 	DefaultSourceValue bool      `json:"default_source_value"`
+	index              int32     // Track parameter schema index for sorting.
 }
 
 // Compute accepts a scope in which parameter values are sourced.
@@ -137,6 +139,9 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	for _, value := range compute.computedParameterByName {
 		values = append(values, value)
 	}
+	slices.SortFunc(values, func(a, b ComputedValue) bool {
+		return a.index < b.index
+	})
 	return values, nil
 }
 
@@ -188,6 +193,7 @@ func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultV
 			ParameterValue:     scopedParameter,
 			SchemaID:           parameterSchema.ID,
 			DefaultSourceValue: defaultValue,
+			index:              parameterSchema.Index,
 		}
 		if c.options.HideRedisplayValues && !parameterSchema.RedisplayValue {
 			value.SourceValue = ""

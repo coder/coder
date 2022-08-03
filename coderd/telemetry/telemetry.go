@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -40,6 +41,8 @@ type Options struct {
 	BuiltinPostgres   bool
 	DeploymentID      string
 	GitHubOAuth       bool
+	OIDCAuth          bool
+	OIDCIssuerURL     string
 	Prometheus        bool
 	STUN              bool
 	SnapshotFrequency time.Duration
@@ -228,6 +231,8 @@ func (r *remoteReporter) deployment() error {
 		BuiltinPostgres: r.options.BuiltinPostgres,
 		Containerized:   containerized,
 		GitHubOAuth:     r.options.GitHubOAuth,
+		OIDCAuth:        r.options.OIDCAuth,
+		OIDCIssuerURL:   r.options.OIDCIssuerURL,
 		Prometheus:      r.options.Prometheus,
 		STUN:            r.options.STUN,
 		Tunnel:          r.options.Tunnel,
@@ -428,13 +433,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 
 // ConvertAPIKey anonymizes an API key.
 func ConvertAPIKey(apiKey database.APIKey) APIKey {
-	return APIKey{
+	a := APIKey{
 		ID:        apiKey.ID,
 		UserID:    apiKey.UserID,
 		CreatedAt: apiKey.CreatedAt,
 		LastUsed:  apiKey.LastUsed,
 		LoginType: apiKey.LoginType,
 	}
+	if apiKey.IPAddress.Valid {
+		a.IPAddress = apiKey.IPAddress.IPNet.IP
+	}
+	return a
 }
 
 // ConvertWorkspace anonymizes a workspace.
@@ -596,6 +605,8 @@ type Deployment struct {
 	Containerized   bool       `json:"containerized"`
 	Tunnel          bool       `json:"tunnel"`
 	GitHubOAuth     bool       `json:"github_oauth"`
+	OIDCAuth        bool       `json:"oidc_auth"`
+	OIDCIssuerURL   string     `json:"oidc_issuer_url"`
 	Prometheus      bool       `json:"prometheus"`
 	STUN            bool       `json:"stun"`
 	OSType          string     `json:"os_type"`
@@ -616,6 +627,7 @@ type APIKey struct {
 	CreatedAt time.Time          `json:"created_at"`
 	LastUsed  time.Time          `json:"last_used"`
 	LoginType database.LoginType `json:"login_type"`
+	IPAddress net.IP             `json:"ip_address"`
 }
 
 type User struct {

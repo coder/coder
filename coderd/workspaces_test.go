@@ -207,7 +207,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be at least one minute")
+			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
 
 		t.Run("AboveMax", func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID: template.ID,
 				Name:       "testing",
-				TTLMillis:  ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
+				TTLMillis:  ptr.Ref(template.MaxTTLMillis + time.Minute.Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(context.Background(), template.OrganizationID, req)
 			require.Error(t, err)
@@ -229,7 +229,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, apiErr.Validations[0].Detail, "ttl must be less than 7 days")
+			require.Equal(t, "time until shutdown must be less than 7 days", apiErr.Validations[0].Detail)
 		})
 	})
 
@@ -343,6 +343,9 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 // to run various filters against for testing.
 func TestWorkspaceFilter(t *testing.T) {
 	t.Parallel()
+	// Manual tests still occur below, so this is safe to disable.
+	t.Skip("This test is slow and flaky. See: https://github.com/coder/coder/issues/2854")
+	// nolint:unused
 	type coderUser struct {
 		*codersdk.Client
 		User codersdk.User
@@ -357,6 +360,13 @@ func TestWorkspaceFilter(t *testing.T) {
 		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin())
 		user, err := userClient.User(context.Background(), codersdk.Me)
 		require.NoError(t, err, "fetch me")
+
+		if i%3 == 0 {
+			user, err = client.UpdateUserProfile(context.Background(), user.ID.String(), codersdk.UpdateUserProfileRequest{
+				Username: strings.ToUpper(user.Username),
+			})
+			require.NoError(t, err, "uppercase username")
+		}
 
 		org, err := userClient.CreateOrganization(context.Background(), codersdk.CreateOrganizationRequest{
 			Name: user.Username + "-org",
@@ -378,16 +388,32 @@ func TestWorkspaceFilter(t *testing.T) {
 
 	availTemplates := make([]codersdk.Template, 0)
 	allWorkspaces := make([]madeWorkspace, 0)
+	upperTemplates := make([]string, 0)
 
 	// Create some random workspaces
-	for _, user := range users {
+	var count int
+	for i, user := range users {
 		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
 
 		// Create a template & workspace in the user's org
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
+
+		var template codersdk.Template
+		if i%3 == 0 {
+			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+				request.Name = strings.ToUpper(request.Name)
+			})
+			upperTemplates = append(upperTemplates, template.Name)
+		} else {
+			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
+		}
+
 		availTemplates = append(availTemplates, template)
-		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, user.Client, template.OrganizationID, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			if count%3 == 0 {
+				request.Name = strings.ToUpper(request.Name)
+			}
+		})
 		allWorkspaces = append(allWorkspaces, madeWorkspace{
 			Workspace: workspace,
 			Template:  template,
@@ -428,19 +454,28 @@ func TestWorkspaceFilter(t *testing.T) {
 		{
 			Name: "Owner",
 			Filter: codersdk.WorkspaceFilter{
-				Owner: users[2].User.Username,
+				Owner: strings.ToUpper(users[2].User.Username),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Owner.Username == f.Owner
+				return strings.EqualFold(workspace.Owner.Username, f.Owner)
 			},
 		},
 		{
 			Name: "TemplateName",
 			Filter: codersdk.WorkspaceFilter{
-				Template: allWorkspaces[5].Template.Name,
+				Template: strings.ToUpper(allWorkspaces[5].Template.Name),
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Template.Name == f.Template
+				return strings.EqualFold(workspace.Template.Name, f.Template)
+			},
+		},
+		{
+			Name: "UpperTemplateName",
+			Filter: codersdk.WorkspaceFilter{
+				Template: upperTemplates[0],
+			},
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				return strings.EqualFold(workspace.Template.Name, f.Template)
 			},
 		},
 		{
@@ -450,16 +485,21 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name: "a",
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.Contains(workspace.Workspace.Name, f.Name)
+				return strings.ContainsAny(workspace.Workspace.Name, "Aa")
 			},
 		},
 		{
 			Name: "Q-Owner/Name",
 			Filter: codersdk.WorkspaceFilter{
-				FilterQuery: allWorkspaces[5].Owner.Username + "/" + allWorkspaces[5].Workspace.Name,
+				FilterQuery: allWorkspaces[5].Owner.Username + "/" + strings.ToUpper(allWorkspaces[5].Workspace.Name),
 			},
-			FilterF: func(_ codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Workspace.ID == allWorkspaces[5].Workspace.ID
+			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
+				if strings.EqualFold(workspace.Owner.Username, allWorkspaces[5].Owner.Username) &&
+					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(allWorkspaces[5].Workspace.Name)) {
+					return true
+				}
+
+				return false
 			},
 		},
 		{
@@ -470,7 +510,12 @@ func TestWorkspaceFilter(t *testing.T) {
 				Name:     allWorkspaces[3].Workspace.Name,
 			},
 			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return workspace.Workspace.ID == allWorkspaces[3].Workspace.ID
+				if strings.EqualFold(workspace.Owner.Username, f.Owner) &&
+					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(f.Name)) &&
+					strings.EqualFold(workspace.Template.Name, f.Template) {
+					return true
+				}
+				return false
 			},
 		},
 	}
@@ -614,14 +659,15 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
-		client, coderAPI := coderdtest.NewWithAPI(t, nil)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, nil)
+		defer closer.Close()
+
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		closer.Close()
 		// Close here so workspace build doesn't process!
-		closeDaemon.Close()
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
@@ -652,15 +698,15 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("WithState", func(t *testing.T) {
 		t.Parallel()
-		client, coderAPI := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerD: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, coderAPI)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		_ = closeDaemon.Close()
 		wantState := []byte("something")
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
@@ -888,7 +934,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:          "below minimum ttl",
 			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
-			expectedError: "ttl must be at least one minute",
+			expectedError: "time until shutdown must be at least one minute",
 		},
 		{
 			name:          "minimum ttl",
@@ -903,12 +949,12 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		{
 			name:          "above maximum ttl",
 			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
-			expectedError: "ttl must be less than 7 days",
+			expectedError: "time until shutdown must be less than 7 days",
 		},
 		{
 			name:           "above template maximum ttl",
 			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
-			expectedError:  "ttl_ms: ttl must be below template maximum 8h0m0s",
+			expectedError:  "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
 		},
 	}
@@ -1017,14 +1063,15 @@ func TestWorkspaceExtend(t *testing.T) {
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineTooSoon,
 	})
-	require.ErrorContains(t, err, "new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
+	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
 	// And with a deadline greater than the template max_ttl should also fail
 	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineExceedsMaxTTL,
 	})
-	require.ErrorContains(t, err, "new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
+
+	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
 
 	// Updating with a deadline 30 minutes in the future should succeed
 	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)

@@ -5,8 +5,14 @@ import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
-import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
-import { MockAuditorRole, MockUser, MockUser2, render, SuspendedMockUser } from "../../testHelpers/renderHelpers"
+import { Language as UsersTableBodyLanguage } from "../../components/UsersTable/UsersTableBody"
+import {
+  MockAuditorRole,
+  MockUser,
+  MockUser2,
+  render,
+  SuspendedMockUser,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
@@ -25,12 +31,14 @@ const suspendUser = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const suspendButton = within(menu).getByText(UsersTableLanguage.suspendMenuItem)
+  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
   fireEvent.click(suspendButton)
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
-  expect(confirmDialog).toHaveTextContent(`${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`)
+  expect(confirmDialog).toHaveTextContent(
+    `${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`,
+  )
 
   // Setup spies to check the actions after
   setupActionSpies()
@@ -52,7 +60,7 @@ const activateUser = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const activateButton = within(menu).getByText(UsersTableLanguage.activateMenuItem)
+  const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
   fireEvent.click(activateButton)
 
   // Check if the confirm message is displayed
@@ -81,18 +89,22 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
   const menu = screen.getByRole("menu")
-  const resetPasswordButton = within(menu).getByText(UsersTableLanguage.resetPasswordMenuItem)
+  const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
   fireEvent.click(resetPasswordButton)
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
-  expect(confirmDialog).toHaveTextContent(`You will need to send ${MockUser.username} the following password:`)
+  expect(confirmDialog).toHaveTextContent(
+    `You will need to send ${MockUser.username} the following password:`,
+  )
 
   // Setup spies to check the actions after
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByRole("button", { name: ResetPasswordDialogLanguage.confirmText })
+  const confirmButton = within(confirmDialog).getByRole("button", {
+    name: ResetPasswordDialogLanguage.confirmText,
+  })
   fireEvent.click(confirmButton)
 }
 
@@ -158,32 +170,6 @@ describe("Users Page", () => {
   })
 
   describe("suspend user", () => {
-    describe("when it is success", () => {
-      it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
-
-        await suspendUser(() => {
-          jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest.spyOn(API, "getUsers").mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
-        })
-
-        // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserSuccess)
-
-        // Check if the API was called correctly
-        expect(API.suspendUser).toBeCalledTimes(1)
-        expect(API.suspendUser).toBeCalledWith(MockUser.id)
-
-        // Check if the users list was reload
-        await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
-      })
-    })
-
     describe("when it fails", () => {
       it("shows an error message", async () => {
         render(
@@ -274,7 +260,10 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
       })
     })
 
@@ -296,7 +285,10 @@ describe("Users Page", () => {
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
-        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, { password: expect.any(String), old_password: "" })
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
       })
     })
   })
@@ -324,7 +316,10 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
-        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+        expect(API.updateUserRoles).toBeCalledWith(
+          [...currentRoles, MockAuditorRole.name],
+          MockUser.id,
+        )
       })
     })
 
@@ -347,7 +342,10 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
         expect(API.updateUserRoles).toBeCalledTimes(1)
-        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+        expect(API.updateUserRoles).toBeCalledWith(
+          [...currentRoles, MockAuditorRole.name],
+          MockUser.id,
+        )
       })
       it("shows an error from the backend", async () => {
         render(

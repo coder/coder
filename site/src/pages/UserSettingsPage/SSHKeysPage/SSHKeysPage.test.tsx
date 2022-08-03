@@ -4,6 +4,7 @@ import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackba
 import { MockGitSSHKey, renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { Language as authXServiceLanguage } from "../../../xServices/auth/authXService"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
+import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView"
 
 describe("SSH keys Page", () => {
   it("shows the SSH key", async () => {
@@ -25,19 +26,24 @@ describe("SSH keys Page", () => {
         await screen.findByText(MockGitSSHKey.public_key)
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", { name: SSHKeysPageLanguage.regenerateLabel })
+        const regenerateButton = screen.getByRole("button", {
+          name: SSHKeysPageViewLanguage.regenerateLabel,
+        })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
         expect(confirmDialog).toHaveTextContent(SSHKeysPageLanguage.regenerateDialogMessage)
 
-        const newUserSSHKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66"
+        const newUserSSHKey =
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66"
         jest.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
           ...MockGitSSHKey,
           public_key: newUserSSHKey,
         })
 
         // Click on the "Confirm" button
-        const confirmButton = within(confirmDialog).getByRole("button", { name: SSHKeysPageLanguage.confirmLabel })
+        const confirmButton = within(confirmDialog).getByRole("button", {
+          name: SSHKeysPageLanguage.confirmLabel,
+        })
         fireEvent.click(confirmButton)
 
         // Check if the success message is displayed
@@ -66,17 +72,21 @@ describe("SSH keys Page", () => {
         jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce({})
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", { name: SSHKeysPageLanguage.regenerateLabel })
+        const regenerateButton = screen.getByRole("button", {
+          name: SSHKeysPageViewLanguage.regenerateLabel,
+        })
         fireEvent.click(regenerateButton)
         const confirmDialog = screen.getByRole("dialog")
         expect(confirmDialog).toHaveTextContent(SSHKeysPageLanguage.regenerateDialogMessage)
 
         // Click on the "Confirm" button
-        const confirmButton = within(confirmDialog).getByRole("button", { name: SSHKeysPageLanguage.confirmLabel })
+        const confirmButton = within(confirmDialog).getByRole("button", {
+          name: SSHKeysPageLanguage.confirmLabel,
+        })
         fireEvent.click(confirmButton)
 
         // Check if the error message is displayed
-        await screen.findByText(authXServiceLanguage.errorRegenerateSSHKey)
+        await screen.findByText(SSHKeysPageViewLanguage.errorRegenerateSSHKey)
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1)

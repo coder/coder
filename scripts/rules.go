@@ -59,6 +59,17 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
+	// require.Eventually runs the function in a goroutine.
+	m.Match(`
+	require.Eventually(t, func() bool {
+		$*_
+		$require.$_($*_)
+		$*_
+	}, $*_)`).
+		At(m["require"]).
+		Where(m["require"].Text == "require").
+		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
+
 	m.Match(`
 	go func($*_){
 		$*_
@@ -68,6 +79,43 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		At(m["fail"]).
 		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
+}
+
+// useStandardTimeoutsAndDelaysInTests ensures all tests use common
+// constants for timeouts and delays in usual scenarios, this allows us
+// to tweak them based on platform (important to avoid CI flakes).
+//nolint:unused,deadcode,varnamelen
+func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
+	m.Import("github.com/stretchr/testify/require")
+	m.Import("github.com/stretchr/testify/assert")
+	m.Import("github.com/coder/coder/testutil")
+
+	m.Match(`context.WithTimeout($ctx, $duration)`).
+		Where(m.File().Imports("testing") && !m["duration"].Text.Matches("^testutil\\.")).
+		At(m["duration"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
+
+	m.Match(`
+		$testify.$Eventually($t, func() bool {
+			$*_
+		}, $timeout, $interval, $*_)
+	`).
+		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
+			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
+			!m["timeout"].Text.Matches("^testutil\\.")).
+		At(m["timeout"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
+
+	m.Match(`
+		$testify.$Eventually($t, func() bool {
+			$*_
+		}, $timeout, $interval, $*_)
+	`).
+		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
+			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
+			!m["interval"].Text.Matches("^testutil\\.")).
+		At(m["interval"]).
+		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
 }
 
 // InTx checks to ensure the database used inside the transaction closure is the transaction
@@ -90,10 +138,10 @@ func InTx(m dsl.Matcher) {
 		At(m["f"]).
 		Report("Do not use the database directly within the InTx closure. Use '$y' instead of '$x'.")
 
-	//When using a tx closure, ensure that if you pass the db to another
-	//function inside the closure, it is the tx.
-	//This will miss more complex cases such as passing the db as apart
-	//of another struct.
+	// When using a tx closure, ensure that if you pass the db to another
+	// function inside the closure, it is the tx.
+	// This will miss more complex cases such as passing the db as apart
+	// of another struct.
 	m.Match(`
 	$x.InTx(func($y database.Store) error {
 		$*_
@@ -149,6 +197,29 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 	).Where(isNotProperError(m["m"])).
 		At(m["m"]).
 		Report("Field \"Message\" should be a proper sentence with a capitalized first letter and ending in punctuation. $m")
+}
+
+// HttpAPIReturn will report a linter violation if the http function is not
+// returned after writing a response to the client.
+func HttpAPIReturn(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/coderd/httpapi")
+
+	// Manually enumerate the httpapi function rather then a 'Where' condition
+	// as this is a bit more efficient.
+	m.Match(`
+	if $*_ {
+		httpapi.Write($*a)
+	}
+	`, `
+	if $*_ {
+		httpapi.Forbidden($*a)
+	}
+	`, `
+	if $*_ {
+		httpapi.ResourceNotFound($*a)
+	}
+	`).At(m["a"]).
+		Report("Forgot to return early after writing to the http response writer.")
 }
 
 // ProperRBACReturn ensures we always write to the response writer after a

@@ -12,7 +12,10 @@ export const PasswordField: React.FC<PasswordFieldProps> = ({ variant = "outline
   const styles = useStyles()
   const [showPassword, setShowPassword] = useState<boolean>(false)
 
-  const handleVisibilityChange = useCallback(() => setShowPassword((showPassword) => !showPassword), [])
+  const handleVisibilityChange = useCallback(
+    () => setShowPassword((showPassword) => !showPassword),
+    [],
+  )
   const VisibilityIcon = showPassword ? VisibilityOffOutlined : VisibilityOutlined
 
   return (
@@ -23,7 +26,11 @@ export const PasswordField: React.FC<PasswordFieldProps> = ({ variant = "outline
       InputProps={{
         endAdornment: (
           <InputAdornment position="end">
-            <IconButton aria-label="toggle password visibility" onClick={handleVisibilityChange} size="small">
+            <IconButton
+              aria-label="toggle password visibility"
+              onClick={handleVisibilityChange}
+              size="small"
+            >
               <VisibilityIcon className={styles.visibilityIcon} />
             </IconButton>
           </InputAdornment>

@@ -25,19 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/afero"
-
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/ptr"
-
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -50,13 +46,17 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/turnconn"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 type Options struct {
@@ -64,6 +64,7 @@ type Options struct {
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
@@ -76,12 +77,31 @@ type Options struct {
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _ := NewWithAPI(t, options)
+	client, _ := newWithCloser(t, options)
 	return client
 }
 
-// NewWithAPI constructs a codersdk client connected to the returned in-memory API instance.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) {
+// NewWithProvisionerCloser returns a client as well as a handle to close
+// the provisioner. This is a temporary function while work is done to
+// standardize how provisioners are registered with coderd. The option
+// to include a provisioner is set to true for convenience.
+func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+	if options == nil {
+		options = &Options{}
+	}
+	options.IncludeProvisionerD = true
+	client, closer := newWithCloser(t, options)
+	return client, closer
+}
+
+// newWithCloser constructs a codersdk client connected to an in-memory API instance.
+// The returned closer closes a provisioner if it was provided
+// The API is intentionally not returned here because coderd tests should not
+// require a handle to the API. Do not expose the API or wrath shall descend
+// upon thee. Even the io.Closer that is exposed here shouldn't be exposed
+// and is a temporary measure while the API to register provisioners is ironed
+// out.
+func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -115,8 +135,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
-		err = database.MigrateUp(sqlDB)
-		require.NoError(t, err)
 		db = database.New(sqlDB)
 
 		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
@@ -127,6 +145,8 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
+
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
@@ -140,6 +160,8 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		return ctx
 	}
 	srv.Start()
+	t.Cleanup(srv.Close)
+
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
@@ -150,18 +172,26 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 
 	turnServer, err := turnconn.New(nil)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = turnServer.Close()
+	})
 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+		// Force a long disconnection timeout to ensure
+		// agents are not marked as disconnected during slow tests.
+		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		CacheDir:                       t.TempDir(),
 		Database:                       db,
 		Pubsub:                         pubsub,
 
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
+		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
@@ -169,18 +199,20 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, *coderd.API) 
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
 	})
-	srv.Config.Handler = coderAPI.Handler
-	if options.IncludeProvisionerD {
-		_ = NewProvisionerDaemon(t, coderAPI)
-	}
 	t.Cleanup(func() {
-		cancelFunc()
-		_ = turnServer.Close()
-		srv.Close()
 		_ = coderAPI.Close()
 	})
+	srv.Config.Handler = coderAPI.Handler
 
-	return codersdk.New(serverURL), coderAPI
+	var provisionerCloser io.Closer = nopcloser{}
+	if options.IncludeProvisionerD {
+		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
+	}
+	t.Cleanup(func() {
+		_ = provisionerCloser.Close()
+	})
+
+	return codersdk.New(serverURL), provisionerCloser
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -207,7 +239,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        10 * time.Millisecond,
 		UpdateInterval:      25 * time.Millisecond,
-		ForceCancelInterval: 25 * time.Millisecond,
+		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
@@ -243,13 +275,26 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
-		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
+		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
+
 	user, err := client.CreateUser(context.Background(), req)
+	var apiError *codersdk.Error
+	// If the user already exists by username or email conflict, try again up to "retries" times.
+	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+		if apiError.StatusCode() == http.StatusConflict {
+			retries--
+			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+		}
+	}
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -317,7 +362,8 @@ func CreateWorkspaceBuild(
 	t *testing.T,
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
-	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	transition database.WorkspaceTransition,
+) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}
@@ -361,35 +407,44 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
-		require.NoError(t, err)
-		return templateVersion.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return templateVersion
 }
 
 // AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
 func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
-		require.NoError(t, err)
-		return workspaceBuild.Job.CompletedAt != nil
-	}, 5*time.Second, 25*time.Millisecond)
+		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
 func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+	t.Helper()
+
+	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
@@ -398,7 +453,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}, 5*time.Second, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	return resources
 }
 
@@ -640,7 +695,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 }
 
 func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
 }
 
 // Used to easily create an HTTP transport!
@@ -649,3 +704,7 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
+
+type nopcloser struct{}
+
+func (nopcloser) Close() error { return nil }

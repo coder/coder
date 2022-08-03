@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.3.4"
+      version = "0.4.3"
     }
     google = {
       source  = "hashicorp/google"
@@ -36,7 +36,7 @@ data "google_compute_default_service_account" "default" {
 }
 
 resource "google_compute_disk" "root" {
-  name  = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
   image = "projects/windows-cloud/global/images/windows-server-2022-dc-core-v20220215"
@@ -45,7 +45,7 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "windows"
@@ -54,7 +54,7 @@ resource "coder_agent" "dev" {
 resource "google_compute_instance" "dev" {
   zone         = var.zone
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   machine_type = "e2-medium"
   network_interface {
     network = "default"
@@ -71,7 +71,7 @@ resource "google_compute_instance" "dev" {
     scopes = ["cloud-platform"]
   }
   metadata = {
-    windows-startup-script-ps1 = coder_agent.dev.init_script
+    windows-startup-script-ps1 = coder_agent.main.init_script
     serial-port-enable         = "TRUE"
   }
 }

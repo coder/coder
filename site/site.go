@@ -1,13 +1,17 @@
 package site
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
-
+	"crypto/sha1" //#nosec // Not used for cryptography.
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -15,7 +19,10 @@ import (
 	"time"
 
 	"github.com/justinas/nosurf"
+	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
+	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 )
 
@@ -29,22 +36,25 @@ func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Conte
 }
 
 // Handler returns an HTTP handler for serving the static site.
-func Handler(fileSystem fs.FS) http.Handler {
+func Handler(siteFS fs.FS, binFS http.FileSystem) http.Handler {
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
 	//
 	// REMARK: text/template is needed to inject values on each request like
 	//         CSRF.
-	files, err := htmlFiles(fileSystem)
-
+	files, err := htmlFiles(siteFS)
 	if err != nil {
 		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
 	}
 
+	mux := http.NewServeMux()
+	mux.Handle("/bin/", http.StripPrefix("/bin", http.FileServer(binFS)))
+	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
+
 	return secureHeaders(&handler{
-		fs:        fileSystem,
+		fs:        siteFS,
 		htmlFiles: files,
-		h:         http.FileServer(http.FS(fileSystem)), // All other non-html static files
+		h:         mux,
 	})
 }
 
@@ -146,8 +156,13 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	switch {
+	// If requesting binaries, serve straight up.
+	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
+		h.h.ServeHTTP(resp, req)
+		return
 	// If the original file path exists we serve it.
-	if h.exists(reqFile) {
+	case h.exists(reqFile):
 		if ShouldCacheFile(reqFile) {
 			resp.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
@@ -241,48 +256,70 @@ const (
 	CSPFrameAncestors       = "frame-ancestors"
 )
 
+func cspHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
+		// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
+		// If we ever want to render something like a PDF, we need to adjust "object-src"
+		//
+		//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
+		cspSrcs := CSPDirectives{
+			// All omitted fetch csp srcs default to this.
+			CSPDirectiveDefaultSrc: {"'self'"},
+			CSPDirectiveConnectSrc: {"'self'"},
+			CSPDirectiveChildSrc:   {"'self'"},
+			CSPDirectiveScriptSrc:  {"'self'"},
+			CSPDirectiveFontSrc:    {"'self'"},
+			CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
+			// object-src is needed to support code-server
+			CSPDirectiveObjectSrc: {"'self'"},
+			// blob: for loading the pwa manifest for code-server
+			CSPDirectiveManifestSrc: {"'self' blob:"},
+			CSPDirectiveFrameSrc:    {"'self'"},
+			// data: for loading base64 encoded icons for generic applications.
+			// https: allows loading images from external sources. This is not ideal
+			// 	but is required for the templates page that renders readmes.
+			//	We should find a better solution in the future.
+			CSPDirectiveImgSrc:     {"'self' https: data:"},
+			CSPDirectiveFormAction: {"'self'"},
+			CSPDirectiveMediaSrc:   {"'self'"},
+			// Report all violations back to the server to log
+			CSPDirectiveReportURI: {"/api/v2/csp/reports"},
+			CSPFrameAncestors:     {"'none'"},
+
+			// Only scripts can manipulate the dom. This prevents someone from
+			// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
+			// "require-trusted-types-for" : []string{"'script'"},
+		}
+
+		// This extra connect-src addition is required to support old webkit
+		// based browsers (Safari).
+		// See issue: https://github.com/w3c/webappsec-csp/issues/7
+		// Once webkit browsers support 'self' on connect-src, we can remove this.
+		// When we remove this, the csp header can be static, as opposed to being
+		// dynamically generated for each request.
+		host := r.Host
+		// It is important r.Host is not an empty string.
+		if host != "" {
+			// We can add both ws:// and wss:// as browsers do not let https
+			// pages to connect to non-tls websocket connections. So this
+			// supports both http & https webpages.
+			cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
+		}
+
+		var csp strings.Builder
+		for src, vals := range cspSrcs {
+			_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+		}
+
+		w.Header().Set("Content-Security-Policy", csp.String())
+		next.ServeHTTP(w, r)
+	})
+}
+
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.
 func secureHeaders(next http.Handler) http.Handler {
-	// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
-	// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
-	// If we ever want to render something like a PDF, we need to adjust "object-src"
-	//
-	//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
-	cspSrcs := CSPDirectives{
-		// All omitted fetch csp srcs default to this.
-		CSPDirectiveDefaultSrc: {"'self'"},
-		CSPDirectiveConnectSrc: {"'self' ws: wss:"},
-		CSPDirectiveChildSrc:   {"'self'"},
-		CSPDirectiveScriptSrc:  {"'self'"},
-		CSPDirectiveFontSrc:    {"'self'"},
-		CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
-		// object-src is needed to support code-server
-		CSPDirectiveObjectSrc: {"'self'"},
-		// blob: for loading the pwa manifest for code-server
-		CSPDirectiveManifestSrc: {"'self' blob:"},
-		CSPDirectiveFrameSrc:    {"'self'"},
-		// data: for loading base64 encoded icons for generic applications.
-		// https: allows loading images from external sources. This is not ideal
-		// 	but is required for the templates page that renders readmes.
-		//	We should find a better solution in the future.
-		CSPDirectiveImgSrc:     {"'self' https: https://cdn.coder.com data:"},
-		CSPDirectiveFormAction: {"'self'"},
-		CSPDirectiveMediaSrc:   {"'self'"},
-		// Report all violations back to the server to log
-		CSPDirectiveReportURI: {"/api/v2/csp/reports"},
-		CSPFrameAncestors:     {"'none'"},
-
-		// Only scripts can manipulate the dom. This prevents someone from
-		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
-		// "require-trusted-types-for" : []string{"'script'"},
-	}
-
-	var csp strings.Builder
-	for src, vals := range cspSrcs {
-		_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
-	}
-
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
 	// This can prevent an embedded iframe from accessing these features.
 	// If we support arbitrary iframes such as generic applications, we might need to add permissions
@@ -307,15 +344,11 @@ func secureHeaders(next http.Handler) http.Handler {
 	}, ", ")
 
 	return secure.New(secure.Options{
-		// Set to ContentSecurityPolicyReportOnly for testing, as all errors are printed to the console log
-		// but are not enforced.
-		ContentSecurityPolicy: csp.String(),
-
 		PermissionsPolicy: permissions,
 
 		// Prevent the browser from sending Referer header with requests
 		ReferrerPolicy: "no-referrer",
-	}).Handler(next)
+	}).Handler(cspHeaders(next))
 }
 
 // htmlFiles recursively walks the file system passed finding all *.html files.
@@ -357,7 +390,6 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -365,4 +397,234 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 	return &htmlTemplates{
 		tpls: root,
 	}, nil
+}
+
+// ExtractOrReadBinFS checks the provided fs for compressed coder
+// binaries and extracts them into dest/bin if found. As a fallback,
+// the provided FS is checked for a /bin directory, if it is non-empty
+// it is returned. Finally dest/bin is returned as a fallback allowing
+// binaries to be manually placed in dest (usually
+// ${CODER_CACHE_DIRECTORY}/site/bin).
+func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
+	if dest == "" {
+		// No destination on fs, embedded fs is the only option.
+		binFS, err := fs.Sub(siteFS, "bin")
+		if err != nil {
+			return nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
+		}
+		return http.FS(binFS), nil
+	}
+
+	dest = filepath.Join(dest, "bin")
+	mkdest := func() (http.FileSystem, error) {
+		err := os.MkdirAll(dest, 0o700)
+		if err != nil {
+			return nil, xerrors.Errorf("mkdir failed: %w", err)
+		}
+		return http.Dir(dest), nil
+	}
+
+	archive, err := siteFS.Open("bin/coder.tar.zst")
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			files, err := fs.ReadDir(siteFS, "bin")
+			if err != nil {
+				if xerrors.Is(err, fs.ErrNotExist) {
+					// Given fs does not have a bin directory,
+					// serve from cache directory.
+					return mkdest()
+				}
+				return nil, xerrors.Errorf("site fs read dir failed: %w", err)
+			}
+
+			if len(filterFiles(files, "GITKEEP")) > 0 {
+				// If there are other files than bin/GITKEEP,
+				// serve the files.
+				binFS, err := fs.Sub(siteFS, "bin")
+				if err != nil {
+					return nil, xerrors.Errorf("site fs sub dir failed: %w", err)
+				}
+				return http.FS(binFS), nil
+			}
+
+			// Nothing we can do, serve the cache directory,
+			// thus allowing binaries to be places there.
+			return mkdest()
+		}
+		return nil, xerrors.Errorf("open coder binary archive failed: %w", err)
+	}
+	defer archive.Close()
+
+	dir, err := mkdest()
+	if err != nil {
+		return nil, err
+	}
+
+	ok, err := verifyBinSha1IsCurrent(dest, siteFS)
+	if err != nil {
+		return nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
+	}
+	if !ok {
+		n, err := extractBin(dest, archive)
+		if err != nil {
+			return nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+		}
+		if n == 0 {
+			return nil, xerrors.New("no files were extracted from coder binaries archive")
+		}
+	}
+
+	return dir, nil
+}
+
+func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
+	var filtered []fs.DirEntry
+	for _, f := range files {
+		if slices.Contains(names, f.Name()) {
+			continue
+		}
+		filtered = append(filtered, f)
+	}
+	return filtered
+}
+
+// errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
+var errHashMismatch = xerrors.New("hash mismatch")
+
+func verifyBinSha1IsCurrent(dest string, siteFS fs.FS) (ok bool, err error) {
+	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
+	if err != nil {
+		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+	}
+	// Parse sha1 file.
+	shaFiles := make(map[string][]byte)
+	for _, line := range bytes.Split(bytes.TrimSpace(b1), []byte{'\n'}) {
+		parts := bytes.Split(line, []byte{' ', '*'})
+		if len(parts) != 2 {
+			return false, xerrors.Errorf("malformed sha1 file: %w", err)
+		}
+		shaFiles[string(parts[1])] = parts[0]
+	}
+	if len(shaFiles) == 0 {
+		return false, xerrors.Errorf("empty sha1 file: %w", err)
+	}
+
+	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
+	if err != nil {
+		if xerrors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
+	}
+
+	// Check shasum files for equality for early-exit.
+	if !bytes.Equal(b1, b2) {
+		return false, nil
+	}
+
+	var eg errgroup.Group
+	// Speed up startup by verifying files concurrently. Concurrency
+	// is limited to save resources / early-exit. Early-exit speed
+	// could be improved by using a context aware io.Reader and
+	// passing the context from errgroup.WithContext.
+	eg.SetLimit(3)
+
+	// Verify the hash of each on-disk binary.
+	for file, hash1 := range shaFiles {
+		file := file
+		hash1 := hash1
+		eg.Go(func() error {
+			hash2, err := sha1HashFile(filepath.Join(dest, file))
+			if err != nil {
+				if xerrors.Is(err, fs.ErrNotExist) {
+					return errHashMismatch
+				}
+				return xerrors.Errorf("hash file failed: %w", err)
+			}
+			if !bytes.Equal(hash1, hash2) {
+				return errHashMismatch
+			}
+			return nil
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		if xerrors.Is(err, errHashMismatch) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+// sha1HashFile computes a SHA1 hash of the file, returning the hex
+// representation.
+func sha1HashFile(name string) ([]byte, error) {
+	//#nosec // Not used for cryptography.
+	hash := sha1.New()
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(hash, f)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, hash.Size())
+	hash.Sum(b[:0])
+
+	return []byte(hex.EncodeToString(b)), nil
+}
+
+func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
+	opts := []zstd.DOption{
+		// Concurrency doesn't help us when decoding the tar and
+		// can actually slow us down.
+		zstd.WithDecoderConcurrency(1),
+		// Ignoring checksums can give a slight performance
+		// boost but it's probably not worth the reduced safety.
+		zstd.IgnoreChecksum(false),
+		// Allow the decoder to use more memory giving us a 2-3x
+		// performance boost.
+		zstd.WithDecoderLowmem(false),
+	}
+	zr, err := zstd.NewReader(r, opts...)
+	if err != nil {
+		return 0, xerrors.Errorf("open zstd archive failed: %w", err)
+	}
+	defer zr.Close()
+
+	tr := tar.NewReader(zr)
+	n := 0
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return n, nil
+			}
+			return n, xerrors.Errorf("read tar archive failed: %w", err)
+		}
+
+		name := filepath.Join(dest, filepath.Base(h.Name))
+		f, err := os.Create(name)
+		if err != nil {
+			return n, xerrors.Errorf("create file failed: %w", err)
+		}
+		//#nosec // We created this tar, no risk of decompression bomb.
+		_, err = io.Copy(f, tr)
+		if err != nil {
+			_ = f.Close()
+			return n, xerrors.Errorf("write file contents failed: %w", err)
+		}
+		err = f.Close()
+		if err != nil {
+			return n, xerrors.Errorf("close file failed: %w", err)
+		}
+
+		n++
+	}
 }

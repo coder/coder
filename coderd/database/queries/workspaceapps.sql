@@ -1,14 +1,14 @@
 -- name: GetWorkspaceAppsByAgentID :many
-SELECT * FROM workspace_apps WHERE agent_id = $1;
+SELECT * FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC;
 
 -- name: GetWorkspaceAppsByAgentIDs :many
-SELECT * FROM workspace_apps WHERE agent_id = ANY(@ids :: uuid [ ]);
+SELECT * FROM workspace_apps WHERE agent_id = ANY(@ids :: uuid [ ]) ORDER BY name ASC;
 
 -- name: GetWorkspaceAppByAgentIDAndName :one
 SELECT * FROM workspace_apps WHERE agent_id = $1 AND name = $2;
 
 -- name: GetWorkspaceAppsCreatedAfter :many
-SELECT * FROM workspace_apps WHERE created_at > $1;
+SELECT * FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC;
 
 -- name: InsertWorkspaceApp :one
 INSERT INTO

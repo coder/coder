@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -53,9 +54,14 @@ func (e executor) execWriteOutput(ctx context.Context, args, env []string, stdOu
 	// #nosec
 	cmd := exec.CommandContext(ctx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
-	cmd.Stdout = stdOutWriter
-	cmd.Stderr = stdErrWriter
 	cmd.Env = env
+
+	// We want logs to be written in the correct order, so we wrap all logging
+	// in a sync.Mutex.
+	mut := &sync.Mutex{}
+	cmd.Stdout = syncWriter{mut, stdOutWriter}
+	cmd.Stderr = syncWriter{mut, stdErrWriter}
+
 	return cmd.Run()
 }
 
@@ -98,11 +104,22 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 }
 
 func (e executor) version(ctx context.Context) (*version.Version, error) {
+	return versionFromBinaryPath(ctx, e.binaryPath)
+}
+
+func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
 	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, "version", "-json")
+	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		select {
+		// `exec` library throws a `signal: killed`` error instead of the canceled context.
+		// Since we know the cause for the killed signal, we are throwing the relevant error here.
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return nil, err
+		}
 	}
 	vj := tfjson.VersionOutput{}
 	err = json.Unmarshal(out, &vj)
@@ -115,12 +132,17 @@ func (e executor) version(ctx context.Context) (*version.Version, error) {
 func (e executor) init(ctx context.Context, logr logger) error {
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
-
 	defer func() {
 		<-doneOut
 		<-doneErr
 	}()
-	return e.execWriteOutput(ctx, []string{"init"}, e.basicEnv(), outWriter, errWriter)
+
+	args := []string{
+		"init",
+		"-no-color",
+		"-input=false",
+	}
+	return e.execWriteOutput(ctx, args, e.basicEnv(), outWriter, errWriter)
 }
 
 // revive:disable-next-line:flag-parameter
@@ -388,4 +410,17 @@ type terraformProvisionLogDiagnostic struct {
 	Severity string `json:"severity"`
 	Summary  string `json:"summary"`
 	Detail   string `json:"detail"`
+}
+
+// syncWriter wraps an io.Writer in a sync.Mutex.
+type syncWriter struct {
+	mut *sync.Mutex
+	w   io.Writer
+}
+
+// Write implements io.Writer.
+func (sw syncWriter) Write(p []byte) (n int, err error) {
+	sw.mut.Lock()
+	defer sw.mut.Unlock()
+	return sw.w.Write(p)
 }

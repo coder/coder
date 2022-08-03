@@ -29,7 +29,8 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    background: theme.palette.background.default,
+    background: "hsl(223, 27%, 3%)",
+    border: `1px solid ${theme.palette.divider}`,
     color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 14,
@@ -37,7 +38,12 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(0.5),
   },
   code: {
-    padding: `${theme.spacing(0.5)}px  ${theme.spacing(0.75)}px ${theme.spacing(0.5)}px ${theme.spacing(2)}px`,
+    padding: `
+      ${theme.spacing(0.5)}px
+      ${theme.spacing(0.75)}px
+      ${theme.spacing(0.5)}px
+      ${theme.spacing(2)}px
+    `,
     whiteSpace: "nowrap",
     width: "100%",
     overflowX: "auto",

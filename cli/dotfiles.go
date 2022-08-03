@@ -18,14 +18,17 @@ import (
 )
 
 func dotfiles() *cobra.Command {
-	var (
-		symlinkDir string
-	)
+	var symlinkDir string
 	cmd := &cobra.Command{
-		Use:     "dotfiles [git_repo_url]",
-		Args:    cobra.ExactArgs(1),
-		Short:   "Checkout and install a dotfiles repository.",
-		Example: "coder dotfiles [-y] git@github.com:example/dotfiles.git",
+		Use:   "dotfiles [git_repo_url]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Check out and install a dotfiles repository.",
+		Example: formatExamples(
+			example{
+				Description: "Check out and install a dotfiles repository without prompts",
+				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
+			},
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
 				dotfilesRepoDir = "dotfiles"

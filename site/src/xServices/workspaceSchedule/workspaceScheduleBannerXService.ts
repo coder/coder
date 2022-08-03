@@ -1,18 +1,23 @@
 /**
  * @fileoverview workspaceScheduleBanner is an xstate machine backing a form,
- * presented as an Alert/banner, for reactively extending a workspace schedule.
+ * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
+import { getErrorMessage } from "api/errors"
+import dayjs from "dayjs"
 import { createMachine } from "xstate"
 import * as API from "../../api/api"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
-import { defaultWorkspaceExtension } from "../../util/workspace"
 
 export const Language = {
-  errorExtension: "Failed to extend workspace deadline.",
-  successExtension: "Successfully extended workspace deadline.",
+  errorExtension: "Failed to update workspace shutdown time.",
+  successExtension: "Updated workspace shutdown time.",
 }
 
-export type WorkspaceScheduleBannerEvent = { type: "EXTEND_DEADLINE_DEFAULT"; workspaceId: string }
+export type WorkspaceScheduleBannerEvent = {
+  type: "UPDATE_DEADLINE"
+  workspaceId: string
+  newDeadline: dayjs.Dayjs
+}
 
 export const workspaceScheduleBannerMachine = createMachine(
   {
@@ -25,13 +30,13 @@ export const workspaceScheduleBannerMachine = createMachine(
     states: {
       idle: {
         on: {
-          EXTEND_DEADLINE_DEFAULT: "extendingDeadline",
+          UPDATE_DEADLINE: "updatingDeadline",
         },
       },
-      extendingDeadline: {
+      updatingDeadline: {
         invoke: {
-          src: "extendDeadlineDefault",
-          id: "extendDeadlineDefault",
+          src: "updateDeadline",
+          id: "updateDeadline",
           onDone: {
             target: "idle",
             actions: "displaySuccessMessage",
@@ -47,8 +52,9 @@ export const workspaceScheduleBannerMachine = createMachine(
   },
   {
     actions: {
-      displayFailureMessage: () => {
-        displayError(Language.errorExtension)
+      // This error does not have a detail, so using the snackbar is okay
+      displayFailureMessage: (_, event) => {
+        displayError(getErrorMessage(event.data, Language.errorExtension))
       },
       displaySuccessMessage: () => {
         displaySuccess(Language.successExtension)
@@ -56,8 +62,8 @@ export const workspaceScheduleBannerMachine = createMachine(
     },
 
     services: {
-      extendDeadlineDefault: async (_, event) => {
-        await API.putWorkspaceExtension(event.workspaceId, defaultWorkspaceExtension())
+      updateDeadline: async (_, event) => {
+        await API.putWorkspaceExtension(event.workspaceId, event.newDeadline)
       },
     },
   },

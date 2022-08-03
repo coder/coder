@@ -131,6 +131,7 @@ func TestTemplateCreate(t *testing.T) {
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
 		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bananas\"")
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
@@ -157,7 +158,6 @@ func TestTemplateCreate(t *testing.T) {
 		}
 
 		require.NoError(t, <-execDone)
-		removeTmpDirUntilSuccess(t, tempDir)
 	})
 
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
@@ -170,6 +170,7 @@ func TestTemplateCreate(t *testing.T) {
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
 		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("zone: \"bananas\"")
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
@@ -195,7 +196,50 @@ func TestTemplateCreate(t *testing.T) {
 		}
 
 		require.EqualError(t, <-execDone, "Parameter value absent in parameter file for \"region\"!")
-		removeTmpDirUntilSuccess(t, tempDir)
+	})
+
+	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		coderdtest.CreateFirstUser(t, client)
+
+		create := func() error {
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:     echo.ParseComplete,
+				Provision: provisionCompleteWithAgent,
+			})
+			args := []string{
+				"templates",
+				"create",
+				"my-template",
+				"--yes",
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+			}
+			cmd, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+
+			return cmd.Execute()
+		}
+		del := func() error {
+			args := []string{
+				"templates",
+				"delete",
+				"my-template",
+				"--yes",
+			}
+			cmd, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+
+			return cmd.Execute()
+		}
+
+		err := create()
+		require.NoError(t, err, "Template must be created without error")
+		err = del()
+		require.NoError(t, err, "Template must be deleted without error")
+		err = create()
+		require.NoError(t, err, "Template must be recreated without error")
 	})
 }
 
@@ -218,7 +262,7 @@ func createTestParseResponse() []*proto.Parse_Response {
 
 // Need this for Windows because of a known issue with Go:
 // https://github.com/golang/go/issues/52986
-func removeTmpDirUntilSuccess(t *testing.T, tempDir string) {
+func removeTmpDirUntilSuccessAfterTest(t *testing.T, tempDir string) {
 	t.Helper()
 	t.Cleanup(func() {
 		err := os.RemoveAll(tempDir)

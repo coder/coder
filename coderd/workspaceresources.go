@@ -25,14 +25,14 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -42,7 +42,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job agents.",
 			Detail:  err.Error(),
 		})
@@ -54,7 +54,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	}
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), agentIDs)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent applications.",
 			Detail:  err.Error(),
 		})
@@ -69,9 +69,9 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
+		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error reading workspace agent.",
 				Detail:  err.Error(),
 			})
@@ -80,5 +80,14 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		apiAgents = append(apiAgents, convertedAgent)
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspaceResource(workspaceResource, apiAgents))
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceID(r.Context(), workspaceResource.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resource metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceResource(workspaceResource, apiAgents, metadata))
 }

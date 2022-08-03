@@ -2,7 +2,6 @@ package ptytest_test
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -22,26 +21,24 @@ func TestPtytest(t *testing.T) {
 		pty.WriteLine("read")
 	})
 
+	// See https://github.com/coder/coder/issues/2122 for the motivation
+	// behind this test.
 	t.Run("Cobra ptytest should not hang when output is not consumed", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
 			name          string
 			output        string
-			isPlatformBug bool // See https://github.com/coder/coder/issues/2122 for more info.
+			isPlatformBug bool
 		}{
 			{name: "1024 is safe (does not exceed macOS buffer)", output: strings.Repeat(".", 1024)},
-			{name: "1025 exceeds macOS buffer (must not hang)", output: strings.Repeat(".", 1025), isPlatformBug: true},
-			{name: "10241 large output", output: strings.Repeat(".", 10241), isPlatformBug: true}, // 1024 * 10 + 1
+			{name: "1025 exceeds macOS buffer (must not hang)", output: strings.Repeat(".", 1025)},
+			{name: "10241 large output", output: strings.Repeat(".", 10241)}, // 1024 * 10 + 1
 		}
 		for _, tt := range tests {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				if tt.isPlatformBug && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
-					t.Skip("This test hangs on macOS and Windows, see https://github.com/coder/coder/issues/2122")
-				}
-
 				cmd := cobra.Command{
 					Use: "test",
 					RunE: func(cmd *cobra.Command, args []string) error {

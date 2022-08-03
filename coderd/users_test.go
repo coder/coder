@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"sort"
@@ -14,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
@@ -138,92 +134,24 @@ func TestPostLogin(t *testing.T) {
 		var (
 			ctx = context.Background()
 		)
-		client, api := coderdtest.NewWithAPI(t, nil)
+		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
 
 		split := strings.Split(client.SessionToken, "-")
-		loginKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		key, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
-		require.Equal(t, int64(86400), loginKey.LifetimeSeconds, "default should be 86400")
+		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
 		// Generated tokens have a longer life
 		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
 		require.NoError(t, err, "make new api key")
 		split = strings.Split(token.Key, "-")
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
+		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
 		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
-		require.True(t, apiKey.ExpiresAt.After(loginKey.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
-		require.Greater(t, apiKey.LifetimeSeconds, loginKey.LifetimeSeconds, "api key should have longer lifetime")
-	})
-
-	t.Run("APIKeyExtend", func(t *testing.T) {
-		t.Parallel()
-		var (
-			ctx = context.Background()
-		)
-		client, api := coderdtest.NewWithAPI(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-
-		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
-		require.NoError(t, err, "make new api key")
-		client.SessionToken = token.Key
-		split := strings.Split(token.Key, "-")
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch api key")
-
-		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-			ID:       apiKey.ID,
-			LastUsed: apiKey.LastUsed,
-			// This should cause a refresh
-			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
-			OAuthAccessToken:  apiKey.OAuthAccessToken,
-			OAuthRefreshToken: apiKey.OAuthRefreshToken,
-			OAuthExpiry:       apiKey.OAuthExpiry,
-		})
-		require.NoError(t, err, "update api key")
-
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch user")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch refreshed api key")
-		// 1 minute tolerance
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*7).Add(time.Minute*-1)), "api key lasts 7 days")
-	})
-
-	t.Run("LoginKeyExtend", func(t *testing.T) {
-		t.Parallel()
-		var (
-			ctx = context.Background()
-		)
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		split := strings.Split(client.SessionToken, "-")
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch login key")
-
-		err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-			ID:       apiKey.ID,
-			LastUsed: apiKey.LastUsed,
-			// This should cause a refresh
-			ExpiresAt:         apiKey.ExpiresAt.Add(time.Hour * -2),
-			OAuthAccessToken:  apiKey.OAuthAccessToken,
-			OAuthRefreshToken: apiKey.OAuthRefreshToken,
-			OAuthExpiry:       apiKey.OAuthExpiry,
-		})
-		require.NoError(t, err, "update login key")
-
-		_, err = client.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch user")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, split[0])
-		require.NoError(t, err, "fetch refreshed login key")
-		// 1 minute tolerance
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24).Add(time.Minute*-1)), "login key lasts 24 hrs")
+		require.True(t, apiKey.ExpiresAt.After(key.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
+		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "api key should have longer lifetime")
 	})
 }
 
@@ -235,11 +163,11 @@ func TestPostLogout(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
 		keyID := strings.Split(client.SessionToken, "-")[0]
 
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
 
@@ -254,47 +182,13 @@ func TestPostLogout(t *testing.T) {
 		cookies := res.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
+		require.Equal(t, codersdk.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
 		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
 
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
-		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
-	})
-
-	t.Run("LogoutWithoutKey", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		client, api := coderdtest.NewWithAPI(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		keyID := strings.Split(client.SessionToken, "-")[0]
-
-		apiKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
-		require.NoError(t, err)
-		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
-
-		// Setting a fake database without the API Key to be used by the API.
-		// The middleware that extracts the API key is already set to read
-		// from the original database.
-		dbWithoutKey := databasefake.New()
-		api.Database = dbWithoutKey
-
-		fullURL, err := client.URL.Parse("/api/v2/users/logout")
-		require.NoError(t, err, "Server URL should parse successfully")
-
-		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
-		require.NoError(t, err, "/logout request should succeed")
-		res.Body.Close()
-		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
-
-		cookies := res.Cookies()
-		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
-
-		require.Equal(t, httpmw.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
-		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
-
-		apiKey, err = api.Database.GetAPIKeyByID(ctx, keyID)
-		require.ErrorIs(t, err, sql.ErrNoRows, "API key should not exist in the database")
+		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
+		var sdkErr = &codersdk.Error{}
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
 	})
 }
 
@@ -702,6 +596,187 @@ func TestGetUser(t *testing.T) {
 	})
 }
 
+// TestUsersFilter creates a set of users to run various filters against for testing.
+func TestUsersFilter(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	first := coderdtest.CreateFirstUser(t, client)
+	firstUser, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "fetch me")
+
+	users := make([]codersdk.User, 0)
+	users = append(users, firstUser)
+	for i := 0; i < 15; i++ {
+		roles := []string{}
+		if i%2 == 0 {
+			roles = append(roles, rbac.RoleAdmin())
+		}
+		if i%3 == 0 {
+			roles = append(roles, "auditor")
+		}
+		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
+		user, err := userClient.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch me")
+
+		if i%4 == 0 {
+			user, err = client.UpdateUserStatus(context.Background(), user.ID.String(), codersdk.UserStatusSuspended)
+			require.NoError(t, err, "suspend user")
+		}
+
+		if i%5 == 0 {
+			user, err = client.UpdateUserProfile(context.Background(), user.ID.String(), codersdk.UpdateUserProfileRequest{
+				Username: strings.ToUpper(user.Username),
+			})
+			require.NoError(t, err, "update username to uppercase")
+		}
+
+		users = append(users, user)
+	}
+
+	// --- Setup done ---
+	testCases := []struct {
+		Name   string
+		Filter codersdk.UsersRequest
+		// If FilterF is true, we include it in the expected results
+		FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
+	}{
+		{
+			Name: "All",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return true
+			},
+		},
+		{
+			Name: "Active",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusActive
+			},
+		},
+		{
+			Name: "ActiveUppercase",
+			Filter: codersdk.UsersRequest{
+				Status: "ACTIVE",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusActive
+			},
+		},
+		{
+			Name: "Suspended",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusSuspended,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.Status == codersdk.UserStatusSuspended
+			},
+		},
+		{
+			Name: "NameContains",
+			Filter: codersdk.UsersRequest{
+				Search: "a",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return (strings.ContainsAny(u.Username, "aA") || strings.ContainsAny(u.Email, "aA"))
+			},
+		},
+		{
+			Name: "Admins",
+			Filter: codersdk.UsersRequest{
+				Role:   rbac.RoleAdmin(),
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return true
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "AdminsUppercase",
+			Filter: codersdk.UsersRequest{
+				Role:   "ADMIN",
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return true
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "Members",
+			Filter: codersdk.UsersRequest{
+				Role:   rbac.RoleMember(),
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return true
+			},
+		},
+		{
+			Name: "SearchQuery",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "i role:admin status:active",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
+							u.Status == codersdk.UserStatusActive
+					}
+				}
+				return false
+			},
+		},
+		{
+			Name: "SearchQueryInsensitive",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: "i Role:Admin STATUS:Active",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				for _, r := range u.Roles {
+					if r.Name == rbac.RoleAdmin() {
+						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
+							u.Status == codersdk.UserStatusActive
+					}
+				}
+				return false
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			matched, err := client.Users(context.Background(), c.Filter)
+			require.NoError(t, err, "fetch workspaces")
+
+			exp := make([]codersdk.User, 0)
+			for _, made := range users {
+				match := c.FilterF(c.Filter, made)
+				if match {
+					exp = append(exp, made)
+				}
+			}
+			require.ElementsMatch(t, exp, matched, "expected workspaces returned")
+		})
+	}
+}
+
 func TestGetUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("AllUsers", func(t *testing.T) {
@@ -752,7 +827,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
-			Status: string(codersdk.UserStatusActive),
+			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, active, users)

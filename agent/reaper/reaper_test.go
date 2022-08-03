@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/agent/reaper"
+	"github.com/coder/coder/testutil"
 )
 
 func TestReap(t *testing.T) {
@@ -24,17 +25,16 @@ func TestReap(t *testing.T) {
 		t.Skip("Detected CI, skipping reaper tests")
 	}
 
-	// Because we're forkexecing these tests will try to run twice...
-	if reaper.IsChild() {
-		t.Skip("I'm a child!")
-	}
-
 	// OK checks that's the reaper is successfully reaping
 	// exited processes and passing the PIDs through the shared
 	// channel.
 	t.Run("OK", func(t *testing.T) {
 		pids := make(reap.PidCh, 1)
-		err := reaper.ForkReap(pids)
+		err := reaper.ForkReap(
+			reaper.WithPIDCallback(pids),
+			// Provide some argument that immediately exits.
+			reaper.WithExecArgs("/bin/sh", "-c", "exit 0"),
+		)
 		require.NoError(t, err)
 
 		cmd := exec.Command("tail", "-f", "/dev/null")
@@ -53,10 +53,9 @@ func TestReap(t *testing.T) {
 
 		expectedPIDs := []int{cmd.Process.Pid, cmd2.Process.Pid}
 
-		deadline := time.NewTimer(time.Second * 5)
 		for i := 0; i < len(expectedPIDs); i++ {
 			select {
-			case <-deadline.C:
+			case <-time.After(testutil.WaitShort):
 				t.Fatalf("Timed out waiting for process")
 			case pid := <-pids:
 				require.Contains(t, expectedPIDs, pid)

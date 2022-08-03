@@ -1,0 +1,2 @@
+docker_host: "unix:///var/run/docker.sock"
+docker_arch: "amd64"

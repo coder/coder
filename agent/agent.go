@@ -27,10 +27,13 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"inet.af/netaddr"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/pty"
 	"github.com/coder/retry"
@@ -40,23 +43,37 @@ const (
 	ProtocolReconnectingPTY = "reconnecting-pty"
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
+
+	// MagicSessionErrorCode indicates that something went wrong with the session, rather than the
+	// command just returning a nonzero exit code, and is chosen as an arbitrary, high number
+	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
+	MagicSessionErrorCode = 229
 )
 
 type Options struct {
+	EnableWireguard        bool
+	UploadWireguardKeys    UploadWireguardKeys
+	ListenWireguardPeers   ListenWireguardPeers
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
 type Metadata struct {
-	OwnerEmail           string            `json:"owner_email"`
-	OwnerUsername        string            `json:"owner_username"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script"`
-	Directory            string            `json:"directory"`
+	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
+	EnvironmentVariables map[string]string  `json:"environment_variables"`
+	StartupScript        string             `json:"startup_script"`
+	Directory            string             `json:"directory"`
+}
+
+type WireguardPublicKeys struct {
+	Public key.NodePublic  `json:"public"`
+	Disco  key.DiscoPublic `json:"disco"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
+type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
+type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
 
 func New(dialer Dialer, options *Options) io.Closer {
 	if options == nil {
@@ -73,6 +90,9 @@ func New(dialer Dialer, options *Options) io.Closer {
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
+		enableWireguard:        options.EnableWireguard,
+		postKeys:               options.UploadWireguardKeys,
+		listenWireguardPeers:   options.ListenWireguardPeers,
 	}
 	server.init(ctx)
 	return server
@@ -95,6 +115,11 @@ type agent struct {
 	metadata      atomic.Value
 	startupScript atomic.Bool
 	sshServer     *ssh.Server
+
+	enableWireguard      bool
+	network              *peerwg.Network
+	postKeys             UploadWireguardKeys
+	listenWireguardPeers ListenWireguardPeers
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -136,6 +161,13 @@ func (a *agent) run(ctx context.Context) {
 				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
 			}
 		}()
+	}
+
+	if a.enableWireguard {
+		err = a.startWireguard(ctx, metadata.WireguardAddresses)
+		if err != nil {
+			a.logger.Error(ctx, "start wireguard", slog.Error(err))
+		}
 	}
 
 	for {
@@ -246,9 +278,17 @@ func (a *agent) init(ctx context.Context) {
 		},
 		Handler: func(session ssh.Session) {
 			err := a.handleSSHSession(session)
+			var exitError *exec.ExitError
+			if xerrors.As(err, &exitError) {
+				a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+				_ = session.Exit(exitError.ExitCode())
+				return
+			}
 			if err != nil {
 				a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
-				_ = session.Exit(1)
+				// This exit code is designed to be unlikely to be confused for a legit exit code
+				// from the process.
+				_ = session.Exit(MagicSessionErrorCode)
 				return
 			}
 		},
@@ -357,32 +397,26 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
-	// These prevent the user from having to specify _anything_ to successfully commit.
-	// Both author and committer must be set!
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, metadata.OwnerUsername))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, metadata.OwnerUsername))
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
-	for key, value := range metadata.EnvironmentVariables {
+	for envKey, value := range metadata.EnvironmentVariables {
 		// Expanding environment variables allows for customization
-		// of the $PATH, among other variables. Customers can prepand
+		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, os.ExpandEnv(value)))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
 	}
 
 	// Agent-level environment variables should take over all!
 	// This is used for setting agent-specific variables like "CODER_AGENT_TOKEN".
-	for key, value := range a.envVars {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	for envKey, value := range a.envVars {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, value))
 	}
 
 	return cmd, nil
 }
 
-func (a *agent) handleSSHSession(session ssh.Session) error {
+func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
@@ -405,15 +439,25 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		defer func() {
+			closeErr := ptty.Close()
+			if closeErr != nil {
+				a.logger.Warn(context.Background(), "failed to close tty",
+					slog.Error(closeErr))
+				if retErr == nil {
+					retErr = closeErr
+				}
+			}
+		}()
 		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
 		if err != nil {
 			return xerrors.Errorf("resize ptty: %w", err)
 		}
 		go func() {
 			for win := range windowSize {
-				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
-				if err != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
+				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
+				if resizeErr != nil {
+					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -423,9 +467,15 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		go func() {
 			_, _ = io.Copy(session, ptty.Output())
 		}()
-		_, _ = process.Wait()
-		_ = ptty.Close()
-		return nil
+		err = process.Wait()
+		var exitErr *exec.ExitError
+		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
+		// and not something to be concerned about.  But, if it's something else, we should log it.
+		if err != nil && !xerrors.As(err, &exitErr) {
+			a.logger.Warn(context.Background(), "wait error",
+				slog.Error(err))
+		}
+		return err
 	}
 
 	cmd.Stdout = session
@@ -438,6 +488,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	}
 	go func() {
 		_, _ = io.Copy(stdinPipe, session)
+		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {
@@ -527,7 +578,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		go func() {
 			// If the process dies randomly, we should
 			// close the pty.
-			_, _ = process.Wait()
+			_ = process.Wait()
 			rpty.Close()
 		}()
 		go func() {

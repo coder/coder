@@ -3,6 +3,7 @@ import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
+import { sidePadding } from "theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface TabSidebarItem {
@@ -24,7 +25,13 @@ export const TabSidebar: FC<TabSidebarProps> = ({ menuItems }) => {
         return (
           <NavLink to={tab.path} key={tab.path} className={styles.link}>
             {({ isActive }) => (
-              <ListItem button className={styles.menuItem} disableRipple focusRipple={false} component="li">
+              <ListItem
+                button
+                className={styles.menuItem}
+                disableRipple
+                focusRipple={false}
+                component="li"
+              >
                 <span className={combineClasses({ [styles.menuItemSpan]: true, active: isActive })}>
                   {hasChanges ? `${tab.label}*` : tab.label}
                 </span>
@@ -41,10 +48,21 @@ const useStyles = makeStyles((theme) => ({
   menu: {
     minWidth: 160,
     marginTop: theme.spacing(5),
+
+    [theme.breakpoints.down("sm")]: {
+      display: "flex",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      marginBottom: theme.spacing(2),
+      // Fit all the width
+      width: `calc(100% + ${sidePadding * 2}px)`,
+      marginLeft: -sidePadding,
+      marginTop: sidePadding,
+    },
   },
 
   link: {
     textDecoration: "none",
+    flex: 1,
   },
 
   menuItem: {
@@ -78,6 +96,13 @@ const useStyles = makeStyles((theme) => ({
       "&::after": {
         opacity: 1,
       },
+    },
+
+    [theme.breakpoints.down("sm")]: {
+      textAlign: "center",
+      width: "100%",
+      paddingTop: theme.spacing(2),
+      paddingBottom: theme.spacing(2),
     },
   },
 

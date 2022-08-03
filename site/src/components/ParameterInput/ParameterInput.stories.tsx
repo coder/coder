@@ -7,7 +7,9 @@ export default {
   component: ParameterInput,
 }
 
-const Template: Story<ParameterInputProps> = (args: ParameterInputProps) => <ParameterInput {...args} />
+const Template: Story<ParameterInputProps> = (args: ParameterInputProps) => (
+  <ParameterInput {...args} />
+)
 
 const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
   return {

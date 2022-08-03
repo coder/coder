@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -60,7 +59,7 @@ func templateCreate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Create and upload %q?", prettyDir),
 				IsConfirm: true,
-				Default:   "yes",
+				Default:   cliui.ConfirmYes,
 			})
 			if err != nil {
 				return err
@@ -114,7 +113,7 @@ func templateCreate() *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n"+cliui.Styles.Wrap.Render(
-				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created! "+
+				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
@@ -127,7 +126,7 @@ func templateCreate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 168*time.Hour, "Specify a maximum TTL for worksapces created from this template.")
+	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 24*time.Hour, "Specify a maximum TTL for workspaces created from this template.")
 	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", time.Hour, "Specify a minimum autostart interval for workspaces created from this template.")
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
@@ -221,14 +220,10 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	}
 
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
-		valuesBySchemaID := map[string]codersdk.TemplateVersionParameter{}
+		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
-
-		sort.Slice(parameterSchemas, func(i, j int) bool {
-			return parameterSchemas[i].Name < parameterSchemas[j].Name
-		})
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 )
@@ -100,6 +101,7 @@ type LoginType string
 const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
+	LoginTypeOIDC     LoginType = "oidc"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -311,19 +313,20 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID                string    `db:"id" json:"id"`
-	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	LastUsed          time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	LoginType         LoginType `db:"login_type" json:"login_type"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
-	LifetimeSeconds   int64     `db:"lifetime_seconds" json:"lifetime_seconds"`
+	ID                string      `db:"id" json:"id"`
+	HashedSecret      []byte      `db:"hashed_secret" json:"hashed_secret"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	LastUsed          time.Time   `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time   `db:"expires_at" json:"expires_at"`
+	CreatedAt         time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time   `db:"updated_at" json:"updated_at"`
+	LoginType         LoginType   `db:"login_type" json:"login_type"`
+	OAuthAccessToken  string      `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string      `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string      `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time   `db:"oauth_expiry" json:"oauth_expiry"`
+	LifetimeSeconds   int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
+	IPAddress         pqtype.Inet `db:"ip_address" json:"ip_address"`
 }
 
 type AuditLog struct {
@@ -396,6 +399,7 @@ type ParameterSchema struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+	Index                    int32                      `db:"index" json:"index"`
 }
 
 type ParameterValue struct {
@@ -475,6 +479,7 @@ type TemplateVersion struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
+	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
 }
 
 type User struct {
@@ -502,23 +507,26 @@ type Workspace struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID             `db:"id" json:"id"`
-	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
-	Name                 string                `db:"name" json:"name"`
-	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
-	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture         string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
-	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	Directory            string                `db:"directory" json:"directory"`
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	FirstConnectedAt        sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt         sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt          sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
+	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture            string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
+	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Directory               string                `db:"directory" json:"directory"`
+	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
+	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
+	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
 }
 
 type WorkspaceApp struct {
@@ -555,4 +563,11 @@ type WorkspaceResource struct {
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
+}
+
+type WorkspaceResourceMetadatum struct {
+	WorkspaceResourceID uuid.UUID      `db:"workspace_resource_id" json:"workspace_resource_id"`
+	Key                 string         `db:"key" json:"key"`
+	Value               sql.NullString `db:"value" json:"value"`
+	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 }

@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/testutil"
 )
 
 var (
@@ -91,6 +92,8 @@ func TestConn(t *testing.T) {
 		// Create a channel that closes on disconnect.
 		channel, err := server.CreateChannel(context.Background(), "wow", nil)
 		assert.NoError(t, err)
+		defer channel.Close()
+
 		err = wan.Stop()
 		require.NoError(t, err)
 		// Once the connection is marked as disconnected, this
@@ -107,10 +110,13 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
+		defer cch.Close()
 
-		sch, err := server.Accept(context.Background())
+		sch, err := server.Accept(ctx)
 		require.NoError(t, err)
 		defer sch.Close()
 
@@ -123,9 +129,12 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
-		sch, err := server.Accept(context.Background())
+		defer cch.Close()
+		sch, err := server.Accept(ctx)
 		require.NoError(t, err)
 		defer sch.Close()
 
@@ -140,26 +149,44 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		cch, err := client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
-		sch, err := server.Accept(context.Background())
-		require.NoError(t, err)
-		defer sch.Close()
+		defer cch.Close()
+
+		readErr := make(chan error, 1)
 		go func() {
-			bytes := make([]byte, 4096)
-			for i := 0; i < 1024; i++ {
-				_, err := cch.Write(bytes)
-				require.NoError(t, err)
-			}
-			_ = cch.Close()
-		}()
-		bytes := make([]byte, 4096)
-		for {
-			_, err = sch.Read(bytes)
+			sch, err := server.Accept(ctx)
 			if err != nil {
-				require.ErrorIs(t, err, peer.ErrClosed)
-				break
+				readErr <- err
+				_ = cch.Close()
+				return
 			}
+			defer sch.Close()
+
+			bytes := make([]byte, 4096)
+			for {
+				_, err = sch.Read(bytes)
+				if err != nil {
+					readErr <- err
+					return
+				}
+			}
+		}()
+
+		bytes := make([]byte, 4096)
+		for i := 0; i < 1024; i++ {
+			_, err = cch.Write(bytes)
+			require.NoError(t, err, "write i=%d", i)
+		}
+		_ = cch.Close()
+
+		select {
+		case err = <-readErr:
+			require.ErrorIs(t, err, peer.ErrClosed, "read error")
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for read error")
 		}
 	})
 
@@ -170,13 +197,29 @@ func TestConn(t *testing.T) {
 		srv, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		defer srv.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		go func() {
-			sch, err := server.Accept(context.Background())
-			assert.NoError(t, err)
+			sch, err := server.Accept(ctx)
+			if err != nil {
+				assert.NoError(t, err)
+				return
+			}
+			defer sch.Close()
+
 			nc2 := sch.NetConn()
+			defer nc2.Close()
+
 			nc1, err := net.Dial("tcp", srv.Addr().String())
-			assert.NoError(t, err)
+			if err != nil {
+				assert.NoError(t, err)
+				return
+			}
+			defer nc1.Close()
+
 			go func() {
+				defer nc1.Close()
+				defer nc2.Close()
 				_, _ = io.Copy(nc1, nc2)
 			}()
 			_, _ = io.Copy(nc2, nc1)
@@ -204,7 +247,7 @@ func TestConn(t *testing.T) {
 		c := http.Client{
 			Transport: defaultTransport,
 		}
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "http://localhost/", nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/", nil)
 		require.NoError(t, err)
 		resp, err := c.Do(req)
 		require.NoError(t, err)
@@ -272,14 +315,21 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		go func() {
-			channel, err := client.CreateChannel(context.Background(), "test", nil)
-			assert.NoError(t, err)
+			channel, err := client.CreateChannel(ctx, "test", nil)
+			if err != nil {
+				assert.NoError(t, err)
+				return
+			}
+			defer channel.Close()
 			_, err = channel.Write([]byte{1, 2})
 			assert.NoError(t, err)
 		}()
-		channel, err := server.Accept(context.Background())
+		channel, err := server.Accept(ctx)
 		require.NoError(t, err)
+		defer channel.Close()
 		data := make([]byte, 1)
 		_, err = channel.Read(data)
 		require.NoError(t, err)

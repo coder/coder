@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
+import { Language } from "../../components/WorkspaceActions/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,
@@ -77,12 +77,21 @@ describe("Workspace Page", () => {
     expect(status).toHaveTextContent("Running")
   })
   it("requests a stop job when the user presses Stop", async () => {
-    const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
     await testButton(Language.stop, stopWorkspaceMock)
   })
   it("requests a delete job when the user presses Delete and confirms", async () => {
-    const deleteWorkspaceMock = jest.spyOn(api, "deleteWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    const deleteWorkspaceMock = jest
+      .spyOn(api, "deleteWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
+
+    // open the workspace action popover so we have access to all available ctas
+    const trigger = await screen.findByTestId("workspace-actions-button")
+    trigger.click()
+
     const button = await screen.findByText(Language.delete)
     await waitFor(() => fireEvent.click(button))
     const confirmDialog = await screen.findByRole("dialog")
@@ -110,7 +119,15 @@ describe("Workspace Page", () => {
     const cancelWorkspaceMock = jest
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }))
-    await testButton(Language.cancel, cancelWorkspaceMock)
+
+    await renderWorkspacePage()
+
+    const cancelButton = await screen.findByRole("button", {
+      name: "cancel action",
+    })
+    await waitFor(() => fireEvent.click(cancelButton))
+
+    expect(cancelWorkspaceMock).toBeCalled()
   })
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
@@ -172,9 +189,13 @@ describe("Workspace Page", () => {
       expect(agent1Names.length).toEqual(2)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
       expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgent.status])
+      const agent1Status = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
+      )
       expect(agent1Status.length).toEqual(2)
-      const agent2Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status])
+      const agent2Status = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
+      )
       expect(agent2Status.length).toEqual(2)
     })
   })

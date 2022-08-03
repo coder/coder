@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
 type workspaceResourceParamContextKey struct{}
@@ -33,13 +34,13 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			}
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), resourceUUID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 					Message: "Resource doesn't exist with that id.",
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching provisioner resource.",
 					Detail:  err.Error(),
 				})
@@ -48,21 +49,21 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error provisioner job.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Workspace resources can only be fetched for builds.",
 				})
 				return
 			}
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error workspace build.",
 					Detail:  err.Error(),
 				})

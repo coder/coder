@@ -14,7 +14,10 @@ export interface UserDropdownProps {
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: UserDropdownProps) => {
+export const UserDropdown: React.FC<UserDropdownProps> = ({
+  user,
+  onSignOut,
+}: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -27,7 +30,11 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
   return (
     <>
-      <MenuItem className={styles.menuItem} onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
+      <MenuItem
+        className={styles.menuItem}
+        onClick={handleDropdownClick}
+        data-testid="user-dropdown-trigger"
+      >
         <div className={styles.inner}>
           <Badge overlap="circle">
             <UserAvatar username={user.username} />
@@ -76,7 +83,7 @@ export const useStyles = makeStyles((theme) => ({
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.light, 0.05),
       transition: "background-color 0.3s ease",
     },
   },

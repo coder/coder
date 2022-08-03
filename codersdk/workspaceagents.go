@@ -20,9 +20,9 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -188,7 +188,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -252,6 +252,97 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	return agentMetadata, listener, json.NewDecoder(res.Body).Decode(&agentMetadata)
 }
 
+// PostWireguardPeer announces your public keys and IPv6 address to the
+// specified recipient.
+func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, peerMsg peerwg.Handshake) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer?workspace=%s",
+		peerMsg.Recipient,
+		workspaceID.String(),
+	), peerMsg)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+
+	_, _ = io.Copy(io.Discard, res.Body)
+	return nil
+}
+
+// WireguardPeerListener listens for wireguard peer messages. Peer messages are
+// sent when a new client wants to connect. Once receiving a peer message, the
+// peer should be added to the NetworkMap of the wireguard interface.
+func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/wireguardlisten")
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, xerrors.Errorf("websocket dial: %w", err)
+		}
+		return nil, nil, readBodyAsError(res)
+	}
+
+	ch := make(chan peerwg.Handshake, 1)
+	go func() {
+		defer conn.Close(websocket.StatusGoingAway, "")
+		defer close(ch)
+
+		for {
+			_, message, err := conn.Read(ctx)
+			if err != nil {
+				break
+			}
+
+			var msg peerwg.Handshake
+			err = msg.UnmarshalText(message)
+			if err != nil {
+				logger.Error(ctx, "unmarshal wireguard peer message", slog.Error(err))
+				continue
+			}
+
+			ch <- msg
+		}
+	}()
+
+	return ch, func() { _ = conn.Close(websocket.StatusGoingAway, "") }, nil
+}
+
+// UploadWorkspaceAgentKeys uploads the public keys of the workspace agent that
+// were generated on startup. These keys are used by clients to communicate with
+// the workspace agent over the wireguard interface.
+func (c *Client) UploadWorkspaceAgentKeys(ctx context.Context, keys agent.WireguardPublicKeys) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/keys", keys)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // DialWorkspaceAgent creates a connection to the specified resource.
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (*agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
@@ -263,7 +354,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -351,7 +442,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.SessionTokenKey,
+		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{

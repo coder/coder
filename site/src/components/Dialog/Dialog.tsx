@@ -2,7 +2,7 @@ import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dial
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import OutlinedInput, { OutlinedInputProps } from "@material-ui/core/OutlinedInput"
-import { darken, fade, makeStyles } from "@material-ui/core/styles"
+import { darken, fade, lighten, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
@@ -90,7 +90,7 @@ const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
 }
 
 /**
- * Quickly handels most modals actions, some combination of a cancel and confirm button
+ * Quickly handles most modals actions, some combination of a cancel and confirm button
  */
 export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   cancelText = "Cancel",
@@ -162,7 +162,8 @@ const useButtonStyles = makeStyles((theme) => ({
     },
   },
   confirmDialogCancelButton: (props: StyleProps) => {
-    const color = props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
+    const color =
+      props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
     return {
       background: fade(color, 0.15),
       color,
@@ -199,10 +200,10 @@ const useButtonStyles = makeStyles((theme) => ({
   },
   errorButton: {
     "&.MuiButton-contained": {
-      backgroundColor: theme.palette.error.main,
+      backgroundColor: lighten(theme.palette.error.dark, 0.15),
       color: theme.palette.error.contrastText,
       "&:hover": {
-        backgroundColor: darken(theme.palette.error.main, 0.3),
+        backgroundColor: theme.palette.error.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -299,7 +300,10 @@ const useButtonStyles = makeStyles((theme) => ({
   },
 }))
 
-export type DialogSearchProps = Omit<OutlinedInputProps, "className" | "fullWidth" | "labelWidth" | "startAdornment">
+export type DialogSearchProps = Omit<
+  OutlinedInputProps,
+  "className" | "fullWidth" | "labelWidth" | "startAdornment"
+>
 
 /**
  * Formats a search bar right below the title of a Dialog. Passes all props

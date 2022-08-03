@@ -34,6 +34,7 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
+ORDER BY (created_at, id) ASC
 ;
 
 -- name: GetTemplateByOrganizationAndName :one
@@ -49,7 +50,9 @@ LIMIT
 	1;
 
 -- name: GetTemplates :many
-SELECT * FROM templates;
+SELECT * FROM templates
+ORDER BY (created_at, id) ASC
+;
 
 -- name: InsertTemplate :one
 INSERT INTO
@@ -73,7 +76,8 @@ VALUES
 UPDATE
 	templates
 SET
-	active_version_id = $2
+	active_version_id = $2,
+	updated_at = $3
 WHERE
 	id = $1;
 
@@ -81,7 +85,8 @@ WHERE
 UPDATE
 	templates
 SET
-	deleted = $2
+	deleted = $2,
+	updated_at = $3
 WHERE
 	id = $1;
 
