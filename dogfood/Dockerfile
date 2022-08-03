@@ -149,6 +149,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       crun \
       podman \
       skopeo \
+      fish \
       gh && \
     # Delete package cache to avoid consuming space in layer
     apt-get clean && \
