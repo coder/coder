@@ -222,11 +222,11 @@ func TestInstanceIDAssociation(t *testing.T) {
 	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_linux_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_windows_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}} {
 		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
