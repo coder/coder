@@ -91,25 +91,23 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
           </Stack>
         </PageHeaderTitle>
         {props.templates && props.templates.length > 0 && (
-          <>
-            <PageHeaderSubtitle>
-              Choose a template to create a new workspace
-              {props.canCreateTemplate ? (
-                <>
-                  , or{" "}
-                  <Link
-                    href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
-                    target="_blank"
-                  >
-                    manage templates
-                  </Link>{" "}
-                  from the CLI.
-                </>
-              ) : (
-                "."
-              )}
-            </PageHeaderSubtitle>
-          </>
+          <PageHeaderSubtitle>
+            Choose a template to create a new workspace
+            {props.canCreateTemplate ? (
+              <>
+                , or{" "}
+                <Link
+                  href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
+                  target="_blank"
+                >
+                  manage templates
+                </Link>{" "}
+                from the CLI.
+              </>
+            ) : (
+              "."
+            )}
+          </PageHeaderSubtitle>
         )}
       </PageHeader>
 
