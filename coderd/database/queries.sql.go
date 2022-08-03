@@ -4685,6 +4685,26 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const updateWorkspace = `-- name: UpdateWorkspace :exec
+UPDATE
+	workspaces
+SET
+	name = $2
+WHERE
+	id = $1
+	AND deleted = false
+`
+
+type UpdateWorkspaceParams struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspace, arg.ID, arg.Name)
+	return err
+}
+
 const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec
 UPDATE
 	workspaces

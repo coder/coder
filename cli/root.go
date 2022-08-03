@@ -79,6 +79,7 @@ func Core() []*cobra.Command {
 		start(),
 		state(),
 		stop(),
+		rename(),
 		templates(),
 		update(),
 		users(),

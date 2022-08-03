@@ -371,6 +371,11 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceRequest {
+  readonly name?: string
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
