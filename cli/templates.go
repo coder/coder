@@ -41,6 +41,7 @@ func templates() *cobra.Command {
 		templateVersions(),
 		templateDelete(),
 		templatePull(),
+		templateCheckout(),
 	)
 
 	return cmd
