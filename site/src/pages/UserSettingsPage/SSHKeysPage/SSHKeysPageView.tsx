@@ -53,9 +53,7 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
         <>
           <CodeExample code={sshKey.public_key.trim()} />
           <div>
-            <Button variant="outlined" onClick={onRegenerateClick}>
-              {Language.regenerateLabel}
-            </Button>
+            <Button onClick={onRegenerateClick}>{Language.regenerateLabel}</Button>
           </div>
         </>
       )}
