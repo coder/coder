@@ -6,8 +6,10 @@ import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
 import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
+import Switch from "@material-ui/core/Switch"
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Section } from "components/Section/Section"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -15,6 +17,8 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
+import { AutoStart } from "pages/WorkspacesPage/schedule"
+import { AutoStop } from "pages/WorkspacesPage/ttl"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError } from "../../util/formUtils"
@@ -55,7 +59,10 @@ export const Language = {
 
 export interface WorkspaceScheduleFormProps {
   submitScheduleError?: Error | unknown
-  initialValues?: WorkspaceScheduleFormValues
+  autoStart: AutoStart
+  toggleAutoStart: () => void
+  autoStop: AutoStop
+  toggleAutoStop: () => void
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -160,37 +167,23 @@ export const validationSchema = Yup.object({
     .max(24 * 7 /* 7 days */),
 })
 
-export const defaultWorkspaceScheduleTTL = 8
-
-export const defaultWorkspaceSchedule = (
-  ttl = defaultWorkspaceScheduleTTL,
-  timezone = dayjs.tz.guess(),
-): WorkspaceScheduleFormValues => ({
-  sunday: false,
-  monday: true,
-  tuesday: true,
-  wednesday: true,
-  thursday: true,
-  friday: true,
-  saturday: false,
-
-  startTime: "09:30",
-  timezone,
-  ttl,
-})
-
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
-  initialValues = defaultWorkspaceSchedule(),
+  autoStart,
+  toggleAutoStart,
+  autoStop,
+  toggleAutoStop,
   isLoading,
   onCancel,
   onSubmit,
   initialTouched,
 }) => {
   const styles = useStyles()
+  const initialValues = { ...autoStart.schedule, ttl: autoStop.ttl }
 
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
+    enableReinitialize: true,
     onSubmit,
     validationSchema,
     initialTouched,
@@ -215,67 +208,82 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
-          <TextField
-            {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={isLoading}
-            InputLabelProps={{
-              shrink: true,
-            }}
-            label={Language.startTimeLabel}
-            type="time"
-          />
+          <Section title="Start">
+            <FormControlLabel
+              control={<Switch checked={autoStart.enabled} onChange={toggleAutoStart} />}
+              label="Auto-start"
+            />
+            <TextField
+              {...formHelpers("startTime", Language.startTimeHelperText)}
+              disabled={isLoading || !autoStart.enabled}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              label={Language.startTimeLabel}
+              type="time"
+              fullWidth
+            />
 
-          <TextField
-            {...formHelpers("timezone")}
-            disabled={isLoading}
-            InputLabelProps={{
-              shrink: true,
-            }}
-            label={Language.timezoneLabel}
-            select
-          >
-            {zones.map((zone) => (
-              <MenuItem key={zone} value={zone}>
-                {zone}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-            <FormLabel className={styles.daysOfWeekLabel} component="legend">
-              {Language.daysOfWeekLabel}
-            </FormLabel>
-
-            <FormGroup>
-              {checkboxes.map((checkbox) => (
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={checkbox.value}
-                      disabled={isLoading}
-                      onChange={form.handleChange}
-                      name={checkbox.name}
-                      color="primary"
-                      size="small"
-                      disableRipple
-                    />
-                  }
-                  key={checkbox.name}
-                  label={checkbox.label}
-                />
+            <TextField
+              {...formHelpers("timezone")}
+              disabled={isLoading || !autoStart.enabled}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              label={Language.timezoneLabel}
+              select
+              fullWidth
+            >
+              {zones.map((zone) => (
+                <MenuItem key={zone} value={zone}>
+                  {zone}
+                </MenuItem>
               ))}
-            </FormGroup>
+            </TextField>
 
-            {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
-          </FormControl>
+            <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
+              <FormLabel className={styles.daysOfWeekLabel} component="legend">
+                {Language.daysOfWeekLabel}
+              </FormLabel>
 
-          <TextField
-            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
-            disabled={isLoading}
-            inputProps={{ min: 0, step: 1 }}
-            label={Language.ttlLabel}
-            type="number"
-          />
+              <FormGroup>
+                {checkboxes.map((checkbox) => (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={checkbox.value}
+                        disabled={isLoading || !autoStart.enabled}
+                        onChange={form.handleChange}
+                        name={checkbox.name}
+                        color="primary"
+                        size="small"
+                        disableRipple
+                      />
+                    }
+                    key={checkbox.name}
+                    label={checkbox.label}
+                  />
+                ))}
+              </FormGroup>
+
+              {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
+            </FormControl>
+          </Section>
+
+          <Section title="Stop">
+            <FormControlLabel
+              control={<Switch checked={autoStop.enabled} onChange={toggleAutoStop} />}
+              label="Auto-stop"
+            />
+            <TextField
+              {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
+              disabled={isLoading || !autoStop.enabled}
+              inputProps={{ min: 0, step: 1 }}
+              label={Language.ttlLabel}
+              type="number"
+              fullWidth
+            />
+          </Section>
 
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </Stack>
