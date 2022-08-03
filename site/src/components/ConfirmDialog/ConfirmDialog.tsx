@@ -78,7 +78,7 @@ const useStyles = makeStyles((theme) => ({
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
  */
-export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
+export const ConfirmDialog: React.FC<React.PropsWithChildren<ConfirmDialogProps>> = ({
   cancelText,
   confirmLoading,
   confirmText,

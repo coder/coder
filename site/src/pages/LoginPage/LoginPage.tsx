@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { Navigate, useLocation } from "react-router-dom"
 import { Footer } from "../../components/Footer/Footer"
 import { LoginErrors, SignInForm } from "../../components/SignInForm/SignInForm"

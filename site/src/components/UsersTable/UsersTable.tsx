@@ -26,7 +26,7 @@ export interface UsersTableProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTable: FC<UsersTableProps> = ({
+export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   users,
   roles,
   onSuspendUser,

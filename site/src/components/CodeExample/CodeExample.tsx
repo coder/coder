@@ -13,7 +13,11 @@ export interface CodeExampleProps {
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({ code, className, buttonClassName }) => {
+export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
+  code,
+  className,
+  buttonClassName,
+}) => {
   const styles = useStyles()
 
   return (

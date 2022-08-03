@@ -23,7 +23,7 @@ export interface VersionsTableProps {
   versions?: TypesGen.TemplateVersion[]
 }
 
-export const VersionsTable: FC<VersionsTableProps> = ({ versions }) => {
+export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({ versions }) => {
   const isLoading = !versions
   const theme: Theme = useTheme()
 

@@ -179,7 +179,7 @@ export const defaultWorkspaceSchedule = (
   ttl,
 })
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceScheduleFormProps>> = ({
   submitScheduleError,
   initialValues = defaultWorkspaceSchedule(),
   isLoading,
@@ -214,70 +214,72 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <FullPageForm onCancel={onCancel} title="Workspace schedule">
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
-          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
-          <TextField
-            {...formHelpers("startTime", Language.startTimeHelperText)}
-            disabled={isLoading}
-            InputLabelProps={{
-              shrink: true,
-            }}
-            label={Language.startTimeLabel}
-            type="time"
-          />
+          <>
+            {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
+            <TextField
+              {...formHelpers("startTime", Language.startTimeHelperText)}
+              disabled={isLoading}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              label={Language.startTimeLabel}
+              type="time"
+            />
 
-          <TextField
-            {...formHelpers("timezone")}
-            disabled={isLoading}
-            InputLabelProps={{
-              shrink: true,
-            }}
-            label={Language.timezoneLabel}
-            select
-          >
-            {zones.map((zone) => (
-              <MenuItem key={zone} value={zone}>
-                {zone}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-            <FormLabel className={styles.daysOfWeekLabel} component="legend">
-              {Language.daysOfWeekLabel}
-            </FormLabel>
-
-            <FormGroup>
-              {checkboxes.map((checkbox) => (
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={checkbox.value}
-                      disabled={isLoading}
-                      onChange={form.handleChange}
-                      name={checkbox.name}
-                      color="primary"
-                      size="small"
-                      disableRipple
-                    />
-                  }
-                  key={checkbox.name}
-                  label={checkbox.label}
-                />
+            <TextField
+              {...formHelpers("timezone")}
+              disabled={isLoading}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              label={Language.timezoneLabel}
+              select
+            >
+              {zones.map((zone) => (
+                <MenuItem key={zone} value={zone}>
+                  {zone}
+                </MenuItem>
               ))}
-            </FormGroup>
+            </TextField>
 
-            {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
-          </FormControl>
+            <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
+              <FormLabel className={styles.daysOfWeekLabel} component="legend">
+                {Language.daysOfWeekLabel}
+              </FormLabel>
 
-          <TextField
-            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
-            disabled={isLoading}
-            inputProps={{ min: 0, step: 1 }}
-            label={Language.ttlLabel}
-            type="number"
-          />
+              <FormGroup>
+                {checkboxes.map((checkbox) => (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={checkbox.value}
+                        disabled={isLoading}
+                        onChange={form.handleChange}
+                        name={checkbox.name}
+                        color="primary"
+                        size="small"
+                        disableRipple
+                      />
+                    }
+                    key={checkbox.name}
+                    label={checkbox.label}
+                  />
+                ))}
+              </FormGroup>
 
-          <FormFooter onCancel={onCancel} isLoading={isLoading} />
+              {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
+            </FormControl>
+
+            <TextField
+              {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
+              disabled={isLoading}
+              inputProps={{ min: 0, step: 1 }}
+              label={Language.ttlLabel}
+              type="number"
+            />
+
+            <FormFooter onCancel={onCancel} isLoading={isLoading} />
+          </>
         </Stack>
       </form>
     </FullPageForm>

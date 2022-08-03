@@ -26,7 +26,7 @@ interface BorderedMenuRowProps {
   onClick?: () => void
 }
 
-export const BorderedMenuRow: FC<BorderedMenuRowProps> = ({
+export const BorderedMenuRow: FC<React.PropsWithChildren<BorderedMenuRowProps>> = ({
   active,
   description,
   Icon,

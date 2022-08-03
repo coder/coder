@@ -13,7 +13,7 @@ namespace Helpers {
     onPrimaryTextSelect: jest.fn(),
   }
 
-  export const Component: FC<UserCellProps> = (props) => (
+  export const Component: FC<React.PropsWithChildren<UserCellProps>> = (props) => (
     <WrapperComponent>
       <UserCell {...props} />
     </WrapperComponent>

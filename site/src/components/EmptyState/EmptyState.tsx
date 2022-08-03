@@ -23,7 +23,7 @@ export interface EmptyStateProps {
  * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
  * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: FC<EmptyStateProps> = (props) => {
+export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (props) => {
   const { message, description, cta, descriptionClassName, className, ...boxProps } = props
   const styles = useStyles()
 

@@ -33,7 +33,7 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({
+export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
   getResourcesError,
   workspace,
@@ -45,7 +45,7 @@ export const Resources: FC<ResourcesProps> = ({
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
       {getResourcesError ? (
-        { getResourcesError }
+        getResourcesError.message
       ) : (
         <TableContainer className={styles.tableContainer}>
           <Table>

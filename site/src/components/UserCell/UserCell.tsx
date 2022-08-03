@@ -35,7 +35,7 @@ const useStyles = makeStyles((theme) => ({
  * UserCell is a single cell in an audit log table row that contains user-level
  * information
  */
-export const UserCell: FC<UserCellProps> = ({
+export const UserCell: FC<React.PropsWithChildren<UserCellProps>> = ({
   Avatar,
   caption,
   primaryText,

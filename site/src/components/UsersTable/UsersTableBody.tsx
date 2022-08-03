@@ -30,7 +30,7 @@ interface UsersTableBodyProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTableBody: FC<UsersTableBodyProps> = ({
+export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = ({
   users,
   roles,
   onSuspendUser,

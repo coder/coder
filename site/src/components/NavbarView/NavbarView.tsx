@@ -23,7 +23,9 @@ export const Language = {
   users: "Users",
 }
 
-const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ className }) => {
+const NavItems: React.FC<
+  React.PropsWithChildren<{ className?: string; linkClassName?: string }>
+> = ({ className }) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -51,7 +53,10 @@ const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ cl
   )
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
+  user,
+  onSignOut,
+}) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 

@@ -16,7 +16,7 @@ interface CopyButtonProps {
 /**
  * Copy button used inside the CodeBlock component internally
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({
+export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
   text,
   ctaCopy,
   wrapperClassName = "",

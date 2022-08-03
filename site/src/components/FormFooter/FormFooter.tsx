@@ -28,7 +28,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormFooter: FC<FormFooterProps> = ({
+export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
   onCancel,
   isLoading,
   submitLabel = Language.defaultSubmitLabel,

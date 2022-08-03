@@ -68,7 +68,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateSecurityError && <ErrorSummary error={updateSecurityError} />}
+          {updateSecurityError ? <ErrorSummary error={updateSecurityError} /> : <></>}
           <TextField
             {...getFieldHelpers("old_password")}
             onChange={onChangeTrimmed(form)}

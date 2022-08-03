@@ -16,7 +16,7 @@ export interface RoleSelectProps {
   open?: boolean
 }
 
-export const RoleSelect: FC<RoleSelectProps> = ({
+export const RoleSelect: FC<React.PropsWithChildren<RoleSelectProps>> = ({
   roles,
   selectedRoles,
   loading,

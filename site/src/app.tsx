@@ -1,6 +1,7 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { FC } from "react"
+import { HelmetProvider } from "react-helmet-async"
 import { BrowserRouter as Router } from "react-router-dom"
 import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
@@ -31,15 +32,17 @@ export const App: FC = () => {
           },
         }}
       >
-        <ThemeProvider theme={dark}>
-          <CssBaseline />
-          <ErrorBoundary>
-            <XServiceProvider>
-              <AppRouter />
-              <GlobalSnackbar />
-            </XServiceProvider>
-          </ErrorBoundary>
-        </ThemeProvider>
+        <HelmetProvider>
+          <ThemeProvider theme={dark}>
+            <CssBaseline />
+            <ErrorBoundary>
+              <XServiceProvider>
+                <AppRouter />
+                <GlobalSnackbar />
+              </XServiceProvider>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </HelmetProvider>
       </SWRConfig>
     </Router>
   )

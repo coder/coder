@@ -8,7 +8,7 @@ export interface CliAuthTokenProps {
   sessionToken: string
 }
 
-export const CliAuthToken: FC<CliAuthTokenProps> = ({ sessionToken }) => {
+export const CliAuthToken: FC<React.PropsWithChildren<CliAuthTokenProps>> = ({ sessionToken }) => {
   const styles = useStyles()
   return (
     <Paper className={styles.container}>

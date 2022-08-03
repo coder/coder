@@ -16,7 +16,7 @@ export const Language = {
   cancelLabel: "Cancel",
 }
 
-export const SSHKeysPage: React.FC = () => {
+export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { sshKey, getSSHKeyError, regenerateSSHKeyError } = authState.context

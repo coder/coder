@@ -26,7 +26,7 @@ export interface TerminalLinkProps {
  * If no user name is provided "me" is used however it makes the link not
  * shareable.
  */
-export const TerminalLink: FC<TerminalLinkProps> = ({
+export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   agentName,
   userName = "me",
   workspaceName,

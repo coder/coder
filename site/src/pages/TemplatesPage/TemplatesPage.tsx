@@ -1,6 +1,6 @@
 import { useActor, useMachine } from "@xstate/react"
 import React, { useContext } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 import { templatesMachine } from "../../xServices/templates/templatesXService"

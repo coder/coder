@@ -14,7 +14,7 @@ export interface WorkspaceSectionProps {
   title?: string
 }
 
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
+export const WorkspaceSection: React.FC<React.PropsWithChildren<WorkspaceSectionProps>> = ({
   action,
   children,
   contentsProps,

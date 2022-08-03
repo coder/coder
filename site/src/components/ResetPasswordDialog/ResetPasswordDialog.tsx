@@ -24,7 +24,7 @@ export const Language = {
   confirmText: "Reset password",
 }
 
-export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
+export const ResetPasswordDialog: FC<React.PropsWithChildren<ResetPasswordDialogProps>> = ({
   open,
   onClose,
   onConfirm,

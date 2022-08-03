@@ -8,12 +8,15 @@ export interface TableHeadersProps {
   hasMenu?: boolean
 }
 
-export const TableHeaderRow: FC = ({ children }) => {
+export const TableHeaderRow: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
   return <TableRow className={styles.root}>{children}</TableRow>
 }
 
-export const TableHeaders: FC<TableHeadersProps> = ({ columns, hasMenu }) => {
+export const TableHeaders: FC<React.PropsWithChildren<TableHeadersProps>> = ({
+  columns,
+  hasMenu,
+}) => {
   return (
     <TableHeaderRow>
       {columns.map((c, idx) => (

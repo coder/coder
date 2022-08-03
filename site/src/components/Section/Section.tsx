@@ -17,7 +17,7 @@ export interface SectionProps {
   children?: React.ReactNode
 }
 
-type SectionFC = FC<SectionProps> & { Action: typeof SectionAction }
+type SectionFC = FC<React.PropsWithChildren<SectionProps>> & { Action: typeof SectionAction }
 
 export const Section: SectionFC = ({
   title,

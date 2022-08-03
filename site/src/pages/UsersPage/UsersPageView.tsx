@@ -32,7 +32,7 @@ export interface UsersPageViewProps {
   onFilter: (query: string) => void
 }
 
-export const UsersPageView: FC<UsersPageViewProps> = ({
+export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   users,
   roles,
   openUserCreationDialog,

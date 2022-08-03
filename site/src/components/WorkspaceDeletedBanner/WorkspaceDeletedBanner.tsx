@@ -16,7 +16,7 @@ export interface WorkspaceDeletedBannerProps {
   handleClick: () => void
 }
 
-export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
+export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeletedBannerProps>> = ({
   workspace,
   handleClick,
 }) => {

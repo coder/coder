@@ -1,6 +1,6 @@
 import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"

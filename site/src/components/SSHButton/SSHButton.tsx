@@ -13,7 +13,7 @@ export interface SSHButtonProps {
   defaultIsOpen?: boolean
 }
 
-export const SSHButton: React.FC<SSHButtonProps> = ({
+export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
   defaultIsOpen = false,

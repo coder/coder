@@ -1,6 +1,6 @@
 import { useActor, useSelector } from "@xstate/react"
 import React, { useContext } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import * as TypesGen from "../../../api/typesGenerated"
 import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"

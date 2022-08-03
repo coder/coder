@@ -23,7 +23,7 @@ export interface ErrorSummaryProps {
   defaultMessage?: string
 }
 
-export const ErrorSummary: FC<ErrorSummaryProps> = ({
+export const ErrorSummary: FC<React.PropsWithChildren<ErrorSummaryProps>> = ({
   error,
   retry,
   dismissible,

@@ -1,14 +1,14 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext, useEffect, useState } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { getApiKey } from "../../api/api"
 import { CliAuthToken } from "../../components/CliAuthToken/CliAuthToken"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 
-export const CliAuthenticationPage: React.FC = () => {
+export const CliAuthenticationPage: React.FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
