@@ -86,6 +86,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
+
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
@@ -97,9 +98,6 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		// Read output to prevent hang on macOS, see:
-		// https://github.com/coder/coder/issues/2122
-		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 	t.Run("Stdio", func(t *testing.T) {
