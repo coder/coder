@@ -101,11 +101,6 @@ export const Canceled = Template.bind({})
 Canceled.args = {
   ...Started.args,
   workspace: Mocks.MockCanceledWorkspace,
-  workspaceErrors: {
-    [WorkspaceErrors.CANCELLATION_MESSAGE]: Mocks.makeMockApiError({
-      message: "Job has been marked as canceled...",
-    }),
-  },
 }
 
 export const Outdated = Template.bind({})
@@ -130,6 +125,16 @@ GetResourcesError.args = {
   workspaceErrors: {
     [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
       message: "There is a problem fetching workspace resources.",
+    }),
+  },
+}
+
+export const CancellationError = Template.bind({})
+CancellationError.args = {
+  ...Error.args,
+  workspaceErrors: {
+    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
+      message: "Job could not be canceled.",
     }),
   },
 }

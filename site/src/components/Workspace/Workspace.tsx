@@ -20,7 +20,7 @@ export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
   GET_BUILDS_ERROR = "getBuildsError",
   BUILD_ERROR = "buildError",
-  CANCELLATION_MESSAGE = "cancellationMessage",
+  CANCELLATION_ERROR = "cancellationError",
 }
 
 export interface WorkspaceProps {
@@ -70,8 +70,8 @@ export const Workspace: FC<WorkspaceProps> = ({
         {workspaceErrors[WorkspaceErrors.BUILD_ERROR] && (
           <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
         )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_MESSAGE] && (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_MESSAGE]} dismissible />
+        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] && (
+          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
         )}
       </Stack>
       <PageHeader

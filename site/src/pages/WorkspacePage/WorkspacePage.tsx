@@ -42,7 +42,7 @@ export const WorkspacePage: React.FC = () => {
     permissions,
     checkPermissionsError,
     buildError,
-    cancellationMessage,
+    cancellationError,
   } = workspaceState.context
 
   const canUpdateWorkspace = !!permissions?.updateWorkspace
@@ -124,7 +124,7 @@ export const WorkspacePage: React.FC = () => {
             [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
             [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
             [WorkspaceErrors.BUILD_ERROR]: buildError,
-            [WorkspaceErrors.CANCELLATION_MESSAGE]: cancellationMessage,
+            [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
         />
         <DeleteWorkspaceDialog
