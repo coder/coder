@@ -258,7 +258,11 @@ export const workspaceMachine = createMachine(
                   src: "cancelWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: ["assignCancellationMessage", "displayCancellationMessage", "refreshTimeline"],
+                    actions: [
+                      "assignCancellationMessage",
+                      "displayCancellationMessage",
+                      "refreshTimeline",
+                    ],
                   },
                   onError: {
                     target: "idle",
