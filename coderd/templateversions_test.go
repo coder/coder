@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -851,10 +852,22 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		})
 	}
 	err := eg.Wait()
-	require.NoError(t, err)
+	require.NoError(t, err, "create templates failed")
 
-	for _, id := range templateVersionIDs {
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, id)
+	for i := 0; i < len(templateVersionIDs); i++ {
+		// We don't use coderdtest.AwaitTemplateVersionJob here because
+		// we can't control the timeouts, the concurrent creations take
+		// a while.
+		templateVersion, err := client.TemplateVersion(ctx, templateVersionIDs[i])
+		if err == nil && templateVersion.Job.CompletedAt != nil {
+			break
+		}
+		if xerrors.Is(err, context.DeadlineExceeded) {
+			require.NoError(t, err, "template version %d not created in time", i)
+		}
+		// Retry.
+		time.Sleep(25 * time.Millisecond)
+		i--
 	}
 
 	templateVersions, err := client.TemplateVersionsByTemplate(ctx,
