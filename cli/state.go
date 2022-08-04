@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -50,7 +51,7 @@ func statePull() *cobra.Command {
 			}
 
 			if len(args) < 2 {
-				cmd.Println(string(state))
+				fmt.Fprintln(cmd.OutOrStdout(), string(state))
 				return nil
 			}
 
