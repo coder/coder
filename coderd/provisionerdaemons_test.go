@@ -27,11 +27,15 @@ func TestProvisionerDaemons(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		data := make([]byte, provisionersdk.MaxMessageSize)
 		rand.Read(data)
-		resp, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 		t.Log(resp.Hash)
 
-		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: resp.Hash,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
@@ -39,7 +43,7 @@ func TestProvisionerDaemons(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
-			version, err = client.TemplateVersion(context.Background(), version.ID)
+			version, err = client.TemplateVersion(ctx, version.ID)
 			return assert.NoError(t, err) && version.Job.Error != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
@@ -50,7 +54,11 @@ func TestProvisionerDaemonsByOrganization(t *testing.T) {
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.ProvisionerDaemons(context.Background())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.ProvisionerDaemons(ctx)
 		require.Error(t, err)
 	})
 
@@ -58,7 +66,11 @@ func TestProvisionerDaemonsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.ProvisionerDaemons(context.Background())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.ProvisionerDaemons(ctx)
 		require.NoError(t, err)
 	})
 }
