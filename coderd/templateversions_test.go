@@ -866,7 +866,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			require.NoError(t, err, "template version %d not created in time", i)
 		}
 		// Retry.
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(testutil.IntervalMedium)
 		i--
 	}
 
