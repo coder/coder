@@ -860,7 +860,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		// a while.
 		templateVersion, err := client.TemplateVersion(ctx, templateVersionIDs[i])
 		if err == nil && templateVersion.Job.CompletedAt != nil {
-			break
+			continue
 		}
 		if xerrors.Is(err, context.DeadlineExceeded) {
 			require.NoError(t, err, "template version %d not created in time", i)
