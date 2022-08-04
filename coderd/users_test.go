@@ -1096,7 +1096,7 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test can take longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*4)
 	defer cancel()
 
 	me, err := client.User(ctx, codersdk.Me)
@@ -1105,7 +1105,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	// When 100 users exist
 	total := 100
-	allUsers := make([]codersdk.User, total+1)
+	allUsers := make([]codersdk.User, total+1) // +1 forme
 	allUsers[0] = me
 	specialUsers := make([]codersdk.User, total/2)
 
@@ -1180,6 +1180,10 @@ func TestPaginatedUsers(t *testing.T) {
 func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest,
 ) {
+	// Ensure any single assertion doesn't take too long.s
+	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)
+	defer cancel()
+
 	var count int
 	if opt == nil {
 		opt = func(request codersdk.UsersRequest) codersdk.UsersRequest {
