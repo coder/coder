@@ -1095,8 +1095,8 @@ func TestPaginatedUsers(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
 	coderdtest.CreateFirstUser(t, client)
 
-	// This test can take longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*4)
+	// This test takes longer than a long time.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
 	defer cancel()
 
 	me, err := client.User(ctx, codersdk.Me)
@@ -1153,25 +1153,41 @@ func TestPaginatedUsers(t *testing.T) {
 	sortUsers(allUsers)
 	sortUsers(specialUsers)
 
-	assertPagination(ctx, t, client, 10, allUsers, nil)
-	assertPagination(ctx, t, client, 5, allUsers, nil)
-	assertPagination(ctx, t, client, 3, allUsers, nil)
-	assertPagination(ctx, t, client, 1, allUsers, nil)
-
-	// Try a search
 	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "gmail"
 		return request
 	}
-	assertPagination(ctx, t, client, 3, specialUsers, gmailSearch)
-	assertPagination(ctx, t, client, 7, specialUsers, gmailSearch)
-
 	usernameSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "specialuser"
 		return request
 	}
-	assertPagination(ctx, t, client, 3, specialUsers, usernameSearch)
-	assertPagination(ctx, t, client, 1, specialUsers, usernameSearch)
+
+	tests := []struct {
+		name     string
+		limit    int
+		allUsers []codersdk.User
+		opt      func(request codersdk.UsersRequest) codersdk.UsersRequest
+	}{
+		{name: "all users", limit: 10, allUsers: allUsers},
+		{name: "all users", limit: 5, allUsers: allUsers},
+		{name: "all users", limit: 3, allUsers: allUsers},
+		{name: "all users", limit: 1, allUsers: allUsers},
+		{name: "gmail search", limit: 3, allUsers: specialUsers, opt: gmailSearch},
+		{name: "gmail search", limit: 7, allUsers: specialUsers, opt: gmailSearch},
+		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
+		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			assertPagination(ctx, t, client, tt.limit, tt.allUsers, tt.opt)
+		})
+	}
 }
 
 // Assert pagination will page through the list of all users using the given
@@ -1180,10 +1196,6 @@ func TestPaginatedUsers(t *testing.T) {
 func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest,
 ) {
-	// Ensure any single assertion doesn't take too long.s
-	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)
-	defer cancel()
-
 	var count int
 	if opt == nil {
 		opt = func(request codersdk.UsersRequest) codersdk.UsersRequest {
