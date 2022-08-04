@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -815,25 +816,45 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	// This test takes longer than a long time.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
 	defer cancel()
 
 	// Populate database with template versions.
 	total := 9
+	eg, egCtx := errgroup.WithContext(ctx)
+	templateVersionIDs := make([]uuid.UUID, total)
 	for i := 0; i < total; i++ {
-		data, err := echo.Tar(nil)
-		require.NoError(t, err)
-		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
-		require.NoError(t, err)
-		templateVersion, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			TemplateID:    template.ID,
-			StorageSource: file.Hash,
-			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			Provisioner:   codersdk.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
+		i := i
+		eg.Go(func() error {
+			data, err := echo.Tar(nil)
+			if err != nil {
+				return err
+			}
+			file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
+			if err != nil {
+				return err
+			}
+			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				TemplateID:    template.ID,
+				StorageSource: file.Hash,
+				StorageMethod: codersdk.ProvisionerStorageMethodFile,
+				Provisioner:   codersdk.ProvisionerTypeEcho,
+			})
+			if err != nil {
+				return err
+			}
 
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			templateVersionIDs[i] = templateVersion.ID
+
+			return nil
+		})
+	}
+	err := eg.Wait()
+	require.NoError(t, err)
+
+	for _, id := range templateVersionIDs {
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, id)
 	}
 
 	templateVersions, err := client.TemplateVersionsByTemplate(ctx,
