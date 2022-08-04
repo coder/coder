@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
@@ -1102,38 +1103,48 @@ func TestPaginatedUsers(t *testing.T) {
 	require.NoError(t, err)
 	orgID := me.OrganizationIDs[0]
 
-	allUsers := make([]codersdk.User, 0)
-	allUsers = append(allUsers, me)
-	specialUsers := make([]codersdk.User, 0)
-
 	// When 100 users exist
 	total := 100
+	allUsers := make([]codersdk.User, total+1)
+	allUsers[0] = me
+	specialUsers := make([]codersdk.User, total/2)
+
+	eg, egCtx := errgroup.WithContext(ctx)
 	// Create users
 	for i := 0; i < total; i++ {
-		email := fmt.Sprintf("%d@coder.com", i)
-		username := fmt.Sprintf("user%d", i)
-		if i%2 == 0 {
-			email = fmt.Sprintf("%d@gmail.com", i)
-			username = fmt.Sprintf("specialuser%d", i)
-		}
-		// One side effect of having to use the api vs the db calls directly, is you cannot
-		// mock time. Ideally I could pass in mocked times and space these users out.
-		//
-		// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
-		// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
-		// timestamps. The pagination goes by timestamps and uuids.
-		newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          email,
-			Username:       username,
-			Password:       "password",
-			OrganizationID: orgID,
+		i := i
+		eg.Go(func() error {
+			email := fmt.Sprintf("%d@coder.com", i)
+			username := fmt.Sprintf("user%d", i)
+			if i%2 == 0 {
+				email = fmt.Sprintf("%d@gmail.com", i)
+				username = fmt.Sprintf("specialuser%d", i)
+			}
+			// One side effect of having to use the api vs the db calls directly, is you cannot
+			// mock time. Ideally I could pass in mocked times and space these users out.
+			//
+			// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
+			// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
+			// timestamps. The pagination goes by timestamps and uuids.
+			newUser, err := client.CreateUser(egCtx, codersdk.CreateUserRequest{
+				Email:          email,
+				Username:       username,
+				Password:       "password",
+				OrganizationID: orgID,
+			})
+			if err != nil {
+				return err
+			}
+			allUsers[i+1] = newUser
+			if i%2 == 0 {
+				specialUsers[i/2] = newUser
+			}
+
+			return nil
 		})
-		require.NoError(t, err)
-		allUsers = append(allUsers, newUser)
-		if i%2 == 0 {
-			specialUsers = append(specialUsers, newUser)
-		}
 	}
+	err = eg.Wait()
+	require.NoError(t, err, "create users failed")
 
 	// Sorting the users will sort by (created_at, uuid). This is to handle
 	// the off case that created_at is identical for 2 users.
