@@ -51,7 +51,7 @@ func statePull() *cobra.Command {
 			}
 
 			if len(args) < 2 {
-				fmt.Fprintln(cmd.OutOrStdout(), string(state))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(state))
 				return nil
 			}
 
