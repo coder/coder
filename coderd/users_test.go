@@ -1177,6 +1177,7 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 	}
+	//nolint:paralleltest // Does not detect range value.
 	for _, tt := range tests {
 		tt := tt
 		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {
