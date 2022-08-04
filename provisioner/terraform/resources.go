@@ -310,6 +310,7 @@ func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Ag
 	key, isValid := map[string]string{
 		"google_compute_instance":         "instance_id",
 		"aws_instance":                    "id",
+		"aws_spot_instance_request":       "spot_instance_id",
 		"azurerm_linux_virtual_machine":   "virtual_machine_id",
 		"azurerm_windows_virtual_machine": "virtual_machine_id",
 	}[resource.Type]
