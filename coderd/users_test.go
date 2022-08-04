@@ -1183,7 +1183,8 @@ func TestPaginatedUsers(t *testing.T) {
 		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			// This test takes longer than a long time.
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
 			defer cancel()
 
 			assertPagination(ctx, t, client, tt.limit, tt.allUsers, tt.opt)

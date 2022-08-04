@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -862,9 +861,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		if err == nil && templateVersion.Job.CompletedAt != nil {
 			continue
 		}
-		if xerrors.Is(err, context.DeadlineExceeded) {
-			require.NoError(t, err, "template version %d not created in time", i)
-		}
+		require.NotErrorIs(t, err, context.DeadlineExceeded, "template version %d not created in time", i)
 		// Retry.
 		time.Sleep(testutil.IntervalMedium)
 		i--
