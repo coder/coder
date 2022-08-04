@@ -411,11 +411,11 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	require.True(t, testutil.EventuallyShort(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}))
 	return templateVersion
 }
 
@@ -425,11 +425,10 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
-		var err error
-		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
+	require.True(t, testutil.EventuallyShort(t, func() bool {
+		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}))
 	return workspaceBuild
 }
 
@@ -439,7 +438,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(t, func() bool {
+	require.True(t, testutil.EventuallyShort(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
 		if !assert.NoError(t, err) {
@@ -448,12 +447,13 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
+					t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}))
 	return resources
 }
 
