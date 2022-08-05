@@ -438,7 +438,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
-	require.True(t, testutil.EventuallyShort(t, func() bool {
+	require.True(t, testutil.EventuallyLong(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
 		if !assert.NoError(t, err) {
