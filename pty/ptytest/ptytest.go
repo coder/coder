@@ -62,7 +62,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		_ = out.closeErr(err)
 	}()
 	t.Cleanup(func() {
-		_ = out.Close
+		_ = out.Close()
 		_ = ptty.Close()
 		<-copyDone
 	})
