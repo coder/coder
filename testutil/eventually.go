@@ -35,7 +35,9 @@ func Eventually(ctx context.Context, t testing.TB, condition func(context.Contex
 			assert.NoError(t, ctx.Err(), "Eventually timed out")
 			return false
 		case <-tick:
-			assert.NoError(t, ctx.Err(), "Eventually timed out")
+			if !assert.NoError(t, ctx.Err(), "Eventually timed out") {
+				return false
+			}
 			if condition(ctx) {
 				return true
 			}
