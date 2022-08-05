@@ -39,7 +39,6 @@ func Eventually(ctx context.Context, t testing.TB, condition func() bool, tick t
 // EventuallyShort is a convenience function that runs Eventually with
 // IntervalFast and times out after WaitShort.
 func EventuallyShort(t testing.TB, condition func() bool) bool {
-	//nolint: gocritic
 	ctx, cancel := context.WithTimeout(context.Background(), WaitShort)
 	defer cancel()
 	return Eventually(ctx, t, condition, IntervalFast)
@@ -48,7 +47,6 @@ func EventuallyShort(t testing.TB, condition func() bool) bool {
 // EventuallyMedium is a convenience function that runs Eventually with
 // IntervalMedium and times out after WaitMedium.
 func EventuallyMedium(t testing.TB, condition func() bool) bool {
-	//nolint: gocritic
 	ctx, cancel := context.WithTimeout(context.Background(), WaitMedium)
 	defer cancel()
 	return Eventually(ctx, t, condition, IntervalMedium)
@@ -57,7 +55,6 @@ func EventuallyMedium(t testing.TB, condition func() bool) bool {
 // EventuallyLong is a convenience function that runs Eventually with
 // IntervalSlow and times out after WaitLong.
 func EventuallyLong(t testing.TB, condition func() bool) bool {
-	//nolint: gocritic
 	ctx, cancel := context.WithTimeout(context.Background(), WaitLong)
 	defer cancel()
 	return Eventually(ctx, t, condition, IntervalSlow)
