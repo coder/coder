@@ -6,6 +6,7 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
@@ -28,7 +29,7 @@ const Language = {
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
-  getResourcesError?: Error
+  getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
 }
@@ -45,7 +46,7 @@ export const Resources: FC<ResourcesProps> = ({
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
       {getResourcesError ? (
-        { getResourcesError }
+        <ErrorSummary error={getResourcesError} />
       ) : (
         <TableContainer className={styles.tableContainer}>
           <Table>
