@@ -19,7 +19,7 @@ func TestEventually(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		state := 0
-		condition := func() bool {
+		condition := func(_ context.Context) bool {
 			defer func() {
 				state++
 			}()
@@ -27,18 +27,18 @@ func TestEventually(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		assert.True(t, testutil.Eventually(ctx, t, condition, testutil.IntervalFast))
+		testutil.Eventually(ctx, t, condition, testutil.IntervalFast)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
-		condition := func() bool {
+		condition := func(_ context.Context) bool {
 			return false
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 		mockT := new(testing.T)
-		assert.False(t, testutil.Eventually(ctx, mockT, condition, testutil.IntervalFast))
+		testutil.Eventually(ctx, mockT, condition, testutil.IntervalFast)
 		assert.True(t, mockT.Failed())
 	})
 
@@ -47,24 +47,24 @@ func TestEventually(t *testing.T) {
 
 		panicky := func() {
 			mockT := new(testing.T)
-			condition := func() bool { return true }
-			assert.False(t, testutil.Eventually(context.Background(), mockT, condition, testutil.IntervalFast))
+			condition := func(_ context.Context) bool { return true }
+			testutil.Eventually(context.Background(), mockT, condition, testutil.IntervalFast)
 		}
 		assert.Panics(t, panicky)
 	})
 
 	t.Run("Short", func(t *testing.T) {
 		t.Parallel()
-		assert.True(t, testutil.EventuallyShort(t, func() bool { return true }))
+		testutil.EventuallyShort(t, func(_ context.Context) bool { return true })
 	})
 
 	t.Run("Medium", func(t *testing.T) {
 		t.Parallel()
-		assert.True(t, testutil.EventuallyMedium(t, func() bool { return true }))
+		testutil.EventuallyMedium(t, func(_ context.Context) bool { return true })
 	})
 
 	t.Run("Long", func(t *testing.T) {
 		t.Parallel()
-		assert.True(t, testutil.EventuallyLong(t, func() bool { return true }))
+		testutil.EventuallyLong(t, func(_ context.Context) bool { return true })
 	})
 }
