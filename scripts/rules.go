@@ -91,7 +91,7 @@ func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/testutil")
 
 	m.Match(`context.WithTimeout($ctx, $duration)`).
-		Where(m.File().Imports("testing") && !m["duration"].Text.Matches("^testutil\\.")).
+		Where(m.File().Imports("testing") && !m.File().PkgPath.Matches("testutil$") && !m["duration"].Text.Matches("^testutil\\.")).
 		At(m["duration"]).
 		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
 
