@@ -38,7 +38,6 @@ func Eventually(ctx context.Context, t testing.TB, condition func(context.Contex
 			if condition(ctx) {
 				return true
 			}
-			tick = ticker.C
 		}
 	}
 }
