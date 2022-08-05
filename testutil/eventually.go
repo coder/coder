@@ -27,7 +27,6 @@ func Eventually(ctx context.Context, t testing.TB, condition func(context.Contex
 		panic("developer error: must set deadline or timeout on ctx")
 	}
 
-	ch := make(chan bool, 1)
 	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 	for tick := ticker.C; ; {
@@ -36,11 +35,7 @@ func Eventually(ctx context.Context, t testing.TB, condition func(context.Contex
 			assert.NoError(t, ctx.Err(), "Eventually timed out")
 			return false
 		case <-tick:
-			tick = nil
-			ch <- condition(ctx)
-		case v := <-ch:
-			if v {
-				close(ch)
+			if condition(ctx) {
 				return true
 			}
 			tick = ticker.C
