@@ -35,6 +35,10 @@ func Start(t *testing.T, cmd *exec.Cmd) (*PTY, pty.Process) {
 
 	ptty, ps, err := pty.Start(cmd)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Kill()
+		_ = ps.Wait()
+	})
 	return create(t, ptty, cmd.Args[0]), ps
 }
 
