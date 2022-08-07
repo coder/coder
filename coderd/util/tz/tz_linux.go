@@ -38,7 +38,7 @@ func TimezoneIANA() (*time.Location, error) {
 	}
 	loc, err = time.LoadLocation(location)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", location, location, err)
+		return nil, xerrors.Errorf("invalid location from %q: %w", location, err)
 	}
 	return loc, nil
 }
