@@ -78,3 +78,10 @@ Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 ## Web IDEs (Jupyter, code-server, JetBrains Projector)
 
 Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).
+
+## Port Forwarding
+
+Port Forwarding lets developers securely access processes on their Coder
+workspace from a local machine. A common use case is testing front-end
+applications in a browser at `http://localhost:<yourforwardedport>` See
+[configuring Port Forwarding](./ides/configuring-port-forwarding.md).
