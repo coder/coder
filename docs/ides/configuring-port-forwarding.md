@@ -9,7 +9,7 @@ There are two ways to forward ports:
 
 For example:
 
-```hcl
+```console
 coder port-forward mycoderworkspacename --tcp 8000:8000
 ```
 
@@ -20,7 +20,7 @@ For more examples, type `coder port-forward --help`
 Use the Coder CLI to first [configure SSH](../ides.md#ssh-configuration) on your
 local machine. Then run `ssh`. For example:
 
-```hcl
+```console
 ssh -L 8000:localhost:8000 coder.mycoderworkspacename 
 ```
 
@@ -29,6 +29,6 @@ ssh -L 8000:localhost:8000 coder.mycoderworkspacename
 After completing either Port Forwarding method, open a web browser on your local
 machine to access the Coder workspace process.
 
-```hcl
+```console
 http://localhost:<yourforwardedport>
 ```
