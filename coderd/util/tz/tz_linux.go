@@ -29,16 +29,16 @@ func TimezoneIANA() (*time.Location, error) {
 		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
 	}
 
-	lp, err := filepath.EvalSymlinks(etcLocaltime)
-	if err != nil {
-		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
+	location, err := filepath.EvalSymlinks(etcLocaltime)
+	if err == nil {
+		location = strings.Replace(location, zoneInfoPath, "", -1)
+		location = strings.TrimPrefix(location, string(filepath.Separator))
+	} else {
+		location, _ = time.Now().Zone()
 	}
-
-	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
-	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
-	loc, err = time.LoadLocation(stripped)
+	loc, err = time.LoadLocation(location)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
+		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", location, location, err)
 	}
 	return loc, nil
 }

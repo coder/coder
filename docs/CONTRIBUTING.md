@@ -4,6 +4,9 @@
 
 Coder requires Go 1.18+, Node 14+, and GNU Make.
 
+> **Note**:
+> Use [Nix](https://nix.dev/) for a one-command setup: `nix-shell`
+
 ### Development workflow
 
 Use the following `make` commands and scripts in development:

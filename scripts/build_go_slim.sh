@@ -58,7 +58,7 @@ done
 # Check dependencies
 dependencies go
 if [[ $compress != 0 ]]; then
-	dependencies shasum tar zstd
+	dependencies openssl tar zstd zip
 
 	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
 		error "Invalid value for compress, must in in the range of [1, 22]"
@@ -114,7 +114,7 @@ if [[ $compress != 0 ]]; then
 	sha_file=coder.sha1
 	sha_dest="$dest_dir/$sha_file"
 	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
-	shasum -b -a 1 coder-* | tee $sha_file
+	openssl dgst -r -sha1 coder-* | cut -c1-40 | tee $sha_file
 	echo "$sha_dest"
 	log
 	log
