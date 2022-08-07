@@ -1,7 +1,10 @@
-(import (
-  fetchTarball {
-    url = "https://github.com/edolstra/flake-compat/archive/12c64ca55c1014cdc1b16ed5a804aa8576601ff2.tar.gz";
-    sha256 = "0jm6nzb83wa6ai17ly9fzpqc40wg1viib8klq8lby54agpl213w5"; }
-) {
-  src =  ./.;
-}).shellNix
+(import
+  (
+    fetchTarball {
+      url = "https://github.com/edolstra/flake-compat/archive/b4a34015c698c7793d592d66adbab377907a2be8.tar.gz";
+      sha256 = "1qc703yg0babixi6wshn5wm2kgl5y1drcswgszh4xxzbrwkk9sv7";
+    }
+  )
+  {
+    src = ./.;
+  }).shellNix
