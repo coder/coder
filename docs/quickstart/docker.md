@@ -15,12 +15,16 @@ Coder with Docker has the following advantages:
 
 1.  [Install and launch Coder](../install.md)
 
-    You may use `CODER_ACCESS_URL=http://localhost:7080` since we're using local
-    Docker workspaces exclusively. The rest of the guide will assume that this is your
-    access URL.
+    You will specify `CODER_ACCESS_URL=http://localhost:7080` since we're using
+    local Docker workspaces exclusively. `CODER_ACCESS_URL` is the external URL
+    to access Coder. The rest of the Docker quickstart guide will assume that
+    this is your Access URL.
+
+    You will also specify `CODER_ADDRESS=0.0.0.0:7080` which is the address to
+    serve the API and dashboard.
 
     ```bash
-    coder server -a $CODER_ACCESS_URL
+    coder server --address $CODER_ADDRESS --access-url $CODER_ACCESS_URL
     ```
 
 1.  Run `coder login http://localhost:7080` in a new terminal and follow the
