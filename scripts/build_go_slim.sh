@@ -58,7 +58,7 @@ done
 # Check dependencies
 dependencies go
 if [[ $compress != 0 ]]; then
-	dependencies openssl tar zstd zip
+	dependencies openssl tar zstd
 
 	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
 		error "Invalid value for compress, must in in the range of [1, 22]"
