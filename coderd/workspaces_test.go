@@ -93,7 +93,7 @@ func TestWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		want := ws1.Name + "_2"
+		want := ws1.Name + "-test"
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})
