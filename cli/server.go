@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
@@ -392,6 +394,26 @@ func server() *cobra.Command {
 				defer options.Telemetry.Close()
 			}
 
+			// This prevents the pprof import from being accidentally deleted.
+			_ = pprof.Handler
+			if pprofEnabled {
+				//nolint:revive
+				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
+			}
+			if promEnabled {
+				options.PrometheusRegistry = prometheus.NewRegistry()
+				closeFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register active users prometheus metric: %w", err)
+				}
+				defer closeFunc()
+
+				//nolint:revive
+				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+				), promAddress, "prometheus")()
+			}
+
 			coderAPI := coderd.New(options)
 			defer coderAPI.Close()
 
@@ -404,17 +426,6 @@ func server() *cobra.Command {
 						InsecureSkipVerify: true,
 					},
 				}
-			}
-
-			// This prevents the pprof import from being accidentally deleted.
-			_ = pprof.Handler
-			if pprofEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
-			}
-			if promEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
 
 			// Since errCh only has one buffered slot, all routines
