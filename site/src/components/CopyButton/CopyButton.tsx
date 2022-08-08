@@ -14,8 +14,9 @@ interface CopyButtonProps {
   tooltipTitle?: string
 }
 
-const Language = {
+export const Language = {
   tooltipTitle: "Copy to clipboard",
+  ariaLabel: "Copy to clipboard",
 }
 
 /**
@@ -68,6 +69,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
           className={combineClasses([styles.copyButton, buttonClassName])}
           onClick={copyToClipboard}
           size="small"
+          aria-label={Language.ariaLabel}
         >
           {isCopied ? (
             <Check className={styles.fileCopyIcon} />
