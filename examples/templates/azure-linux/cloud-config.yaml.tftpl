@@ -1,12 +1,11 @@
 #cloud-config
 cloud_final_modules:
 - [scripts-user, always]
+bootcmd:
+  # work around https://github.com/hashicorp/terraform-provider-azurerm/issues/6117
+  - until [ -e /dev/disk/azure/scsi1/lun10 ]; do sleep 1; done
 device_aliases:
-  # this is a little fragile because the data volume isn't always sdc when the workspace is stopped
-  # and started.  But, it appears that it is always sdc when the workspace is *first* created.
-  # This allows us to format and label the volume, and then we rely on the label to mount on
-  # subsequent workspace builds.
-  homedir: /dev/sdc
+  homedir: /dev/disk/azure/scsi1/lun10
 disk_setup:
   homedir:
     table_type: gpt

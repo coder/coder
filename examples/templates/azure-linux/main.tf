@@ -100,7 +100,6 @@ resource "azurerm_resource_group" "main" {
   location = var.location
 
   tags = {
-    Name              = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     Coder_Provisioned = "true"
   }
 }
@@ -113,7 +112,6 @@ resource "azurerm_resource_group" "main" {
 #  allocation_method   = "Static"
 #
 #  tags = {
-#    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
 #    Coder_Provisioned = "true"
 #  }
 #}
@@ -125,7 +123,6 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = azurerm_resource_group.main.name
 
   tags = {
-    Name              = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     Coder_Provisioned = "true"
   }
 }
@@ -151,7 +148,6 @@ resource "azurerm_network_interface" "main" {
   }
 
   tags = {
-    Name              = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     Coder_Provisioned = "true"
   }
 }
@@ -172,56 +168,44 @@ resource "tls_private_key" "dummy" {
   rsa_bits  = 4096
 }
 
-resource "azurerm_virtual_machine" "main" {
+resource "azurerm_linux_virtual_machine" "main" {
   count               = data.coder_workspace.me.transition == "start" ? 1 : 0
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  vm_size             = var.instance_type
+  size             = var.instance_type
+  // cloud-init overwrites this, so the value here doesn't matter
+  admin_username = "adminuser"
+  admin_ssh_key {
+    public_key = tls_private_key.dummy.public_key_openssh
+    username   = "adminuser"
+  }
+
   network_interface_ids = [
     azurerm_network_interface.main.id,
   ]
-
-  os_profile {
-    admin_username = "adminuser"
-    computer_name  = data.coder_workspace.me.name
-    custom_data    = local.userdata
+  computer_name = lower(data.coder_workspace.me.name)
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
   }
-
-  os_profile_linux_config {
-    disable_password_authentication = true
-    ssh_keys {
-      key_data = tls_private_key.dummy.public_key_openssh
-      path     = "/home/adminuser/.ssh/authorized_keys"
-    }
-  }
-
-  storage_image_reference {
+  source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-focal"
     sku       = "20_04-lts-gen2"
     version   = "latest"
   }
-
-  storage_os_disk {
-    managed_disk_type = "StandardSSD_LRS"
-    caching           = "ReadWrite"
-    create_option     = "FromImage"
-    name              = "os"
-  }
-  delete_os_disk_on_termination = true
-
-  storage_data_disk {
-    create_option   = "Attach"
-    lun             = 10
-    name            = "home"
-    caching         = "ReadWrite"
-    managed_disk_id = azurerm_managed_disk.home.id
-    disk_size_gb    = var.home_size
-  }
+  user_data = base64encode(local.userdata)
 
   tags = {
-    Name              = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     Coder_Provisioned = "true"
   }
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "home" {
+  count              = data.coder_workspace.me.transition == "start" ? 1 : 0
+  managed_disk_id    = azurerm_managed_disk.home.id
+  virtual_machine_id = azurerm_linux_virtual_machine.main[0].id
+  lun                = "10"
+  caching            = "ReadWrite"
 }
