@@ -59,7 +59,7 @@ export const Language = {
   startSection: "Start",
   startSwitch: "Auto-start",
   stopSection: "Stop",
-  stopSwitch: "Auto-stop"
+  stopSwitch: "Auto-stop",
 }
 
 export interface WorkspaceScheduleFormProps {
