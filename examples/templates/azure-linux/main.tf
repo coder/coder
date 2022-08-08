@@ -82,6 +82,7 @@ data "coder_workspace" "me" {
 resource "coder_agent" "main" {
   arch = "amd64"
   os   = "linux"
+  auth = "azure-instance-identity"
 }
 
 locals {
@@ -90,7 +91,6 @@ locals {
   userdata = templatefile("cloud-config.yaml.tftpl", {
     username          = lower(substr(data.coder_workspace.me.owner, 0, 32))
     init_script       = base64encode(coder_agent.main.init_script)
-    coder_agent_token = coder_agent.main.token
     hostname          = lower(data.coder_workspace.me.name)
   })
 }
