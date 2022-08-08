@@ -2,6 +2,7 @@ package tz_test
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,11 @@ func Test_TimezoneIANA(t *testing.T) {
 
 	//nolint:paralleltest // UnsetEnv
 	t.Run("NoEnv", func(t *testing.T) {
+		_, err := os.Stat("/etc/localtime")
+		if runtime.GOOS == "linux" && err != nil {
+			// Not all Linux operating systems are guaranteed to have localtime!
+			t.Skip("localtime doesn't exist!")
+		}
 		oldEnv, found := os.LookupEnv("TZ")
 		if found {
 			require.NoError(t, os.Unsetenv("TZ"))
