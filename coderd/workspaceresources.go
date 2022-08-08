@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"sort"
 
 	"github.com/google/uuid"
 
@@ -79,6 +80,9 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		}
 		apiAgents = append(apiAgents, convertedAgent)
 	}
+	sort.Slice(apiAgents, func(i, j int) bool {
+		return apiAgents[i].Name < apiAgents[j].Name
+	})
 
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceID(r.Context(), workspaceResource.ID)
 	if err != nil {
