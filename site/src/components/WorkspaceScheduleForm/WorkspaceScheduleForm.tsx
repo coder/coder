@@ -21,6 +21,7 @@ import { AutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { AutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import { FC } from "react"
 import * as Yup from "yup"
+import { OptionalObjectSchema } from "yup/lib/object"
 import { getFormHelpersWithError } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -36,10 +37,11 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  errorNoDayOfWeek: "Must set at least one day of week if start time is set",
-  errorNoTime: "Start time is required when days of the week are selected",
+  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled",
+  errorNoTime: "Start time is required when auto-start is enabled",
   errorTime: "Time must be in HH:mm format (24 hours)",
   errorTimezone: "Invalid timezone",
+  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
   dayMondayLabel: "Monday",
@@ -89,12 +91,13 @@ export interface WorkspaceScheduleFormValues {
   ttl: number
 }
 
-export const validationSchema = Yup.object({
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const getValidationSchema = (autoStartEnabled: boolean, autoStopEnabled: boolean) => (Yup.object({
   sunday: Yup.boolean(),
   monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
     const parent = this.parent as WorkspaceScheduleFormValues
 
-    if (!parent.startTime) {
+    if (!autoStartEnabled) {
       return true
     } else {
       return ![
@@ -116,20 +119,8 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
-    .test("required-if-day-selected", Language.errorNoTime, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
-
-      const isDaySelected = [
-        parent.sunday,
-        parent.monday,
-        parent.tuesday,
-        parent.wednesday,
-        parent.thursday,
-        parent.friday,
-        parent.saturday,
-      ].some((day) => day)
-
-      if (isDaySelected) {
+    .test("required-if-auto-start", Language.errorNoTime, function (value) {
+      if (autoStartEnabled) {
         return value !== ""
       } else {
         return true
@@ -168,9 +159,16 @@ export const validationSchema = Yup.object({
     }),
   ttl: Yup.number()
     .integer()
-    .min(1)
-    .max(24 * 7 /* 7 days */),
-})
+    .min(0)
+    .max(24 * 7 /* 7 days */)
+    .test("positive-if-auto-stop", Language.errorNoStop, (value) => {
+      if (autoStopEnabled) {
+        return !!value
+      } else {
+        return true
+      }
+    }),
+}))
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
@@ -190,7 +188,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     initialValues,
     enableReinitialize: true,
     onSubmit,
-    validationSchema,
+    validationSchema: () => getValidationSchema(autoStart.enabled, autoStop.enabled),
     initialTouched,
   })
   const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(

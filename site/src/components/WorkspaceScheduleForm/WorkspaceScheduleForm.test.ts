@@ -1,7 +1,7 @@
 import {
   Language,
   ttlShutdownAt,
-  validationSchema,
+  getValidationSchema,
   WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
@@ -35,7 +35,7 @@ describe("validationSchema", () => {
       timezone: "",
       ttl: 0,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -44,7 +44,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: -1,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrow()
   })
 
@@ -59,7 +59,7 @@ describe("validationSchema", () => {
       friday: false,
       saturday: false,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
@@ -75,7 +75,7 @@ describe("validationSchema", () => {
       saturday: false,
       startTime: "",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorNoTime)
   })
 
@@ -84,7 +84,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "16:20",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -93,7 +93,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "9:30",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -102,7 +102,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "09:5",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -111,7 +111,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "24:01",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -120,7 +120,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "09:60",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -129,7 +129,7 @@ describe("validationSchema", () => {
       ...valid,
       timezone: "Canada/North",
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError(Language.errorTimezone)
   })
 
@@ -138,7 +138,7 @@ describe("validationSchema", () => {
       ...valid,
       timezone: zone,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -147,7 +147,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: 24 * 7,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).not.toThrowError()
   })
 
@@ -156,7 +156,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: 24 * 7 + 1,
     }
-    const validate = () => validationSchema.validateSync(values)
+    const validate = () => getValidationSchema(true, true).validateSync(values)
     expect(validate).toThrowError("ttl must be less than or equal to 168")
   })
 })
