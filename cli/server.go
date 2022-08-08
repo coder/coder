@@ -402,11 +402,17 @@ func server() *cobra.Command {
 			}
 			if promEnabled {
 				options.PrometheusRegistry = prometheus.NewRegistry()
-				closeFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register active users prometheus metric: %w", err)
 				}
-				defer closeFunc()
+				defer closeUsersFunc()
+
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
+				}
+				defer closeWorkspacesFunc()
 
 				//nolint:revive
 				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
