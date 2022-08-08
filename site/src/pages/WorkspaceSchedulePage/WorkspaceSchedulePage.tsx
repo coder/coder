@@ -1,96 +1,26 @@
 import { useMachine, useSelector } from "@xstate/react"
-import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import {
+  defaultSchedule,
+  emptySchedule,
+  scheduleToAutoStart,
+} from "pages/WorkspaceSchedulePage/schedule"
 import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useContext, useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import {
-  WorkspaceScheduleForm,
-  WorkspaceScheduleFormValues,
-} from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
+import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
+import { formValuesToAutoStartRequest, formValuesToTTLRequest } from "./formToRequest"
 
 const Language = {
   forbiddenError: "You don't have permissions to update the schedule for this workspace.",
   getWorkspaceError: "Failed to fetch workspace.",
   checkPermissionsError: "Failed to fetch permissions.",
-}
-
-export const formValuesToAutoStartRequest = (
-  values: WorkspaceScheduleFormValues,
-): TypesGen.UpdateWorkspaceAutostartRequest => {
-  if (!values.startTime) {
-    return {
-      schedule: "",
-    }
-  }
-
-  const [HH, mm] = values.startTime.split(":")
-
-  // Note: Space after CRON_TZ if timezone is defined
-  const preparedTZ = values.timezone ? `CRON_TZ=${values.timezone} ` : ""
-
-  const makeCronString = (dow: string) => `${preparedTZ}${mm} ${HH} * * ${dow}`
-
-  const days = [
-    values.sunday,
-    values.monday,
-    values.tuesday,
-    values.wednesday,
-    values.thursday,
-    values.friday,
-    values.saturday,
-  ]
-
-  const isEveryDay = days.every((day) => day)
-
-  const isMonThroughFri =
-    !values.sunday &&
-    values.monday &&
-    values.tuesday &&
-    values.wednesday &&
-    values.thursday &&
-    values.friday &&
-    !values.saturday &&
-    !values.sunday
-
-  // Handle special cases, falling through to comma-separation
-  if (isEveryDay) {
-    return {
-      schedule: makeCronString("*"),
-    }
-  } else if (isMonThroughFri) {
-    return {
-      schedule: makeCronString("1-5"),
-    }
-  } else {
-    const dow = days.reduce((previous, current, idx) => {
-      if (!current) {
-        return previous
-      } else {
-        const prefix = previous ? "," : ""
-        return previous + prefix + idx
-      }
-    }, "")
-
-    return {
-      schedule: makeCronString(dow),
-    }
-  }
-}
-
-export const formValuesToTTLRequest = (
-  values: WorkspaceScheduleFormValues,
-): TypesGen.UpdateWorkspaceTTLRequest => {
-  return {
-    // minutes to nanoseconds
-    ttl_ms: values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
-  }
 }
 
 export const WorkspaceSchedulePage: React.FC = () => {
