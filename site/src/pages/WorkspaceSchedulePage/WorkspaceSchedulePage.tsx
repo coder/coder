@@ -1,6 +1,6 @@
 import { useMachine, useSelector } from "@xstate/react"
-import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspacesPage/schedule"
-import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspacesPage/ttl"
+import { defaultSchedule, emptySchedule, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useContext, useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"

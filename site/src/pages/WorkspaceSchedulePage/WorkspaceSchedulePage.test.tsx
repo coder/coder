@@ -1,5 +1,5 @@
-import { AutoStart, scheduleToAutoStart } from "pages/WorkspacesPage/schedule"
-import { AutoStop, ttlMsToAutoStop } from "pages/WorkspacesPage/ttl"
+import { AutoStart, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { formValuesToAutoStartRequest, formValuesToTTLRequest } from "./WorkspaceSchedulePage"
