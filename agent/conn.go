@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -13,7 +14,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker/proto"
@@ -135,7 +135,7 @@ func (c *WebRTCConn) Close() error {
 }
 
 type TailnetConn struct {
-	Target netaddr.IP
+	Target netip.Addr
 	*tailnet.Server
 }
 
@@ -156,7 +156,7 @@ func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command s
 }
 
 func (c *TailnetConn) SSH() (net.Conn, error) {
-	return c.DialContextTCP(context.Background(), netaddr.IPPortFrom(c.Target, 12212))
+	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(c.Target, 12212))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -181,5 +181,5 @@ func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
 func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(rawPort)
-	return c.Server.DialContextTCP(ctx, netaddr.IPPortFrom(c.Target, uint16(port)))
+	return c.Server.DialContextTCP(ctx, netip.AddrPortFrom(c.Target, uint16(port)))
 }

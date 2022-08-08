@@ -7,14 +7,15 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"go4.org/netipx"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netns"
@@ -55,8 +56,8 @@ func UUIDToInet(uid uuid.UUID) pqtype.Inet {
 	}
 }
 
-func UUIDToNetaddr(uid uuid.UUID) netaddr.IP {
-	return netaddr.IPFrom16(uuid.New())
+func UUIDToNetaddr(uid uuid.UUID) netip.Addr {
+	return netip.AddrFrom16(uuid.New())
 }
 
 // privateUUID sets the uid to have the tailscale private ipv6 prefix.
@@ -91,7 +92,7 @@ type Network struct {
 
 // New constructs a Wireguard network that filters traffic
 // to destinations matching the addresses provided.
-func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
+func New(logger slog.Logger, addresses []netip.Prefix) (*Network, error) {
 	nodePrivateKey := key.NewNode()
 	nodePublicKey := nodePrivateKey.Public()
 	// id, stableID := nodeIDs(nodePublicKey)
@@ -104,21 +105,21 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 			// Allow any protocol!
 			IPProto: []ipproto.Proto{ipproto.TCP, ipproto.UDP, ipproto.ICMPv4, ipproto.ICMPv6, ipproto.SCTP},
 			// Allow traffic sourced from anywhere.
-			Srcs: []netaddr.IPPrefix{
-				netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
-				netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 0),
+			Srcs: []netip.Prefix{
+				netip.PrefixFrom(netip.AddrFrom4([4]byte{}), 0),
+				netip.PrefixFrom(netip.AddrFrom16([16]byte{}), 0),
 			},
 			// Allow traffic to route anywhere.
 			Dsts: []filter.NetPortRange{
 				{
-					Net: netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
+					Net: netip.PrefixFrom(netip.AddrFrom4([4]byte{}), 0),
 					Ports: filter.PortRange{
 						First: 0,
 						Last:  65535,
 					},
 				},
 				{
-					Net: netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 0),
+					Net: netip.PrefixFrom(netip.AddrFrom16([16]byte{}), 0),
 					Ports: filter.PortRange{
 						First: 0,
 						Last:  65535,
@@ -149,7 +150,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
 	}
-	dialer.UseNetstackForIP = func(ip netaddr.IP) bool {
+	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
 		_, ok := engine.PeerForIP(ip)
 		return ok
 	}
@@ -175,7 +176,7 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
-	dialer.NetstackDialTCP = func(ctx context.Context, dst netaddr.IPPort) (net.Conn, error) {
+	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
@@ -204,14 +205,13 @@ func New(logger slog.Logger, addresses []netaddr.IPPrefix) (*Network, error) {
 	netMapCopy.SelfNode = &tailcfg.Node{}
 	engine.SetNetworkMap(&netMapCopy)
 
-	ipb := netaddr.IPSetBuilder{}
+	localIPSet := netipx.IPSetBuilder{}
 	for _, addr := range netMap.Addresses {
-		ipb.AddPrefix(addr)
+		localIPSet.AddPrefix(addr)
 	}
-	ips, _ := ipb.IPSet()
-
-	iplb := netaddr.IPSetBuilder{}
-	ipl, _ := iplb.IPSet()
+	ips, _ := localIPSet.IPSet()
+	logIPSet := netipx.IPSetBuilder{}
+	ipl, _ := logIPSet.IPSet()
 	engine.SetFilter(filter.New(netMap.PacketFilter, ips, ipl, nil, Logf))
 
 	wn := &Network{
@@ -307,8 +307,8 @@ func (n *Network) AddPeer(handshake Handshake) error {
 		// Name:       handshake.NodePublicKey.String() + ".com",
 		Key:        handshake.NodePublicKey,
 		DiscoKey:   handshake.DiscoPublicKey,
-		Addresses:  []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
-		AllowedIPs: []netaddr.IPPrefix{netaddr.IPPrefixFrom(handshake.IPv6, 128)},
+		Addresses:  []netip.Prefix{netip.PrefixFrom(handshake.IPv6, 128)},
+		AllowedIPs: []netip.Prefix{netip.PrefixFrom(handshake.IPv6, 128)},
 		DERP:       DefaultDerpHome,
 		// Endpoints:  []string{DefaultDerpHome},
 	})
@@ -332,7 +332,7 @@ func (n *Network) AddPeer(handshake Handshake) error {
 
 // Ping sends a discovery ping to the provided peer.
 // The peer address must be connected before a successful ping will work.
-func (n *Network) Ping(ip netaddr.IP) *ipnstate.PingResult {
+func (n *Network) Ping(ip netip.Addr) *ipnstate.PingResult {
 	ch := make(chan *ipnstate.PingResult)
 	n.wgEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		ch <- pr

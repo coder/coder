@@ -9,14 +9,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 
@@ -614,19 +613,6 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
-func inetToNetaddr(inet pqtype.Inet) netaddr.IPPrefix {
-	if !inet.Valid {
-		return netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 128)
-	}
-
-	ipp, ok := netaddr.FromStdIPNet(&inet.IPNet)
-	if !ok {
-		return netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 128)
-	}
-
-	return ipp
-}
-
 func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
@@ -635,11 +621,11 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-	ips := make([]netaddr.IP, 0)
+	ips := make([]netip.Addr, 0)
 	for _, ip := range dbAgent.IPAddresses {
 		var ipData [16]byte
 		copy(ipData[:], []byte(ip.IPNet.IP))
-		ips = append(ips, netaddr.IPFrom16(ipData))
+		ips = append(ips, netip.AddrFrom16(ipData))
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                   dbAgent.ID,

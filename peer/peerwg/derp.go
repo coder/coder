@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"tailscale.com/tailcfg"
-	"tailscale.com/wgengine/magicsock"
 )
 
 // This is currently set to use Tailscale's DERP server in DFW while we build in
@@ -71,4 +70,4 @@ var DerpMap = &tailcfg.DERPMap{
 
 // DefaultDerpHome is the ipv4 representation of a DERP server. The port is the
 // DERP id. We only support using DERP 9 for now.
-var DefaultDerpHome = net.JoinHostPort(magicsock.DerpMagicIP, "1")
+var DefaultDerpHome = net.JoinHostPort(tailcfg.DerpMagicIP, "1")

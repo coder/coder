@@ -6,22 +6,21 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"inet.af/netaddr"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
-	"github.com/coder/coder/tailnet"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/tailnet"
 )
 
 func TestMain(m *testing.M) {
@@ -35,14 +34,14 @@ func TestTailnet(t *testing.T) {
 
 	w1IP := tailnet.IP()
 	w1, err := tailnet.New(&tailnet.Options{
-		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(w1IP, 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
 
 	w2, err := tailnet.New(&tailnet.Options{
-		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w2"),
 		DERPMap:   derpMap,
 	})
@@ -69,7 +68,7 @@ func TestTailnet(t *testing.T) {
 		conn <- struct{}{}
 	}()
 
-	nc, err := w2.DialContextTCP(context.Background(), netaddr.IPPortFrom(w1IP, 35565))
+	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()
 	<-conn

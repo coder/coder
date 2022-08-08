@@ -2,11 +2,11 @@ package peerwg
 
 import (
 	"bytes"
+	"net/netip"
 	"strconv"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"tailscale.com/types/key"
 )
 
@@ -22,7 +22,7 @@ type Handshake struct {
 	// NodePublicKey is the public key of the peer.
 	NodePublicKey key.NodePublic `json:"public"`
 	// IPv6 is the IPv6 address of the peer.
-	IPv6 netaddr.IP `json:"ipv6"`
+	IPv6 netip.Addr `json:"ipv6"`
 }
 
 // HandshakeRecipientHint parses the first part of a serialized
@@ -58,7 +58,7 @@ func (h *Handshake) UnmarshalText(text []byte) error {
 		return xerrors.Errorf("parse public: %w", err)
 	}
 
-	h.IPv6, err = netaddr.ParseIP(string(sp[3]))
+	h.IPv6, err = netip.ParseAddr(string(sp[3]))
 	if err != nil {
 		return xerrors.Errorf("parse ipv6: %w", err)
 	}

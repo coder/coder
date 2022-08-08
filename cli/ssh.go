@@ -19,6 +19,7 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
+	tslogger "tailscale.com/types/logger"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/peer/peerwg"
 )
 
 var workspacePollInterval = time.Minute
@@ -112,12 +114,12 @@ func ssh() *cobra.Command {
 				newSSHClient = conn.SSHClient
 			} else {
 				// TODO: more granual control of Tailscale logging.
-				// peerwg.Logf = tslogger.Discard
+				peerwg.Logf = tslogger.Discard
 
 				// ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 				// wgn, err := peerwg.New(
 				// 	slog.Make(sloghuman.Sink(os.Stderr)),
-				// 	[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
+				// 	[]netip.Prefix{netip.PrefixFrom(ipv6, 128)},
 				// )
 				// if err != nil {
 				// 	return xerrors.Errorf("create wireguard network: %w", err)
@@ -136,18 +138,19 @@ func ssh() *cobra.Command {
 				// err = wgn.AddPeer(peerwg.Handshake{
 				// 	Recipient:      workspaceAgent.ID,
 				// 	DiscoPublicKey: workspaceAgent.DiscoPublicKey,
-				// 	NodePublicKey:  workspaceAgent.WireguardPublicKey,
-				// 	IPv6:           workspaceAgent.IPv6.IP(),
+				// 	NodePublicKey:  workspaceAgent.NodePublicKey,
+				// 	IPv6:           workspaceAgent.IPAddresses[0], // TODO: fix?
 				// })
 				// if err != nil {
 				// 	return xerrors.Errorf("add workspace agent as peer: %w", err)
 				// }
 
 				// if stdio {
-				// 	rawSSH, err := wgn.SSH(cmd.Context(), workspaceAgent.IPv6.IP())
+				// 	rawSSH, err := wgn.SSH(cmd.Context(), workspaceAgent.IPAddresses[0]) // TODO: fix?
 				// 	if err != nil {
 				// 		return err
 				// 	}
+				// 	defer rawSSH.Close()
 
 				// 	go func() {
 				// 		_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
@@ -156,15 +159,14 @@ func ssh() *cobra.Command {
 				// 	return nil
 				// }
 
-				// sshClient, err = wgn.SSHClient(cmd.Context(), workspaceAgent.IPv6.IP())
-				// if err != nil {
-				// 	return err
+				// newSSHClient = func() (*gossh.Client, error) {
+				// 	return wgn.SSHClient(ctx, workspaceAgent.IPAddresses[0]) // TODO: fix?
 				// }
+			}
 
-				// sshSession, err = sshClient.NewSession()
-				// if err != nil {
-				// 	return err
-				// }
+			sshClient, err := newSSHClient()
+			if err != nil {
+				return err
 			}
 			defer sshClient.Close()
 

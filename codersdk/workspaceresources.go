@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
-	"inet.af/netaddr"
 	"tailscale.com/types/key"
 )
 
@@ -56,7 +56,7 @@ type WorkspaceAgent struct {
 	Apps                 []WorkspaceApp       `json:"apps"`
 
 	// For internal routing only.
-	IPAddresses    []netaddr.IP    `json:"ip_addresses"`
+	IPAddresses    []netip.Addr    `json:"ip_addresses"`
 	NodePublicKey  key.NodePublic  `json:"node_public_key"`
 	DiscoPublicKey key.DiscoPublic `json:"disco_public_key"`
 	// PreferredDERP represents the connected region.

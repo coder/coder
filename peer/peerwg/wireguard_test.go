@@ -7,12 +7,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"inet.af/netaddr"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/net/stun/stuntest"
@@ -30,14 +30,14 @@ func TestConnect(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	c1IPv6 := peerwg.UUIDToNetaddr(uuid.New())
-	wgn1, err := peerwg.New(logger.Named("c1"), []netaddr.IPPrefix{
-		netaddr.IPPrefixFrom(c1IPv6, 128),
+	wgn1, err := peerwg.New(logger.Named("c1"), []netip.Prefix{
+		netip.PrefixFrom(c1IPv6, 128),
 	})
 	require.NoError(t, err)
 
 	c2IPv6 := peerwg.UUIDToNetaddr(uuid.New())
-	wgn2, err := peerwg.New(logger.Named("c2"), []netaddr.IPPrefix{
-		netaddr.IPPrefixFrom(c2IPv6, 128),
+	wgn2, err := peerwg.New(logger.Named("c2"), []netip.Prefix{
+		netip.PrefixFrom(c2IPv6, 128),
 	})
 	require.NoError(t, err)
 	err = wgn1.AddPeer(peerwg.Handshake{
@@ -68,12 +68,12 @@ func TestConnect(t *testing.T) {
 	<-conn
 	time.Sleep(100 * time.Millisecond)
 	fmt.Printf("\n\n\n\n\nDIALING TCP\n\n\n\n\n")
-	_, err = wgn2.Netstack.DialContextTCP(context.Background(), netaddr.IPPortFrom(c1IPv6, 35565))
+	_, err = wgn2.Netstack.DialContextTCP(context.Background(), netip.AddrPortFrom(c1IPv6, 35565))
 	require.NoError(t, err)
 	<-conn
 }
 
-func runDERPAndStun(t *testing.T, logf logger.Logf, l nettype.PacketListener, stunIP netaddr.IP) (derpMap *tailcfg.DERPMap, cleanup func()) {
+func runDERPAndStun(t *testing.T, logf logger.Logf, l nettype.PacketListener, stunIP netip.Addr) (derpMap *tailcfg.DERPMap, cleanup func()) {
 	d := derp.NewServer(key.NewNode(), logf)
 
 	httpsrv := httptest.NewUnstartedServer(derphttp.Handler(d))

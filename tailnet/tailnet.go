@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go4.org/netipx"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"inet.af/netaddr"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
@@ -42,7 +43,7 @@ func init() {
 }
 
 type Options struct {
-	Addresses []netaddr.IPPrefix
+	Addresses []netip.Prefix
 	DERPMap   *tailcfg.DERPMap
 
 	Logger slog.Logger
@@ -70,21 +71,21 @@ func New(options *Options) (*Server, error) {
 			// Allow any protocol!
 			IPProto: []ipproto.Proto{ipproto.TCP, ipproto.UDP, ipproto.ICMPv4, ipproto.ICMPv6, ipproto.SCTP},
 			// Allow traffic sourced from anywhere.
-			Srcs: []netaddr.IPPrefix{
-				netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
-				netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 0),
+			Srcs: []netip.Prefix{
+				netip.PrefixFrom(netip.AddrFrom4([4]byte{}), 0),
+				netip.PrefixFrom(netip.AddrFrom16([16]byte{}), 0),
 			},
 			// Allow traffic to route anywhere.
 			Dsts: []filter.NetPortRange{
 				{
-					Net: netaddr.IPPrefixFrom(netaddr.IPv4(0, 0, 0, 0), 0),
+					Net: netip.PrefixFrom(netip.AddrFrom4([4]byte{}), 0),
 					Ports: filter.PortRange{
 						First: 0,
 						Last:  65535,
 					},
 				},
 				{
-					Net: netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 0),
+					Net: netip.PrefixFrom(netip.AddrFrom16([16]byte{}), 0),
 					Ports: filter.PortRange{
 						First: 0,
 						Last:  65535,
@@ -121,7 +122,7 @@ func New(options *Options) (*Server, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
 	}
-	dialer.UseNetstackForIP = func(ip netaddr.IP) bool {
+	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
 		_, ok := wireguardEngine.PeerForIP(ip)
 		return ok
 	}
@@ -149,7 +150,7 @@ func New(options *Options) (*Server, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
-	dialer.NetstackDialTCP = func(ctx context.Context, dst netaddr.IPPort) (net.Conn, error) {
+	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
@@ -177,12 +178,12 @@ func New(options *Options) (*Server, error) {
 	netMapCopy := *netMap
 	wireguardEngine.SetNetworkMap(&netMapCopy)
 
-	localIPSet := netaddr.IPSetBuilder{}
+	localIPSet := netipx.IPSetBuilder{}
 	for _, addr := range netMap.Addresses {
 		localIPSet.AddPrefix(addr)
 	}
 	localIPs, _ := localIPSet.IPSet()
-	logIPSet := netaddr.IPSetBuilder{}
+	logIPSet := netipx.IPSetBuilder{}
 	logIPs, _ := logIPSet.IPSet()
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
 	server := &Server{
@@ -202,7 +203,7 @@ func New(options *Options) (*Server, error) {
 }
 
 // IP generates a new IP with a static service prefix.
-func IP() netaddr.IP {
+func IP() netip.Addr {
 	// This is Tailscale's ephemeral service prefix.
 	// This can be changed easily later-on, because
 	// all of our nodes are ephemeral.
@@ -214,7 +215,7 @@ func IP() netaddr.IP {
 	uid[3] = 0x5c
 	uid[4] = 0xa1
 	uid[5] = 0xe0
-	return netaddr.IPFrom16(uid)
+	return netip.AddrFrom16(uid)
 }
 
 // Server is an actively listening Wireguard connection.
@@ -267,7 +268,7 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 			DiscoKey:   node.DiscoKey,
 			Addresses:  node.Addresses,
 			AllowedIPs: node.AllowedIPs,
-			DERP:       fmt.Sprintf("%s:%d", magicsock.DerpMagicIP, node.PreferredDERP),
+			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
 		}
 	}
@@ -289,7 +290,7 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 }
 
 // Ping sends a ping to the Wireguard engine.
-func (s *Server) Ping(ip netaddr.IP, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
+func (s *Server) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
 	s.wireguardEngine.Ping(ip, pingType, cb)
 }
 
@@ -316,8 +317,8 @@ type Node struct {
 	DiscoKey      key.DiscoPublic    `json:"disco"`
 	PreferredDERP int                `json:"preferred_derp"`
 	DERPLatency   map[string]float64 `json:"derp_latency"`
-	Addresses     []netaddr.IPPrefix `json:"addresses"`
-	AllowedIPs    []netaddr.IPPrefix `json:"allowed_ips"`
+	Addresses     []netip.Prefix     `json:"addresses"`
+	AllowedIPs    []netip.Prefix     `json:"allowed_ips"`
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:
@@ -351,11 +352,11 @@ func (s *Server) Listen(network, addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-func (s *Server) DialContextTCP(ctx context.Context, ipp netaddr.IPPort) (*gonet.TCPConn, error) {
+func (s *Server) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
 	return s.netStack.DialContextTCP(ctx, ipp)
 }
 
-func (s *Server) DialContextUDP(ctx context.Context, ipp netaddr.IPPort) (*gonet.UDPConn, error) {
+func (s *Server) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
 	return s.netStack.DialContextUDP(ctx, ipp)
 }
 

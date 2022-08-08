@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/netip"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
@@ -15,7 +16,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 	"tailscale.com/tailcfg"
@@ -317,10 +317,10 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUI
 	if err != nil {
 		return nil, xerrors.Errorf("decode derpmap: %w", err)
 	}
-	ip := tailnet.IP()
 
+	ip := tailnet.IP()
 	server, err := tailnet.New(&tailnet.Options{
-		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(ip, 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:   &derpMap,
 		Logger:    logger,
 	})
@@ -342,9 +342,9 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUI
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace agent: %w", err)
 	}
-	ipRanges := make([]netaddr.IPPrefix, 0, len(workspaceAgent.IPAddresses))
+	ipRanges := make([]netip.Prefix, 0, len(workspaceAgent.IPAddresses))
 	for _, address := range workspaceAgent.IPAddresses {
-		ipRanges = append(ipRanges, netaddr.IPPrefixFrom(address, 128))
+		ipRanges = append(ipRanges, netip.PrefixFrom(address, 128))
 	}
 	agentNode := &tailnet.Node{
 		Key:           workspaceAgent.NodePublicKey,

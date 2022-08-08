@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,7 +28,6 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -62,7 +62,7 @@ type Options struct {
 }
 
 type Metadata struct {
-	IPAddresses          []netaddr.IP      `json:"ip_addresses"`
+	IPAddresses          []netip.Addr      `json:"ip_addresses"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
@@ -174,10 +174,10 @@ func (a *agent) run(ctx context.Context) {
 	}
 }
 
-func (a *agent) runTailnet(ctx context.Context, addresses []netaddr.IP, derpMap *tailcfg.DERPMap) {
-	ipRanges := make([]netaddr.IPPrefix, 0, len(addresses))
+func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap *tailcfg.DERPMap) {
+	ipRanges := make([]netip.Prefix, 0, len(addresses))
 	for _, address := range addresses {
-		ipRanges = append(ipRanges, netaddr.IPPrefixFrom(address, 128))
+		ipRanges = append(ipRanges, netip.PrefixFrom(address, 128))
 	}
 	var err error
 	a.network, err = tailnet.New(&tailnet.Options{

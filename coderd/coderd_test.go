@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -22,7 +23,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
-	"inet.af/netaddr"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -610,14 +610,14 @@ func TestDERP(t *testing.T) {
 	}
 	w1IP := tailnet.IP()
 	w1, err := tailnet.New(&tailnet.Options{
-		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(w1IP, 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
 
 	w2, err := tailnet.New(&tailnet.Options{
-		Addresses: []netaddr.IPPrefix{netaddr.IPPrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w2"),
 		DERPMap:   derpMap,
 	})
@@ -642,7 +642,7 @@ func TestDERP(t *testing.T) {
 	}()
 
 	<-conn
-	nc, err := w2.DialContextTCP(context.Background(), netaddr.IPPortFrom(w1IP, 35565))
+	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()
 	<-conn

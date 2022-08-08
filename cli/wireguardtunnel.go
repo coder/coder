@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync"
 
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 
 	coderagent "github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
@@ -93,7 +93,7 @@ func wireguardPortForward() *cobra.Command {
 			// ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 			// wgn, err := peerwg.New(
 			// 	slog.Make(sloghuman.Sink(os.Stderr)),
-			// 	[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
+			// 	[]netip.Prefix{netip.PrefixFrom(ipv6, 128)},
 			// )
 			// if err != nil {
 			// 	return xerrors.Errorf("create wireguard network: %w", err)
@@ -180,7 +180,7 @@ func listenAndPortForwardWireguard(ctx context.Context, cmd *cobra.Command,
 	wgn *peerwg.Network,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
-	agentIP netaddr.IP,
+	agentIP netip.Addr,
 ) (net.Listener, error) {
 	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
@@ -231,7 +231,8 @@ func listenAndPortForwardWireguard(ctx context.Context, cmd *cobra.Command,
 			go func(netConn net.Conn) {
 				defer netConn.Close()
 
-				ipPort := netaddr.MustParseIPPort(spec.dialAddress).WithIP(agentIP)
+				port := netip.MustParseAddrPort(spec.dialAddress)
+				ipPort := netip.AddrPortFrom(agentIP, port.Port())
 
 				var remoteConn net.Conn
 				switch spec.dialNetwork {

@@ -4,6 +4,18 @@
 
 package database
 
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"github.com/coder/coder/coderd/database/dbtypes"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/tabbed/pqtype"
+)
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE
 FROM

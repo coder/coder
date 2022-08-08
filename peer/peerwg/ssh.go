@@ -3,14 +3,14 @@ package peerwg
 import (
 	"context"
 	"net"
+	"net/netip"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 )
 
-func (n *Network) SSH(ctx context.Context, ip netaddr.IP) (net.Conn, error) {
-	netConn, err := n.Netstack.DialContextTCP(ctx, netaddr.IPPortFrom(ip, 12212))
+func (n *Network) SSH(ctx context.Context, ip netip.Addr) (net.Conn, error) {
+	netConn, err := n.Netstack.DialContextTCP(ctx, netip.AddrPortFrom(ip, 12212))
 	if err != nil {
 		return nil, xerrors.Errorf("dial agent ssh: %w", err)
 	}
@@ -18,7 +18,7 @@ func (n *Network) SSH(ctx context.Context, ip netaddr.IP) (net.Conn, error) {
 	return netConn, nil
 }
 
-func (n *Network) SSHClient(ctx context.Context, ip netaddr.IP) (*ssh.Client, error) {
+func (n *Network) SSHClient(ctx context.Context, ip netip.Addr) (*ssh.Client, error) {
 	netConn, err := n.SSH(ctx, ip)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
