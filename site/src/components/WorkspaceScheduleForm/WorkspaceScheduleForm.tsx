@@ -55,6 +55,11 @@ export const Language = {
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAfterStart: "after start",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
+  formTitle: "Workspace schedule",
+  startSection: "Start",
+  startSwitch: "Auto-start",
+  stopSection: "Stop",
+  stopSwitch: "Auto-stop"
 }
 
 export interface WorkspaceScheduleFormProps {
@@ -204,14 +209,14 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   ]
 
   return (
-    <FullPageForm onCancel={onCancel} title="Workspace schedule">
+    <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
-          <Section title="Start">
+          <Section title={Language.startSection}>
             <FormControlLabel
               control={<Switch checked={autoStart.enabled} onChange={toggleAutoStart} />}
-              label="Auto-start"
+              label={Language.startSwitch}
             />
             <TextField
               {...formHelpers("startTime", Language.startTimeHelperText)}
@@ -270,10 +275,10 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
             </FormControl>
           </Section>
 
-          <Section title="Stop">
+          <Section title={Language.stopSection}>
             <FormControlLabel
               control={<Switch checked={autoStop.enabled} onChange={toggleAutoStop} />}
-              label="Auto-stop"
+              label={Language.stopSwitch}
             />
             <TextField
               {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
