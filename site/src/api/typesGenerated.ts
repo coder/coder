@@ -427,7 +427,7 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly directory?: string
   readonly apps: WorkspaceApp[]
-  // Named type "inet.af/netaddr.IP" unknown, using "any"
+  // Named type "net/netip.Addr" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly ip_addresses: any[]
   // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
