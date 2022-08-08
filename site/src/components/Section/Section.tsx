@@ -63,6 +63,7 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
     borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("sm")]: {
       padding: theme.spacing(4, 3, 4, 3),
