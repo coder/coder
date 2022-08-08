@@ -24,7 +24,6 @@
             go_1_19
             golangci-lint
             gopls
-            goreleaser
             gotestsum
             helm
             jq

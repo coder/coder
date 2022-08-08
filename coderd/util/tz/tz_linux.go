@@ -34,7 +34,8 @@ func TimezoneIANA() (*time.Location, error) {
 		location = strings.Replace(location, zoneInfoPath, "", -1)
 		location = strings.TrimPrefix(location, string(filepath.Separator))
 	} else {
-		location, _ = time.Now().Zone()
+		// Go's local time parsing implementation defaults to UTC if none is set!
+		location = "UTC"
 	}
 	loc, err = time.LoadLocation(location)
 	if err != nil {
