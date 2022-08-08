@@ -168,7 +168,7 @@ export const validationSchema = Yup.object({
     }),
   ttl: Yup.number()
     .integer()
-    .min(0)
+    .min(1)
     .max(24 * 7 /* 7 days */),
 })
 
