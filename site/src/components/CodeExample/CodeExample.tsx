@@ -8,18 +8,28 @@ export interface CodeExampleProps {
   code: string
   className?: string
   buttonClassName?: string
+  tooltipTitle?: string
 }
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({ code, className, buttonClassName }) => {
+export const CodeExample: FC<CodeExampleProps> = ({
+  code,
+  className,
+  buttonClassName,
+  tooltipTitle,
+}) => {
   const styles = useStyles()
 
   return (
     <div className={combineClasses([styles.root, className])}>
       <code className={styles.code}>{code}</code>
-      <CopyButton text={code} buttonClassName={combineClasses([styles.button, buttonClassName])} />
+      <CopyButton
+        text={code}
+        tooltipTitle={tooltipTitle}
+        buttonClassName={combineClasses([styles.button, buttonClassName])}
+      />
     </div>
   )
 }

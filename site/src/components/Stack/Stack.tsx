@@ -5,18 +5,23 @@ import { combineClasses } from "../../util/combineClasses"
 
 type Direction = "column" | "row"
 
-interface StyleProps {
-  direction: Direction
-  spacing: number
+export interface StackProps {
+  className?: string
+  direction?: Direction
+  spacing?: number
   alignItems?: CSSProperties["alignItems"]
+  justifyContent?: CSSProperties["justifyContent"]
 }
+
+type StyleProps = Omit<StackProps, "className">
 
 const useStyles = makeStyles((theme) => ({
   stack: {
     display: "flex",
     flexDirection: ({ direction }: StyleProps) => direction,
-    gap: ({ spacing }: StyleProps) => theme.spacing(spacing),
+    gap: ({ spacing }: StyleProps) => spacing && theme.spacing(spacing),
     alignItems: ({ alignItems }: StyleProps) => alignItems,
+    justifyContent: ({ justifyContent }: StyleProps) => justifyContent,
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
@@ -24,21 +29,15 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export interface StackProps {
-  className?: string
-  direction?: Direction
-  spacing?: number
-  alignItems?: CSSProperties["alignItems"]
-}
-
 export const Stack: FC<StackProps> = ({
   children,
   className,
   direction = "column",
   spacing = 2,
   alignItems,
+  justifyContent,
 }) => {
-  const styles = useStyles({ spacing, direction, alignItems })
+  const styles = useStyles({ spacing, direction, alignItems, justifyContent })
 
   return <div className={combineClasses([styles.stack, className])}>{children}</div>
 }

@@ -11,6 +11,11 @@ interface CopyButtonProps {
   ctaCopy?: string
   wrapperClassName?: string
   buttonClassName?: string
+  tooltipTitle?: string
+}
+
+const Language = {
+  tooltipTitle: "Copy to clipboard",
 }
 
 /**
@@ -21,6 +26,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
   ctaCopy,
   wrapperClassName = "",
   buttonClassName = "",
+  tooltipTitle = Language.tooltipTitle,
 }) => {
   const styles = useStyles()
   const [isCopied, setIsCopied] = useState<boolean>(false)
@@ -56,7 +62,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
   }
 
   return (
-    <Tooltip title="Copy to Clipboard" placement="top">
+    <Tooltip title={tooltipTitle} placement="top">
       <div className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}>
         <IconButton
           className={combineClasses([styles.copyButton, buttonClassName])}
