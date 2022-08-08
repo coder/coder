@@ -19,6 +19,7 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
+	tslogger "tailscale.com/types/logger"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/peer/peerwg"
 )
 
 var workspacePollInterval = time.Minute
@@ -112,7 +114,7 @@ func ssh() *cobra.Command {
 				newSSHClient = conn.SSHClient
 			} else {
 				// TODO: more granual control of Tailscale logging.
-				// peerwg.Logf = tslogger.Discard
+				peerwg.Logf = tslogger.Discard //nolint
 
 				// ipv6 := peerwg.UUIDToNetaddr(uuid.New())
 				// wgn, err := peerwg.New(

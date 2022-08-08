@@ -176,6 +176,7 @@ func wireguardPortForward() *cobra.Command {
 	return cmd
 }
 
+//nolint:unused,deadcode
 func listenAndPortForwardWireguard(ctx context.Context, cmd *cobra.Command,
 	wgn *peerwg.Network,
 	wg *sync.WaitGroup,
