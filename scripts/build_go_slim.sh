@@ -114,7 +114,7 @@ if [[ $compress != 0 ]]; then
 	sha_file=coder.sha1
 	sha_dest="$dest_dir/$sha_file"
 	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
-	openssl dgst -r -sha1 coder-* | cut -c1-40 | tee $sha_file
+	openssl dgst -r -sha1 coder-* | tee $sha_file
 	echo "$sha_dest"
 	log
 	log
