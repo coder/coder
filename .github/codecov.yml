@@ -9,14 +9,17 @@ github_checks:
   annotations: false
 
 coverage:
+  range: 50..75
+  round: down
+  precision: 2
   status:
     patch:
       default:
         informational: yes
     project:
       default:
-        target: 70%
-        informational: yes
+        target: 65%
+        informational: true
 
 ignore:
   # This is generated code.

@@ -39,7 +39,7 @@ resource "google_compute_disk" "root" {
   name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
-  image = "debian-cloud/debian-9"
+  image = "debian-cloud/debian-10"
   lifecycle {
     ignore_changes = [image]
   }
@@ -70,21 +70,24 @@ resource "google_compute_instance" "dev" {
     email  = data.google_compute_default_service_account.default.email
     scopes = ["cloud-platform"]
   }
-  # The startup script runs as root with no $HOME environment set up, which can break workspace applications, so
-  # instead of directly running the agent init script, setup the home directory, write the init script, and then execute
-  # it.
+  # The startup script runs as root with no $HOME environment set up, so instead of directly
+  # running the agent init script, create a user (with a homedir, default shell and sudo
+  # permissions) and execute the init script as that user.
   metadata_startup_script = <<EOMETA
 #!/usr/bin/env sh
 set -eux
 
-mkdir /root || true
-cat <<'EOCODER' > /root/coder_agent.sh
-${coder_agent.main.init_script}
-EOCODER
-chmod +x /root/coder_agent.sh
+# If user does not exist, create it and set up passwordless sudo
+if ! id -u "${local.linux_user}" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "${local.linux_user}"
+  echo "${local.linux_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/coder-user
+fi
 
-export HOME=/root
-/root/coder_agent.sh
-
+exec sudo -u "${local.linux_user}" sh -c '${coder_agent.main.init_script}'
 EOMETA
+}
+
+locals {
+  # Ensure Coder username is a valid Linux username
+  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
 }

@@ -41,6 +41,8 @@ type Options struct {
 	BuiltinPostgres   bool
 	DeploymentID      string
 	GitHubOAuth       bool
+	OIDCAuth          bool
+	OIDCIssuerURL     string
 	Prometheus        bool
 	STUN              bool
 	SnapshotFrequency time.Duration
@@ -229,6 +231,8 @@ func (r *remoteReporter) deployment() error {
 		BuiltinPostgres: r.options.BuiltinPostgres,
 		Containerized:   containerized,
 		GitHubOAuth:     r.options.GitHubOAuth,
+		OIDCAuth:        r.options.OIDCAuth,
+		OIDCIssuerURL:   r.options.OIDCIssuerURL,
 		Prometheus:      r.options.Prometheus,
 		STUN:            r.options.STUN,
 		Tunnel:          r.options.Tunnel,
@@ -601,6 +605,8 @@ type Deployment struct {
 	Containerized   bool       `json:"containerized"`
 	Tunnel          bool       `json:"tunnel"`
 	GitHubOAuth     bool       `json:"github_oauth"`
+	OIDCAuth        bool       `json:"oidc_auth"`
+	OIDCIssuerURL   string     `json:"oidc_issuer_url"`
 	Prometheus      bool       `json:"prometheus"`
 	STUN            bool       `json:"stun"`
 	OSType          string     `json:"os_type"`

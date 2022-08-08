@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPrompt(t *testing.T) {
@@ -61,7 +61,7 @@ func TestPrompt(t *testing.T) {
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
-		dataRead, doneReading := context.WithTimeout(context.Background(), time.Second*2)
+		dataRead, doneReading := context.WithTimeout(context.Background(), testutil.WaitShort)
 		go func() {
 			// This will throw an error sometimes. The underlying ptty
 			// has its own cleanup routines in t.Cleanup. Instead of
@@ -193,7 +193,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && !echo
-	}, 5*time.Second, 50*time.Millisecond, "echo is on while reading password")
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is on while reading password")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.Eventually(t, func() bool {
 		echo, err := ptyWithFlags.EchoEnabled()
 		return err == nil && echo
-	}, 5*time.Second, 50*time.Millisecond, "echo is off after reading password")
+	}, testutil.WaitShort, testutil.IntervalMedium, "echo is off after reading password")
 }
 
 // nolint:unused

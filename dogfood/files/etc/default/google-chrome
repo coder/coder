@@ -1,0 +1,4 @@
+# These settings are required to prevent the postinst script
+# from modifying /etc/apt/sources.list.d
+repo_add_once="false"
+repo_reenable_on_distupgrade="false"

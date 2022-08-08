@@ -105,7 +105,7 @@ org = set {
 
 # The allow block is quite simple. Any set with `false` cascades down in levels.
 # Authorization looks for any `allow` statement that is true. Multiple can be true!
-# Note that the absense of `allow` means "unauthorized".
+# Note that the absence of `allow` means "unauthorized".
 # An explicit `"allow": true` is required.
 
 # site allow

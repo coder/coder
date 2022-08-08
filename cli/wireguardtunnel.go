@@ -52,6 +52,9 @@ func wireguardPortForward() *cobra.Command {
 			},
 		),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			specs, err := parsePortForwards(tcpForwards, nil, nil)
 			if err != nil {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
@@ -69,7 +72,7 @@ func wireguardPortForward() *cobra.Command {
 				return err
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
 			if err != nil {
 				return err
 			}
@@ -77,13 +80,13 @@ func wireguardPortForward() *cobra.Command {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 				if err != nil {
 					return err
 				}
 			}
 
-			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -101,8 +104,9 @@ func wireguardPortForward() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create wireguard network: %w", err)
 			}
+			defer wgn.Close()
 
-			err = client.PostWireguardPeer(cmd.Context(), workspace.ID, peerwg.Handshake{
+			err = client.PostWireguardPeer(ctx, workspace.ID, peerwg.Handshake{
 				Recipient:      workspaceAgent.ID,
 				NodePublicKey:  wgn.NodePrivateKey.Public(),
 				DiscoPublicKey: wgn.DiscoPublicKey,
@@ -124,7 +128,6 @@ func wireguardPortForward() *cobra.Command {
 
 			// Start all listeners.
 			var (
-				ctx, cancel       = context.WithCancel(cmd.Context())
 				wg                = new(sync.WaitGroup)
 				listeners         = make([]net.Listener, len(specs))
 				closeAllListeners = func() {
@@ -136,11 +139,11 @@ func wireguardPortForward() *cobra.Command {
 					}
 				}
 			)
-			defer cancel()
+			defer closeAllListeners()
+
 			for i, spec := range specs {
 				l, err := listenAndPortForwardWireguard(ctx, cmd, wgn, wg, spec, workspaceAgent.IPv6.IP())
 				if err != nil {
-					closeAllListeners()
 					return err
 				}
 				listeners[i] = l
@@ -149,7 +152,10 @@ func wireguardPortForward() *cobra.Command {
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
 			var closeErr error
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
+
 				sigs := make(chan os.Signal, 1)
 				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 

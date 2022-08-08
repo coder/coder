@@ -52,6 +52,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
+	github.com/coreos/go-oidc/v3 v3.2.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
 	github.com/elastic/go-sysinfo v1.8.1
@@ -62,7 +63,7 @@ require (
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi/v5 v5.0.7
-	github.com/go-chi/httprate v0.5.3
+	github.com/go-chi/httprate v0.6.0
 	github.com/go-chi/render v1.0.1
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.11.0
@@ -124,7 +125,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-00010101000000-000000000000
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
-	google.golang.org/api v0.88.0
+	google.golang.org/api v0.90.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -135,7 +136,10 @@ require (
 	tailscale.com v1.26.2
 )
 
-require github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+require (
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+)
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -181,7 +185,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.2
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect

@@ -33,7 +33,6 @@ func TimezoneIANA() (*time.Location, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
 	}
-
 	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
 	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err = time.LoadLocation(stripped)

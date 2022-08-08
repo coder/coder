@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"path/filepath"
+	"sync"
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
@@ -109,15 +110,20 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
+	// initMu protects against executors running `terraform init`
+	// concurrently when cache path is set.
+	initMu sync.Mutex
+
 	binaryPath string
 	cachePath  string
 	logger     slog.Logger
 }
 
-func (t server) executor(workdir string) executor {
+func (s *server) executor(workdir string) executor {
 	return executor{
-		binaryPath: t.binaryPath,
-		cachePath:  t.cachePath,
+		initMu:     &s.initMu,
+		binaryPath: s.binaryPath,
+		cachePath:  s.cachePath,
 		workdir:    workdir,
 	}
 }
