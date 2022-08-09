@@ -501,24 +501,11 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		name = req.Name
 	}
 
-	err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
+	n, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
 		ID:   workspace.ID,
 		Name: name,
 	})
 	if err != nil {
-		// The query protects against updating deleted workspaces and
-		// the existence of the workspace is checked in the request,
-		// the only conclusion we can make is that we're trying to
-		// update a deleted workspace.
-		//
-		// We could do this check earlier but since we're not in a
-		// transaction, it's pointless.
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusMethodNotAllowed, codersdk.Response{
-				Message: fmt.Sprintf("Workspace %q is deleted and cannot be updated.", workspace.Name),
-			})
-			return
-		}
 		// Check if the name was already in use.
 		if database.IsUniqueViolation(err, database.UniqueWorkspacesOwnerIDLowerIdx) {
 			httpapi.Write(rw, http.StatusConflict, codersdk.Response{
@@ -533,6 +520,18 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating workspace.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+	// If no rows were affected, the workspace must have been deleted
+	// between the start of the request and the query updating the
+	// workspace name.
+	//
+	// We could do this check earlier but we'd have to start a
+	// transaction to ensure consistency.
+	if n == 0 {
+		httpapi.Write(rw, http.StatusMethodNotAllowed, codersdk.Response{
+			Message: fmt.Sprintf("Workspace %q is deleted and cannot be updated.", workspace.Name),
 		})
 		return
 	}

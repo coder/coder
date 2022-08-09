@@ -4685,13 +4685,15 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
-const updateWorkspace = `-- name: UpdateWorkspace :exec
+const updateWorkspace = `-- name: UpdateWorkspace :execrows
 UPDATE
 	workspaces
 SET
 	name = $2
 WHERE
 	id = $1
+	-- This can result in rows affected being zero, the caller should
+	-- handle this case.
 	AND deleted = false
 `
 
@@ -4700,9 +4702,12 @@ type UpdateWorkspaceParams struct {
 	Name string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspace, arg.ID, arg.Name)
-	return err
+func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateWorkspace, arg.ID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec

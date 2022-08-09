@@ -112,13 +112,15 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspace :exec
+-- name: UpdateWorkspace :execrows
 UPDATE
 	workspaces
 SET
 	name = $2
 WHERE
 	id = $1
+	-- This can result in rows affected being zero, the caller should
+	-- handle this case.
 	AND deleted = false;
 
 -- name: UpdateWorkspaceAutostart :exec
