@@ -12,6 +12,87 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+// BenchmarkRBACFilter benchmarks the rbac.Filter method.
+//	go test -bench BenchmarkRBACFilter -benchmem -memprofile memprofile.out -cpuprofile profile.out
+func BenchmarkRBACFilter(b *testing.B) {
+	orgs := []uuid.UUID{
+		uuid.MustParse("bf7b72bd-a2b1-4ef2-962c-1d698e0483f6"),
+		uuid.MustParse("e4660c6f-b9de-422d-9578-cd888983a795"),
+		uuid.MustParse("fb13d477-06f4-42d9-b957-f6b89bd63515"),
+	}
+
+	users := []uuid.UUID{
+		uuid.MustParse("10d03e62-7703-4df5-a358-4f76577d4e2f"),
+		uuid.MustParse("4ca78b1d-f2d2-4168-9d76-cd93b51c6c1e"),
+		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
+		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
+	}
+
+	benchCases := []struct {
+		Name   string
+		Roles  []string
+		UserID uuid.UUID
+	}{
+		{
+			Name:   "NoRoles",
+			Roles:  []string{},
+			UserID: users[0],
+		},
+		{
+			Name: "Admin",
+			// Give some extra roles that an admin might have
+			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleAdmin(), rbac.RoleMember()},
+			UserID: users[0],
+		},
+		{
+			Name:   "OrgAdmin",
+			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
+			UserID: users[0],
+		},
+		{
+			Name: "OrgMember",
+			// Member of 2 orgs
+			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
+			UserID: users[0],
+		},
+		{
+			Name: "ManyRoles",
+			// Admin of many orgs
+			Roles: []string{
+				rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
+				rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
+				rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+				rbac.RoleMember()},
+			UserID: users[0],
+		},
+	}
+
+	authorizer, err := rbac.NewAuthorizer()
+	if err != nil {
+		require.NoError(b, err)
+	}
+	for _, c := range benchCases {
+		b.Run(c.Name, func(b *testing.B) {
+			objects := benchmarkSetup(orgs, users, b.N)
+			b.ResetTimer()
+			allowed := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, rbac.ActionRead, objects)
+			var _ = allowed
+		})
+	}
+}
+
+func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int) []rbac.Object {
+	// Create a "random" but deterministic set of objects.
+	objectList := make([]rbac.Object, size)
+	for i := range objectList {
+		objectList[i] = rbac.ResourceWorkspace.
+			InOrg(orgs[i%len(orgs)]).
+			WithOwner(users[i%len(users)].String())
+	}
+
+	return objectList
+}
+
 type authSubject struct {
 	// Name is helpful for test assertions
 	Name   string
