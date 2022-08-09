@@ -520,7 +520,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Check if the name was already in use.
-		if database.IsUniqueViolation(err, database.UniqueConstraintWorkspacesOwnerIDLowerIdx) {
+		if database.IsUniqueViolation(err, database.UniqueWorkspacesOwnerIDLowerIdx) {
 			httpapi.Write(rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("Workspace %q already exists.", req.Name),
 				Validations: []codersdk.ValidationError{{

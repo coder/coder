@@ -12,16 +12,24 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 // TODO(mafredri): Generate these from the database schema.
 const (
-	UniqueConstraintAny                       UniqueConstraint = ""
-	UniqueConstraintWorkspacesOwnerIDLowerIdx UniqueConstraint = "workspaces_owner_id_lower_idx"
+	UniqueWorkspacesOwnerIDLowerIdx UniqueConstraint = "workspaces_owner_id_lower_idx"
 )
 
-func IsUniqueViolation(err error, uniqueConstraint UniqueConstraint) bool {
+// IsUniqueViolation checks if the error is due to a unique violation.
+// If specific cunique constraints are given as arguments, the error
+// must be caused by one of them. If no constraints are given, this
+// function returns true on any unique violation.
+func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
 		if pqErr.Code.Name() == "unique_violation" {
-			if pqErr.Constraint == string(uniqueConstraint) || uniqueConstraint == UniqueConstraintAny {
+			if len(uniqueConstraints) == 0 {
 				return true
+			}
+			for _, uc := range uniqueConstraints {
+				if pqErr.Constraint == string(uc) {
+					return true
+				}
 			}
 		}
 	}
