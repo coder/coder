@@ -30,6 +30,8 @@ specific usage (e.g., a template to **Develop code-server in Docker**):
 
 1. Answer the CLI prompts; when done, confirm that you want to create your template.
 
+## Create a workspace
+
 Now, create a workspace using your template:
 
 ```bash
