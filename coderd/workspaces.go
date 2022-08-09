@@ -501,18 +501,17 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		name = req.Name
 	}
 
-	err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
+	_, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
 		ID:   workspace.ID,
 		Name: name,
 	})
 	if err != nil {
 		// The query protects against updating deleted workspaces and
 		// the existence of the workspace is checked in the request,
-		// the only conclusion we can make is that we're trying to
-		// update a deleted workspace.
+		// if we get ErrNoRows it means the workspace was deleted.
 		//
-		// We could do this check earlier but since we're not in a
-		// transaction, it's pointless.
+		// We could do this check earlier but we'd need to start a
+		// transaction.
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusMethodNotAllowed, codersdk.Response{
 				Message: fmt.Sprintf("Workspace %q is deleted and cannot be updated.", workspace.Name),

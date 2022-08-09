@@ -4685,7 +4685,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
-const updateWorkspace = `-- name: UpdateWorkspace :exec
+const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE
 	workspaces
 SET
@@ -4693,6 +4693,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 `
 
 type UpdateWorkspaceParams struct {
@@ -4700,9 +4701,22 @@ type UpdateWorkspaceParams struct {
 	Name string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspace, arg.ID, arg.Name)
-	return err
+func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspace, arg.ID, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+	)
+	return i, err
 }
 
 const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec
