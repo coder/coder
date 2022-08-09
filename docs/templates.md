@@ -98,7 +98,7 @@ inherited by all child processes of the agent, including SSH sessions.
 #### startup_script
 
 Use the Coder agent's `startup_script` to run additional commands like
-installing IDEs, [cloning dotfile](./dotfiles.md#templates), and cloning project repos.
+installing IDEs, [cloning dotfiles](./dotfiles.md#templates), and cloning project repos.
 
 ```hcl
 resource "coder_agent" "coder" {
