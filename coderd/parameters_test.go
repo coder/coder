@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 
 	"github.com/stretchr/testify/require"
 
@@ -20,7 +21,11 @@ func TestPostParameter(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateParameter(ctx, codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -36,7 +41,11 @@ func TestPostParameter(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -50,7 +59,11 @@ func TestPostParameter(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -58,7 +71,7 @@ func TestPostParameter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateParameter(context.Background(), codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		_, err = client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -77,7 +90,11 @@ func TestParameters(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		_, err := client.Parameters(context.Background(), codersdk.ParameterTemplate, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
 		require.NoError(t, err)
 	})
 	t.Run("List", func(t *testing.T) {
@@ -85,14 +102,18 @@ func TestParameters(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		params, err := client.Parameters(context.Background(), codersdk.ParameterTemplate, template.ID)
+		params, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 	})
@@ -105,7 +126,11 @@ func TestDeleteParameter(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		err := client.DeleteParameter(context.Background(), codersdk.ParameterTemplate, template.ID, "something")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.DeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -115,14 +140,18 @@ func TestDeleteParameter(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		template := createTemplate(t, client, user)
-		param, err := client.CreateParameter(context.Background(), codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		param, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		err = client.DeleteParameter(context.Background(), codersdk.ParameterTemplate, template.ID, param.Name)
+		err = client.DeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, param.Name)
 		require.NoError(t, err)
 	})
 }
