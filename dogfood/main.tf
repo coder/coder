@@ -95,7 +95,8 @@ resource "coder_metadata" "container_info" {
     value = docker_container.workspace[0].runtime
   }
   item {
-    key = "🤫🤫🤫"
+    key = "🤫🤫🤫<br/><br/>"
     value = "❤️❤️❤️"
+    sensitive = true
   }
 }
