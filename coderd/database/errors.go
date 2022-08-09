@@ -16,9 +16,9 @@ const (
 )
 
 // IsUniqueViolation checks if the error is due to a unique violation.
-// If specific cunique constraints are given as arguments, the error
-// must be caused by one of them. If no constraints are given, this
-// function returns true on any unique violation.
+// If one or more specific unique constraints are given as arguments,
+// the error must be caused by one of them. If no constraints are given,
+// this function returns true for any unique violation.
 func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
