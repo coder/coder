@@ -82,7 +82,7 @@ var (
 		// TODO: Finish the auditor as we add resources.
 		auditor: func(_ string) Role {
 			return Role{
-				Name:        "auditor",
+				Name:        auditor,
 				DisplayName: "Auditor",
 				Site: permissions(map[Object][]Action{
 					// Should be able to read all template details, even in orgs they
@@ -103,7 +103,6 @@ var (
 						{
 							Negate:       false,
 							ResourceType: "*",
-							ResourceID:   "*",
 							Action:       "*",
 						},
 					},
@@ -123,24 +122,20 @@ var (
 							// All org members can read the other members in their org.
 							ResourceType: ResourceOrganizationMember.Type,
 							Action:       ActionRead,
-							ResourceID:   "*",
 						},
 						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
 							Action:       ActionRead,
-							ResourceID:   "*",
 						},
 						{
 							// All org members can read templates in the org
 							ResourceType: ResourceTemplate.Type,
 							Action:       ActionRead,
-							ResourceID:   "*",
 						},
 						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
-							ResourceID:   "*",
 							Action:       ActionRead,
 						},
 					},
@@ -292,7 +287,6 @@ func permissions(perms map[Object][]Action) []Permission {
 			list = append(list, Permission{
 				Negate:       false,
 				ResourceType: k.Type,
-				ResourceID:   WildcardSymbol,
 				Action:       act,
 			})
 		}

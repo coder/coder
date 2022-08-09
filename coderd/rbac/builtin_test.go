@@ -61,7 +61,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "MyUser",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceUser.WithID(currentUser.String()),
+			Resource: rbac.ResourceUser,
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, memberMe, orgMemberMe, orgAdmin, otherOrgMember, otherOrgAdmin},
 				false: {},
@@ -80,7 +80,7 @@ func TestRolePermissions(t *testing.T) {
 			Name: "MyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()).WithID(uuid.NewString()),
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgMemberMe, orgAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember},
@@ -89,7 +89,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "Templates",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceTemplate.InOrg(orgID).WithID(uuid.NewString()),
+			Resource: rbac.ResourceTemplate.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgAdmin},
 				false: {memberMe, orgMemberMe, otherOrgAdmin, otherOrgMember},
@@ -98,7 +98,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ReadTemplates",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceTemplate.InOrg(orgID).WithID(uuid.NewString()),
+			Resource: rbac.ResourceTemplate.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgMemberMe, orgAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember},
@@ -116,7 +116,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "MyFile",
 			Actions:  []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceFile.WithID(uuid.NewString()).WithOwner(currentUser.String()),
+			Resource: rbac.ResourceFile.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, memberMe, orgMemberMe},
 				false: {orgAdmin, otherOrgAdmin, otherOrgMember},
@@ -134,7 +134,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "Organizations",
 			Actions:  []rbac.Action{rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceOrganization.InOrg(orgID).WithID(orgID.String()),
+			Resource: rbac.ResourceOrganization.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgAdmin},
 				false: {otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe},
@@ -143,7 +143,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ReadOrganizations",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceOrganization.InOrg(orgID).WithID(orgID.String()),
+			Resource: rbac.ResourceOrganization.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgAdmin, orgMemberMe},
 				false: {otherOrgAdmin, otherOrgMember, memberMe},
@@ -188,7 +188,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "APIKey",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceAPIKey.WithOwner(currentUser.String()).WithID(uuid.NewString()),
+			Resource: rbac.ResourceAPIKey.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgMemberMe, memberMe},
 				false: {orgAdmin, otherOrgAdmin, otherOrgMember},
@@ -197,7 +197,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "UserData",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceUserData.WithOwner(currentUser.String()).WithID(currentUser.String()),
+			Resource: rbac.ResourceUserData.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgMemberMe, memberMe},
 				false: {orgAdmin, otherOrgAdmin, otherOrgMember},
@@ -206,7 +206,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ManageOrgMember",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceOrganizationMember.InOrg(orgID).WithID(uuid.NewString()),
+			Resource: rbac.ResourceOrganizationMember.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgAdmin},
 				false: {orgMemberMe, memberMe, otherOrgAdmin, otherOrgMember},
@@ -215,7 +215,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ReadOrgMember",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceOrganizationMember.InOrg(orgID).WithID(uuid.NewString()),
+			Resource: rbac.ResourceOrganizationMember.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {admin, orgAdmin, orgMemberMe},
 				false: {memberMe, otherOrgAdmin, otherOrgMember},

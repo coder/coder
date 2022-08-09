@@ -37,19 +37,19 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	// The org-member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleOrgMember(organization.ID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
-	for _, roleName := range added {
-		// Assigning a role requires the create permission.
-		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
-			httpapi.Forbidden(rw)
-			return
-		}
+
+	// TODO: Handle added and removed roles.
+
+	// Assigning a role requires the create permission.
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
 	}
-	for _, roleName := range removed {
-		// Removing a role requires the delete permission.
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
-			httpapi.Forbidden(rw)
-			return
-		}
+
+	// Removing a role requires the delete permission.
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
 	}
 
 	updatedUser, err := api.updateOrganizationMemberRoles(r.Context(), database.UpdateMemberRolesParams{
