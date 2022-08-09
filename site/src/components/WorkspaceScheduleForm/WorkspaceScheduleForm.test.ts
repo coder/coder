@@ -1,7 +1,7 @@
 import {
+  getValidationSchema,
   Language,
   ttlShutdownAt,
-  getValidationSchema,
   WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
@@ -21,7 +21,7 @@ const valid: WorkspaceScheduleFormValues = {
 }
 
 describe("validationSchema", () => {
-  it("allows everything to be falsy", () => {
+  it("allows everything to be falsy when switches are off", () => {
     const values: WorkspaceScheduleFormValues = {
       sunday: false,
       monday: false,
@@ -35,7 +35,7 @@ describe("validationSchema", () => {
       timezone: "",
       ttl: 0,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => getValidationSchema(false, false).validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -48,7 +48,7 @@ describe("validationSchema", () => {
     expect(validate).toThrow()
   })
 
-  it("disallows all days-of-week to be false when startTime is set", () => {
+  it("disallows all days-of-week to be false when auto-start is enabled", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
       sunday: false,
@@ -59,11 +59,11 @@ describe("validationSchema", () => {
       friday: false,
       saturday: false,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => getValidationSchema(true, false).validateSync(values)
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
-  it("disallows empty startTime when at least one day is set", () => {
+  it("disallows empty startTime when auto-start is enabled", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
       sunday: false,
@@ -75,7 +75,7 @@ describe("validationSchema", () => {
       saturday: false,
       startTime: "",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => getValidationSchema(true, false).validateSync(values)
     expect(validate).toThrowError(Language.errorNoTime)
   })
 

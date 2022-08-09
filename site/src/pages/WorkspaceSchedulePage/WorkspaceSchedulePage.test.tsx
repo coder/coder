@@ -1,8 +1,11 @@
+import {
+  formValuesToAutoStartRequest,
+  formValuesToTTLRequest,
+} from "pages/WorkspaceSchedulePage/formToRequest"
 import { AutoStart, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { formValuesToAutoStartRequest, formValuesToTTLRequest } from "pages/WorkspaceSchedulePage/formToRequest"
 
 const validValues: WorkspaceScheduleFormValues = {
   sunday: false,
