@@ -436,6 +436,39 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		<-serverErr
 	})
+	t.Run("GitHubOAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		fakeRedirect := "https://fake-url.com"
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--oauth2-github-client-id", "fake",
+			"--oauth2-github-client-secret", "fake",
+			"--oauth2-github-enterprise-base-url", fakeRedirect,
+		)
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- root.ExecuteContext(ctx)
+		}()
+		accessURL := waitAccessURL(t, cfg)
+		client := codersdk.New(accessURL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		githubURL, err := accessURL.Parse("/api/v2/users/oauth2/github")
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Get(githubURL.String())
+		require.NoError(t, err)
+		fakeURL, err := res.Location()
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
+		cancelFunc()
+		<-serverErr
+	})
 }
 
 func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
