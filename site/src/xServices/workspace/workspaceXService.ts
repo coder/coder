@@ -550,12 +550,13 @@ export const workspaceMachine = createMachine(
         }
       },
       getResources: async (context) => {
-        if (context.workspace) {
-          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-          return resources
-        } else {
-          throw Error("Cannot fetch workspace resources without workspace")
+        // If the job hasn't completed, fetching resources will result
+        // in an unfriendly error for the user.
+        if (!context.workspace?.latest_build.job.completed_at) {
+          return []
         }
+        const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
+        return resources
       },
       getBuilds: async (context) => {
         if (context.workspace) {

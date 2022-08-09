@@ -50,7 +50,11 @@ func TestMain(m *testing.M) {
 func TestBuildInfo(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	buildInfo, err := client.BuildInfo(context.Background())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	buildInfo, err := client.BuildInfo(ctx)
 	require.NoError(t, err)
 	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
@@ -59,10 +63,10 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
-	var (
-		ctx        = context.Background()
-		authorizer = &fakeAuthorizer{}
-	)
+	authorizer := &fakeAuthorizer{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	// This function was taken from coderdtest.newWithAPI. It is intentionally
 	// copied to avoid exposing the API to other tests in coderd. Tests should
@@ -84,7 +88,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			require.NoError(t, err)
 			db = database.New(sqlDB)
 
-			pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+			pubsub, err = database.NewPubsub(ctx, sqlDB, connectionURL)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_ = pubsub.Close()
@@ -94,8 +98,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		tickerCh := make(chan time.Time)
 		t.Cleanup(func() { close(tickerCh) })
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
+		ctx, cancel := context.WithCancel(ctx) // Shadowed to avoid mixing contexts.
+		defer t.Cleanup(cancel)                // Defer to ensure cancelFunc is executed first.
 
 		lifecycleExecutor := executor.New(
 			ctx,
@@ -513,7 +517,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{scope}", string(templateParam.Scope))
 			route = strings.ReplaceAll(route, "{id}", templateParam.ScopeID.String())
 
-			resp, err := client.Request(context.Background(), method, route, nil)
+			resp, err := client.Request(ctx, method, route, nil)
 			require.NoError(t, err, "do req")
 			body, _ := io.ReadAll(resp.Body)
 			t.Logf("Response Body: %q", string(body))

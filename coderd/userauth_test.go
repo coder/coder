@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 type oauth2Config struct {
@@ -50,7 +51,11 @@ func TestUserAuthMethods(t *testing.T) {
 	t.Run("Password", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		methods, err := client.AuthMethods(context.Background())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
 		require.True(t, methods.Password)
 		require.False(t, methods.Github)
@@ -60,7 +65,11 @@ func TestUserAuthMethods(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{},
 		})
-		methods, err := client.AuthMethods(context.Background())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
 		require.True(t, methods.Password)
 		require.True(t, methods.Github)
@@ -344,9 +353,12 @@ func TestUserOIDC(t *testing.T) {
 			resp := oidcCallback(t, client)
 			assert.Equal(t, tc.StatusCode, resp.StatusCode)
 
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			if tc.Username != "" {
 				client.SessionToken = resp.Cookies()[0].Value
-				user, err := client.User(context.Background(), "me")
+				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 			}

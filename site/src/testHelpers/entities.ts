@@ -81,6 +81,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
   storage_source: "asdf",
+  completed_at: "2022-05-17T17:39:01.382927298Z",
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -286,12 +287,20 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  metadata: [
+    { key: "type", value: "a-workspace-resource", sensitive: false },
+    { key: "api_key", value: "12345678", sensitive: true },
+  ],
 }
 
 export const MockWorkspaceResource2 = {
   ...MockWorkspaceResource,
   id: "test-workspace-resource-2",
   name: "another-workspace-resource",
+  metadata: [
+    { key: "type", value: "google_compute_disk", sensitive: false },
+    { key: "size", value: "32GB", sensitive: false },
+  ],
 }
 
 export const MockUserAgent: Types.UserAgent = {
