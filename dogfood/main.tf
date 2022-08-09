@@ -49,6 +49,15 @@ resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
 }
 
+resource "coder_metadata" "home_info" {
+  resource_id = docker_volume.home_volume.id
+  item {
+    key = "🤫🤫🤫<br/><br/>"
+    value = "❤️❤️❤️"
+    sensitive = true
+  }
+}
+
 
 
 
@@ -93,10 +102,5 @@ resource "coder_metadata" "container_info" {
   item {
     key = "runtime"
     value = docker_container.workspace[0].runtime
-  }
-  item {
-    key = "🤫🤫🤫<br/><br/>"
-    value = "❤️❤️❤️"
-    sensitive = true
   }
 }
