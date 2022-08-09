@@ -39,8 +39,6 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	impliedTypes := append(params.Roles, rbac.RoleOrgMember(organization.ID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 
-	// TODO: Handle added and removed roles.
-
 	// Assigning a role requires the create permission.
 	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)

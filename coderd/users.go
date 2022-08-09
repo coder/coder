@@ -527,7 +527,6 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
 	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
-	// TODO: Handle added and removed roles.
 
 	// Assigning a role requires the create permission.
 	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment) {
