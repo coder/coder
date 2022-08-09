@@ -9,7 +9,7 @@ import (
 // UniqueConstraint represents a named unique constraint on a table.
 type UniqueConstraint string
 
-// UniqueConstrain enums.
+// UniqueConstraint enums.
 // TODO(mafredri): Generate these from the database schema.
 const (
 	UniqueConstraintAny                       UniqueConstraint = ""
