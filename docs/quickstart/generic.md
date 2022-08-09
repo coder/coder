@@ -1,17 +1,22 @@
+# Getting Started
+
+This article will walk you through how to set up your first Coder user, and begin
+using the templates to create and access your development workspaces.
+
 ## Prerequisites
 
-Please [install Coder](./install.md) before proceeding with the steps outlined in this article.
+Please [install and configure Coder](./install.md) before proceeding with the steps below.
 
 ## First time admin user setup
 
-1.  Run `coder login <your Access URL>` in a new terminal and follow the
+1. Run `coder login <your Access URL>` in a new terminal and follow the
     interactive instructions to create your admin user and password.
 
 > If using `coder server --tunnel`, the Access URL appears in the terminal logs.
 
-## Creating your first template and workspace
+## Templates
 
-In a new terminal window, run the following to copy a sample template:
+To get started using templates, run the following command to generate a sample template:
 
 ```bash
 coder templates init
@@ -25,7 +30,7 @@ specific usage (e.g., a template to **Develop code-server in Docker**):
 
 1. Answer the CLI prompts; when done, confirm that you want to create your template.
 
-Create a workspace using your template:
+Now, create a workspace using your template:
 
 ```bash
 coder create --template="yourTemplate" <workspaceName>
@@ -37,10 +42,8 @@ Connect to your workspace via SSH:
 coder ssh <workspaceName>
 ```
 
-You can also access your workspace using the **access URL** you provided when
-deploying Coder (if you're using a temporary deployment and you opted to use
-Coder's tunnel, use the access URL you were provided). Log in with the admin
-credentials provided to you by Coder.
+To access your workspace in the Coder dashboard, navigate to the [configured access URL](../install.md#configure),
+and log in with the admin credentials provided to you by Coder.
 
 ![Coder Web UI with code-server](../images/code-server.png)
 
@@ -59,3 +62,5 @@ cd gcp-linux # modify this line as needed to access the template
 vim main.tf
 coder templates update gcp-linux # updates the template
 ```
+
+> See our [template documentation](../templates.md) for more information.
