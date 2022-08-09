@@ -76,6 +76,7 @@ resource "coder_metadata" "twilio_key" {
   item {
     key = "secret"
     value = twilio_iam_api_key.api_key.secret
+    sensitive = true
   }
 }
 ```
