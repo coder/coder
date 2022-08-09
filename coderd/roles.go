@@ -74,10 +74,9 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		}
 		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.Action(v.Action),
 			rbac.Object{
-				ResourceID: v.Object.ResourceID,
-				Owner:      v.Object.OwnerID,
-				OrgID:      v.Object.OrganizationID,
-				Type:       v.Object.ResourceType,
+				Owner: v.Object.OwnerID,
+				OrgID: v.Object.OrganizationID,
+				Type:  v.Object.ResourceType,
 			})
 		response[k] = err == nil
 	}

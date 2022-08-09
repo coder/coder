@@ -542,9 +542,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 					if routeAssertions.AssertObject.OrgID != "" {
 						assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
 					}
-					if routeAssertions.AssertObject.ResourceID != "" {
-						assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
-					}
 				}
 			} else {
 				assert.Nil(t, authorizer.Called, "authorize not expected")

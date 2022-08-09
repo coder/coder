@@ -88,7 +88,7 @@ var (
 	}
 
 	// ResourceOrganizationMember is a user's membership in an organization.
-	// Has ONLY an organization owner. The resource ID is the user's ID
+	// Has ONLY an organization owner.
 	//	create/delete  = Create/delete member from org.
 	//	update  = Update organization member
 	//	read	= View member

@@ -504,7 +504,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.AuthorizationUserRoles(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 	apiKey := httpmw.APIKey(r)
 
 	if apiKey.UserID == user.ID {
@@ -526,19 +526,26 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
-	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
+	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
 	// TODO: Handle added and removed roles.
 
 	// Assigning a role requires the create permission.
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment) {
+	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
 	// Removing a role requires the delete permission.
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment) {
+	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
 		return
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
+			httpapi.Forbidden(rw)
+		}
 	}
 
 	updatedUser, err := api.updateSiteUserRoles(r.Context(), database.UpdateUserRolesParams{

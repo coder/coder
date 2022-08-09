@@ -21,6 +21,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
 	apiKey := httpmw.APIKey(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 
 	if apiKey.UserID == member.UserID {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -41,15 +42,22 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: Handle added and removed roles.
 
 	// Assigning a role requires the create permission.
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
 	// Removing a role requires the delete permission.
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
 		return
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
+			httpapi.Forbidden(rw)
+		}
 	}
 
 	updatedUser, err := api.updateOrganizationMemberRoles(r.Context(), database.UpdateMemberRolesParams{
