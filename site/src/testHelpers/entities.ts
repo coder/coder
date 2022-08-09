@@ -81,6 +81,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
   storage_source: "asdf",
+  completed_at: "2022-05-17T17:39:01.382927298Z",
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
