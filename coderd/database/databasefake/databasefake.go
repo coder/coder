@@ -2261,3 +2261,30 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 
 	return q.deploymentID, nil
 }
+
+func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, arg database.UpdateUserLinkedIDParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.LinkedID = arg.LinkedID
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetUserByLinkedID(_ context.Context, linkedID string) (database.User, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, user := range q.users {
+		if user.LinkedID == linkedID {
+			return user, nil
+		}
+	}
+	return database.User{}, sql.ErrNoRows
+}
