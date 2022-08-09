@@ -219,7 +219,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
 	// Some quick reused objects
-	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String())
+	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(workspace.OwnerID.String())
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -346,7 +346,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/templates": {
 			AssertAction: rbac.ActionCreate,
@@ -354,99 +354,99 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"DELETE:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionDelete,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
 		"GET:/api/v2/files/{fileHash}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash),
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()),
 		},
 		"GET:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"PATCH:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/schema": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/templateversions/{templateversion}/dry-run": {
 			// The first check is to read the template
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/cancel": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/provisionerdaemons": {
 			StatusCode:   http.StatusOK,
-			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
+			AssertObject: rbac.ResourceProvisionerDaemon,
 		},
 
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"GET:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/workspaces": {
 			AssertAction: rbac.ActionCreate,
 			// No ID when creating
-			AssertObject: workspaceRBACObj.WithID(""),
+			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaces/{workspace}/watch": {
 			AssertAction: rbac.ActionRead,
@@ -545,9 +545,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 					}
 					if routeAssertions.AssertObject.OrgID != "" {
 						assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
-					}
-					if routeAssertions.AssertObject.ResourceID != "" {
-						assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
 					}
 				}
 			} else {
