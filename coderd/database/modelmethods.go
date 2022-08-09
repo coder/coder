@@ -25,7 +25,7 @@ func (o Organization) RBACObject() rbac.Object {
 	return rbac.ResourceOrganization.InOrg(o.ID)
 }
 
-func (d ProvisionerDaemon) RBACObject() rbac.Object {
+func (ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon
 }
 
@@ -36,6 +36,6 @@ func (f File) RBACObject() rbac.Object {
 // RBACObject returns the RBAC object for the site wide user resource.
 // If you are trying to get the RBAC object for the UserData, use
 // rbac.ResourceUserData
-func (u User) RBACObject() rbac.Object {
+func (User) RBACObject() rbac.Object {
 	return rbac.ResourceUser
 }

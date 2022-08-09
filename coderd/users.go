@@ -545,6 +545,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	for _, roleName := range append(added, removed...) {
 		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
 			httpapi.Forbidden(rw)
+			return
 		}
 	}
 
