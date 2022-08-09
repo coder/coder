@@ -87,10 +87,6 @@ resource "coder_metadata" "container_info" {
   count = data.coder_workspace.me.start_count
   resource_id = docker_container.workspace[0].id
   item {
-    key = "image"
-    value = docker_container.workspace[0].image
-  }
-  item {
     key = "memory"
     value = docker_container.workspace[0].memory
   }
