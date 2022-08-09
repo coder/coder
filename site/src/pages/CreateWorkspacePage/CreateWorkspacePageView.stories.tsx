@@ -67,7 +67,7 @@ Parameters.args = {
     createParameterSchema({
       name: "instance_size",
       default_source_value: "Big",
-      description: "How large should you instance be?",
+      description: "How large should your instance be?",
       validation_contains: ["Small", "Medium", "Big"],
     }),
     createParameterSchema({
