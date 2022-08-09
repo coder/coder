@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -12,56 +12,18 @@ terraform {
   }
 }
 
-# Admin parameters
-variable "step1_docker_host_warning" {
-  description = <<-EOF
-  Is Docker running on the Coder host?
-
-  This template will use the Docker socket present on
-  the Coder host, which is not necessarily your local machine.
-
-  You can specify a different host in the template file and
-  suppress this warning.
-  EOF
-  validation {
-    condition     = contains(["Continue using /var/run/docker.sock on the Coder host"], var.step1_docker_host_warning)
-    error_message = "Cancelling template create."
-  }
-
-  sensitive = true
-}
-variable "step2_arch" {
-  description = "arch: What architecture is your Docker host on?"
-  validation {
-    condition     = contains(["amd64", "arm64", "armv7"], var.step2_arch)
-    error_message = "Value must be amd64, arm64, or armv7."
-  }
-  sensitive = true
-}
-variable "step3_OS" {
-  description = <<-EOF
-  What operating system is your Coder host on?
-  EOF
-
-  validation {
-    condition     = contains(["MacOS", "Windows", "Linux"], var.step3_OS)
-    error_message = "Value must be MacOS, Windows, or Linux."
-  }
-  sensitive = true
+data "coder_provisioner" "me" {
 }
 
 provider "docker" {
-  host = var.step3_OS == "Windows" ? "npipe:////.//pipe//docker_engine" : "unix:///var/run/docker.sock"
-}
-
-provider "coder" {
+   host = data.coder_provisioner.me.os == "windows" ? "npipe:////.//pipe//docker_engine" : "unix:///var/run/docker.sock"
 }
 
 data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = var.step2_arch
+  arch = data.coder_provisioner.me.arch
   os   = "linux"
 }
 
@@ -84,7 +46,7 @@ variable "docker_image" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-root"
+  name = "coder-${data.coder_workspace.me.owner_id}-${lower(data.coder_workspace.me.id)}-root"
 }
 
 resource "docker_image" "coder_image" {

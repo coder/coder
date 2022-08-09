@@ -9,7 +9,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -18,11 +18,11 @@ terraform {
   }
 }
 
-provider "docker" {
-  host = "unix:///var/run/docker.sock"
+data "coder_provisioner" "me" {
 }
 
-provider "coder" {
+provider "docker" {
+   host = data.coder_provisioner.me.os == "windows" ? "npipe:////.//pipe//docker_engine" : "unix:///var/run/docker.sock"
 }
 
 data "coder_workspace" "me" {
@@ -38,13 +38,13 @@ variable "dotfiles_uri" {
 }
 
 resource "coder_agent" "main" {
-  arch           = "amd64"
+  arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = var.dotfiles_uri != "" ? "coder dotfiles -y ${var.dotfiles_uri}" : null
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-root"
 }
 
 resource "docker_container" "workspace" {
