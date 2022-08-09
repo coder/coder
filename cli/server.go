@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
@@ -85,6 +87,7 @@ func server() *cobra.Command {
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowedTeams         []string
 		oauth2GithubAllowSignups         bool
+		oauth2GithubEnterpriseBaseURL    string
 		oidcAllowSignups                 bool
 		oidcClientID                     string
 		oidcClientSecret                 string
@@ -284,7 +287,7 @@ func server() *cobra.Command {
 			}
 
 			if oauth2GithubClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams)
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams, oauth2GithubEnterpriseBaseURL)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
@@ -392,6 +395,32 @@ func server() *cobra.Command {
 				defer options.Telemetry.Close()
 			}
 
+			// This prevents the pprof import from being accidentally deleted.
+			_ = pprof.Handler
+			if pprofEnabled {
+				//nolint:revive
+				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
+			}
+			if promEnabled {
+				options.PrometheusRegistry = prometheus.NewRegistry()
+				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register active users prometheus metric: %w", err)
+				}
+				defer closeUsersFunc()
+
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
+				}
+				defer closeWorkspacesFunc()
+
+				//nolint:revive
+				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+				), promAddress, "prometheus")()
+			}
+
 			coderAPI := coderd.New(options)
 			defer coderAPI.Close()
 
@@ -404,17 +433,6 @@ func server() *cobra.Command {
 						InsecureSkipVerify: true,
 					},
 				}
-			}
-
-			// This prevents the pprof import from being accidentally deleted.
-			_ = pprof.Handler
-			if pprofEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
-			}
-			if promEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -678,6 +696,8 @@ func server() *cobra.Command {
 		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubEnterpriseBaseURL, "oauth2-github-enterprise-base-url", "", "CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL", "",
+		"Specifies the base URL of a GitHub Enterprise instance to use for oauth2.")
 	cliflag.BoolVarP(root.Flags(), &oidcAllowSignups, "oidc-allow-signups", "", "CODER_OIDC_ALLOW_SIGNUPS", true,
 		"Specifies whether new users can sign up with OIDC.")
 	cliflag.StringVarP(root.Flags(), &oidcClientID, "oidc-client-id", "", "CODER_OIDC_CLIENT_ID", "",
@@ -955,7 +975,7 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	return tls.NewListener(listener, tlsConfig), nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
@@ -971,11 +991,38 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			Slug:         parts[1],
 		})
 	}
+	createClient := func(client *http.Client) (*github.Client, error) {
+		if enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		}
+		return github.NewClient(client), nil
+	}
+
+	endpoint := xgithub.Endpoint
+	if enterpriseBaseURL != "" {
+		enterpriseURL, err := url.Parse(enterpriseBaseURL)
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise base url: %w", err)
+		}
+		authURL, err := enterpriseURL.Parse("/login/oauth/authorize")
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise auth url: %w", err)
+		}
+		tokenURL, err := enterpriseURL.Parse("/login/oauth/access_token")
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise token url: %w", err)
+		}
+		endpoint = oauth2.Endpoint{
+			AuthURL:  authURL.String(),
+			TokenURL: tokenURL.String(),
+		}
+	}
+
 	return &coderd.GithubOAuth2Config{
 		OAuth2Config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			Endpoint:     xgithub.Endpoint,
+			Endpoint:     endpoint,
 			RedirectURL:  redirectURL.String(),
 			Scopes: []string{
 				"read:user",
@@ -987,15 +1034,27 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-			user, _, err := github.NewClient(client).Users.Get(ctx, "")
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			user, _, err := api.Users.Get(ctx, "")
 			return user, err
 		},
 		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-			emails, _, err := github.NewClient(client).Users.ListEmails(ctx, &github.ListOptions{})
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			emails, _, err := api.Users.ListEmails(ctx, &github.ListOptions{})
 			return emails, err
 		},
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-			memberships, _, err := github.NewClient(client).Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			memberships, _, err := api.Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
 				State: "active",
 				ListOptions: github.ListOptions{
 					PerPage: 100,
@@ -1004,7 +1063,11 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return memberships, err
 		},
 		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
-			team, _, err := github.NewClient(client).Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			team, _, err := api.Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
 			return team, err
 		},
 	}, nil

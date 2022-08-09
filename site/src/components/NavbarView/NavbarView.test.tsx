@@ -7,6 +7,19 @@ describe("NavbarView", () => {
   const noop = () => {
     return
   }
+
+  const env = process.env
+
+  // REMARK: copying process.env so we don't mutate that object or encounter conflicts between tests
+  beforeEach(() => {
+    process.env = { ...env }
+  })
+
+  // REMARK: restoring process.env
+  afterEach(() => {
+    process.env = env
+  })
+
   it("renders content", async () => {
     // When
     render(<NavbarView user={MockUser} onSignOut={noop} />)
@@ -47,5 +60,22 @@ describe("NavbarView", () => {
     // There should be a 'B' avatar!
     const element = await screen.findByText("B")
     expect(element).toBeDefined()
+  })
+
+  it("audit nav link has the correct href", async () => {
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
+    const auditLink = await screen.findByText(navLanguage.audit)
+    expect((auditLink as HTMLAnchorElement).href).toContain("/audit")
+  })
+
+  it("audit nav link is only visible in development", async () => {
+    process.env = {
+      ...env,
+      NODE_ENV: "production",
+    }
+
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
+    const auditLink = screen.queryByText(navLanguage.audit)
+    expect(auditLink).not.toBeInTheDocument()
   })
 })

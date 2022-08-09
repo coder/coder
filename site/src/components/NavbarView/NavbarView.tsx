@@ -21,6 +21,7 @@ export const Language = {
   workspaces: "Workspaces",
   templates: "Templates",
   users: "Users",
+  audit: "Audit",
 }
 
 const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ className }) => {
@@ -47,6 +48,14 @@ const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ cl
           {Language.users}
         </NavLink>
       </ListItem>
+      {/* REMARK: the below link is under-construction  */}
+      {process.env.NODE_ENV !== "production" && (
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to="/audit">
+            {Language.audit}
+          </NavLink>
+        </ListItem>
+      )}
     </List>
   )
 }

@@ -95,6 +95,12 @@
       ]
     },
     {
+      "title": "Port Forwarding",
+      "description": "Learn how to forward ports in Coder",
+      "path": "./port-forwarding.md",
+      "icon_path": "./images/icons/port-forward.svg"
+    },
+    {
       "title": "Dotfiles",
       "description": "Learn how to personalize your workspace",
       "icon_path": "./images/icons/art-pad.svg",

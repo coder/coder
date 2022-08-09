@@ -3,7 +3,7 @@ import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError } from "../../components/GlobalSnackbar/utils"
+import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   // Cloning builds to not change the origin object with the sort()
@@ -35,7 +35,8 @@ export interface WorkspaceContext {
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
-  cancellationMessage: string
+  cancellationMessage?: Types.Message
+  cancellationError?: Error | unknown
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
@@ -95,6 +96,9 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         stopWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
+        deleteWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
         cancelWorkspace: {
@@ -213,7 +217,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -228,7 +232,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -243,22 +247,26 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"],
+                    actions: ["assignBuildError"],
                   },
                 },
               },
               requestingCancel: {
-                entry: "clearCancellationMessage",
+                entry: ["clearCancellationMessage", "clearCancellationError"],
                 invoke: {
                   id: "cancelWorkspace",
                   src: "cancelWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: ["assignCancellationMessage", "refreshTimeline"],
+                    actions: [
+                      "assignCancellationMessage",
+                      "displayCancellationMessage",
+                      "refreshTimeline",
+                    ],
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignCancellationMessage", "displayCancellationError"],
+                    actions: ["assignCancellationError"],
                   },
                 },
               },
@@ -387,63 +395,57 @@ export const workspaceMachine = createMachine(
       clearGetPermissionsError: assign({
         checkPermissionsError: (_) => undefined,
       }),
-      assignBuild: (_, event) =>
-        assign({
-          build: event.data,
-        }),
-      assignBuildError: (_, event) =>
-        assign({
-          buildError: event.data,
-        }),
-      displayBuildError: () => {
-        displayError(Language.buildError)
+      assignBuild: assign({
+        build: (_, event) => event.data,
+      }),
+      assignBuildError: assign({
+        buildError: (_, event) => event.data,
+      }),
+      clearBuildError: assign({
+        buildError: (_) => undefined,
+      }),
+      assignCancellationMessage: assign({
+        cancellationMessage: (_, event) => event.data,
+      }),
+      clearCancellationMessage: assign({
+        cancellationMessage: (_) => undefined,
+      }),
+      displayCancellationMessage: (context) => {
+        if (context.cancellationMessage) {
+          displaySuccess(context.cancellationMessage.message)
+        }
       },
-      clearBuildError: (_) =>
-        assign({
-          buildError: undefined,
-        }),
-      assignCancellationMessage: (_, event) =>
-        assign({
-          cancellationMessage: event.data,
-        }),
-      clearCancellationMessage: (_) =>
-        assign({
-          cancellationMessage: undefined,
-        }),
-      displayCancellationError: (context) => {
-        displayError(context.cancellationMessage)
-      },
-      assignRefreshWorkspaceError: (_, event) =>
-        assign({
-          refreshWorkspaceError: event.data,
-        }),
-      clearRefreshWorkspaceError: (_) =>
-        assign({
-          refreshWorkspaceError: undefined,
-        }),
-      assignRefreshTemplateError: (_, event) =>
-        assign({
-          refreshTemplateError: event.data,
-        }),
+      assignCancellationError: assign({
+        cancellationError: (_, event) => event.data,
+      }),
+      clearCancellationError: assign({
+        cancellationError: (_) => undefined,
+      }),
+      assignRefreshWorkspaceError: assign({
+        refreshWorkspaceError: (_, event) => event.data,
+      }),
+      clearRefreshWorkspaceError: assign({
+        refreshWorkspaceError: (_) => undefined,
+      }),
+      assignRefreshTemplateError: assign({
+        refreshTemplateError: (_, event) => event.data,
+      }),
       displayRefreshTemplateError: () => {
         displayError(Language.refreshTemplateError)
       },
-      clearRefreshTemplateError: (_) =>
-        assign({
-          refreshTemplateError: undefined,
-        }),
+      clearRefreshTemplateError: assign({
+        refreshTemplateError: (_) => undefined,
+      }),
       // Resources
       assignResources: assign({
         resources: (_, event) => event.data,
       }),
-      assignGetResourcesError: (_, event) =>
-        assign({
-          getResourcesError: event.data,
-        }),
-      clearGetResourcesError: (_) =>
-        assign({
-          getResourcesError: undefined,
-        }),
+      assignGetResourcesError: assign({
+        getResourcesError: (_, event) => event.data,
+      }),
+      clearGetResourcesError: assign({
+        getResourcesError: (_) => undefined,
+      }),
       // Timeline
       assignBuilds: assign({
         builds: (_, event) => event.data,

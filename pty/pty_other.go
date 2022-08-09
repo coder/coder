@@ -78,7 +78,7 @@ func (p *otherPty) Close() error {
 
 	err := p.pty.Close()
 	err2 := p.tty.Close()
-	if err != nil {
+	if err == nil {
 		err = err2
 	}
 

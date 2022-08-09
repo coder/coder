@@ -14,9 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var (
-	validate *validator.Validate
-)
+var validate *validator.Validate
 
 // This init is used to create a validator and register validation-specific
 // functionality for the HTTP API.
@@ -31,16 +29,19 @@ func init() {
 		}
 		return name
 	})
-	err := validate.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+	nameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
 		if !ok {
 			return false
 		}
 		return UsernameValid(str)
-	})
-	if err != nil {
-		panic(err)
+	}
+	for _, tag := range []string{"username", "template_name", "workspace_name"} {
+		err := validate.RegisterValidation(tag, nameValidator)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

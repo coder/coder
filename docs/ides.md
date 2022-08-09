@@ -78,3 +78,7 @@ Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 ## Web IDEs (Jupyter, code-server, JetBrains Projector)
 
 Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).
+
+## Up next
+
+- Learn about [Port Forwarding](./port-forwarding.md)
