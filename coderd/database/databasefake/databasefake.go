@@ -600,6 +600,32 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	return row, nil
 }
 
+func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.WorkspaceBuild, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	buildNumbers := make(map[uuid.UUID]int32)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		id := workspaceBuild.WorkspaceID
+		if workspaceBuild.BuildNumber > buildNumbers[id] {
+			builds[id] = workspaceBuild
+			buildNumbers[id] = workspaceBuild.BuildNumber
+		}
+	}
+	var returnBuilds []database.WorkspaceBuild
+	for i, n := range buildNumbers {
+		if n > 0 {
+			b := builds[i]
+			returnBuilds = append(returnBuilds, b)
+		}
+	}
+	if len(returnBuilds) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return returnBuilds, nil
+}
+
 func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

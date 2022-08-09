@@ -416,6 +416,7 @@ func TestServer(t *testing.T) {
 
 		scanner := bufio.NewScanner(res.Body)
 		hasActiveUsers := false
+		hasWorkspaces := false
 		for scanner.Scan() {
 			// This metric is manually registered to be tracked in the server. That's
 			// why we test it's tracked here.
@@ -423,9 +424,15 @@ func TestServer(t *testing.T) {
 				hasActiveUsers = true
 				continue
 			}
+			if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
+				hasWorkspaces = true
+				continue
+			}
+			t.Logf("scanned %s", scanner.Text())
 		}
 		require.NoError(t, scanner.Err())
 		require.True(t, hasActiveUsers)
+		require.True(t, hasWorkspaces)
 		cancelFunc()
 		<-serverErr
 	})
