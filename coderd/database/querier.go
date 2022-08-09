@@ -61,10 +61,9 @@ type querier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	GetUserAuthByLinkedID(ctx context.Context, linkedID string) (UserAuth, error)
-	GetUserAuthByUserID(ctx context.Context, userID uuid.UUID) (UserAuth, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserByLinkedID(ctx context.Context, linkedID string) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
@@ -108,7 +107,6 @@ type querier interface {
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error)
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
-	InsertUserAuth(ctx context.Context, arg InsertUserAuthParams) (UserAuth, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
@@ -130,6 +128,7 @@ type querier interface {
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
+	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (User, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)

@@ -466,6 +466,8 @@ func createUser(ctx context.Context, t *testing.T, db database.Store) database.U
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		RBACRoles:      []string{},
+		LinkedID:       uuid.NewString(),
+		LoginType:      database.LoginTypePassword,
 	})
 	require.NoError(t, err, "create user")
 	return user

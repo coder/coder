@@ -77,10 +77,14 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), codersdk.CreateUserRequest{
-		Email:    createUser.Email,
-		Username: createUser.Username,
-		Password: createUser.Password,
+	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: codersdk.CreateUserRequest{
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Password: createUser.Password,
+		},
+		LoginType: database.LoginTypePassword,
+		LinkedID:  createUser.Email,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -235,7 +239,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), createUser)
+	user, _, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: createUser,
+		LinkedID:          createUser.Email,
+		LoginType:         database.LoginTypePassword,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -869,7 +877,13 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	return sessionToken, true
 }
 
-func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
+type createUserRequest struct {
+	codersdk.CreateUserRequest
+	LoginType database.LoginType
+	LinkedID  string
+}
+
+func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
 		orgRoles := make([]string, 0)
@@ -896,6 +910,8 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
+			LoginType: req.LoginType,
+			LinkedID:  req.LinkedID,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

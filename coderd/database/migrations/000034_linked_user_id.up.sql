@@ -15,5 +15,6 @@ SET
       api_keys.user_id = users.id
     ORDER BY updated_at DESC
     LIMIT 1
-  )
+  );
+
 COMMIT;

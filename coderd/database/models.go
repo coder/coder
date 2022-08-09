@@ -491,12 +491,8 @@ type User struct {
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 	Status         UserStatus `db:"status" json:"status"`
 	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
-}
-
-type UserAuth struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	LoginType LoginType `db:"login_type" json:"login_type"`
-	LinkedID  string    `db:"linked_id" json:"linked_id"`
+	LoginType      LoginType  `db:"login_type" json:"login_type"`
+	LinkedID       string     `db:"linked_id" json:"linked_id"`
 }
 
 type Workspace struct {

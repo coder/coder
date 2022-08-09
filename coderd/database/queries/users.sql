@@ -37,10 +37,12 @@ INSERT INTO
 		hashed_password,
 		created_at,
 		updated_at,
-		rbac_roles
+		rbac_roles,
+    login_type,
+    linked_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
@@ -159,3 +161,19 @@ LEFT JOIN organization_members
 	ON id = user_id
 WHERE
     id = @user_id;
+
+-- name: GetUserByLinkedID :one
+SELECT
+  *
+FROM
+  users
+WHERE
+  linked_id = $1;
+
+-- name: UpdateUserLinkedID :one
+UPDATE
+	users
+SET
+	linked_id = $2
+WHERE
+	id = $1 RETURNING *;

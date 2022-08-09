@@ -115,6 +115,8 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		Email:     "admin@email.com",
 		Username:  "admin",
 		RBACRoles: roles,
+		LinkedID:  uuid.NewString(),
+		LoginType: database.LoginTypePassword,
 	})
 	require.NoError(t, err)
 
