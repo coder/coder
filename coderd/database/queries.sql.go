@@ -2444,6 +2444,62 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
+const getUserAuthByLinkedID = `-- name: GetUserAuthByLinkedID :one
+SELECT
+  user_id, login_type, linked_id
+FROM
+  user_auth
+WHERE
+  linked_id = $1
+`
+
+func (q *sqlQuerier) GetUserAuthByLinkedID(ctx context.Context, linkedID string) (UserAuth, error) {
+	row := q.db.QueryRowContext(ctx, getUserAuthByLinkedID, linkedID)
+	var i UserAuth
+	err := row.Scan(&i.UserID, &i.LoginType, &i.LinkedID)
+	return i, err
+}
+
+const getUserAuthByUserID = `-- name: GetUserAuthByUserID :one
+SELECT
+  user_id, login_type, linked_id
+FROM
+  user_auth
+WHERE
+  user_id = $1
+`
+
+func (q *sqlQuerier) GetUserAuthByUserID(ctx context.Context, userID uuid.UUID) (UserAuth, error) {
+	row := q.db.QueryRowContext(ctx, getUserAuthByUserID, userID)
+	var i UserAuth
+	err := row.Scan(&i.UserID, &i.LoginType, &i.LinkedID)
+	return i, err
+}
+
+const insertUserAuth = `-- name: InsertUserAuth :one
+INSERT INTO
+  user_auth (
+    user_id,
+    login_type,
+    linked_id
+  )
+VALUES
+  ( $1, $2, $3) RETURNING user_id, login_type, linked_id
+`
+
+type InsertUserAuthParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	LinkedID  string    `db:"linked_id" json:"linked_id"`
+}
+
+func (q *sqlQuerier) InsertUserAuth(ctx context.Context, arg InsertUserAuthParams) (UserAuth, error) {
+	row := q.db.QueryRowContext(ctx, insertUserAuth, arg.UserID, arg.LoginType, arg.LinkedID)
+	var i UserAuth
+	err := row.Scan(&i.UserID, &i.LoginType, &i.LinkedID)
+	return i, err
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username is returned just to help for logging purposes

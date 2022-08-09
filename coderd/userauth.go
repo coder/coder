@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -219,7 +220,10 @@ type OIDCConfig struct {
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
-	state := httpmw.OAuth2(r)
+	var (
+		ctx   = r.Context()
+		state = httpmw.OAuth2(r)
+	)
 
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
@@ -230,7 +234,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idToken, err := api.OIDCConfig.Verifier.Verify(r.Context(), rawIDToken)
+	idToken, err := api.OIDCConfig.Verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to verify OIDC token.",
@@ -285,26 +289,38 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var user database.User
-	user, err = api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Email: claims.Email,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		if !api.OIDCConfig.AllowSignups {
-			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-				Message: "Signups are disabled for OIDC authentication!",
-			})
-			return
+	api.Database.InTx(
+		func(store database.Store) error {
+
 		}
+	)
+
+	user, found, err := findLinkedUser(ctx, api.Database, database.LoginTypeOIDC, uniqueUserOIDC(idToken), claims.Email)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to find user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !found && !api.OIDCConfig.AllowSignups {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: "Signups are disabled for OIDC authentication!",
+		})
+		return
+	}
+
+	if !found {
 		var organizationID uuid.UUID
-		organizations, _ := api.Database.GetOrganizations(r.Context())
+		organizations, _ := api.Database.GetOrganizations(ctx)
 		if len(organizations) > 0 {
 			// Add the user to the first organization. Once multi-organization
 			// support is added, we should enable a configuration map of user
 			// email to organization.
 			organizationID = organizations[0].ID
 		}
-		user, _, err = api.createUser(r.Context(), codersdk.CreateUserRequest{
+		user, _, err = api.createUser(ctx, codersdk.CreateUserRequest{
 			Email:          claims.Email,
 			Username:       claims.Username,
 			OrganizationID: organizationID,
@@ -316,15 +332,22 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get user by email.",
-			Detail:  err.Error(),
+		_, err = api.Database.InsertUserAuth(ctx, database.InsertUserAuthParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  uniqueUserOIDC(idToken),
 		})
-		return
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to insert user auth metadata.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
+	if user.Email != claims.Email || user.Username != claims.Username {
 
+	}
 	_, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:            user.ID,
 		LoginType:         database.LoginTypeOIDC,
@@ -341,4 +364,58 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		redirect = "/"
 	}
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+func uniqueUserOIDC(tok *oidc.IDToken) string {
+	return strings.Join([]string{tok.Issuer, tok.Subject}, "||")
+}
+
+func findLinkedUser(ctx context.Context, db database.Store, authType database.LoginType, linkedID string, email string) (database.User, bool, error) {
+	var user database.User
+
+	uauth, err := db.GetUserAuthByLinkedID(ctx, linkedID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return user, false, xerrors.Errorf("get user auth by linked ID: %w", err)
+	}
+
+	if err == nil {
+		user, err := db.GetUserByID(ctx, uauth.UserID)
+		if err != nil {
+			return user, false, xerrors.Errorf("get user by ID: %w", err)
+		}
+		return user, true, nil
+	}
+
+	user, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+		Email: email,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return user, false, xerrors.Errorf("get user by email: %w", err)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return user, false, nil
+	}
+
+	// Try getting the UAuth by user ID instead now. Maybe the user
+	// logged in using a different login type.
+	uauth, err = db.GetUserAuthByUserID(ctx, user.ID)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		return user, false, xerrors.Errorf("get user auth by user ID: %w", err)
+	}
+	if uauth.LoginType != authType {
+		return user, false, xerrors.Errorf("cannot login with %q with account is already linked with %q", authType, uauth.LoginType)
+	}
+	if err == nil {
+		return user, false, xerrors.Errorf("user auth already exists with different linked ID? Expecting %q but got %q", linkedID, uauth.LinkedID)
+	}
+
+	_, err = db.InsertUserAuth(ctx, database.InsertUserAuthParams{
+		UserID:    user.ID,
+		LoginType: authType,
+		LinkedID:  linkedID,
+	})
+	if err != nil {
+		return user, false, xerrors.Errorf("insert user auth: %w", err)
+	}
+	return user, true, nil
 }

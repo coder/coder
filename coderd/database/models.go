@@ -493,6 +493,12 @@ type User struct {
 	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
 }
 
+type UserAuth struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	LinkedID  string    `db:"linked_id" json:"linked_id"`
+}
+
 type Workspace struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
