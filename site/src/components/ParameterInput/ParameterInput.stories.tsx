@@ -42,6 +42,16 @@ Basic.args = {
   }),
 }
 
+export const Boolean = Template.bind({})
+Boolean.args = {
+  schema: createParameterSchema({
+    name: "disable_docker",
+    description: "Disable Docker?",
+    validation_value_type: "bool",
+    default_source_value: "false",
+  }),
+}
+
 export const Contains = Template.bind({})
 Contains.args = {
   schema: createParameterSchema({

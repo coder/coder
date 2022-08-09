@@ -64,6 +64,18 @@ Parameters.args = {
       description: "How large should you instance be?",
       validation_contains: ["Small", "Medium", "Big"],
     }),
+    createParameterSchema({
+      name: "instance_size",
+      default_source_value: "Big",
+      description: "How large should you instance be?",
+      validation_contains: ["Small", "Medium", "Big"],
+    }),
+    createParameterSchema({
+      name: "disable_docker",
+      description: "Disable Docker?",
+      validation_value_type: "bool",
+      default_source_value: "false",
+    }),
   ],
   createWorkspaceErrors: {},
 }
