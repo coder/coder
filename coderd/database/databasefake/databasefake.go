@@ -2091,7 +2091,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) error {
+func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2104,17 +2104,17 @@ func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 				continue
 			}
 			if other.Name == arg.Name {
-				return &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
+				return database.Workspace{}, &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
 			}
 		}
 
 		workspace.Name = arg.Name
 		q.workspaces[i] = workspace
 
-		return nil
+		return workspace, nil
 	}
 
-	return sql.ErrNoRows
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
