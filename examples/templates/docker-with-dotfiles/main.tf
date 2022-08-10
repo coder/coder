@@ -13,7 +13,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.16.0"
+      version = "~> 2.20.2"
     }
   }
 }
@@ -22,7 +22,6 @@ data "coder_provisioner" "me" {
 }
 
 provider "docker" {
-   host = data.coder_provisioner.me.os == "windows" ? "npipe:////.//pipe//docker_engine" : "unix:///var/run/docker.sock"
 }
 
 data "coder_workspace" "me" {
