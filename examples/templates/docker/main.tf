@@ -63,7 +63,7 @@ variable "docker_image" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-home"
+  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-home"
 }
 
 resource "docker_container" "workspace" {
