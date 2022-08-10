@@ -10,37 +10,86 @@ import (
 
 type PartialAuthorizer struct {
 	// PartialRego is mainly used for unit testing. It is the rego source policy.
-	PartialRego   *rego.Rego
-	PartialResult rego.PartialResult
-	Input         map[string]interface{}
+	PartialRego     *rego.Rego
+	PartialQueries  *rego.PartialQueries
+	PreparedQueries []rego.PreparedEvalQuery
+	AlwaysTrue      bool
+	Input           map[string]interface{}
 }
 
-func newPartialAuthorizer(ctx context.Context, partialRego *rego.Rego, input map[string]interface{}) (*PartialAuthorizer, error) {
-	pResult, err := partialRego.PartialResult(ctx)
+func newPartialAuthorizer(ctx context.Context, _ *rego.Rego, input map[string]interface{}) (*PartialAuthorizer, error) {
+	partialQueries, err := rego.New(
+		rego.Query("true = data.authz.allow"),
+		rego.Module("policy.rego", policy),
+		rego.Unknowns([]string{
+			"input.object.owner",
+			"input.object.org_owner",
+		}),
+		rego.Input(input),
+	).Partial(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("partial results: %w", err)
+		return nil, xerrors.Errorf("prepare: %w", err)
+	}
+
+	alwaysTrue := false
+	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
+	for _, q := range partialQueries.Queries {
+		if q.String() == "" {
+			alwaysTrue = true
+			continue
+		}
+		results, err := rego.New(
+			rego.ParsedQuery(q),
+		).PrepareForEval(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
+		}
+		preparedQueries = append(preparedQueries, results)
 	}
 
 	return &PartialAuthorizer{
-		PartialRego:   partialRego,
-		PartialResult: pResult,
-		Input:         input,
+		PartialQueries:  partialQueries,
+		PreparedQueries: preparedQueries,
+		Input:           input,
+		AlwaysTrue:      alwaysTrue,
 	}, nil
 }
 
-// Authorize authorizes a single object
+// Authorize authorizes a single object using teh partially prepared queries.
 func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	results, err := a.PartialResult.Rego(rego.Input(
-		map[string]interface{}{
+	if a.AlwaysTrue {
+		return nil
+	}
+
+EachQueryLoop:
+	for _, q := range a.PreparedQueries {
+		results, err := q.Eval(ctx, rego.EvalInput(map[string]interface{}{
 			"object": object,
-		})).Eval(ctx)
-	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval prepared"), a.Input, results)
+		}))
+		if err != nil {
+			continue EachQueryLoop
+		}
+
+		if len(results) == 0 {
+			continue EachQueryLoop
+		}
+
+		if len(results) > 1 {
+			continue EachQueryLoop
+		}
+
+		if len(results[0].Bindings) > 0 {
+			continue EachQueryLoop
+		}
+
+		for _, exp := range results[0].Expressions {
+			if exp.String() != "true" {
+				continue EachQueryLoop
+			}
+		}
+
+		return nil
 	}
 
-	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), a.Input, results)
-	}
-
-	return nil
+	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), a.Input, nil)
 }

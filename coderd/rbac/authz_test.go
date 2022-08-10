@@ -42,6 +42,8 @@ func (w fakeObject) RBACObject() rbac.Object {
 
 // TestFilter ensures the filter acts the same as an individual authorize.
 func TestFilter(t *testing.T) {
+	t.Parallel()
+
 	orgIDs := make([]uuid.UUID, 10)
 	userIDs := make([]uuid.UUID, len(orgIDs))
 	for i := range orgIDs {
@@ -79,11 +81,39 @@ func TestFilter(t *testing.T) {
 			ObjectType: rbac.ResourceWorkspace.Type,
 			Action:     rbac.ActionRead,
 		},
+		{
+			Name:       "OrgAdmin",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{rbac.RoleOrgMember(orgIDs[0]), rbac.RoleOrgAdmin(orgIDs[0]), rbac.RoleMember()},
+			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
+		},
+		{
+			Name:       "OrgMember",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{rbac.RoleOrgMember(orgIDs[0]), rbac.RoleOrgMember(orgIDs[1]), rbac.RoleMember()},
+			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
+		},
+		{
+			Name:      "ManyRoles",
+			SubjectID: userIDs[0].String(),
+			Roles: []string{
+				rbac.RoleOrgMember(orgIDs[0]), rbac.RoleOrgAdmin(orgIDs[0]),
+				rbac.RoleOrgMember(orgIDs[1]), rbac.RoleOrgAdmin(orgIDs[1]),
+				rbac.RoleOrgMember(orgIDs[2]), rbac.RoleOrgAdmin(orgIDs[2]),
+				rbac.RoleMember(),
+			},
+			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
 			localObjects := make([]fakeObject, len(objects))
 			copy(localObjects, objects)
 
@@ -104,13 +134,30 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list := rbac.FilterPart(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
+			list, err := rbac.FilterPart(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
+			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
 				require.True(t, obj.Allowed, "expected allowed")
 			}
 		})
 	}
+}
+
+func TestOne(t *testing.T) {
+	defOrg := uuid.New()
+
+	user := subject{
+		UserID: "me",
+		Roles: []rbac.Role{
+			must(rbac.RoleByName(rbac.RoleMember())),
+			must(rbac.RoleByName(rbac.RoleOrgMember(defOrg))),
+		},
+	}
+	testAuthorize(t, "Member", user, []authTestCase{
+		// Org + me
+		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: true},
+	})
 }
 
 // TestAuthorizeDomain test the very basic roles that are commonly used.

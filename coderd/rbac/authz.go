@@ -36,21 +36,25 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	return filtered
 }
 
-func FilterPart[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objectType string, objects []O) []O {
+func FilterPart[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objectType string, objects []O) ([]O, error) {
 	filtered := make([]O, 0)
 	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, action, objectType)
 	if err != nil {
-		return filtered
+		return nil, xerrors.Errorf("prepare: %w", err)
 	}
 
 	for i := range objects {
 		object := objects[i]
-		err := prepared.Authorize(ctx, object.RBACObject())
+		rbacObj := object.RBACObject()
+		if rbacObj.Type != objectType {
+			return nil, xerrors.Errorf("object types must be %s, found %s", objectType, object.RBACObject().Type)
+		}
+		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
 			filtered = append(filtered, object)
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()

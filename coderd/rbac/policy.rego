@@ -79,6 +79,7 @@ org_mem := true {
 
 default user = 0
 user := num {
+    input.object.owner != ""
     input.subject.id = input.object.owner
 	allow := { x |
     	perm := input.subject.roles[_].user[_]
