@@ -9,11 +9,15 @@ import (
 )
 
 type PartialAuthorizer struct {
-	// PartialQueries is mainly used for unit testing.
+	// PartialQueries is mainly used for unit testing to assert our rego policy
+	// can always be compressed into a set of queries.
 	PartialQueries  *rego.PartialQueries
 	PreparedQueries []rego.PreparedEvalQuery
-	AlwaysTrue      bool
-	Input           map[string]interface{}
+	// Input is used purely for debugging and logging.
+	Input map[string]interface{}
+	// AlwaysTrue is if the subject can always perform the action on the
+	// resource type, regardless of the unknown fields.
+	AlwaysTrue bool
 }
 
 func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
@@ -28,6 +32,8 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		"action": action,
 	}
 
+	// Run the rego policy with a few unknown fields. This should simplify our
+	// policy to a set of queries.
 	partialQueries, err := rego.New(
 		rego.Query("true = data.authz.allow"),
 		rego.Module("policy.rego", policy),
@@ -47,6 +53,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		Input:           input,
 	}
 
+	// Prepare each query to optimize the runtime when we iterate over the objects.
 	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
 	for _, q := range partialQueries.Queries {
 		if q.String() == "" {
@@ -84,9 +91,9 @@ func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	// All these queries are joined by an 'OR'. So we need to run through each
 	// query, and evaluate it.
 	//
-	// In each query, we have a list of the evaluation results, which should be
-	// all boolean expressions. In the above 1st example, there are 2 boolean
-	// expressions. These expressions within a single query are `AND` together by rego.
+	// In each query, we have a list of the expressions, which should be
+	// all boolean expressions. In the above 1st example, there are 2.
+	// These expressions within a single query are `AND` together by rego.
 EachQueryLoop:
 	for _, q := range a.PreparedQueries {
 		// We need to eval each query with the newly known fields.

@@ -1,5 +1,6 @@
 package authz
 import future.keywords
+# A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
 # opa eval --format=pretty 'data.authz.allow = true' -d policy.rego  -i input.json
 # opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner -i input.json
@@ -18,6 +19,10 @@ bool_flip(b) = flipped {
     flipped = true
 }
 
+# number is a quick way to get a set of {true, false} and convert it to
+#  -1: {false, true} or {false}
+#   0: {}
+#   1: {true}
 number(set) = c {
 	count(set) == 0
     c := 0
