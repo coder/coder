@@ -63,7 +63,7 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
-	authorizer := &fakeAuthorizer{}
+	authorizer := newRecordingAuthorizer()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -563,21 +563,29 @@ type authCall struct {
 	Object    rbac.Object
 }
 
-type fakeAuthorizer struct {
+type recordingAuthorizer struct {
+	*rbac.FakeAuthorizer
 	Called       *authCall
 	AlwaysReturn error
 }
 
-func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
-	f.Called = &authCall{
-		SubjectID: subjectID,
-		Roles:     roleNames,
-		Action:    action,
-		Object:    object,
+func newRecordingAuthorizer() recordingAuthorizer {
+	r := recordingAuthorizer{}
+	// Use the fake authorizer by rbac to handle prepared authorizers.
+	r.FakeAuthorizer = &rbac.FakeAuthorizer{
+		AuthFunc: func(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+			r.Called = &authCall{
+				SubjectID: subjectID,
+				Roles:     roleNames,
+				Action:    action,
+				Object:    object,
+			}
+			return r.AlwaysReturn
+		},
 	}
-	return f.AlwaysReturn
+	return r
 }
 
-func (f *fakeAuthorizer) reset() {
+func (f *recordingAuthorizer) reset() {
 	f.Called = nil
 }

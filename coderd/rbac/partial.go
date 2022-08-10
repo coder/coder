@@ -8,20 +8,20 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 )
 
-type partialAuthorizer struct {
+type PartialAuthorizer struct {
 	// PartialRego is mainly used for unit testing. It is the rego source policy.
 	PartialRego   *rego.Rego
 	PartialResult rego.PartialResult
 	Input         map[string]interface{}
 }
 
-func newPartialAuthorizer(ctx context.Context, partialRego *rego.Rego, input map[string]interface{}) (*partialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, partialRego *rego.Rego, input map[string]interface{}) (*PartialAuthorizer, error) {
 	pResult, err := partialRego.PartialResult(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("partial results: %w", err)
 	}
 
-	return &partialAuthorizer{
+	return &PartialAuthorizer{
 		PartialRego:   partialRego,
 		PartialResult: pResult,
 		Input:         input,
@@ -29,7 +29,7 @@ func newPartialAuthorizer(ctx context.Context, partialRego *rego.Rego, input map
 }
 
 // Authorize authorizes a single object
-func (a partialAuthorizer) Authorize(ctx context.Context, object Object) error {
+func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	results, err := a.PartialResult.Rego(rego.Input(
 		map[string]interface{}{
 			"object": object,

@@ -221,6 +221,18 @@ func RoleByName(name string) (Role, error) {
 	return role, nil
 }
 
+func RolesByNames(roleNames []string) ([]Role, error) {
+	roles := make([]Role, 0, len(roleNames))
+	for _, n := range roleNames {
+		r, err := RoleByName(n)
+		if err != nil {
+			return nil, xerrors.Errorf("get role permissions: %w", err)
+		}
+		roles = append(roles, r)
+	}
+	return roles, nil
+}
+
 func IsOrgRole(roleName string) (string, bool) {
 	_, orgID, err := roleSplit(roleName)
 	if err == nil && orgID != "" {

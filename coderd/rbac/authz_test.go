@@ -97,7 +97,7 @@ func TestFilter(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			authorizer := fakeAuthorizer{
+			authorizer := rbac.FakeAuthorizer{
 				AuthFunc: func(_ context.Context, _ string, _ []string, _ rbac.Action, object rbac.Object) error {
 					return c.Auth(object)
 				},
@@ -573,7 +573,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 			t.Run(name, func(t *testing.T) {
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-					defer cancel()
+					t.Cleanup(cancel)
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
 					if c.allow {
 						if authError != nil {

@@ -86,7 +86,7 @@ type authSubject struct {
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
 func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
-	roles, err := a.rolesByNames(roleNames)
+	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 }
 
 func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error) {
-	roles, err := a.rolesByNames(roleNames)
+	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 	return a.Prepare(ctx, subjectID, roles, action, objectType)
 }
 
-func (a RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*partialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:    subjectID,
@@ -139,7 +139,7 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []R
 		"action": action,
 	}
 
-	rego := rego.New(
+	regoPolicy := rego.New(
 		rego.Query("data.authz.allow"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
@@ -149,24 +149,12 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []R
 		rego.Input(input),
 	)
 
-	auth, err := newPartialAuthorizer(ctx, rego, input)
+	auth, err := newPartialAuthorizer(ctx, regoPolicy, input)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
 
 	return auth, nil
-}
-
-func (a RegoAuthorizer) rolesByNames(roleNames []string) ([]Role, error) {
-	roles := make([]Role, 0, len(roleNames))
-	for _, n := range roleNames {
-		r, err := RoleByName(n)
-		if err != nil {
-			return nil, xerrors.Errorf("get role permissions: %w", err)
-		}
-		roles = append(roles, r)
-	}
-	return roles, nil
 }
 
 // CheckPartial will not authorize the request. This function is to be used for unit testing to verify the rego policy
