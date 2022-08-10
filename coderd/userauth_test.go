@@ -206,34 +206,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
-	t.Run("Login", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			GithubOAuth2Config: &coderd.GithubOAuth2Config{
-				OAuth2Config:       &oauth2Config{},
-				AllowOrganizations: []string{"coder"},
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-					return []*github.Membership{{
-						Organization: &github.Organization{
-							Login: github.String("coder"),
-						},
-					}}, nil
-				},
-				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{}, nil
-				},
-				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-					return []*github.UserEmail{{
-						Email:    github.String("testuser@coder.com"),
-						Verified: github.Bool(true),
-					}}, nil
-				},
-			},
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -361,6 +333,7 @@ func TestUserOIDC(t *testing.T) {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
+				require.Equal(t, "https://coder.com||hello", user.LinkedID)
 			}
 		})
 	}
@@ -404,6 +377,27 @@ func TestUserOIDC(t *testing.T) {
 		resp := oidcCallback(t, client)
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
+
+	// Test that we do not allow collisions with pre-existing accounts
+	// of differing login types.
+	t.Run("InvalidLoginType", func(t *testing.T) {
+		t.Parallel()
+		config := createOIDCConfig(t, jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "kyle",
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: config,
+		})
+
+		config.AllowSignups = true
+		config.EmailDomain = "kwc.io"
+
+		resp := oidcCallback(t, client)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	})
 }
 
 // createOIDCConfig generates a new OIDCConfig that returns a static token
@@ -415,11 +409,13 @@ func createOIDCConfig(t *testing.T, claims jwt.MapClaims) *coderd.OIDCConfig {
 
 	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
 	claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+	claims["iss"] = "https://coder.com"
+	claims["sub"] = "hello"
 
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
 	require.NoError(t, err)
 
-	verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
+	verifier := oidc.NewVerifier("https://coder.com", &oidc.StaticKeySet{
 		PublicKeys: []crypto.PublicKey{key.Public()},
 	}, &oidc.Config{
 		SkipClientIDCheck: true,
@@ -479,4 +475,8 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 	require.NoError(t, err)
 	t.Log(string(data))
 	return res
+}
+
+func i64ptr(i int64) *int64 {
+	return &i
 }

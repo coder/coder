@@ -27,6 +27,7 @@ type LoginType string
 const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
+	LoginTypeOIDC     LoginType = "oidc"
 )
 
 type UsersRequest struct {
@@ -49,6 +50,8 @@ type User struct {
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
+	LoginType       LoginType   `json:"login_type"`
+	LinkedID        string      `json:"linked_id"`
 }
 
 type APIKey struct {

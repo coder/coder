@@ -966,6 +966,8 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0),
+		LoginType:       codersdk.LoginType(user.LoginType),
+		LinkedID:        user.LinkedID,
 	}
 
 	for _, roleName := range user.RBACRoles {
