@@ -31,17 +31,16 @@
           "path": "./install/auth.md"
         },
         {
+          "title": "Configuration",
+          "description": "How to configure Coder",
+          "path": "./configure.md"
+        },
+        {
           "title": "Upgrade",
           "description": "Learn how to upgrade Coder.",
           "path": "./install/upgrade.md"
         }
       ]
-    },
-    {
-      "title": "Configuration",
-      "description": "How to configure Coder",
-      "icon_path": "./images/icons/wrench.svg",
-      "path": "./configure.md"
     },
     {
       "title": "Quickstart",

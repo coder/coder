@@ -30,6 +30,17 @@ Coder publishes the following system packages [in GitHub releases](https://githu
 - .rpm (Fedora, CentOS, RHEL, SUSE)
 - .apk (Alpine)
 
+Once installed, you can run Coder as a system service:
+
+ ```sh
+  # Set up an external access URL or enable CODER_TUNNEL
+ sudo vim /etc/coder.d/coder.env
+ # Use systemd to start Coder now and on reboot
+ sudo systemctl enable --now coder
+ # View the logs to ensure a successful start
+ journalctl -u coder.service -b
+ ```
+
 ## docker-compose
 
 Before proceeding, please ensure that you have both Docker and the [latest version of
@@ -119,4 +130,4 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
 ## Up Next
 
-Learn how to [configure Coder](./configure.md)
+Learn how to [configure](./install/configure.md) and [upgrade](./install/upgrade.md) Coder.

@@ -1,11 +1,9 @@
 # Configure
 
-This article documents Coder's primary configuration variables. For a full list
+This article documents Coder server's primary configuration variables. For a full list
 of the Coder environment variables, run `coder server --help` on the host.
 
-## Coder server configuration
-
-Once you've installed Coder, you can configure the server by setting the following
+Once you've [installed](../install.md) Coder, you can configure the server by setting the following
 variables in `/etc/coder.d/coder.env`:
 
 ```sh
