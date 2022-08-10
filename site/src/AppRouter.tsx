@@ -1,3 +1,4 @@
+import { SetupPage } from "pages/SetupPage/SetupPage"
 import { FC, lazy, Suspense } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
@@ -40,6 +41,7 @@ export const AppRouter: FC = () => (
       />
 
       <Route path="login" element={<LoginPage />} />
+      <Route path="setup" element={<SetupPage />} />
       <Route path="healthz" element={<HealthzPage />} />
       <Route
         path="cli-auth"

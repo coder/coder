@@ -287,7 +287,7 @@ export const hasFirstUser = async (): Promise<boolean> => {
   return response.status === 200
 }
 
-export const postFirstUser = async (
+export const createFirstUser = async (
   req: TypesGen.CreateFirstUserRequest,
 ): Promise<TypesGen.CreateFirstUserResponse> => {
   const response = await axios.post(`/api/v2/users/first`, req)

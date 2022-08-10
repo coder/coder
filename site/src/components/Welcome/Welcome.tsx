@@ -3,7 +3,13 @@ import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import { CoderIcon } from "../Icons/CoderIcon"
 
-export const Welcome: FC = () => {
+const defaultMessage = (
+  <>
+    Welcome to <strong>Coder</strong>
+  </>
+)
+
+export const Welcome: FC<{ message?: JSX.Element }> = ({ message = defaultMessage }) => {
   const styles = useStyles()
 
   return (
@@ -12,7 +18,7 @@ export const Welcome: FC = () => {
         <CoderIcon className={styles.logo} />
       </div>
       <Typography className={styles.title} variant="h1">
-        Welcome to <strong>Coder</strong>
+        {message}
       </Typography>
     </div>
   )

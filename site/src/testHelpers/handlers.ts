@@ -91,6 +91,9 @@ export const handlers = [
   rest.get("/api/v2/users/first", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
+  rest.post("/api/v2/users/first", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockUser))
+  }),
 
   // workspaces
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
