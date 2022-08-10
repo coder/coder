@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { rest } from "msw"
-import { history, render } from "testHelpers/renderHelpers"
+import { history, MockUser, render } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { Language as SetupLanguage } from "xServices/setup/setupXService"
 import { SetupPage } from "./SetupPage"
@@ -34,6 +34,12 @@ const fillForm = async ({
 describe("Setup Page", () => {
   beforeEach(() => {
     history.replace("/setup")
+    // appear logged out
+    server.use(
+      rest.get("/api/v2/users/me", (req, res, ctx) => {
+        return res(ctx.status(401), ctx.json({ message: "no user here" }))
+      }),
+    )
   })
 
   it("shows validation error message", async () => {
@@ -79,6 +85,14 @@ describe("Setup Page", () => {
 
   it("redirects to workspaces page when success", async () => {
     render(<SetupPage />)
+
+    // simulates the user will be authenticated
+    server.use(
+      rest.get("/api/v2/users/me", (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockUser))
+      }),
+    )
+
     await fillForm()
     await waitFor(() => expect(history.location.pathname).toEqual("/workspaces"))
   })
