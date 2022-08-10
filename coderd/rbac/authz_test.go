@@ -574,21 +574,21 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
-					err := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
 					if c.allow {
-						if err != nil {
+						if authError != nil {
 							var uerr *rbac.UnauthorizedError
-							xerrors.As(err, &uerr)
+							xerrors.As(authError, &uerr)
 							d, _ := json.Marshal(uerr.Input())
 							t.Logf("input: %s", string(d))
 							t.Logf("internal error: %+v", uerr.Internal().Error())
 							t.Logf("output: %+v", uerr.Output())
 						}
-						require.NoError(t, err, "expected no error for testcase action %s", a)
+						require.NoError(t, authError, "expected no error for testcase action %s", a)
 						continue
 					}
 
-					if err == nil {
+					if authError == nil {
 						d, _ := json.Marshal(map[string]interface{}{
 							"subject": subject,
 							"object":  c.resource,
@@ -596,11 +596,11 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						})
 						t.Log(string(d))
 					}
-					require.Error(t, err, "expected unauthorized")
+					require.Error(t, authError, "expected unauthorized")
 
 					// Also check the rego policy can form a valid partial query result.
 					result, input, err := authorizer.CheckPartial(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
-					require.NoError(t, err, "check partial")
+					require.NoError(t, err, "run partial")
 					if len(result.Support) > 0 {
 						d, _ := json.Marshal(input)
 						t.Logf("input: %s", string(d))
@@ -610,6 +610,17 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						for _, s := range result.Support {
 							t.Logf("support: %+v", s.String())
 						}
+					}
+					require.Equal(t, 0, len(result.Support), "expected 0 support rules")
+
+					partialAuther, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					require.NoError(t, err, "make prepared authorizer")
+
+					partialErr := partialAuther.Authorize(ctx, c.resource)
+					if authError != nil {
+						require.Error(t, partialErr, "partial error blocked valid request (false negative)")
+					} else {
+						require.NoError(t, partialErr, "partial allowed invalid request (false positive)")
 					}
 				}
 			})
