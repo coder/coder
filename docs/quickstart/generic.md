@@ -5,7 +5,7 @@ using the templates to create and access your development workspaces.
 
 ## Prerequisites
 
-Please [install and configure Coder](./install.md) before proceeding with the steps below.
+Please [install Coder](../install.md) before proceeding with the steps below.
 
 ## First time admin user setup
 
