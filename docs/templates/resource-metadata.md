@@ -15,7 +15,7 @@ You can use `coder_metadata` to show
 - [Secrets](../secrets.md#displaying-secrets)
 - Important file paths
 
-and anything else your Terraform resources expose.
+and any other Terraform resource attribute.
 
 ## Example
 
