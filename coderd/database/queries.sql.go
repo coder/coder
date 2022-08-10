@@ -2551,11 +2551,11 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 
 const getUserByLinkedID = `-- name: GetUserByLinkedID :one
 SELECT
-  id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, linked_id
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, linked_id
 FROM
-  users
+	users
 WHERE
-  linked_id = $1
+	linked_id = $1
 `
 
 func (q *sqlQuerier) GetUserByLinkedID(ctx context.Context, linkedID string) (User, error) {
@@ -2748,8 +2748,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-    login_type,
-    linked_id
+		login_type,
+		linked_id
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, linked_id
