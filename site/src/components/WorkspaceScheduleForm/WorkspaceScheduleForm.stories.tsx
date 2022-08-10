@@ -31,7 +31,7 @@ const defaultInitialValues = {
   autoStartEnabled: true,
   ...defaultSchedule(),
   autoStopEnabled: true,
-  ttl: defaultTTL
+  ttl: defaultTTL,
 }
 
 export const AllDisabled = Template.bind({})
@@ -40,8 +40,8 @@ AllDisabled.args = {
     autoStartEnabled: false,
     ...emptySchedule,
     autoStopEnabled: false,
-    ttl: emptyTTL
-  }
+    ttl: emptyTTL,
+  },
 }
 
 export const AutoStart = Template.bind({})
@@ -50,23 +50,23 @@ AutoStart.args = {
     autoStartEnabled: true,
     ...defaultSchedule(),
     autoStopEnabled: false,
-    ttl: emptyTTL
+    ttl: emptyTTL,
   },
 }
 
 export const WorkspaceWillShutdownInTwoHours = Template.bind({})
 WorkspaceWillShutdownInTwoHours.args = {
-  initialValues: { ...defaultInitialValues, ttl: 2 }
+  initialValues: { ...defaultInitialValues, ttl: 2 },
 }
 
 export const WorkspaceWillShutdownInADay = Template.bind({})
 WorkspaceWillShutdownInADay.args = {
-  initialValues: { ...defaultInitialValues, ttl: 24 }
+  initialValues: { ...defaultInitialValues, ttl: 24 },
 }
 
 export const WorkspaceWillShutdownInTwoDays = Template.bind({})
 WorkspaceWillShutdownInTwoDays.args = {
-  initialValues: { ...defaultInitialValues, ttl: 48 }
+  initialValues: { ...defaultInitialValues, ttl: 48 },
 }
 
 export const WithError = Template.bind({})
