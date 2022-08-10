@@ -31,7 +31,7 @@ const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
+  const [authState] = useActor(xServices.authXService)
   const { permissions } = authState.context
 
   return (
