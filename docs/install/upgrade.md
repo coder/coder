@@ -2,9 +2,6 @@
 
 This article walks you through how to upgrade your Coder server.
 
-To upgrade your Coder server, simply reinstall Coder using your original method
-of [install](../install.md).
-
 <blockquote class="danger">
   <p>
   Prior to upgrading a production Coder deployment, take a database snapshot since
@@ -12,9 +9,12 @@ of [install](../install.md).
   </p>
 </blockquote>
 
+To upgrade your Coder server, simply reinstall Coder using your original method
+of [install](../install.md).
+
 ## Via install.sh
 
-If you installed Coder using the `install.sh` script, simply re-run the below
+If you installed Coder using the `install.sh` script, re-run the below
 command on the host:
 
 ```console
@@ -37,3 +37,7 @@ Coder container:
 ```console
 docker-compose pull coder && docker-compose up coder -d
 ```
+
+## Up Next
+
+- [Learn how to configure Coder](./configure.md).

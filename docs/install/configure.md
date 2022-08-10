@@ -46,5 +46,5 @@ journalctl -u coder.service -b
 
 ## Up Next
 
-- [Get started using Coder](./quickstart.md).
+- [Get started using Coder](../quickstart.md).
 - [Learn how to upgrade Coder](./upgrade.md).

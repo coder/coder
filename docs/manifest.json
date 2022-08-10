@@ -36,7 +36,7 @@
           "path": "./install/configure.md"
         },
         {
-          "title": "Upgrade",
+          "title": "Upgrading",
           "description": "Learn how to upgrade Coder.",
           "path": "./install/upgrade.md"
         }
@@ -53,12 +53,6 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
-        },
-        {
-          "title": "Generic",
-          "description": "Setup Coder on anything",
-          "icon_path": "./images/icons/generic.svg",
-          "path": "./quickstart/generic.md"
         }
       ]
     },
