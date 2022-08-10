@@ -569,8 +569,8 @@ type recordingAuthorizer struct {
 	AlwaysReturn error
 }
 
-func newRecordingAuthorizer() recordingAuthorizer {
-	r := recordingAuthorizer{}
+func newRecordingAuthorizer() *recordingAuthorizer {
+	r := &recordingAuthorizer{}
 	// Use the fake authorizer by rbac to handle prepared authorizers.
 	r.FakeAuthorizer = &rbac.FakeAuthorizer{
 		AuthFunc: func(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
