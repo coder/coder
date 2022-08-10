@@ -1,6 +1,7 @@
-import { useActor } from "@xstate/react"
+import { useSelector } from "@xstate/react"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
+import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
@@ -31,8 +32,7 @@ const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
-  const [authState] = useActor(xServices.authXService)
-  const { permissions } = authState.context
+  const permissions = useSelector(xServices.authXService, selectPermissions)
 
   return (
     <Suspense fallback={<></>}>
