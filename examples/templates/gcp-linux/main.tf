@@ -107,6 +107,6 @@ resource "coder_metadata" "home_info" {
 
   item {
     key   = "size"
-    value = "${google_compute_disk.root.size} GB"
+    value = "${google_compute_disk.root.size} GiB"
   }
 }

@@ -168,6 +168,6 @@ resource "coder_metadata" "workspace_info" {
   }
   item {
     key   = "disk"
-    value = "${aws_instance.dev.root_block_device[0].volume_size} GB"
+    value = "${aws_instance.dev.root_block_device[0].volume_size} GiB"
   }
 }

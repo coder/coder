@@ -153,7 +153,7 @@ resource "coder_metadata" "volume-info" {
 
   item {
     key   = "size"
-    value = "${digitalocean_volume.home_volume.size} GB"
+    value = "${digitalocean_volume.home_volume.size} GiB"
   }
 
 }

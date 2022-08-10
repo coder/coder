@@ -225,6 +225,6 @@ resource "coder_metadata" "home_info" {
 
   item {
     key   = "size"
-    value = "${var.home_size} GB"
+    value = "${var.home_size} GiB"
   }
 }
