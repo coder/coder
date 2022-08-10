@@ -29,6 +29,16 @@
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
           "path": "./install/auth.md"
+        },
+        {
+          "title": "Configuration",
+          "description": "Learn how to configure Coder",
+          "path": "./install/configure.md"
+        },
+        {
+          "title": "Upgrade",
+          "description": "Learn how to upgrade Coder.",
+          "path": "./install/upgrade.md"
         }
       ]
     },
