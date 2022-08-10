@@ -80,9 +80,3 @@ resource "coder_metadata" "twilio_key" {
   }
 }
 ```
-
-## Coder SSH Key
-
-Coder automatically inserts an account-wide SSH key into each workspace. In MacOS
-and Linux this key is at `~/.ssh/id_ecdsa`. You can view and
-regenerate the key in the dashboard at Settings > SSH keys.
