@@ -1,12 +1,13 @@
 import {
-  getValidationSchema,
   Language,
   ttlShutdownAt,
+  validationSchema,
   WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm"
 import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
+  autoStartEnabled: true,
   sunday: false,
   monday: true,
   tuesday: true,
@@ -14,15 +15,17 @@ const valid: WorkspaceScheduleFormValues = {
   thursday: true,
   friday: true,
   saturday: false,
-
   startTime: "09:30",
   timezone: "Canada/Eastern",
+
+  autoStopEnabled: true,
   ttl: 120,
 }
 
 describe("validationSchema", () => {
   it("allows everything to be falsy when switches are off", () => {
     const values: WorkspaceScheduleFormValues = {
+      autoStartEnabled: false,
       sunday: false,
       monday: false,
       tuesday: false,
@@ -30,12 +33,13 @@ describe("validationSchema", () => {
       thursday: false,
       friday: false,
       saturday: false,
-
       startTime: "",
       timezone: "",
+
+      autoStopEnabled: false,
       ttl: 0,
     }
-    const validate = () => getValidationSchema(false, false).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -44,7 +48,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: -1,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrow()
   })
 
@@ -59,7 +63,7 @@ describe("validationSchema", () => {
       friday: false,
       saturday: false,
     }
-    const validate = () => getValidationSchema(true, false).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
@@ -75,7 +79,7 @@ describe("validationSchema", () => {
       saturday: false,
       startTime: "",
     }
-    const validate = () => getValidationSchema(true, false).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorNoTime)
   })
 
@@ -84,7 +88,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "16:20",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -93,7 +97,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "9:30",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -102,7 +106,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "09:5",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -111,7 +115,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "24:01",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -120,7 +124,7 @@ describe("validationSchema", () => {
       ...valid,
       startTime: "09:60",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTime)
   })
 
@@ -129,7 +133,7 @@ describe("validationSchema", () => {
       ...valid,
       timezone: "Canada/North",
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTimezone)
   })
 
@@ -138,7 +142,7 @@ describe("validationSchema", () => {
       ...valid,
       timezone: zone,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrow()
   })
 
@@ -147,7 +151,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: 24 * 7,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrowError()
   })
 
@@ -156,7 +160,7 @@ describe("validationSchema", () => {
       ...valid,
       ttl: 24 * 7 + 1,
     }
-    const validate = () => getValidationSchema(true, true).validateSync(values)
+    const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError("ttl must be less than or equal to 168")
   })
 })

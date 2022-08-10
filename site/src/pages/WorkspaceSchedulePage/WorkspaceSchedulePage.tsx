@@ -1,10 +1,6 @@
 import { useMachine, useSelector } from "@xstate/react"
-import {
-  defaultSchedule,
-  emptySchedule,
-  scheduleToAutoStart,
-} from "pages/WorkspaceSchedulePage/schedule"
-import { defaultTTL, emptyTTL, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
+import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useContext, useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -58,52 +54,6 @@ export const WorkspaceSchedulePage: React.FC = () => {
     setAutoStop(getAutoStop(workspace))
   }, [workspace])
 
-  const onToggleAutoStart = () => {
-    if (autoStart.enabled) {
-      setAutoStart({
-        enabled: false,
-        schedule: emptySchedule,
-      })
-    } else {
-      if (workspace?.autostart_schedule) {
-        // repopulate saved schedule
-        setAutoStart({
-          enabled: true,
-          schedule: getAutoStart(workspace).schedule,
-        })
-      } else {
-        // populate with defaults
-        setAutoStart({
-          enabled: true,
-          schedule: defaultSchedule(),
-        })
-      }
-    }
-  }
-
-  const onToggleAutoStop = () => {
-    if (autoStop.enabled) {
-      setAutoStop({
-        enabled: false,
-        ttl: emptyTTL,
-      })
-    } else {
-      if (workspace?.ttl_ms) {
-        // repopulate saved ttl
-        setAutoStop({
-          enabled: true,
-          ttl: getAutoStop(workspace).ttl,
-        })
-      } else {
-        // set default
-        setAutoStop({
-          enabled: true,
-          ttl: defaultTTL,
-        })
-      }
-    }
-  }
-
   if (!username || !workspaceName) {
     return <Navigate to="/workspaces" />
   }
@@ -137,10 +87,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
-        autoStart={autoStart}
-        toggleAutoStart={onToggleAutoStart}
-        autoStop={autoStop}
-        toggleAutoStop={onToggleAutoStop}
+        initialValues={{ ...autoStart, ...autoStop }}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)

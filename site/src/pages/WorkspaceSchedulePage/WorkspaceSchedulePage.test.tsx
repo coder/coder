@@ -8,6 +8,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 
 const validValues: WorkspaceScheduleFormValues = {
+  autoStartEnabled: true,
   sunday: false,
   monday: true,
   tuesday: true,
@@ -17,6 +18,7 @@ const validValues: WorkspaceScheduleFormValues = {
   saturday: false,
   startTime: "09:30",
   timezone: "Canada/Eastern",
+  autoStopEnabled: true,
   ttl: 120,
 }
 
@@ -26,6 +28,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Empty case
         {
+          autoStartEnabled: false,
           sunday: false,
           monday: false,
           tuesday: false,
@@ -35,6 +38,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "",
           timezone: "",
+          autoStopEnabled: false,
           ttl: 0,
         },
         {
@@ -44,6 +48,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Single day
         {
+          autoStartEnabled: true,
           sunday: true,
           monday: false,
           tuesday: false,
@@ -53,6 +58,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "Canada/Eastern",
+          autoStopEnabled: true,
           ttl: 120,
         },
         {
@@ -62,6 +68,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Standard 1-5 case
         {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: true,
@@ -71,6 +78,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "09:30",
           timezone: "America/Central",
+          autoStopEnabled: true,
           ttl: 120,
         },
         {
@@ -80,6 +88,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Everyday
         {
+          autoStartEnabled: true,
           sunday: true,
           monday: true,
           tuesday: true,
@@ -89,6 +98,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: true,
           startTime: "09:00",
           timezone: "",
+          autoStopEnabled: true,
           ttl: 60 * 8,
         },
         {
@@ -98,6 +108,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Mon, Wed, Fri Evenings
         {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: false,
@@ -107,6 +118,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "",
+          autoStopEnabled: true,
           ttl: 60 * 3,
         },
         {
@@ -161,18 +173,16 @@ describe("WorkspaceSchedulePage", () => {
       [
         undefined,
         {
-          enabled: false,
-          schedule: {
-            sunday: false,
-            monday: false,
-            tuesday: false,
-            wednesday: false,
-            thursday: false,
-            friday: false,
-            saturday: false,
-            startTime: "",
-            timezone: "",
-          },
+          autoStartEnabled: false,
+          sunday: false,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
+          saturday: false,
+          startTime: "",
+          timezone: "",
         },
       ],
 
@@ -180,18 +190,16 @@ describe("WorkspaceSchedulePage", () => {
       [
         "CRON_TZ=UTC 30 9 * * 1-5",
         {
-          enabled: true,
-          schedule: {
-            sunday: false,
-            monday: true,
-            tuesday: true,
-            wednesday: true,
-            thursday: true,
-            friday: true,
-            saturday: false,
-            startTime: "09:30",
-            timezone: "UTC",
-          },
+          autoStartEnabled: true,
+          sunday: false,
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          startTime: "09:30",
+          timezone: "UTC",
         },
       ],
 
@@ -199,18 +207,16 @@ describe("WorkspaceSchedulePage", () => {
       [
         "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
         {
-          enabled: true,
-          schedule: {
-            sunday: false,
-            monday: true,
-            tuesday: false,
-            wednesday: true,
-            thursday: true,
-            friday: false,
-            saturday: true,
-            startTime: "16:20",
-            timezone: "Canada/Eastern",
-          },
+          autoStartEnabled: true,
+          sunday: false,
+          monday: true,
+          tuesday: false,
+          wednesday: true,
+          thursday: true,
+          friday: false,
+          saturday: true,
+          startTime: "16:20",
+          timezone: "Canada/Eastern",
         },
       ],
     ])(`scheduleToAutoStart(%p) returns %p`, (schedule, autoStart) => {
@@ -221,11 +227,11 @@ describe("WorkspaceSchedulePage", () => {
   describe("ttlMsToAutoStop", () => {
     it.each<[number | undefined, AutoStop]>([
       // empty case
-      [undefined, { enabled: false, ttl: 0 }],
+      [undefined, { autoStopEnabled: false, ttl: 0 }],
       // zero
-      [0, { enabled: false, ttl: 0 }],
+      [0, { autoStopEnabled: false, ttl: 0 }],
       // basic case
-      [28_800_000, { enabled: true, ttl: 8 }],
+      [28_800_000, { autoStopEnabled: true, ttl: 8 }],
     ])(`ttlMsToAutoStop(%p) returns %p`, (ttlMs, autoStop) => {
       expect(ttlMsToAutoStop(ttlMs)).toEqual(autoStop)
     })

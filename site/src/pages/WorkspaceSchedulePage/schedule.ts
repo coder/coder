@@ -22,10 +22,9 @@ export interface AutoStartSchedule {
   timezone: string
 }
 
-export interface AutoStart {
-  enabled: boolean
-  schedule: AutoStartSchedule
-}
+export type AutoStart = {
+  autoStartEnabled: boolean
+} & AutoStartSchedule
 
 export const emptySchedule = {
   sunday: false,
@@ -83,10 +82,10 @@ const transformSchedule = (schedule: string) => {
 export const scheduleToAutoStart = (schedule?: string): AutoStart => {
   if (schedule) {
     return {
-      enabled: true,
-      schedule: transformSchedule(schedule),
+      autoStartEnabled: true,
+      ...transformSchedule(schedule),
     }
   } else {
-    return { enabled: false, schedule: emptySchedule }
+    return { autoStartEnabled: false, ...emptySchedule }
   }
 }

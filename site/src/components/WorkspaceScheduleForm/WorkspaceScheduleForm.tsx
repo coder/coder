@@ -17,9 +17,9 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
-import { AutoStart } from "pages/WorkspaceSchedulePage/schedule"
-import { AutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import { FC } from "react"
+import { defaultSchedule } from "pages/WorkspaceSchedulePage/schedule"
+import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
+import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
@@ -65,10 +65,7 @@ export const Language = {
 
 export interface WorkspaceScheduleFormProps {
   submitScheduleError?: Error | unknown
-  autoStart: AutoStart
-  toggleAutoStart: () => void
-  autoStop: AutoStop
-  toggleAutoStop: () => void
+  initialValues: WorkspaceScheduleFormValues
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -77,6 +74,7 @@ export interface WorkspaceScheduleFormProps {
 }
 
 export interface WorkspaceScheduleFormValues {
+  autoStartEnabled: boolean
   sunday: boolean
   monday: boolean
   tuesday: boolean
@@ -84,111 +82,108 @@ export interface WorkspaceScheduleFormValues {
   thursday: boolean
   friday: boolean
   saturday: boolean
-
   startTime: string
   timezone: string
+
+  autoStopEnabled: boolean
   ttl: number
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const getValidationSchema = (autoStartEnabled: boolean, autoStopEnabled: boolean) =>
-  Yup.object({
-    sunday: Yup.boolean(),
-    monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+export const validationSchema = Yup.object({
+  sunday: Yup.boolean(),
+  monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
+    const parent = this.parent as WorkspaceScheduleFormValues
 
-      if (!autoStartEnabled) {
-        return true
+    if (parent.autoStartEnabled) {
+      return true
+    } else {
+      return ![
+        parent.sunday,
+        value,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].every((day) => day === false)
+    }
+  }),
+  tuesday: Yup.boolean(),
+  wednesday: Yup.boolean(),
+  thursday: Yup.boolean(),
+  friday: Yup.boolean(),
+  saturday: Yup.boolean(),
+
+  startTime: Yup.string()
+    .ensure()
+    .test("required-if-auto-start", Language.errorNoTime, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+      if (parent.autoStartEnabled) {
+        return value !== ""
       } else {
-        return ![
-          parent.sunday,
-          value,
-          parent.tuesday,
-          parent.wednesday,
-          parent.thursday,
-          parent.friday,
-          parent.saturday,
-        ].every((day) => day === false)
+        return true
+      }
+    })
+    .test("is-time-string", Language.errorTime, (value) => {
+      if (value === "") {
+        return true
+      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        return false
+      } else {
+        const parts = value.split(":")
+        const HH = Number(parts[0])
+        const mm = Number(parts[1])
+        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
       }
     }),
-    tuesday: Yup.boolean(),
-    wednesday: Yup.boolean(),
-    thursday: Yup.boolean(),
-    friday: Yup.boolean(),
-    saturday: Yup.boolean(),
+  timezone: Yup.string()
+    .ensure()
+    .test("is-timezone", Language.errorTimezone, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
 
-    startTime: Yup.string()
-      .ensure()
-      .test("required-if-auto-start", Language.errorNoTime, function (value) {
-        if (autoStartEnabled) {
-          return value !== ""
-        } else {
+      if (!parent.startTime) {
+        return true
+      } else {
+        // Unfortunately, there's not a good API on dayjs at this time for
+        // evaluating a timezone. Attempt to parse today in the supplied timezone
+        // and return as valid if the function doesn't throw.
+        try {
+          dayjs.tz(dayjs(), value)
           return true
-        }
-      })
-      .test("is-time-string", Language.errorTime, (value) => {
-        if (value === "") {
-          return true
-        } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        } catch (e) {
           return false
-        } else {
-          const parts = value.split(":")
-          const HH = Number(parts[0])
-          const mm = Number(parts[1])
-          return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
         }
-      }),
-    timezone: Yup.string()
-      .ensure()
-      .test("is-timezone", Language.errorTimezone, function (value) {
-        const parent = this.parent as WorkspaceScheduleFormValues
-
-        if (!parent.startTime) {
-          return true
-        } else {
-          // Unfortunately, there's not a good API on dayjs at this time for
-          // evaluating a timezone. Attempt to parse today in the supplied timezone
-          // and return as valid if the function doesn't throw.
-          try {
-            dayjs.tz(dayjs(), value)
-            return true
-          } catch (e) {
-            return false
-          }
-        }
-      }),
-    ttl: Yup.number()
-      .integer()
-      .min(0)
-      .max(24 * 7 /* 7 days */)
-      .test("positive-if-auto-stop", Language.errorNoStop, (value) => {
-        if (autoStopEnabled) {
-          return !!value
-        } else {
-          return true
-        }
-      }),
-  })
+      }
+    }),
+  ttl: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * 7 /* 7 days */)
+    .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
+      if (parent.autoStopEnabled) {
+        return !!value
+      } else {
+        return true
+      }
+    }),
+})
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
-  autoStart,
-  toggleAutoStart,
-  autoStop,
-  toggleAutoStop,
+  initialValues,
   isLoading,
   onCancel,
   onSubmit,
   initialTouched,
 }) => {
   const styles = useStyles()
-  const initialValues = { ...autoStart.schedule, ttl: autoStop.ttl }
 
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
-    enableReinitialize: true,
     onSubmit,
-    validationSchema: () => getValidationSchema(autoStart.enabled, autoStop.enabled),
+    validationSchema,
     initialTouched,
   })
   const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
@@ -206,6 +201,27 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     { value: form.values.saturday, name: "saturday", label: Language.daySaturdayLabel },
   ]
 
+  const handleToggleAutoStart = async (e: ChangeEvent) => {
+    form.handleChange(e)
+    // if enabling from empty values, fill with defaults
+    if (!form.values.autoStartEnabled && !form.values.startTime) {
+      const defaults = defaultSchedule()
+      checkboxes.forEach(async ({ name }) => {
+        await form.setFieldValue(name, defaults[name])
+      })
+      await form.setFieldValue("startTime", defaults.startTime)
+      await form.setFieldValue("timezone", defaults.timezone)
+    }
+  }
+
+  const handleToggleAutoStop = async (e: ChangeEvent) => {
+    form.handleChange(e)
+    // if enabling from empty values, fill with defaults
+    if (!form.values.autoStopEnabled && !form.values.ttl) {
+      await form.setFieldValue("ttl", defaultTTL)
+    }
+  }
+
   return (
     <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
@@ -213,12 +229,18 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
           {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
           <Section title={Language.startSection}>
             <FormControlLabel
-              control={<Switch checked={autoStart.enabled} onChange={toggleAutoStart} />}
+              control={
+                <Switch
+                  name="autoStartEnabled"
+                  checked={form.values.autoStartEnabled}
+                  onChange={handleToggleAutoStart}
+                />
+              }
               label={Language.startSwitch}
             />
             <TextField
               {...formHelpers("startTime", Language.startTimeHelperText)}
-              disabled={isLoading || !autoStart.enabled}
+              disabled={isLoading || !form.values.autoStartEnabled}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -229,7 +251,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
             <TextField
               {...formHelpers("timezone")}
-              disabled={isLoading || !autoStart.enabled}
+              disabled={isLoading || !form.values.autoStartEnabled}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -255,7 +277,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                     control={
                       <Checkbox
                         checked={checkbox.value}
-                        disabled={isLoading || !autoStart.enabled}
+                        disabled={isLoading || !form.values.autoStartEnabled}
                         onChange={form.handleChange}
                         name={checkbox.name}
                         color="primary"
@@ -275,12 +297,18 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 
           <Section title={Language.stopSection}>
             <FormControlLabel
-              control={<Switch checked={autoStop.enabled} onChange={toggleAutoStop} />}
+              control={
+                <Switch
+                  name="autoStopEnabled"
+                  checked={form.values.autoStopEnabled}
+                  onChange={handleToggleAutoStop}
+                />
+              }
               label={Language.stopSwitch}
             />
             <TextField
               {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
-              disabled={isLoading || !autoStop.enabled}
+              disabled={isLoading || !form.values.autoStopEnabled}
               inputProps={{ min: 0, step: 1 }}
               label={Language.ttlLabel}
               type="number"
