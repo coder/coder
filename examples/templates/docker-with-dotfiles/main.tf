@@ -43,7 +43,7 @@ resource "coder_agent" "main" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-root"
+  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-root"
 }
 
 resource "docker_container" "workspace" {
