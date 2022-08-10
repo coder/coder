@@ -1,7 +1,7 @@
 # Configure
 
-This article documents Coder server's primary configuration variables. For a full list
-of the Coder environment variables, run `coder server --help` on the host.
+This article documents the Coder server's primary configuration variables. For a full list
+of the options, run `coder server --help` on the host.
 
 Once you've [installed](../install.md) Coder, you can configure the server by setting the following
 variables in `/etc/coder.d/coder.env`:
@@ -46,4 +46,5 @@ journalctl -u coder.service -b
 
 ## Up Next
 
-[Get started using Coder](./quickstart.md)
+- [Get started using Coder](./quickstart.md).
+- [Learn how to upgrade Coder](./upgrade.md).

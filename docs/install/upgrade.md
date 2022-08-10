@@ -7,7 +7,7 @@ of [install](../install.md).
 
 <blockquote class="danger">
   <p>
-  Prior to upgrading Coder, we _highly_ recommend taking a database snapshot, as
+  Prior to upgrading a production Coder deployment, take a database snapshot since
   Coder does not support rollbacks.
   </p>
 </blockquote>
@@ -22,8 +22,8 @@ curl -L https://coder.com/install.sh | sh
 ```
 
 The script will unpack the new `coder` binary version over the one currently installed.
-Once this is run, you can restart Coder with the following command (if running
-it as a system service):
+Next, you can restart Coder with the following command (if running it as a system
+service):
 
 ```console
 systemctl restart coder
@@ -31,7 +31,7 @@ systemctl restart coder
 
 ## Via docker-compose
 
-If you installed using the `docker-compose`, run the below command to upgrade the
+If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
 
 ```console

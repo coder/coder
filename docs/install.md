@@ -130,4 +130,5 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 
 ## Up Next
 
-Learn how to [configure](./install/configure.md) and [upgrade](./install/upgrade.md) Coder.
+- Learn how to [configure](./install/configure.md) Coder.
+- Learn about [upgrading](./install/upgrade.md) Coder.
