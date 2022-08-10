@@ -1153,7 +1153,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
-			Version(embeddedpostgres.V13).
+			Version(embeddedpostgres.V14).
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
