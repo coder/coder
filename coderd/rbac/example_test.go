@@ -50,9 +50,6 @@ func TestExample(t *testing.T) {
 		// Note 'database.Workspace' could fulfill the object interface and be passed in directly
 		err := authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(defaultOrg).WithOwner(user.UserID))
 		require.NoError(t, err, "this user can their workspace")
-
-		err = authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(defaultOrg).WithOwner(user.UserID).WithID("1234"))
-		require.NoError(t, err, "this user can read workspace '1234'")
 	})
 }
 

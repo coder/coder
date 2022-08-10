@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceResource(t *testing.T) {
@@ -28,6 +29,11 @@ func TestWorkspaceResource(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "b",
+								Auth: &proto.Agent_Token{},
+							}, {
+								Id:   "another",
+								Name: "a",
 								Auth: &proto.Agent_Token{},
 							}},
 						}},
@@ -39,10 +45,18 @@ func TestWorkspaceResource(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		_, err = client.WorkspaceResource(context.Background(), resources[0].ID)
+		resource, err := client.WorkspaceResource(ctx, resources[0].ID)
 		require.NoError(t, err)
+		require.Len(t, resource.Agents, 2)
+		// Ensure it's sorted alphabetically!
+		require.Equal(t, "a", resource.Agents[0].Name)
+		require.Equal(t, "b", resource.Agents[1].Name)
 	})
 
 	t.Run("Apps", func(t *testing.T) {
@@ -79,9 +93,13 @@ func TestWorkspaceResource(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		resource, err := client.WorkspaceResource(context.Background(), resources[0].ID)
+		resource, err := client.WorkspaceResource(ctx, resources[0].ID)
 		require.NoError(t, err)
 		require.Len(t, resource.Agents, 1)
 		agent := resource.Agents[0]
@@ -132,9 +150,13 @@ func TestWorkspaceResource(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		resource, err := client.WorkspaceResource(context.Background(), resources[0].ID)
+		resource, err := client.WorkspaceResource(ctx, resources[0].ID)
 		require.NoError(t, err)
 		metadata := resource.Metadata
 		require.Equal(t, []codersdk.WorkspaceResourceMetadata{{

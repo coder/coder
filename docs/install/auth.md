@@ -25,6 +25,8 @@ server:
 coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="your-org" --oauth2-github-client-id="8d1...e05" --oauth2-github-client-secret="57ebc9...02c24c"
 ```
 
+> For GitHub Enterprise support, specify the `--oauth2-github-enterprise-base-url` flag.
+
 Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -58,6 +59,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
 	OIDCConfig           *OIDCConfig
+	PrometheusRegistry   *prometheus.Registry
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
@@ -86,6 +88,9 @@ func New(options *Options) *API {
 			// default built in authorizer failed.
 			panic(xerrors.Errorf("rego authorize panic: %w", err))
 		}
+	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -116,7 +121,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
 			})
 		},
-		httpmw.Prometheus,
+		httpmw.Prometheus(options.PrometheusRegistry),
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 

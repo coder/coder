@@ -156,7 +156,8 @@ func configSSH() *cobra.Command {
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Args: cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err

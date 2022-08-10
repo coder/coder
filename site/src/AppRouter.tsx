@@ -1,5 +1,5 @@
 import { FC, lazy, Suspense } from "react"
-import { Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
@@ -25,6 +25,7 @@ const WorkspaceAppErrorPage = lazy(
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
+const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 
 export const AppRouter: FC = () => (
   <Suspense fallback={<></>}>
@@ -107,6 +108,24 @@ export const AppRouter: FC = () => (
             </RequireAuth>
           }
         />
+      </Route>
+
+      {/* REMARK: Route under construction
+      Eventually, we should gate this page
+      with permissions and licensing */}
+      <Route path="/audit">
+        <Route
+          index
+          element={
+            process.env.NODE_ENV === "production" ? (
+              <Navigate to="/workspaces" />
+            ) : (
+              <AuthAndFrame>
+                <AuditPage />
+              </AuthAndFrame>
+            )
+          }
+        ></Route>
       </Route>
 
       <Route path="settings" element={<SettingsLayout />}>

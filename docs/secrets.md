@@ -55,8 +55,28 @@ A catch-all variation of this approach is dynamically provisioning a cloud servi
 for each workspace and then making the relevant secrets available via the cloud's secret management
 system.
 
-## Coder SSH Key
+## Displaying Secrets
 
-Coder automatically inserts an account-wide SSH key into each workspace. In MacOS
-and Linux this key is at `~/.ssh/id_ecdsa`. You can view and
-regenerate the key in the dashboard at Settings > SSH keys.
+While you can inject secrets into the workspace via environment variables, you
+can also show them in the Workspace UI with [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
+
+![secret UI](./images/secret-metadata-ui.png)
+
+Can be produced with
+
+```hcl
+resource "twilio_iam_api_key" "api_key" {
+  account_sid   = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+  friendly_name = "Test API Key"
+}
+
+
+resource "coder_metadata" "twilio_key" {
+  resource_id = twilio_iam_api_key.api_key.id
+  item {
+    key = "secret"
+    value = twilio_iam_api_key.api_key.secret
+    sensitive = true
+  }
+}
+```

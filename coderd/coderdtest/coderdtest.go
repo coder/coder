@@ -275,10 +275,15 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	userClient, _ := createAnotherUserRetry(t, client, organizationID, 5, roles...)
+	return userClient
+}
+
+func CreateAnotherUserWithUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
@@ -337,7 +342,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 			require.NoError(t, err, "update org membership roles")
 		}
 	}
-	return other
+	return other, user
 }
 
 // CreateTemplateVersion creates a template import provisioner job
@@ -411,11 +416,11 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
 		var err error
-		templateVersion, err = client.TemplateVersion(context.Background(), version)
+		templateVersion, err = client.TemplateVersion(ctx, version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}))
 	return templateVersion
 }
 
@@ -425,11 +430,10 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
-		var err error
-		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
+	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
+		workspaceBuild, err := client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}))
 	return workspaceBuild
 }
 
@@ -439,21 +443,22 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(t, func() bool {
+	require.True(t, testutil.EventuallyLong(t, func(ctx context.Context) bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		resources, err = client.WorkspaceResourcesByBuild(ctx, build)
 		if !assert.NoError(t, err) {
 			return false
 		}
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
+					t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}))
 	return resources
 }
 

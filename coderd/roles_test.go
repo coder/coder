@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestAuthorization(t *testing.T) {
@@ -90,7 +91,11 @@ func TestAuthorization(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserAuthorizationRequest{Checks: params})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := c.Client.CheckPermissions(ctx, codersdk.UserAuthorizationRequest{Checks: params})
 			require.NoError(t, err, "check perms")
 			require.Equal(t, resp, c.Check)
 		})
@@ -100,12 +105,14 @@ func TestAuthorization(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	client := coderdtest.New(t, nil)
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 		Name: "other",
@@ -119,13 +126,13 @@ func TestListRoles(t *testing.T) {
 	testCases := []struct {
 		Name            string
 		Client          *codersdk.Client
-		APICall         func() ([]codersdk.Role, error)
+		APICall         func(context.Context) ([]codersdk.Role, error)
 		ExpectedRoles   []codersdk.Role
 		AuthorizedError string
 	}{
 		{
 			Name: "MemberListSite",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
@@ -133,14 +140,14 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgMemberListOrg",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: orgRoles,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: forbidden,
@@ -148,21 +155,21 @@ func TestListRoles(t *testing.T) {
 		// Org admin
 		{
 			Name: "OrgAdminListSite",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: siteRoles,
 		},
 		{
 			Name: "OrgAdminListOrg",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: orgRoles,
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: forbidden,
@@ -170,14 +177,14 @@ func TestListRoles(t *testing.T) {
 		// Admin
 		{
 			Name: "AdminListSite",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: siteRoles,
 		},
 		{
 			Name: "AdminListOrg",
-			APICall: func() ([]codersdk.Role, error) {
+			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: orgRoles,
@@ -188,7 +195,11 @@ func TestListRoles(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			roles, err := c.APICall()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			roles, err := c.APICall(ctx)
 			if c.AuthorizedError != "" {
 				var apiErr *codersdk.Error
 				require.ErrorAs(t, err, &apiErr)
