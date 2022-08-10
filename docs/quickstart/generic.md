@@ -44,7 +44,7 @@ Connect to your workspace via SSH:
 coder ssh <workspaceName>
 ```
 
-To access your workspace in the Coder dashboard, navigate to the [configured access URL](../install.md#configure),
+To access your workspace in the Coder dashboard, navigate to the [configured access URL](../configure.md),
 and log in with the admin credentials provided to you by Coder.
 
 ![Coder Web UI with code-server](../images/code-server.png)
