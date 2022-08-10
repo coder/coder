@@ -39,6 +39,7 @@ func (w fakeObject) RBACObject() rbac.Object {
 }
 
 func TestFilterError(t *testing.T) {
+	t.Parallel()
 	auth, err := rbac.NewAuthorizer()
 	require.NoError(t, err)
 
