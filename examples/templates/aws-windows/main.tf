@@ -122,7 +122,7 @@ resource "coder_metadata" "workspace_info" {
     value = aws_instance.dev.instance_type
   }
   item {
-    key   = "disk size"
+    key   = "disk"
     value = "${aws_instance.dev.root_block_device[0].volume_size} GB"
   }
 }
