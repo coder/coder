@@ -17,7 +17,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
-import { defaultSchedule } from "pages/WorkspaceSchedulePage/schedule"
+import { AutoStartSchedule, defaultSchedule } from "pages/WorkspaceSchedulePage/schedule"
 import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
@@ -95,7 +95,7 @@ export const validationSchema = Yup.object({
   monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
     const parent = this.parent as WorkspaceScheduleFormValues
 
-    if (parent.autoStartEnabled) {
+    if (!parent.autoStartEnabled) {
       return true
     } else {
       return ![
@@ -207,7 +207,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     if (!form.values.autoStartEnabled && !form.values.startTime) {
       const defaults = defaultSchedule()
       checkboxes.forEach(async ({ name }) => {
-        await form.setFieldValue(name, defaults[name])
+        await form.setFieldValue(name, defaults[name as keyof AutoStartSchedule])
       })
       await form.setFieldValue("startTime", defaults.startTime)
       await form.setFieldValue("timezone", defaults.timezone)
