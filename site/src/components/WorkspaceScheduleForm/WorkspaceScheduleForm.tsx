@@ -239,8 +239,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
               label={Language.startSwitch}
             />
             <TextField
-              {...formHelpers("startTime")}
-              helperText={form.values.autoStartEnabled ? Language.startTimeHelperText : ""}
+              {...formHelpers("startTime", Language.startTimeHelperText)}
               disabled={isLoading || !form.values.autoStartEnabled}
               InputLabelProps={{
                 shrink: true,
@@ -308,8 +307,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
               label={Language.stopSwitch}
             />
             <TextField
-              {...formHelpers("ttl", "", "ttl_ms")}
-              helperText={form.values.autoStopEnabled ? ttlShutdownAt(form.values.ttl) : ""}
+              {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
               disabled={isLoading || !form.values.autoStopEnabled}
               inputProps={{ min: 0, step: 1 }}
               label={Language.ttlLabel}
