@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/coder/coder/testutil"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cryptorand"
+
+	"github.com/coder/coder/testutil"
+
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 // subject is required because rego needs
@@ -23,89 +25,90 @@ type subject struct {
 	Roles []rbac.Role `json:"roles"`
 }
 
-func TestFilter(t *testing.T) {
-	t.Parallel()
+type fakeObject struct {
+	Owner    uuid.UUID
+	OrgOwner uuid.UUID
+	Type     string
+	Allowed  bool
+}
 
-	objectList := make([]rbac.Object, 0)
-	workspaceList := make([]rbac.Object, 0)
-	fileList := make([]rbac.Object, 0)
-	for i := 0; i < 10; i++ {
-		workspace := rbac.ResourceWorkspace.WithOwner("me")
-		file := rbac.ResourceFile.WithOwner("me")
-
-		workspaceList = append(workspaceList, workspace)
-		fileList = append(fileList, file)
-
-		objectList = append(objectList, workspace)
-		objectList = append(objectList, file)
+func (w fakeObject) RBACObject() rbac.Object {
+	return rbac.Object{
+		Owner: w.Owner.String(),
+		OrgID: w.OrgOwner.String(),
+		Type:  w.Type,
 	}
+}
 
-	// copyList is to prevent tests from sharing the same slice
-	copyList := func(list []rbac.Object) []rbac.Object {
-		tmp := make([]rbac.Object, len(list))
-		copy(tmp, list)
-		return tmp
+// TestFilter ensures the filter acts the same as an individual authorize.
+func TestFilter(t *testing.T) {
+	orgIDs := make([]uuid.UUID, 10)
+	userIDs := make([]uuid.UUID, len(orgIDs))
+	for i := range orgIDs {
+		orgIDs[i] = uuid.New()
+		userIDs[i] = uuid.New()
+	}
+	objects := make([]fakeObject, 100)
+	for i := range objects {
+		objects[i] = fakeObject{
+			Owner:    userIDs[must(cryptorand.Intn(len(userIDs)))],
+			OrgOwner: orgIDs[must(cryptorand.Intn(len(orgIDs)))],
+			Type:     rbac.ResourceWorkspace.Type,
+			Allowed:  false,
+		}
 	}
 
 	testCases := []struct {
-		Name     string
-		List     []rbac.Object
-		Expected []rbac.Object
-		Auth     func(o rbac.Object) error
+		Name       string
+		SubjectID  string
+		Roles      []string
+		Action     rbac.Action
+		ObjectType string
 	}{
 		{
-			Name:     "FilterWorkspaceType",
-			List:     copyList(objectList),
-			Expected: copyList(workspaceList),
-			Auth: func(o rbac.Object) error {
-				if o.Type != rbac.ResourceWorkspace.Type {
-					return xerrors.New("only workspace")
-				}
-				return nil
-			},
+			Name:       "NoRoles",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{},
+			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
 		},
 		{
-			Name:     "FilterFileType",
-			List:     copyList(objectList),
-			Expected: copyList(fileList),
-			Auth: func(o rbac.Object) error {
-				if o.Type != rbac.ResourceFile.Type {
-					return xerrors.New("only file")
-				}
-				return nil
-			},
-		},
-		{
-			Name:     "FilterAll",
-			List:     copyList(objectList),
-			Expected: []rbac.Object{},
-			Auth: func(o rbac.Object) error {
-				return xerrors.New("always fail")
-			},
-		},
-		{
-			Name:     "FilterNone",
-			List:     copyList(objectList),
-			Expected: copyList(objectList),
-			Auth: func(o rbac.Object) error {
-				return nil
-			},
+			Name:       "Admin",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{rbac.RoleOrgMember(orgIDs[0]), "auditor", rbac.RoleAdmin(), rbac.RoleMember()},
+			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
 		},
 	}
 
-	for _, c := range testCases {
-		c := c
-		t.Run(c.Name, func(t *testing.T) {
-			t.Parallel()
-			authorizer := rbac.FakeAuthorizer{
-				AuthFunc: func(_ context.Context, _ string, _ []string, _ rbac.Action, object rbac.Object) error {
-					return c.Auth(object)
-				},
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			localObjects := make([]fakeObject, len(objects))
+			copy(localObjects, objects)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			auth, err := rbac.NewAuthorizer()
+			require.NoError(t, err, "new auth")
+
+			// Run auth 1 by 1
+			var allowedCount int
+			for i, obj := range localObjects {
+				obj.Type = tc.ObjectType
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, rbac.ActionRead, obj.RBACObject())
+				localObjects[i].Allowed = err == nil
+				if err == nil {
+					allowedCount++
+				}
 			}
 
-			filtered := rbac.Filter(context.Background(), authorizer, "me", []string{}, rbac.ActionRead, c.List)
-			require.ElementsMatch(t, c.Expected, filtered, "expect same list")
-			require.Equal(t, len(c.Expected), len(filtered), "same length list")
+			// Run by filter
+			list := rbac.FilterPart(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
+			require.Equal(t, allowedCount, len(list), "expected number of allowed")
+			for _, obj := range list {
+				require.True(t, obj.Allowed, "expected allowed")
+			}
 		})
 	}
 }
@@ -575,20 +578,15 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
-					if c.allow {
-						if authError != nil {
-							var uerr *rbac.UnauthorizedError
-							xerrors.As(authError, &uerr)
-							d, _ := json.Marshal(uerr.Input())
-							t.Logf("input: %s", string(d))
-							t.Logf("internal error: %+v", uerr.Internal().Error())
-							t.Logf("output: %+v", uerr.Output())
-						}
-						require.NoError(t, authError, "expected no error for testcase action %s", a)
-						continue
-					}
-
-					if authError == nil {
+					// Logging only
+					if authError != nil {
+						var uerr *rbac.UnauthorizedError
+						xerrors.As(authError, &uerr)
+						d, _ := json.Marshal(uerr.Input())
+						t.Logf("input: %s", string(d))
+						t.Logf("internal error: %+v", uerr.Internal().Error())
+						t.Logf("output: %+v", uerr.Output())
+					} else {
 						d, _ := json.Marshal(map[string]interface{}{
 							"subject": subject,
 							"object":  c.resource,
@@ -596,7 +594,12 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						})
 						t.Log(string(d))
 					}
-					require.Error(t, authError, "expected unauthorized")
+
+					if c.allow {
+						require.NoError(t, authError, "expected no error for testcase action %s", a)
+					} else {
+						require.Error(t, authError, "expected unauthorized")
+					}
 
 					// Also check the rego policy can form a valid partial query result.
 					result, input, err := authorizer.CheckPartial(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
