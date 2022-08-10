@@ -38,7 +38,17 @@ func (w fakeObject) RBACObject() rbac.Object {
 	}
 }
 
+func TestFilterError(t *testing.T) {
+	auth, err := rbac.NewAuthorizer()
+	require.NoError(t, err)
+
+	_, err = rbac.Filter(context.Background(), auth, uuid.NewString(), []string{}, rbac.ActionRead, rbac.ResourceWorkspace.Type, []rbac.Object{rbac.ResourceUser})
+	require.ErrorContains(t, err, "object types must be uniform")
+}
+
 // TestFilter ensures the filter acts the same as an individual authorize.
+// It generates a random set of objects, then runs the Filter batch function
+// against the singular ByRoleName function.
 func TestFilter(t *testing.T) {
 	t.Parallel()
 
@@ -100,9 +110,31 @@ func TestFilter(t *testing.T) {
 				rbac.RoleOrgMember(orgIDs[0]), rbac.RoleOrgAdmin(orgIDs[0]),
 				rbac.RoleOrgMember(orgIDs[1]), rbac.RoleOrgAdmin(orgIDs[1]),
 				rbac.RoleOrgMember(orgIDs[2]), rbac.RoleOrgAdmin(orgIDs[2]),
+				rbac.RoleOrgMember(orgIDs[4]),
+				rbac.RoleOrgMember(orgIDs[5]),
 				rbac.RoleMember(),
 			},
 			ObjectType: rbac.ResourceWorkspace.Type,
+			Action:     rbac.ActionRead,
+		},
+		{
+			Name:       "SiteMember",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{rbac.RoleMember()},
+			ObjectType: rbac.ResourceUser.Type,
+			Action:     rbac.ActionRead,
+		},
+		{
+			Name:      "ReadOrgs",
+			SubjectID: userIDs[0].String(),
+			Roles: []string{
+				rbac.RoleOrgMember(orgIDs[0]),
+				rbac.RoleOrgMember(orgIDs[1]),
+				rbac.RoleOrgMember(orgIDs[2]),
+				rbac.RoleOrgMember(orgIDs[3]),
+				rbac.RoleMember(),
+			},
+			ObjectType: rbac.ResourceOrganization.Type,
 			Action:     rbac.ActionRead,
 		},
 	}
@@ -125,10 +157,11 @@ func TestFilter(t *testing.T) {
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
 				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, rbac.ActionRead, obj.RBACObject())
-				localObjects[i].Allowed = err == nil
+				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
 				}
+				localObjects[i] = obj
 			}
 
 			// Run by filter

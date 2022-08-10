@@ -32,7 +32,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		object := objects[i]
 		rbacObj := object.RBACObject()
 		if rbacObj.Type != objectType {
-			return nil, xerrors.Errorf("object types must be %s, found %s", objectType, object.RBACObject().Type)
+			return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
 		}
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
@@ -107,15 +107,8 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	return nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error) {
-	roles, err := RolesByNames(roleNames)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.Prepare(ctx, subjectID, roles, action, objectType)
-}
-
+// Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
+// This will vastly speed up performance if batch authorization on the same type of objects is needed.
 func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
 	auth, err := newPartialAuthorizer(ctx, subjectID, roles, action, objectType)
 	if err != nil {
@@ -123,4 +116,13 @@ func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Rol
 	}
 
 	return auth, nil
+}
+
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error) {
+	roles, err := RolesByNames(roleNames)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Prepare(ctx, subjectID, roles, action, objectType)
 }
