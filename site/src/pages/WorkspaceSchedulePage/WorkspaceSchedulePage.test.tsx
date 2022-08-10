@@ -1,13 +1,14 @@
-import * as TypesGen from "../../api/typesGenerated"
-import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import * as Mocks from "../../testHelpers/entities"
 import {
   formValuesToAutoStartRequest,
   formValuesToTTLRequest,
-  workspaceToInitialValues,
-} from "./WorkspaceSchedulePage"
+} from "pages/WorkspaceSchedulePage/formToRequest"
+import { AutoStart, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
+import * as TypesGen from "../../api/typesGenerated"
+import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 
 const validValues: WorkspaceScheduleFormValues = {
+  autoStartEnabled: true,
   sunday: false,
   monday: true,
   tuesday: true,
@@ -17,6 +18,7 @@ const validValues: WorkspaceScheduleFormValues = {
   saturday: false,
   startTime: "09:30",
   timezone: "Canada/Eastern",
+  autoStopEnabled: true,
   ttl: 120,
 }
 
@@ -26,6 +28,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Empty case
         {
+          autoStartEnabled: false,
           sunday: false,
           monday: false,
           tuesday: false,
@@ -35,6 +38,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "",
           timezone: "",
+          autoStopEnabled: false,
           ttl: 0,
         },
         {
@@ -44,6 +48,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Single day
         {
+          autoStartEnabled: true,
           sunday: true,
           monday: false,
           tuesday: false,
@@ -53,6 +58,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "Canada/Eastern",
+          autoStopEnabled: true,
           ttl: 120,
         },
         {
@@ -62,6 +68,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Standard 1-5 case
         {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: true,
@@ -71,6 +78,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "09:30",
           timezone: "America/Central",
+          autoStopEnabled: true,
           ttl: 120,
         },
         {
@@ -80,6 +88,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Everyday
         {
+          autoStartEnabled: true,
           sunday: true,
           monday: true,
           tuesday: true,
@@ -89,6 +98,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: true,
           startTime: "09:00",
           timezone: "",
+          autoStopEnabled: true,
           ttl: 60 * 8,
         },
         {
@@ -98,6 +108,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Mon, Wed, Fri Evenings
         {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: false,
@@ -107,6 +118,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "",
+          autoStopEnabled: true,
           ttl: 60 * 3,
         },
         {
@@ -155,61 +167,30 @@ describe("WorkspaceSchedulePage", () => {
     })
   })
 
-  describe("workspaceToInitialValues", () => {
-    it.each<[TypesGen.Workspace, WorkspaceScheduleFormValues]>([
+  describe("scheduleToAutoStart", () => {
+    it.each<[string | undefined, AutoStart]>([
       // Empty case
       [
+        undefined,
         {
-          ...Mocks.MockWorkspace,
-          autostart_schedule: undefined,
-          ttl_ms: undefined,
-        },
-        {
+          autoStartEnabled: false,
           sunday: false,
-          monday: true,
-          tuesday: true,
-          wednesday: true,
-          thursday: true,
-          friday: true,
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
           saturday: false,
-          startTime: "09:30",
+          startTime: "",
           timezone: "",
-          ttl: 8,
         },
       ],
 
-      // ttl-only case (2 hours)
+      // Basic case: 9:30 1-5 UTC
       [
+        "CRON_TZ=UTC 30 9 * * 1-5",
         {
-          ...Mocks.MockWorkspace,
-          autostart_schedule: "",
-          ttl_ms: 7_200_000,
-        },
-        {
-          sunday: false,
-          monday: true,
-          tuesday: true,
-          wednesday: true,
-          thursday: true,
-          friday: true,
-          saturday: false,
-          startTime: "09:30",
-          timezone: "",
-          ttl: 2,
-        },
-      ],
-
-      // Basic case: 9:30 1-5 UTC running for 2 hours
-      //
-      // NOTE: We have to set CRON_TZ here because otherwise this test will
-      //       flake based off of where it runs!
-      [
-        {
-          ...Mocks.MockWorkspace,
-          autostart_schedule: "CRON_TZ=UTC 30 9 * * 1-5",
-          ttl_ms: 7_200_000,
-        },
-        {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: true,
@@ -219,18 +200,14 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "09:30",
           timezone: "UTC",
-          ttl: 2,
         },
       ],
 
-      // Complex case: 4:20 1 3-4 6 Canada/Eastern for 8 hours
+      // Complex case: 4:20 1 3-4 6 Canada/Eastern
       [
+        "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
         {
-          ...Mocks.MockWorkspace,
-          autostart_schedule: "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
-          ttl_ms: 28_800_000,
-        },
-        {
+          autoStartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: false,
@@ -240,11 +217,23 @@ describe("WorkspaceSchedulePage", () => {
           saturday: true,
           startTime: "16:20",
           timezone: "Canada/Eastern",
-          ttl: 8,
         },
       ],
-    ])(`workspaceToInitialValues(%p) returns %p`, (workspace, formValues) => {
-      expect(workspaceToInitialValues(workspace)).toEqual(formValues)
+    ])(`scheduleToAutoStart(%p) returns %p`, (schedule, autoStart) => {
+      expect(scheduleToAutoStart(schedule)).toEqual(autoStart)
+    })
+  })
+
+  describe("ttlMsToAutoStop", () => {
+    it.each<[number | undefined, AutoStop]>([
+      // empty case
+      [undefined, { autoStopEnabled: false, ttl: 0 }],
+      // zero
+      [0, { autoStopEnabled: false, ttl: 0 }],
+      // basic case
+      [28_800_000, { autoStopEnabled: true, ttl: 8 }],
+    ])(`ttlMsToAutoStop(%p) returns %p`, (ttlMs, autoStop) => {
+      expect(ttlMsToAutoStop(ttlMs)).toEqual(autoStop)
     })
   })
 })
