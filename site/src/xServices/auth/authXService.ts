@@ -73,75 +73,8 @@ export type AuthEvent =
   | { type: "CONFIRM_REGENERATE_SSH_KEY" }
   | { type: "CANCEL_REGENERATE_SSH_KEY" }
 
-const sshState = {
-  initial: "idle",
-  states: {
-    idle: {
-      on: {
-        GET_SSH_KEY: {
-          target: "gettingSSHKey",
-        },
-      },
-    },
-    gettingSSHKey: {
-      entry: "clearGetSSHKeyError",
-      invoke: {
-        src: "getSSHKey",
-        onDone: [
-          {
-            actions: ["assignSSHKey"],
-            target: "#authState.signedIn.ssh.loaded",
-          },
-        ],
-        onError: [
-          {
-            actions: "assignGetSSHKeyError",
-            target: "#authState.signedIn.ssh.idle",
-          },
-        ],
-      },
-    },
-    loaded: {
-      initial: "idle",
-      states: {
-        idle: {
-          on: {
-            REGENERATE_SSH_KEY: {
-              target: "confirmSSHKeyRegenerate",
-            },
-          },
-        },
-        confirmSSHKeyRegenerate: {
-          on: {
-            CANCEL_REGENERATE_SSH_KEY: "idle",
-            CONFIRM_REGENERATE_SSH_KEY: "regeneratingSSHKey",
-          },
-        },
-        regeneratingSSHKey: {
-          entry: "clearRegenerateSSHKeyError",
-          invoke: {
-            src: "regenerateSSHKey",
-            onDone: [
-              {
-                actions: ["assignSSHKey", "notifySuccessSSHKeyRegenerated"],
-                target: "#authState.signedIn.ssh.loaded.idle",
-              },
-            ],
-            onError: [
-              {
-                actions: ["assignRegenerateSSHKeyError"],
-                target: "#authState.signedIn.ssh.loaded.idle",
-              },
-            ],
-          },
-        },
-      },
-    },
-  },
-}
-
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogDsABgCshOQA4AzABY5ARgBMUgJxrtcgDQgAnok0zNSwkpkrNKvQDY3aqS6kBfb6bRYuPhEpBQk5FAM5LQQIkThAG58ANYhZORRYvyCwqJIEohyMlKE2mrFKo7aLq5SJuaILtq2mjZqrboy2s4+fiABOHgExOnhkdFgAE6TfJOEPAA2+ABmswC2IxSZ+dkkQiJikgiyCsrqWroGRqYWCHoq2oQyDpouXa1qGmq+-hiDwYQYOghBEAKqwKYxOKERIpIhAgCyYCyAj2uUOiF0mieTik3UqMhqSleN0QhgUOhUbzUKhk9jKch+-T+QWGQJBUHBkKmMzmixW60BYHQSJROQO+SOUmxVKUniUcjkUgVLjlpOOCqecj0LyKmmVeiUTIGrPhwo5SKwfAgsChlBh5CSqSFIuFmGt8B2qP2eVARxUeNKCo02k0cllTRc6qUalsCtU731DikvV+gSGZuBY0t7pttB5s3mS3Qq0mG0Rbo9YrREr9iHUMkIUnKHSklQVKnqtz0BkImjUbmeShcVmejL6Jozm0oECi8xmyxIC3iEGXtFBAAUACIAQQAKgBRNgbgBKVAAYgwADIH6s+jEIOV6Qgj1oxnTBkfq7qNlxyT4aC4saaPcVLGiyU6hDOc48AuS5EKgPAQPgYwbnBa6xPasLOpOAJQZAMHoQhSEoREaF8Iuy4ILCADGKEiAA2jIAC6d7opKiBPi+rRtB+-5fg0CDqM+YafG8+jWLI2jgemeHpAR5DzhR8GEIhyEcuRlFgPm0yFvyJaCrhwz4bOimwcpy6qSRGlEdRjp8HRPpMaxXrir6BSPvo3Fvu0zT8Zo6oDmoTb-p8cjaFcsjqDJ-zGfJpn0Mw7BUKCe5sbWHm6CU2jWKGnhaFSeLqv2jZKMOehOE49i0v+MWmtOYw0OgdrxPZzpQU16XuUcAC0-aPGGSgVQOTS4ko2jfjGhC0gB1WeDIBguHVkGjBETU6byRYCmW06da5NbdZiKalLl+p-k4XgTYJNhxuVNKGCB77fEy5DWnAYhGWkFDUBgXUPoqLiKOoxIqGVejNKoxXPCUMgjZ8zj6sORoThBclhBE2y8N67F1o+xIvhoejavqEX-gFgl6IGFWOC2bzWNqy0AuyYxcpMf0cQghjqn+JT6GJeJynIqrI2msWZhalY2uzuN9dojwpn+epDvqHjRkUL7KBDEljiLzKyXF32mUpWkwquRCvQeuls-t94c606s8c0A5C00UjqqDja5cUXQRXiDiMwb0FmURpuWQW1tY25D7242jsxn+bi6IFhh2K4qjKP+fsqAHX1B8bKkkGb0seR0gNx87idu4JtIwzoxTdELzbheOov1SZhEWcR6moURxdHCOgPhsBoNDRDKju84hCfHS4ZAXPqg59OCn58ufeFODQPD2DY-FUqGsASmdShgvKP67nClrwgQu2EPIPb2V4+CVNf7w5TOphs22en2LDVrb9Ns4w8j1coU8iafDKJVWQagDDqmOsOKBVhXDgweNJb+ppL59TcH2ZQw1E5jSurcYK8CHCODfE0B4vRfBAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogBsATimEAzDIAcAFgUB2VTJ26ANCACeiAIwaADKsLKFtu-dsBfRwbRZc+IqQolyUBuS0ECJEvgBufADWXmTkAWL8gsKiSBKICubKhKpSyhoArAbGCGaqGoRSlVXVlfnOrhg4eATEsb7+gWAATl18XYQ8ADb4AGZ9ALatFPGpiSRCImKSCLLySmqa2ro6RaYFAEzWDscK9SBuTZ6EMOhCfgCqsN1BIYThUUQ3ALJgCQLzySW6Uy2VyBV2JXyUhMFRqcLqLnOjQ8LRudygj2e3V6-SGowm1zA6B+fySi1Sy32MnyhHyyksYK2ug0EJM1IURxO9jOFxRnyJ6IACt1xiRYKQRLAXpQ3uQItFCABjTBgRWRYVdUXi5LwWb-BYpUDLZRScygvKFIyIGQaQ4FHnI5r827tDVaiXkKXYvoDYboMaapUqtVusUe3W8fWAimIE1mnIW1l0rImOE1BENdxOwkuvw-LB8CBS4Iy94K75EzCFiMgOYGoEIZRUwgyVT5BQmfaW4omGxZGxcuwOrNXNHtfNVou0b24v0ByYVgtF0kA8lG2PN1vtzvd0zszmD06I3nZ7yUCABAa9EYkQahCB32j3QUAEQAggAVACibEFACUqAAMQYAAZL8V3rGMSjbGQKihLsISkOlaWHS4WjPSBLx4a9byIVAeAgfBXRwx8S1COUPkIE8rgwi9yCvPgbzvQh8MIoUSLABB3kVIiRAAbXMABdCDo3XaD8lgpCpAQq0EA0eTUL5KZzywjiWIIoi-EFDjpx6H08X9AlqPQ2JMPo7DGNw9S2OIyy7y4iieINAThL1MlDTScTJPg3dGxkfZFNPUy6OIWBMDeB8wFoJgvw-NhsGwAAJNgAGkvwATREtdPM7VQrE0XyTF7coB0PQKaOCy9xXCsc-ASxKUrAQxpXI+UiGMmIKDM0KaoFdp6sawwHIiJzkhcrKPOWIqkOscFZNTfYOXtY9HQqrqQuqnN0QGprdJxX18UDDrlO6zbaqgHahu43jyHGtzV0m0x9jyxQ5p7ExzBhUrB3Kkz1qqsLCEGPhkAgSAIsfP8vxilgvz-T8f3q1KMomht9g+8ocnMGQCtZDRZAPLkMyREc-pU+jNuB0HwcVEQb01S6-zAGBKC6TxaAAYTfFgOa-EC2ChmG4YR+KkuRzL7sgsT0bMQhzCUcxpMK20vsPBRieO2iAfCqmwYgJU6ZIBmksGpmWe6dmOaoFhgL-L4Behr9Yfh79ReStKJcjdy0Yx0Fsdx+b23MX7OvJnqgZBvXCC6ZmwFZzSLpN3ayNlNqqNWsnTsB3XwZj822e2pOrscm67q9h6GzMBQrDy7cZJ7DR1ZQlbSdDrOdcj3PY-jwuGt2mcDsMo6M7bjbs87-W87ji3e8G4a+FG-ihNRqCq5rtsO3r0wpG0ZvMzQ0eqtVVAunmQwIai5931d7Avw5+4-wYD9PdrKNsqmsoOQyBM3sQZ6pBDidDax9T7oHPqxBO2AQFnxaqnSimtKoU2gWA6ykDkHFxGqXZektRI5U-ooBkiZZIKFyHvEmB8gFH0VCfM+qDtroL2vpOcRkR6UKQdQ0B4CNL0I4Wfeei9brYPLlLPBjcCE-18m2KwGtWFa0CIwVgbAqD3A-CvaWWgYSEN-iUDIZpUxpiqBoQBZ52g0HQLAssoczFqM8k2WCW5N6+X2OYeShMTgyNbspUxdAB4GXnMpaxOD35-w0XLCRrJ0ZWH0QYqQRiW4UOVKqSI7RAJG1gOgTEXQLEUQVMdRJaoUlpIyU8Lo-CsGuWEbgykWR9jKChDoHItSZCK1UMoCE6MMiKCkBkaEqgTAkKKs4RE5BCxwDEAg9agTKnBJKNjGkRCezUjNB4ihJi-AzGmY9BAbZDjowWdvFQsIYlIUAedTJNjliqH2KyWQWRjm1FOX1LSIoww6guYgLG5ptEmHyGyI5MSVlKXOhOas7ztk6EIFSMEhVWz5TVkefeSk5EMSYveZiIyvx6S6GCquNIyhSS3o2cwgKgr-XMmpEgkVCAzhxY3PF+MfIQjyAi8hSLEEoqspSu8tKirZAZUrCEjcWUTLDhZVFdDbKopxT8+Z2iCgyGMeysVuFpUdlmr5Ok8gSVrTDptLlvwglbKKvkWVhVOyHG1ZnMevVcyJz7sUTZlcpEVH2bMuQiqyXhxzvrfVYLnG9hbKaHG3yChWHubEj1urx7U31rTcg9NxiM27jPA1jqoLPXMBahWAr5oaADd9dxkb24RxjdHZNBd+pFxxQoekhAip5tdamOpRbrUlr1tWqEdazDFUKm2ZQLbtaqq+t8zNHJtjju2AO9hNCUH6sIBirFtLoRywsI4iENaArxLZZ6p4vDZ1UppYayu+NNGrp3BCNswct2kt1egi+tLNArvlue4hH0p3EDvRAnhM6HWv29qvGV6r10kPfbun9Q6gO5tUFO6VLjIM9kzZG7x6A-UyA+iu5QL7ijOPyHCsq16rj5OSX4VJXR0nnKPVBJQ5RMjmEyFc2pvyoRSHaS4+QsSFBUg+j8pWgCY4QCNqqdEH4+BQPQPhL4oywXKCyPkWpmGcg2n2FJdpVIanqHyBoNDn0oTCpHmCqwjHZCtmksoZpO82myU3BOmzR5nBAA */
   createMachine(
     {
       context: {
@@ -181,6 +114,9 @@ export const authMachine =
           regenerateSSHKey: {
             data: TypesGen.GitSSHKey
           }
+          hasFirstUser: {
+            data: boolean
+          }
         },
       },
       id: "authState",
@@ -219,14 +155,14 @@ export const authMachine =
             id: "getMe",
             onDone: [
               {
-                actions: ["assignMe"],
+                actions: "assignMe",
                 target: "gettingPermissions",
               },
             ],
             onError: [
               {
                 actions: "assignGetUserError",
-                target: "gettingMethods",
+                target: "checkingFirstUser",
               },
             ],
           },
@@ -239,7 +175,7 @@ export const authMachine =
             id: "checkPermissions",
             onDone: [
               {
-                actions: ["assignPermissions"],
+                actions: "assignPermissions",
                 target: "signedIn",
               },
             ],
@@ -309,7 +245,76 @@ export const authMachine =
                 },
               },
             },
-            ssh: sshState,
+            ssh: {
+              initial: "idle",
+              states: {
+                idle: {
+                  on: {
+                    GET_SSH_KEY: {
+                      target: "gettingSSHKey",
+                    },
+                  },
+                },
+                gettingSSHKey: {
+                  entry: "clearGetSSHKeyError",
+                  invoke: {
+                    src: "getSSHKey",
+                    onDone: [
+                      {
+                        actions: "assignSSHKey",
+                        target: "loaded",
+                      },
+                    ],
+                    onError: [
+                      {
+                        actions: "assignGetSSHKeyError",
+                        target: "idle",
+                      },
+                    ],
+                  },
+                },
+                loaded: {
+                  initial: "idle",
+                  states: {
+                    idle: {
+                      on: {
+                        REGENERATE_SSH_KEY: {
+                          target: "confirmSSHKeyRegenerate",
+                        },
+                      },
+                    },
+                    confirmSSHKeyRegenerate: {
+                      on: {
+                        CANCEL_REGENERATE_SSH_KEY: {
+                          target: "idle",
+                        },
+                        CONFIRM_REGENERATE_SSH_KEY: {
+                          target: "regeneratingSSHKey",
+                        },
+                      },
+                    },
+                    regeneratingSSHKey: {
+                      entry: "clearRegenerateSSHKeyError",
+                      invoke: {
+                        src: "regenerateSSHKey",
+                        onDone: [
+                          {
+                            actions: ["assignSSHKey", "notifySuccessSSHKeyRegenerated"],
+                            target: "idle",
+                          },
+                        ],
+                        onError: [
+                          {
+                            actions: "assignRegenerateSSHKeyError",
+                            target: "idle",
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
             security: {
               initial: "idle",
               states: {
@@ -331,7 +336,7 @@ export const authMachine =
                     src: "updateSecurity",
                     onDone: [
                       {
-                        actions: ["notifySuccessSecurityUpdate"],
+                        actions: "notifySuccessSecurityUpdate",
                         target: "#authState.signedIn.security.idle.noError",
                       },
                     ],
@@ -371,6 +376,21 @@ export const authMachine =
           },
           tags: "loading",
         },
+        checkingFirstUser: {
+          invoke: {
+            src: "hasFirstUser",
+            onDone: [
+              {
+                cond: "dontHaveFirstUser",
+                target: "redirectingToSetupPage",
+              },
+            ],
+          },
+        },
+        redirectingToSetupPage: {
+          entry: "redirectToSetupPage",
+          type: "final",
+        },
       },
     },
     {
@@ -407,6 +427,8 @@ export const authMachine =
         // SSH
         getSSHKey: () => API.getUserSSHKey(),
         regenerateSSHKey: () => API.regenerateUserSSHKey(),
+        // First user
+        hasFirstUser: () => API.hasFirstUser(),
       },
       actions: {
         assignMe: assign({
@@ -488,6 +510,9 @@ export const authMachine =
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
         },
+      },
+      guards: {
+        dontHaveFirstUser: (_, event) => event.data,
       },
     },
   )

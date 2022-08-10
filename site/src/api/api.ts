@@ -282,6 +282,11 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
+export const hasFirstUser = async (): Promise<boolean> => {
+  const response = await axios.get(`/api/v2/users/first`)
+  return response.status === 200
+}
+
 export const postFirstUser = async (
   req: TypesGen.CreateFirstUserRequest,
 ): Promise<TypesGen.CreateFirstUserResponse> => {

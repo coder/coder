@@ -1,5 +1,6 @@
-import { act, screen } from "@testing-library/react"
+import { act, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import * as API from "api/api"
 import { rest } from "msw"
 import { Language } from "../../components/SignInForm/SignInForm"
 import { history, render } from "../../testHelpers/renderHelpers"
@@ -88,5 +89,19 @@ describe("LoginPage", () => {
     // Then
     await screen.findByText(Language.passwordSignIn)
     await screen.findByText(Language.githubSignIn)
+  })
+
+  it("redirects to the setup page if there is no user", async () => {
+    // Given
+    jest.spyOn(API, "hasFirstUser").mockResolvedValueOnce(true)
+
+    // When
+    render(<LoginPage />)
+
+    // Wait for the API call to be done
+    await waitFor(() => expect(API.hasFirstUser).toBeCalledTimes(1))
+
+    // Then
+    expect(history.location.pathname).toEqual("/setup")
   })
 })
