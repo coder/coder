@@ -16,12 +16,12 @@ func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Act
 	if len(objects) == 0 {
 		return objects, nil
 	}
-	objecType := objects[0].RBACObject().Type
-	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objecType, objects)
+	objectType := objects[0].RBACObject().Type
+	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objectType, objects)
 	if err != nil {
 		api.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
-			slog.F("object_type", objecType),
+			slog.F("object_type", objectType),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),
 			slog.F("route", r.URL.Path),
