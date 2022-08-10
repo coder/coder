@@ -205,12 +205,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     form.handleChange(e)
     // if enabling from empty values, fill with defaults
     if (!form.values.autoStartEnabled && !form.values.startTime) {
-      const defaults = defaultSchedule()
-      checkboxes.forEach(async ({ name }) => {
-        await form.setFieldValue(name, defaults[name as keyof AutoStartSchedule])
-      })
-      await form.setFieldValue("startTime", defaults.startTime)
-      await form.setFieldValue("timezone", defaults.timezone)
+      await form.setValues({ ...form.values, autoStartEnabled: true, ...defaultSchedule() })
     }
   }
 
