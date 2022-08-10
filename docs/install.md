@@ -32,14 +32,14 @@ Coder publishes the following system packages [in GitHub releases](https://githu
 
 Once installed, you can run Coder as a system service:
 
- ```sh
-  # Set up an external access URL or enable CODER_TUNNEL
- sudo vim /etc/coder.d/coder.env
- # Use systemd to start Coder now and on reboot
- sudo systemctl enable --now coder
- # View the logs to ensure a successful start
- journalctl -u coder.service -b
- ```
+```sh
+ # Set up an external access URL or enable CODER_TUNNEL
+sudo vim /etc/coder.d/coder.env
+# Use systemd to start Coder now and on reboot
+sudo systemctl enable --now coder
+# View the logs to ensure a successful start
+journalctl -u coder.service -b
+```
 
 ## docker-compose
 

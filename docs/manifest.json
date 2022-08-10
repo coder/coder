@@ -33,7 +33,7 @@
         {
           "title": "Configuration",
           "description": "Learn how to configure Coder",
-          "path": "./configure.md"
+          "path": "./install/configure.md"
         },
         {
           "title": "Upgrade",
