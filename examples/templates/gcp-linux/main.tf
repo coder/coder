@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     google = {
       source  = "hashicorp/google"
@@ -90,4 +90,23 @@ EOMETA
 locals {
   # Ensure Coder username is a valid Linux username
   linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+}
+
+resource "coder_metadata" "workspace_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = google_compute_instance.dev[0].id
+
+  item {
+    key   = "type"
+    value = google_compute_instance.dev[0].machine_type
+  }
+}
+
+resource "coder_metadata" "home_info" {
+  resource_id = google_compute_disk.root.id
+
+  item {
+    key   = "size"
+    value = "${google_compute_disk.root.size} GiB"
+  }
 }

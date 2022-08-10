@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -89,9 +89,9 @@ locals {
   prefix = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
 
   userdata = templatefile("cloud-config.yaml.tftpl", {
-    username          = lower(substr(data.coder_workspace.me.owner, 0, 32))
-    init_script       = base64encode(coder_agent.main.init_script)
-    hostname          = lower(data.coder_workspace.me.name)
+    username    = lower(substr(data.coder_workspace.me.owner, 0, 32))
+    init_script = base64encode(coder_agent.main.init_script)
+    hostname    = lower(data.coder_workspace.me.name)
   })
 }
 
@@ -173,7 +173,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  size             = var.instance_type
+  size                = var.instance_type
   // cloud-init overwrites this, so the value here doesn't matter
   admin_username = "adminuser"
   admin_ssh_key {
@@ -208,4 +208,23 @@ resource "azurerm_virtual_machine_data_disk_attachment" "home" {
   virtual_machine_id = azurerm_linux_virtual_machine.main[0].id
   lun                = "10"
   caching            = "ReadWrite"
+}
+
+resource "coder_metadata" "workspace_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = azurerm_linux_virtual_machine.main[0].id
+
+  item {
+    key   = "type"
+    value = azurerm_linux_virtual_machine.main[0].size
+  }
+}
+
+resource "coder_metadata" "home_info" {
+  resource_id = azurerm_managed_disk.home.id
+
+  item {
+    key   = "size"
+    value = "${var.home_size} GiB"
+  }
 }

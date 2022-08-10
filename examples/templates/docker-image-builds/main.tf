@@ -81,3 +81,13 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 }
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = docker_container.workspace[0].id
+
+  item {
+    key   = "image"
+    value = var.docker_image
+  }
+}
