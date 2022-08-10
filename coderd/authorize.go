@@ -10,9 +10,27 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Action, objects []O) []O {
+func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.AuthorizationUserRoles(r)
-	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
+
+	if len(objects) == 0 {
+		return objects, nil
+	}
+	objecType := objects[0].RBACObject().Type
+	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objecType, objects)
+	if err != nil {
+		api.Logger.Error(r.Context(), "filter failed",
+			slog.Error(err),
+			slog.F("object_type", objecType),
+			slog.F("user_id", roles.ID),
+			slog.F("username", roles.Username),
+			slog.F("route", r.URL.Path),
+			slog.F("action", action),
+		)
+		// Hide the underlying error in case it has sensitive information
+		return nil, xerrors.Errorf("failed to filter requested objects")
+	}
+	return objects, nil
 }
 
 // Authorize will return false if the user is not authorized to do the action.

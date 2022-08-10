@@ -132,7 +132,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := rbac.FilterPart(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
+			list, err := rbac.Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
