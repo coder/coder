@@ -238,7 +238,7 @@ resources associated with the workspace.
 ### Coder apps
 
 By default, all templates allow developers to connect over SSH and a web
-terminal. See [Configuring Web IDEs](./ides/configuring-web-ides.md) to
+terminal. See [Configuring Web IDEs](./ides/web-ides.md) to
 learn how to give users access to additional web applications.
 
 ### Data source

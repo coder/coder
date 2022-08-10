@@ -84,4 +84,4 @@ Coder with Docker has the following advantages:
 ## Next Steps
 
 - [Learn more about template configuration](../templates.md)
-- [Configure more IDEs](../ides/configuring-web-ides.md)
+- [Configure more IDEs](../ides/web-ides.md)

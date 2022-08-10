@@ -78,19 +78,19 @@
       "icon_path": "./images/icons/code.svg",
       "children": [
         {
-          "title": "Configuring Web IDEs",
+          "title": "Web IDEs",
           "description": "Learn how to configure web IDEs in your templates",
-          "path": "./ides/configuring-web-ides.md"
+          "path": "./ides/web-ides.md"
         },
         {
-          "title": "Configuring JetBrains Gateway",
+          "title": "JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
-          "path": "./ides/configuring-gateway.md"
+          "path": "./ides/gateway.md"
         },
         {
-          "title": "Configuring Emacs",
+          "title": "Emacs",
           "description": "Learn how to configure Emacs with TRAMP in Coder",
-          "path": "./ides/configuring-emacs-tramp.md"
+          "path": "./ides/emacs-tramp.md"
         }
       ]
     },
