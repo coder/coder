@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/coder/coder/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -570,7 +572,9 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 		for _, c := range cases {
 			t.Run(name, func(t *testing.T) {
 				for _, a := range c.actions {
-					err := authorizer.Authorize(context.Background(), subject.UserID, subject.Roles, a, c.resource)
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+					defer cancel()
+					err := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
 					if c.allow {
 						if err != nil {
 							var uerr *rbac.UnauthorizedError
@@ -593,6 +597,20 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						t.Log(string(d))
 					}
 					require.Error(t, err, "expected unauthorized")
+
+					// Also check the rego policy can form a valid partial query result.
+					result, input, err := authorizer.CheckPartial(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					require.NoError(t, err, "check partial")
+					if len(result.Support) > 0 {
+						d, _ := json.Marshal(input)
+						t.Logf("input: %s", string(d))
+						for _, q := range result.Queries {
+							t.Logf("query: %+v", q.String())
+						}
+						for _, s := range result.Support {
+							t.Logf("support: %+v", s.String())
+						}
+					}
 				}
 			})
 		}

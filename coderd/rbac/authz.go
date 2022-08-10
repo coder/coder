@@ -33,7 +33,8 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
-	query rego.PreparedEvalQuery
+	query   rego.PreparedEvalQuery
+	partial rego.PreparedPartialQuery
 }
 
 // Load the policy from policy.rego in this directory.
@@ -49,10 +50,19 @@ func NewAuthorizer() (*RegoAuthorizer, error) {
 		rego.Module("policy.rego", policy),
 	).PrepareForEval(ctx)
 
+	partial, err := rego.New(
+		rego.Query("allowed = data.authz.allow"),
+		rego.Module("policy.rego", policy),
+		rego.Unknowns([]string{
+			"input.object.owner",
+			"input.object.org_owner",
+		}),
+	).PrepareForPartial(ctx)
+
 	if err != nil {
 		return nil, xerrors.Errorf("prepare query: %w", err)
 	}
-	return &RegoAuthorizer{query: query}, nil
+	return &RegoAuthorizer{query: query, partial: partial}, nil
 }
 
 type authSubject struct {
@@ -106,4 +116,24 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	}
 
 	return nil
+}
+
+// CheckPartial will not authorize the request. This function is to be used for unit testing to verify the rego policy
+// can be converted into ONLY queries. This ensures we can convert the queries into SQL WHERE clauses in the future.
+// If this function returns an error, then there is a set of inputs that also returns support rules, which cannot
+// be converted.
+// This function will not be used to actually perform authorization on partial queries.
+func (a RegoAuthorizer) CheckPartial(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*rego.PartialQueries, interface{}, error) {
+	input := map[string]interface{}{
+		"subject": authSubject{
+			ID:    subjectID,
+			Roles: roles,
+		},
+		"object": map[string]string{
+			"type": objectType,
+		},
+		"action": action,
+	}
+	result, err := a.partial.Partial(ctx, rego.EvalInput(input))
+	return result, input, err
 }
