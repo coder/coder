@@ -37,14 +37,14 @@ export interface SetupPageViewProps {
   onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void
   formErrors?: FormikErrors<TypesGen.CreateFirstUserRequest>
   genericError?: string
-  isCreating?: boolean
+  isLoading?: boolean
 }
 
 export const SetupPageView: React.FC<SetupPageViewProps> = ({
   onSubmit,
   formErrors,
   genericError,
-  isCreating,
+  isLoading,
 }) => {
   const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
     useFormik<TypesGen.CreateFirstUserRequest>({
@@ -98,7 +98,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             variant="outlined"
           />
           {genericError && <FormHelperText error>{genericError}</FormHelperText>}
-          <LoadingButton fullWidth variant="contained" loading={isCreating} type="submit">
+          <LoadingButton fullWidth variant="contained" loading={isLoading} type="submit">
             {Language.create}
           </LoadingButton>
         </Stack>

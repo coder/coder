@@ -17,12 +17,13 @@ export const Language = {
 export interface SetupContext {
   createFirstUserErrorMessage?: string
   createFirstUserFormErrors?: FieldErrors
+  firstUser?: TypesGen.CreateFirstUserRequest
 }
 
 export type SetupEvent = { type: "CREATE_FIRST_USER"; firstUser: TypesGen.CreateFirstUserRequest }
 
 export const setupMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QGUwBcCuAHZaCGaYAdAJYQA2YAxAMIBKAogIIAqDA+gGICSdyL7AKrIGdRKCwB7WCTQlJAO3EgAHogDMAViKaAnPoDsABgBMRgCy6jpkwBoQAT0QBGI+qIA2N0ePOAHJqa-qYAviH2qJg4+IREAMYATmAEJApQnCQJsGiCsGAJVBCKxKkAbpIA1sSJyYQZWTl5CcpSMnKKymoI6ibuzs4efh6a6h4eJiMj9k4I5uZ+RPNjfhPOliZW5mER6Ni4BNVJKWn12bn5VPkJkglEWOQEAGY3ALbxR3WZZ00t0rLySiQqg0uncHmcJnMxj8WmsWnU0xcYyIA3UUJ8-V84zC4RACkkEDgykiexiJQoYF+bQBnUQflcRAMZlc6lGJgMBj8iIQZm0lj8BmcugMVjcfnm2xAJOiB3etVS6S+jXyVP+HSBXQAtLptMzOVp-Op+rpnNyjboiKZ1AZrTbzEY-H5hZLpftYo8lecEjQPpBVe1AaAuoELaz5rbRlYxtzzJDLSYIaCBr0bC7djLCP6aRrEJrjUQ9TCgjDjabHBpnJ5vJoDLHdJZWUZNDiQkA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QGUwBcCuAHZaCGaYAdAJYQA2YAxAMIBKAogIIAqDA+gGICSdyL7AKrIGdRKCwB7WCTQlJAO3EgAHogDMAViKaAnPoDsABgBMRgCy6jpkwBoQAT0QBGI+qIA2N0ePOAHJqa-qYAviH2qJg4+IREAMYATmAEJApQnCQJsGiCsGAJVBCKxKkAbpIA1sSJyYQZWTl5CcpSMnKKymoI6ibuzmZGuiYG6kYemn4eHvZOCObOzjom-X7qHsZGmuq6mmER6Ni4BNVJKWn12bn5VPkJkglEWOQEAGb3ALbxp3WZl00t0lk8iUSFUGl07g8-XMxlWmmsWnUMxcUyIzg86hhPgWvg8JjC4RACkkEDgykihxiJQoYABbWBnUQflcRAMZlc6jWwwMfmRCDM2ksfgMzl0Bisbj85j8exAFOixy+tVS6V+jXydKBHVBXQAtDsiOyeVp-OoFrpnHyzboiKZ1CMDCNzEY-H4xbL5UdYi81VcEjRvpBNe0QaAuoEbZzpfaRh4rFM+eYTOZbcsTBD0b0bB6DgrCMGGTrELrzYajM5jUFVubLY4NIsvKM2eMtKZNOMCSEgA */
   createMachine(
     {
       tsTypes: {} as import("./setupXService.typegen").Typegen0,
@@ -41,6 +42,7 @@ export const setupMachine =
         idle: {
           on: {
             CREATE_FIRST_USER: {
+              actions: "assignFirstUserData",
               target: "creatingFirstUser",
             },
           },
@@ -52,6 +54,7 @@ export const setupMachine =
             id: "createFirstUser",
             onDone: [
               {
+                actions: "onCreateFirstUser",
                 target: "firstUserCreated",
               },
             ],
@@ -70,7 +73,7 @@ export const setupMachine =
           tags: "loading",
         },
         firstUserCreated: {
-          entry: "redirectToWorkspacesPage",
+          tags: "loading",
           type: "final",
         },
       },
@@ -83,6 +86,9 @@ export const setupMachine =
         hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
       },
       actions: {
+        assignFirstUserData: assign({
+          firstUser: (_, event) => event.firstUser,
+        }),
         assignCreateFirstUserError: assign({
           createFirstUserErrorMessage: (_, event) =>
             getErrorMessage(event.data, Language.createFirstUserError),
@@ -92,7 +98,6 @@ export const setupMachine =
           createFirstUserFormErrors: (_, event) =>
             mapApiErrorToFieldErrors((event.data as ApiError).response.data),
         }),
-
         clearCreateFirstUserError: assign((context: SetupContext) => ({
           ...context,
           createFirstUserErrorMessage: undefined,
