@@ -21,7 +21,13 @@ type PreparedAuthorized interface {
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objectType string, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) ([]O, error) {
+	if len(objects) == 0 {
+		// Nothing to filter
+		return objects, nil
+	}
+	objectType := objects[0].RBACObject().Type
+
 	filtered := make([]O, 0)
 	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, action, objectType)
 	if err != nil {

@@ -43,7 +43,7 @@ func TestFilterError(t *testing.T) {
 	auth, err := rbac.NewAuthorizer()
 	require.NoError(t, err)
 
-	_, err = rbac.Filter(context.Background(), auth, uuid.NewString(), []string{}, rbac.ActionRead, rbac.ResourceWorkspace.Type, []rbac.Object{rbac.ResourceUser})
+	_, err = rbac.Filter(context.Background(), auth, uuid.NewString(), []string{}, rbac.ActionRead, []rbac.Object{rbac.ResourceUser, rbac.ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -166,7 +166,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := rbac.Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, tc.ObjectType, localObjects)
+			list, err := rbac.Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {

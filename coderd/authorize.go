@@ -12,23 +12,17 @@ import (
 
 func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.AuthorizationUserRoles(r)
-
-	if len(objects) == 0 {
-		return objects, nil
-	}
-	objectType := objects[0].RBACObject().Type
-	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objectType, objects)
+	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
 	if err != nil {
+		// Log the error as Filter should not be erroring.
 		api.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
-			slog.F("object_type", objectType),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 		)
-		// Hide the underlying error in case it has sensitive information
-		return nil, xerrors.Errorf("failed to filter requested objects")
+		return nil, err
 	}
 	return objects, nil
 }
