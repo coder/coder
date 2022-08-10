@@ -2,41 +2,26 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.16.0"
+      version = "~> 2.20.2"
     }
   }
 }
 
-variable "docker_host" {
-  description = "Specify location of Docker socket (check `docker context ls` if you're not sure)"
-  sensitive   = true
-}
-
-variable "docker_arch" {
-  description = "Specify architecture of docker host (amd64, arm64, or armv7)"
-  validation {
-    condition     = contains(["amd64", "arm64", "armv7"], var.docker_arch)
-    error_message = "Value must be amd64, arm64, or armv7."
-  }
-  sensitive = true
-}
-
-provider "coder" {
+data "coder_provisioner" "me" {
 }
 
 provider "docker" {
-  host = var.docker_host
 }
 
 data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch           = var.docker_arch
+  arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = "code-server --auth none"
 
