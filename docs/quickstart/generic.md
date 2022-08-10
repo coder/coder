@@ -65,4 +65,6 @@ vim main.tf
 coder templates update gcp-linux # updates the template
 ```
 
-> See our [template documentation](../templates.md) for more information.
+## Up Next
+
+Learn about [templates](../templates.md).
