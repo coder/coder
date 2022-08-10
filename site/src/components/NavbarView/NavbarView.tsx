@@ -15,6 +15,7 @@ import { UserDropdown } from "../UserDropdown/UsersDropdown"
 export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
+  canViewAuditLog: boolean
 }
 
 export const Language = {
@@ -24,19 +25,12 @@ export const Language = {
   audit: "Audit",
 }
 
-enum AuditorRoles {
-  admin,
-  auditor,
-}
-
-const NavItems: React.FC<{ className?: string; roles?: TypesGen.Role[] }> = ({
+const NavItems: React.FC<{ className?: string; canViewAuditLog: boolean }> = ({
   className,
-  roles = [],
+  canViewAuditLog,
 }) => {
   const styles = useStyles()
   const location = useLocation()
-  const userRoles = roles.map((role) => role.name)
-  const hasAuditPermissions = Object.keys(AuditorRoles).some((role) => userRoles.includes(role))
 
   return (
     <List className={combineClasses([styles.navItems, className])}>
@@ -59,7 +53,7 @@ const NavItems: React.FC<{ className?: string; roles?: TypesGen.Role[] }> = ({
         </NavLink>
       </ListItem>
       {/* REMARK: the below link is under-construction  */}
-      {process.env.NODE_ENV !== "production" && hasAuditPermissions && (
+      {process.env.NODE_ENV !== "production" && canViewAuditLog && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">
             {Language.audit}
@@ -70,7 +64,7 @@ const NavItems: React.FC<{ className?: string; roles?: TypesGen.Role[] }> = ({
   )
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, canViewAuditLog }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
@@ -91,7 +85,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
           <div className={styles.drawerHeader}>
             <Logo fill="white" opacity={1} width={125} />
           </div>
-          <NavItems />
+          <NavItems canViewAuditLog={canViewAuditLog} />
         </div>
       </Drawer>
 
@@ -99,7 +93,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         <Logo fill="white" opacity={1} width={125} />
       </NavLink>
 
-      <NavItems className={styles.desktopNavItems} roles={user?.roles} />
+      <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
 
       <div className={styles.profileButton}>
         {user && <UserDropdown user={user} onSignOut={onSignOut} />}

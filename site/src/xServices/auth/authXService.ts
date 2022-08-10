@@ -9,11 +9,6 @@ export const Language = {
   successRegenerateSSHKey: "SSH Key regenerated successfully",
 }
 
-enum RolesWithAudit {
-  admin,
-  auditor,
-}
-
 export const checks = {
   readAllUsers: "readAllUsers",
   updateUsers: "updateUsers",
@@ -52,7 +47,7 @@ export const permissionsToCheck = {
       resource_type: "audit_log",
     },
     action: "read",
-  }
+  },
 } as const
 
 type Permissions = Record<keyof typeof permissionsToCheck, boolean>
@@ -473,15 +468,7 @@ export const authMachine =
         assignPermissions: assign({
           // Setting event.data as Permissions to be more stricted. So we know
           // what permissions we asked for.
-          permissions: (context, event) => {
-            const userRoles = context?.me?.roles.map((role) => role.name) ?? []
-            const viewAuditLog = Object.keys(RolesWithAudit).some((role) => userRoles.includes(role))
-            const assignedPermissions = {
-              ...event.data,
-              viewAuditLog
-            }
-            return assignedPermissions as Permissions
-          },
+          permissions: (_, event) => event.data as Permissions,
         }),
         assignGetPermissionsError: assign({
           checkPermissionsError: (_, event) => event.data,

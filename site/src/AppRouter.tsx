@@ -32,7 +32,7 @@ const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
-  const { me } = authState.context
+  const { permissions } = authState.context
 
   return (
     <Suspense fallback={<></>}>
@@ -118,13 +118,13 @@ export const AppRouter: FC = () => {
         </Route>
 
         {/* REMARK: Route under construction
-      Eventually, we should gate this page
-      with permissions and licensing */}
+        Eventually, we should gate this page
+        with permissions and licensing */}
         <Route path="/audit">
           <Route
             index
             element={
-              process.env.NODE_ENV === "production" ? (
+              process.env.NODE_ENV === "production" || !permissions?.viewAuditLog ? (
                 <Navigate to="/workspaces" />
               ) : (
                 <AuthAndFrame>
