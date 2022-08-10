@@ -37,7 +37,6 @@ number(set) = c {
 
 default site = 0
 site := num {
-	# relevent are all the permissions that affect the given unknown object
 	allow := { x |
     	perm := input.subject.roles[_].site[_]
         perm.action in [input.action, "*"]
@@ -81,7 +80,6 @@ org_mem := true {
 default user = 0
 user := num {
     input.subject.id = input.object.owner
-	# relevent are all the permissions that affect the given unknown object
 	allow := { x |
     	perm := input.subject.roles[_].user[_]
         perm.action in [input.action, "*"]

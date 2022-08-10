@@ -613,10 +613,10 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					}
 					require.Equal(t, 0, len(result.Support), "expected 0 support rules")
 
-					partialAuther, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
-					partialErr := partialAuther.Authorize(ctx, c.resource)
+					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {
 						require.Error(t, partialErr, "partial error blocked valid request (false negative)")
 					} else {
