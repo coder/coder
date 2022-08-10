@@ -352,6 +352,8 @@ export interface User {
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
+  readonly login_type: LoginType
+  readonly linked_id: string
 }
 
 // From codersdk/users.go
@@ -537,7 +539,7 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go
-export type LoginType = "github" | "password"
+export type LoginType = "github" | "oidc" | "password"
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"

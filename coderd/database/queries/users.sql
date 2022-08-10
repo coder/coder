@@ -38,8 +38,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-    login_type,
-    linked_id
+		login_type,
+		linked_id
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
@@ -164,11 +164,11 @@ WHERE
 
 -- name: GetUserByLinkedID :one
 SELECT
-  *
+	*
 FROM
-  users
+	users
 WHERE
-  linked_id = $1;
+	linked_id = $1;
 
 -- name: UpdateUserLinkedID :one
 UPDATE
