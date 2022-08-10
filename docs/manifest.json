@@ -75,7 +75,7 @@
       "title": "IDEs",
       "description": "Learn how to use your IDE of choice with Coder",
       "path": "./ides.md",
-      "icon_path": "./images/icons/terminal.svg",
+      "icon_path": "./images/icons/code.svg",
       "children": [
         {
           "title": "Configuring Web IDEs",
