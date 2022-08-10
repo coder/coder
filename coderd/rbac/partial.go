@@ -41,12 +41,19 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
 
-	alwaysTrue := false
+	pAuth := &PartialAuthorizer{
+		PartialQueries:  partialQueries,
+		PreparedQueries: []rego.PreparedEvalQuery{},
+		Input:           input,
+	}
+
 	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
 	for _, q := range partialQueries.Queries {
 		if q.String() == "" {
-			alwaysTrue = true
-			continue
+			// No more work needed, this will always be true,
+			pAuth.AlwaysTrue = true
+			preparedQueries = []rego.PreparedEvalQuery{}
+			break
 		}
 		results, err := rego.New(
 			rego.ParsedQuery(q),
@@ -56,13 +63,9 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		}
 		preparedQueries = append(preparedQueries, results)
 	}
+	pAuth.PreparedQueries = preparedQueries
 
-	return &PartialAuthorizer{
-		PartialQueries:  partialQueries,
-		PreparedQueries: preparedQueries,
-		Input:           input,
-		AlwaysTrue:      alwaysTrue,
-	}, nil
+	return pAuth, nil
 }
 
 // Authorize authorizes a single object using teh partially prepared queries.
@@ -73,12 +76,16 @@ func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 
 EachQueryLoop:
 	for _, q := range a.PreparedQueries {
+		// We need to eval each query with the newly known fields.
 		results, err := q.Eval(ctx, rego.EvalInput(map[string]interface{}{
 			"object": object,
 		}))
 		if err != nil {
 			continue EachQueryLoop
 		}
+
+		// The below code is intended to fail safe. We only support queries that
+		// return simple results.
 
 		// 0 results means the query is false.
 		if len(results) == 0 {

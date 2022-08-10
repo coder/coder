@@ -5,15 +5,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/cryptorand"
-
-	"github.com/coder/coder/testutil"
-
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/testutil"
 )
 
 // subject is required because rego needs
