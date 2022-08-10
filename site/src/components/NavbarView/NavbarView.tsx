@@ -24,9 +24,19 @@ export const Language = {
   audit: "Audit",
 }
 
-const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ className }) => {
+enum AuditorRoles {
+  admin,
+  auditor,
+}
+
+const NavItems: React.FC<{ className?: string; roles?: TypesGen.Role[] }> = ({
+  className,
+  roles = [],
+}) => {
   const styles = useStyles()
   const location = useLocation()
+  const userRoles = roles.map((role) => role.name)
+  const hasAuditPermissions = Object.keys(AuditorRoles).some((role) => userRoles.includes(role))
 
   return (
     <List className={combineClasses([styles.navItems, className])}>
@@ -49,7 +59,7 @@ const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ cl
         </NavLink>
       </ListItem>
       {/* REMARK: the below link is under-construction  */}
-      {process.env.NODE_ENV !== "production" && (
+      {process.env.NODE_ENV !== "production" && hasAuditPermissions && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">
             {Language.audit}
@@ -89,7 +99,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         <Logo fill="white" opacity={1} width={125} />
       </NavLink>
 
-      <NavItems className={styles.desktopNavItems} />
+      <NavItems className={styles.desktopNavItems} roles={user?.roles} />
 
       <div className={styles.profileButton}>
         {user && <UserDropdown user={user} onSignOut={onSignOut} />}
