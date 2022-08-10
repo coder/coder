@@ -73,7 +73,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		require.NoError(b, err)
 	}
 	for _, c := range benchCases {
-		b.Run(c.Name, func(b *testing.B) {
+		b.Run(c.Name+"Queries", func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
 			allowed, err := rbac.FilterPart(context.Background(), authorizer, c.UserID.String(), c.Roles, rbac.ActionRead, objects[0].Type, objects)

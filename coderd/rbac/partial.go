@@ -50,7 +50,10 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
 	for _, q := range partialQueries.Queries {
 		if q.String() == "" {
-			// No more work needed, this will always be true,
+			// No more work needed. An empty query is the same as
+			//	'WHERE true'
+			// This is likely an admin. We don't even need to use rego going
+			// forward.
 			pAuth.AlwaysTrue = true
 			preparedQueries = []rego.PreparedEvalQuery{}
 			break
@@ -74,6 +77,16 @@ func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 		return nil
 	}
 
+	// How to interpret the results of the partial queries.
+	// We have a list of queries that are along the lines of:
+	// 	`input.object.org_owner = ""; "me" = input.object.owner`
+	//	`input.object.org_owner in {"feda2e52-8bf1-42ce-ad75-6c5595cb297a"} `
+	// All these queries are joined by an 'OR'. So we need to run through each
+	// query, and evaluate it.
+	//
+	// In each query, we have a list of the evaluation results, which should be
+	// all boolean expressions. In the above 1st example, there are 2 boolean
+	// expressions. These expressions within a single query are `AND` together by rego.
 EachQueryLoop:
 	for _, q := range a.PreparedQueries {
 		// We need to eval each query with the newly known fields.
@@ -84,26 +97,34 @@ EachQueryLoop:
 			continue EachQueryLoop
 		}
 
-		// The below code is intended to fail safe. We only support queries that
-		// return simple results.
-
-		// 0 results means the query is false.
+		// If there are no results, then the query is false. This is because rego
+		// treats false queries as "undefined". So if any expression is false, the
+		// result is an empty list.
 		if len(results) == 0 {
 			continue EachQueryLoop
 		}
 
-		// We should never get more than 1 result
+		// If there is more than 1 result, that means there is more than 1 rule.
+		// This should not happen, because our query should always be an expression.
+		// If this every occurs, it is likely the original query was not an expression.
 		if len(results) > 1 {
 			continue EachQueryLoop
 		}
 
-		// All queries should resolve, we should not have bindings
+		// Our queries should be simple, and should not yield any bindings.
+		// A binding is something like 'x := 1'. This binding as an expression is
+		// 'true', but in our case is unhelpful. We are not analyzing this ast to
+		// map bindings. So just error out. Similar to above, our queries should
+		// always be boolean expressions.
 		if len(results[0].Bindings) > 0 {
 			continue EachQueryLoop
 		}
 
+		// We have a valid set of boolean expressions! All expressions are 'AND'd
+		// together. This is automatic by rego, so we should not actually need to
+		// inspect this any further. But just in case, we will verify each expression
+		// did resolve to 'true'. This is purely defensive programming.
 		for _, exp := range results[0].Expressions {
-			// Any other "true" expressions that are not "true" are not expected.
 			if exp.String() != "true" {
 				continue EachQueryLoop
 			}
