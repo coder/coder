@@ -16,7 +16,7 @@ CODER_ADDRESS=127.0.0.1:3000
 # String. The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries
 # will be downloaded from Maven (https://repo1.maven.org/maven2) and store all
 # data in the config root. Access the built-in database with "coder server postgres-builtin-url".
-CODER_PG_CONNECTION_URL=""
+CODER_PG_CONNECTION_URL=
 
 # Boolean. Specifies if TLS will be enabled.
 CODER_TLS_ENABLE=
