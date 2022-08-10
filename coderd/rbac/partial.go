@@ -71,7 +71,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 	return pAuth, nil
 }
 
-// Authorize authorizes a single object using teh partially prepared queries.
+// Authorize authorizes a single object using the partially prepared queries.
 func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	if a.AlwaysTrue {
 		return nil
