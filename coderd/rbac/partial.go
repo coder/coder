@@ -9,15 +9,25 @@ import (
 )
 
 type PartialAuthorizer struct {
-	// PartialRego is mainly used for unit testing. It is the rego source policy.
-	PartialRego     *rego.Rego
+	// PartialQueries is mainly used for unit testing.
 	PartialQueries  *rego.PartialQueries
 	PreparedQueries []rego.PreparedEvalQuery
 	AlwaysTrue      bool
 	Input           map[string]interface{}
 }
 
-func newPartialAuthorizer(ctx context.Context, _ *rego.Rego, input map[string]interface{}) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
+	input := map[string]interface{}{
+		"subject": authSubject{
+			ID:    subjectID,
+			Roles: roles,
+		},
+		"object": map[string]string{
+			"type": objectType,
+		},
+		"action": action,
+	}
+
 	partialQueries, err := rego.New(
 		rego.Query("true = data.authz.allow"),
 		rego.Module("policy.rego", policy),
@@ -70,19 +80,23 @@ EachQueryLoop:
 			continue EachQueryLoop
 		}
 
+		// 0 results means the query is false.
 		if len(results) == 0 {
 			continue EachQueryLoop
 		}
 
+		// We should never get more than 1 result
 		if len(results) > 1 {
 			continue EachQueryLoop
 		}
 
+		// All queries should resolve, we should not have bindings
 		if len(results[0].Bindings) > 0 {
 			continue EachQueryLoop
 		}
 
 		for _, exp := range results[0].Expressions {
+			// Any other "true" expressions that are not "true" are not expected.
 			if exp.String() != "true" {
 				continue EachQueryLoop
 			}

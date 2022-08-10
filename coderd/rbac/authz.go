@@ -132,55 +132,10 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 }
 
 func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
-	input := map[string]interface{}{
-		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
-		},
-		"object": map[string]string{
-			"type": objectType,
-		},
-		"action": action,
-	}
-
-	regoPolicy := rego.New(
-		rego.Query("data.authz.allow"),
-		rego.Module("policy.rego", policy),
-		rego.Unknowns([]string{
-			"input.object.owner",
-			"input.object.org_owner",
-		}),
-		rego.Input(input),
-	)
-
-	auth, err := newPartialAuthorizer(ctx, regoPolicy, input)
+	auth, err := newPartialAuthorizer(ctx, subjectID, roles, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
 
 	return auth, nil
-}
-
-// CheckPartial will not authorize the request. This function is to be used for unit testing to verify the rego policy
-// can be converted into ONLY queries. This ensures we can convert the queries into SQL WHERE clauses in the future.
-// If this function returns an error, then there is a set of inputs that also returns support rules, which cannot
-// be converted.
-// Unfortunately we cannot reuse a.Prepare for this purpose as a Partial() requires an expression,
-// whereas a PartialResult() requires a reference. It's an annoying detail that we need to work around.
-func (a RegoAuthorizer) CheckPartial(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*rego.PartialQueries, interface{}, error) {
-	partAuth, err := a.Prepare(ctx, subjectID, roles, action, objectType)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	result, err := rego.New(
-		rego.Query("true = data.authz.allow"),
-		rego.Module("policy.rego", policy),
-		rego.Unknowns([]string{
-			"input.object.owner",
-			"input.object.org_owner",
-		}),
-		rego.Input(partAuth.Input),
-	).Partial(ctx)
-	return result, partAuth.Input, err
 }

@@ -144,22 +144,6 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-func TestOne(t *testing.T) {
-	defOrg := uuid.New()
-
-	user := subject{
-		UserID: "me",
-		Roles: []rbac.Role{
-			must(rbac.RoleByName(rbac.RoleMember())),
-			must(rbac.RoleByName(rbac.RoleOrgMember(defOrg))),
-		},
-	}
-	testAuthorize(t, "Member", user, []authTestCase{
-		// Org + me
-		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: true},
-	})
-}
-
 // TestAuthorizeDomain test the very basic roles that are commonly used.
 func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
@@ -648,23 +632,23 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						require.Error(t, authError, "expected unauthorized")
 					}
 
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					require.NoError(t, err, "make prepared authorizer")
+
 					// Also check the rego policy can form a valid partial query result.
-					result, input, err := authorizer.CheckPartial(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
-					require.NoError(t, err, "run partial")
-					if len(result.Support) > 0 {
-						d, _ := json.Marshal(input)
+					// This ensures we can convert the queries into SQL WHERE clauses in the future.
+					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
+					if len(partialAuthz.PartialQueries.Support) > 0 {
+						d, _ := json.Marshal(partialAuthz.Input)
 						t.Logf("input: %s", string(d))
-						for _, q := range result.Queries {
+						for _, q := range partialAuthz.PartialQueries.Queries {
 							t.Logf("query: %+v", q.String())
 						}
-						for _, s := range result.Support {
+						for _, s := range partialAuthz.PartialQueries.Support {
 							t.Logf("support: %+v", s.String())
 						}
 					}
-					require.Equal(t, 0, len(result.Support), "expected 0 support rules")
-
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
-					require.NoError(t, err, "make prepared authorizer")
+					require.Equal(t, 0, len(partialAuthz.PartialQueries.Support), "expected 0 support rules")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {
