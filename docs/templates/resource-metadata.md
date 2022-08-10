@@ -1,8 +1,12 @@
 # Resource Metadata
 
-Expose key workspace information to your user via the [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resource in your template's code.
+Expose key workspace information to your users via [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resources in your template code.
 
 ![ui](../images/metadata-ui.png)
+
+<blockquote class="info">
+Coder automatically generates the <code>type</code> metadata.
+</blockquote>
 
 You can use `coder_metadata` to show
 
@@ -11,11 +15,11 @@ You can use `coder_metadata` to show
 - [Secrets](../secrets.md#displaying-secrets)
 - Important file paths
 
-and anything else exposes by your Terraform resources.
+and anything else your Terraform resources expose.
 
 ## Example
 
-I can expose the disk size, deployment name, and persistent
+Expose the disk size, deployment name, and persistent
 directory in a Kubernetes template with:
 
 ```hcl
