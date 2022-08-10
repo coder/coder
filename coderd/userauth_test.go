@@ -192,6 +192,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
 						Login: github.String("kyle"),
+						ID:    i64ptr(1234),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -205,6 +206,13 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		client.SessionToken = resp.Cookies()[0].Value
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "1234", user.LinkedID)
+		require.Equal(t, "kyle@coder.com", user.Email)
+		require.Equal(t, "kyle", user.Username)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -391,6 +399,14 @@ func TestUserOIDC(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: config,
 		})
+
+		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{
+			Email:            "kyle@kwc.io",
+			Username:         "kyle",
+			Password:         "yeah",
+			OrganizationName: "default",
+		})
+		require.NoError(t, err)
 
 		config.AllowSignups = true
 		config.EmailDomain = "kwc.io"
