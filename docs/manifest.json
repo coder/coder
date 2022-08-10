@@ -61,7 +61,14 @@
         {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
-          "path": "./templates/authentication.md"
+          "path": "./templates/authentication.md",
+          "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Resource Metadata",
+          "description": "Learn how to expose resource data to users",
+          "path": "./templates/resource-metadata.md",
+          "icon_path": "./images/icons/table-rows.svg"
         }
       ]
     },
