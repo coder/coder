@@ -298,8 +298,6 @@ COPY --from=rust-utils /tmp/bin /usr/local/bin
 RUN mv /usr/local/bin/exa /usr/local/bin/ls
 RUN mv /usr/local/bin/bat /usr/local/bin/cat
 
-RUN yarn global add --dev --exact prettier
-
 USER coder
 
 
