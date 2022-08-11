@@ -38,8 +38,8 @@ func TestTemplateEdit(t *testing.T) {
 			"edit",
 			template.Name,
 			"--description", desc,
-			"--max_ttl", maxTTL.String(),
-			"--min_autostart_interval", minAutostartInterval.String(),
+			"--max-ttl", maxTTL.String(),
+			"--min-autostart-interval", minAutostartInterval.String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -74,8 +74,8 @@ func TestTemplateEdit(t *testing.T) {
 			"edit",
 			template.Name,
 			"--description", template.Description,
-			"--max_ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
-			"--min_autostart_interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
+			"--max-ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
+			"--min-autostart-interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
