@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/testutil"
 )
 
@@ -59,13 +58,15 @@ func TestFilter(t *testing.T) {
 		orgIDs[i] = uuid.New()
 		userIDs[i] = uuid.New()
 	}
-	objects := make([]fakeObject, 100)
-	for i := range objects {
-		objects[i] = fakeObject{
-			Owner:    userIDs[must(cryptorand.Intn(len(userIDs)))],
-			OrgOwner: orgIDs[must(cryptorand.Intn(len(orgIDs)))],
-			Type:     rbac.ResourceWorkspace.Type,
-			Allowed:  false,
+	objects := make([]fakeObject, 0, len(userIDs)*len(orgIDs))
+	for i := range userIDs {
+		for j := range orgIDs {
+			objects = append(objects, fakeObject{
+				Owner:    userIDs[i],
+				OrgOwner: orgIDs[j],
+				Type:     rbac.ResourceWorkspace.Type,
+				Allowed:  false,
+			})
 		}
 	}
 

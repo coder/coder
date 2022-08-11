@@ -11,7 +11,7 @@ import (
 
 type Authorizer interface {
 	ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roles []string, action Action, objectType string) (PreparedAuthorized, error)
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
