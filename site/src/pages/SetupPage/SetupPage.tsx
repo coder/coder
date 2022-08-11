@@ -32,7 +32,7 @@ export const SetupPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Setup your account")}</title>
+        <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
         isLoading={setupState.hasTag("loading")}
