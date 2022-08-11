@@ -28,6 +28,7 @@
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./install/auth.md"
         }
       ]
@@ -61,6 +62,7 @@
         {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./templates/authentication.md"
         }
       ]
@@ -80,11 +82,13 @@
         {
           "title": "Configuring Web IDEs",
           "description": "Learn how to configure web IDEs in your templates",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./ides/configuring-web-ides.md"
         },
         {
           "title": "Configuring JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./ides/configuring-gateway.md"
         }
       ]
@@ -116,11 +120,13 @@
         {
           "title": "Code of Conduct",
           "description": "See the code of conduct for contributing to Coder",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./contributing/CODE_OF_CONDUCT.md"
         },
         {
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
+          "icon_path": "./images/icons/corner-down-right.svg",
           "path": "./contributing/SECURITY.md"
         }
       ]
