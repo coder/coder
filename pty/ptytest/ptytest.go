@@ -21,19 +21,19 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func New(t *testing.T) *PTY {
+func New(t *testing.T, opts ...pty.PTYOption) *PTY {
 	t.Helper()
 
-	ptty, err := pty.New()
+	ptty, err := pty.New(opts...)
 	require.NoError(t, err)
 
 	return create(t, ptty, "cmd")
 }
 
-func Start(t *testing.T, cmd *exec.Cmd) (*PTY, pty.Process) {
+func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTY, pty.Process) {
 	t.Helper()
 
-	ptty, ps, err := pty.Start(cmd)
+	ptty, ps, err := pty.Start(cmd, opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Kill()

@@ -51,6 +51,15 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220907193453-fb5ba5ab658d
 
+// Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
+// See: https://github.com/coder/coder/issues/3371
+//
+// Note that http://github.com/tailscale/ssh has been merged into the Tailscale
+// repo as tailscale.com/tempfork/gliderlabs/ssh, however, we can't replace the
+// subpath and it includes changes to golang.org/x/crypto/ssh as well which
+// makes importing it directly a bit messy.
+replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
+
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.7.0
@@ -126,6 +135,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	github.com/tabbed/pqtype v0.1.1
+	github.com/u-root/u-root v0.9.0
 	github.com/unrolled/secure v1.12.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel v1.8.0
