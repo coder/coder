@@ -3,13 +3,15 @@ import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import { CoderIcon } from "../Icons/CoderIcon"
 
-const defaultMessage = (
-  <>
-    Welcome to <strong>Coder</strong>
-  </>
-)
+const Language = {
+  defaultMessage: (
+    <>
+      Welcome to <strong>Coder</strong>
+    </>
+  ),
+}
 
-export const Welcome: FC<{ message?: JSX.Element }> = ({ message = defaultMessage }) => {
+export const Welcome: FC<{ message?: JSX.Element }> = ({ message = Language.defaultMessage }) => {
   const styles = useStyles()
 
   return (
