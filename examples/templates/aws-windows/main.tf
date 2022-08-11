@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
   }
 }
@@ -99,7 +99,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.windows.id
   availability_zone = "${var.region}a"
-  instance_type     = "${var.instance_type}"
+  instance_type     = var.instance_type
   count             = 1
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
@@ -109,4 +109,20 @@ resource "aws_instance" "dev" {
     Coder_Provisioned = "true"
   }
 
+}
+
+resource "coder_metadata" "workspace_info" {
+  resource_id = aws_instance.dev.id
+  item {
+    key   = "region"
+    value = var.region
+  }
+  item {
+    key   = "instance type"
+    value = aws_instance.dev.instance_type
+  }
+  item {
+    key   = "disk"
+    value = "${aws_instance.dev.root_block_device[0].volume_size} GiB"
+  }
 }

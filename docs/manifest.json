@@ -29,6 +29,16 @@
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
           "path": "./install/auth.md"
+        },
+        {
+          "title": "Configuration",
+          "description": "Learn how to configure Coder",
+          "path": "./install/configure.md"
+        },
+        {
+          "title": "Upgrading",
+          "description": "Learn how to upgrade Coder.",
+          "path": "./install/upgrade.md"
         }
       ]
     },
@@ -43,12 +53,6 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
-        },
-        {
-          "title": "Generic",
-          "description": "Setup Coder on anything",
-          "icon_path": "./images/icons/generic.svg",
-          "path": "./quickstart/generic.md"
         }
       ]
     },

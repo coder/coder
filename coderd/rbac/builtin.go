@@ -88,6 +88,7 @@ var (
 					// Should be able to read all template details, even in orgs they
 					// are not in.
 					ResourceTemplate: {ActionRead},
+					ResourceAuditLog: {ActionRead},
 				}),
 			}
 		},

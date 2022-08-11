@@ -22,6 +22,12 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceAuditLog
+	// read = access audit log
+	ResourceAuditLog = Object{
+		Type: "audit_log",
+	}
+
 	// ResourceTemplate CRUD. Org owner only.
 	//	create/delete = Make or delete a new template
 	//	update = Update the template, make new template versions

@@ -46,7 +46,7 @@ journalctl -u coder.service -b
 Before proceeding, please ensure that you have both Docker and the [latest version of
 Coder](https://github.com/coder/coder/releases) installed.
 
-> See our [docker-compose](https://github.com/coder/coder/blob/93b78755a6d48191cc53c82654e249f25fc00ce9/docker-compose.yaml) file
+> See our [docker-compose](https://github.com/coder/coder/blob/main/docker-compose.yaml) file
 > for additional information.
 
 1. Clone the `coder` repository:
@@ -86,8 +86,6 @@ Coder](https://github.com/coder/coder/releases) installed.
    ```
 
 3. Follow the on-screen instructions to create your first template and workspace
-
----
 
 If the user is not in the Docker group, you will see the following error:
 
@@ -130,7 +128,7 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
    coder server --postgres-url <url> --access-url <url>
    ```
 
-## Next steps
+## Up Next
 
-Once you've installed and started Coder, see the [quickstart](./quickstart.md)
-for instructions on creating your first template and workspace.
+- Learn how to [configure](./install/configure.md) Coder.
+- Learn about [upgrading](./install/upgrade.md) Coder.
