@@ -21,7 +21,7 @@ export const Language = {
   create: "Setup account",
   welcomeMessage: (
     <>
-      Setup <strong>your account</strong>
+      Set up <strong>your account</strong>
     </>
   ),
 }
