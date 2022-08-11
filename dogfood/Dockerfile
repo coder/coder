@@ -16,8 +16,9 @@ RUN curl --silent --show-error --location \
   "https://storage.googleapis.com/go-boringcrypto/go${GOBORING_VERSION}.linux-amd64.tar.gz" \
   -o /usr/local/goboring.tar.gz
 
-RUN tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1 && \
-      ln -s /usr/local/goboring/bin/go /usr/local/bin/go
+RUN tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1
+
+ENV PATH=$PATH:/usr/local/goboring/bin
 
 # Install Go utilities.
 ARG GOPATH="/tmp/"
@@ -64,7 +65,8 @@ RUN mkdir --parents "$GOPATH" && \
     go install github.com/dvyukov/go-fuzz/go-fuzz@latest && \
     go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
     # go-releaser for building 'fat binaries' that work cross-platform
-    go install github.com/goreleaser/goreleaser@v1.6.1
+    go install github.com/goreleaser/goreleaser@v1.6.1 && \
+    go install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 # Ubuntu 20.04 LTS (Focal Fossa)
 FROM ubuntu:focal
@@ -243,7 +245,8 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 RUN yarn global add --prefix=/usr/local \
       vercel \
       typescript \
-      typescript-language-server && \
+      typescript-language-server \
+      prettier && \
       yarn cache clean
 
 # We use yq during "make deploy" to manually substitute out fields in
@@ -285,15 +288,20 @@ RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
 # are a lot of small files.
 COPY --from=go /usr/local/goboring.tar.gz /usr/local/goboring.tar.gz
 RUN mkdir /usr/local/goboring && \
-    tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1 && \
-      ln -s /usr/local/goboring/bin/go /usr/local/bin/go
+    tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1
+
+ENV PATH=$PATH:/usr/local/goboring/bin
+
 COPY --from=go /tmp/bin /usr/local/bin
 
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 RUN mv /usr/local/bin/exa /usr/local/bin/ls
 RUN mv /usr/local/bin/bat /usr/local/bin/cat
 
+RUN yarn global add --dev --exact prettier
+
 USER coder
+
 
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
