@@ -284,6 +284,9 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
 
 export const hasFirstUser = async (): Promise<boolean> => {
   try {
+    // This endpoint returns 404 if it is false or a 200 if it is success. You
+    // can see its definition here:
+    // https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
     await axios.get("/api/v2/users/first")
     return true
   } catch {
