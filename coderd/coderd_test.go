@@ -587,8 +587,8 @@ func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID str
 	}, nil
 }
 
-func (f *recordingAuthorizer) reset() {
-	f.Called = nil
+func (r *recordingAuthorizer) reset() {
+	r.Called = nil
 }
 
 type fakePreparedAuthorizer struct {

@@ -61,7 +61,7 @@ number(set) = c {
 
 
 # site, org, and user rules are all similar. Each rule should return a number
-# from [-1, 1]. The number corrolates to "negative", "abstain", and "positive"
+# from [-1, 1]. The number correlates to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
 default site = 0
 site := num {
@@ -112,7 +112,7 @@ org_mem := true {
 }
 
 # If the oject has no organization, then the user is also considered part of
-# the non-existant org.
+# the non-existent org.
 org_mem := true {
 	input.object.org_owner == ""
 }
