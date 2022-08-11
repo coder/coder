@@ -9,9 +9,23 @@ import future.keywords
 # This policy is specifically constructed to compress to a set of queries if the
 # object's 'owner' and 'org_owner' fields are unknown. There is no specific set
 # of rules that will guarantee that this policy has this property. However, there
-# are some tricks. A unit test will
+# are some tricks. A unit test will enforce this property, so any edits that pass
+# the unit test will be ok.
 #
-#
+# Tricks: (It's hard to really explain this, fiddling is required)
+# 1. Do not use unknown fields in any comprehension or iteration.
+# 2. Use the unknown fields as minimally as possible.
+# 3. Avoid making code branches based on the value of the unknown field.
+#    Unknown values are like a "set" of possible values.
+#    (This is why rule 1 usually breaks things)
+#    For example:
+#    In the org section, we calculate the 'allow' number for all orgs, rather
+#    than just the input.object.org_owner. This is because if the org_owner
+#    changes, then we don't need to recompute any 'allow' sets. We already have
+#    the 'allow' for the changed value. So the answer is in a lookup table.
+#    The final statement 'num := allow[input.object.org_owner]' does not have
+#    different code branches based on the org_owner. 'num's value does, but
+#    that is the whole point of partial evaluation.
 
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
