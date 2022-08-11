@@ -1121,7 +1121,7 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
 	defer cancel()
 
 	me, err := client.User(ctx, codersdk.Me)
@@ -1196,7 +1196,6 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "all users", limit: 10, allUsers: allUsers},
 		{name: "all users", limit: 5, allUsers: allUsers},
 		{name: "all users", limit: 3, allUsers: allUsers},
-		{name: "all users", limit: 1, allUsers: allUsers},
 		{name: "gmail search", limit: 3, allUsers: specialUsers, opt: gmailSearch},
 		{name: "gmail search", limit: 7, allUsers: specialUsers, opt: gmailSearch},
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
