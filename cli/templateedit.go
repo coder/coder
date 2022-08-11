@@ -53,8 +53,8 @@ func templateEdit() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
-	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown")
-	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", 0, "Edit the template minimum autostart interval")
+	cmd.Flags().DurationVarP(&maxTTL, "max_ttl", "", 0, "Edit the template maximum time before shutdown")
+	cmd.Flags().DurationVarP(&minAutostartInterval, "min_autostart_interval", "", 0, "Edit the template minimum autostart interval")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
