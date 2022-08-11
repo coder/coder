@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bufio"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -10,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
@@ -17,18 +19,23 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 // This cannot be ran in parallel because it uses a signal.
@@ -55,13 +62,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
-		var rawURL string
-		require.Eventually(t, func() bool {
-			rawURL, err = cfg.URL().Read()
-			return err == nil && rawURL != ""
-		}, time.Minute, 50*time.Millisecond)
-		accessURL, err := url.Parse(rawURL)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
@@ -94,10 +95,11 @@ func TestServer(t *testing.T) {
 		go func() {
 			errC <- root.ExecuteContext(ctx)
 		}()
+		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
-			accessURLRaw, err := cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 3*time.Minute, 250*time.Millisecond)
+			rawURL, err := cfg.URL().Read()
+			return err == nil && rawURL != ""
+		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
 	})
@@ -135,11 +137,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
@@ -169,11 +167,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
@@ -201,11 +195,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Just wait for startup
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
@@ -281,14 +271,7 @@ func TestServer(t *testing.T) {
 		}()
 
 		// Verify HTTPS
-		var accessURLRaw string
-		require.Eventually(t, func() bool {
-			var err error
-			accessURLRaw, err = cfg.URL().Read()
-			return accessURLRaw != "" && err == nil
-		}, 15*time.Second, 25*time.Millisecond)
-		accessURL, err := url.Parse(accessURLRaw)
-		require.NoError(t, err)
+		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
 		client := codersdk.New(accessURL)
 		client.HTTPClient = &http.Client{
@@ -299,7 +282,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		_, err = client.HasFirstUser(ctx)
+		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
 		cancelFunc()
@@ -326,11 +309,7 @@ func TestServer(t *testing.T) {
 		go func() {
 			serverErr <- root.ExecuteContext(ctx)
 		}()
-		require.Eventually(t, func() bool {
-			var err error
-			_, err = cfg.URL().Read()
-			return err == nil
-		}, 15*time.Second, 25*time.Millisecond)
+		_ = waitAccessURL(t, cfg)
 		currentProcess, err := os.FindProcess(os.Getpid())
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
@@ -400,6 +379,97 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		<-errC
 	})
+	t.Run("Prometheus", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		random, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_ = random.Close()
+		tcpAddr, valid := random.Addr().(*net.TCPAddr)
+		require.True(t, valid)
+		randomPort := tcpAddr.Port
+
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--provisioner-daemons", "1",
+			"--prometheus-enable",
+			"--prometheus-address", ":"+strconv.Itoa(randomPort),
+			"--cache-dir", t.TempDir(),
+		)
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- root.ExecuteContext(ctx)
+		}()
+		_ = waitAccessURL(t, cfg)
+
+		var res *http.Response
+		require.Eventually(t, func() bool {
+			req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randomPort), nil)
+			assert.NoError(t, err)
+			res, err = http.DefaultClient.Do(req)
+			return err == nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		scanner := bufio.NewScanner(res.Body)
+		hasActiveUsers := false
+		hasWorkspaces := false
+		for scanner.Scan() {
+			// This metric is manually registered to be tracked in the server. That's
+			// why we test it's tracked here.
+			if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
+				hasActiveUsers = true
+				continue
+			}
+			if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
+				hasWorkspaces = true
+				continue
+			}
+			t.Logf("scanned %s", scanner.Text())
+		}
+		require.NoError(t, scanner.Err())
+		require.True(t, hasActiveUsers)
+		require.True(t, hasWorkspaces)
+		cancelFunc()
+		<-serverErr
+	})
+	t.Run("GitHubOAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		fakeRedirect := "https://fake-url.com"
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--oauth2-github-client-id", "fake",
+			"--oauth2-github-client-secret", "fake",
+			"--oauth2-github-enterprise-base-url", fakeRedirect,
+		)
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- root.ExecuteContext(ctx)
+		}()
+		accessURL := waitAccessURL(t, cfg)
+		client := codersdk.New(accessURL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		githubURL, err := accessURL.Parse("/api/v2/users/oauth2/github")
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Get(githubURL.String())
+		require.NoError(t, err)
+		defer res.Body.Close()
+		fakeURL, err := res.Location()
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
+		cancelFunc()
+		<-serverErr
+	})
 }
 
 func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
@@ -435,4 +505,20 @@ func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
 	err = pem.Encode(keyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyBytes})
 	require.NoError(t, err)
 	return certFile.Name(), keyFile.Name()
+}
+
+func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
+	t.Helper()
+
+	var err error
+	var rawURL string
+	require.Eventually(t, func() bool {
+		rawURL, err = cfg.URL().Read()
+		return err == nil && rawURL != ""
+	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
+
+	accessURL, err := url.Parse(rawURL)
+	require.NoError(t, err, "failed to parse access URL")
+
+	return accessURL
 }

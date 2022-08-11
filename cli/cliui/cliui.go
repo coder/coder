@@ -34,7 +34,7 @@ var Styles = struct {
 	Placeholder,
 	Prompt,
 	FocusedPrompt,
-	Fuschia,
+	Fuchsia,
 	Logo,
 	Warn,
 	Wrap lipgloss.Style
@@ -51,7 +51,7 @@ var Styles = struct {
 	Placeholder:   lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#585858", Dark: "#005fff"}),
 	Prompt:        defaultStyles.Prompt.Foreground(lipgloss.AdaptiveColor{Light: "#9B9B9B", Dark: "#5C5C5C"}),
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
-	Fuschia:       defaultStyles.SelectedMenuItem.Copy(),
+	Fuchsia:       defaultStyles.SelectedMenuItem.Copy(),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
 	Warn:          lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#ECFD65"}),
 	Wrap:          lipgloss.NewStyle().Width(80),

@@ -26,21 +26,22 @@ func New() database.Store {
 			organizations:       make([]database.Organization, 0),
 			users:               make([]database.User, 0),
 
-			auditLogs:               make([]database.AuditLog, 0),
-			files:                   make([]database.File, 0),
-			gitSSHKey:               make([]database.GitSSHKey, 0),
-			parameterSchemas:        make([]database.ParameterSchema, 0),
-			parameterValues:         make([]database.ParameterValue, 0),
-			provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
-			provisionerJobAgents:    make([]database.WorkspaceAgent, 0),
-			provisionerJobLogs:      make([]database.ProvisionerJobLog, 0),
-			provisionerJobResources: make([]database.WorkspaceResource, 0),
-			provisionerJobs:         make([]database.ProvisionerJob, 0),
-			templateVersions:        make([]database.TemplateVersion, 0),
-			templates:               make([]database.Template, 0),
-			workspaceBuilds:         make([]database.WorkspaceBuild, 0),
-			workspaceApps:           make([]database.WorkspaceApp, 0),
-			workspaces:              make([]database.Workspace, 0),
+			auditLogs:                      make([]database.AuditLog, 0),
+			files:                          make([]database.File, 0),
+			gitSSHKey:                      make([]database.GitSSHKey, 0),
+			parameterSchemas:               make([]database.ParameterSchema, 0),
+			parameterValues:                make([]database.ParameterValue, 0),
+			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
+			provisionerJobAgents:           make([]database.WorkspaceAgent, 0),
+			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
+			provisionerJobResources:        make([]database.WorkspaceResource, 0),
+			provisionerJobResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
+			provisionerJobs:                make([]database.ProvisionerJob, 0),
+			templateVersions:               make([]database.TemplateVersion, 0),
+			templates:                      make([]database.Template, 0),
+			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
+			workspaceApps:                  make([]database.WorkspaceApp, 0),
+			workspaces:                     make([]database.Workspace, 0),
 		},
 	}
 }
@@ -74,21 +75,22 @@ type data struct {
 	users               []database.User
 
 	// New tables
-	auditLogs               []database.AuditLog
-	files                   []database.File
-	gitSSHKey               []database.GitSSHKey
-	parameterSchemas        []database.ParameterSchema
-	parameterValues         []database.ParameterValue
-	provisionerDaemons      []database.ProvisionerDaemon
-	provisionerJobAgents    []database.WorkspaceAgent
-	provisionerJobLogs      []database.ProvisionerJobLog
-	provisionerJobResources []database.WorkspaceResource
-	provisionerJobs         []database.ProvisionerJob
-	templateVersions        []database.TemplateVersion
-	templates               []database.Template
-	workspaceBuilds         []database.WorkspaceBuild
-	workspaceApps           []database.WorkspaceApp
-	workspaces              []database.Workspace
+	auditLogs                      []database.AuditLog
+	files                          []database.File
+	gitSSHKey                      []database.GitSSHKey
+	parameterSchemas               []database.ParameterSchema
+	parameterValues                []database.ParameterValue
+	provisionerDaemons             []database.ProvisionerDaemon
+	provisionerJobAgents           []database.WorkspaceAgent
+	provisionerJobLogs             []database.ProvisionerJobLog
+	provisionerJobResources        []database.WorkspaceResource
+	provisionerJobResourceMetadata []database.WorkspaceResourceMetadatum
+	provisionerJobs                []database.ProvisionerJob
+	templateVersions               []database.TemplateVersion
+	templates                      []database.Template
+	workspaceBuilds                []database.WorkspaceBuild
+	workspaceApps                  []database.WorkspaceApp
+	workspaces                     []database.Workspace
 
 	deploymentID string
 }
@@ -598,6 +600,32 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	return row, nil
 }
 
+func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.WorkspaceBuild, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	buildNumbers := make(map[uuid.UUID]int32)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		id := workspaceBuild.WorkspaceID
+		if workspaceBuild.BuildNumber > buildNumbers[id] {
+			builds[id] = workspaceBuild
+			buildNumbers[id] = workspaceBuild.BuildNumber
+		}
+	}
+	var returnBuilds []database.WorkspaceBuild
+	for i, n := range buildNumbers {
+		if n > 0 {
+			b := builds[i]
+			returnBuilds = append(returnBuilds, b)
+		}
+	}
+	if len(returnBuilds) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return returnBuilds, nil
+}
+
 func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -895,8 +923,8 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
-			if !i.CreatedAt.Before(j.CreatedAt) {
-				return false
+			if i.Name != j.Name {
+				return i.Name < j.Name
 			}
 			return i.ID.String() < j.ID.String()
 		})
@@ -1078,8 +1106,8 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 
 	templates := slices.Clone(q.templates)
 	slices.SortFunc(templates, func(i, j database.Template) bool {
-		if !i.CreatedAt.Before(j.CreatedAt) {
-			return false
+		if i.Name != j.Name {
+			return i.Name < j.Name
 		}
 		return i.ID.String() < j.ID.String()
 	})
@@ -1329,6 +1357,34 @@ func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 		}
 	}
 	return resources, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceID(_ context.Context, id uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	metadata := make([]database.WorkspaceResourceMetadatum, 0)
+	for _, metadatum := range q.provisionerJobResourceMetadata {
+		if metadatum.WorkspaceResourceID.String() == id.String() {
+			metadata = append(metadata, metadatum)
+		}
+	}
+	return metadata, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	metadata := make([]database.WorkspaceResourceMetadatum, 0)
+	for _, metadatum := range q.provisionerJobResourceMetadata {
+		for _, id := range ids {
+			if metadatum.WorkspaceResourceID.String() == id.String() {
+				metadata = append(metadata, metadatum)
+			}
+		}
+	}
+	return metadata, nil
 }
 
 func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
@@ -1657,6 +1713,21 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg database.InsertWorkspaceResourceMetadataParams) (database.WorkspaceResourceMetadatum, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	metadatum := database.WorkspaceResourceMetadatum{
+		WorkspaceResourceID: arg.WorkspaceResourceID,
+		Key:                 arg.Key,
+		Value:               arg.Value,
+		Sensitive:           arg.Sensitive,
+	}
+	q.provisionerJobResourceMetadata = append(q.provisionerJobResourceMetadata, metadatum)
+	return metadatum, nil
 }
 
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {

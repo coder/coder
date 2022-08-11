@@ -1889,7 +1889,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 
 const getTemplates = `-- name: GetTemplates :many
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by FROM templates
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
@@ -1954,7 +1954,7 @@ WHERE
 			id = ANY($4)
 		ELSE true
 	END
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
@@ -3459,6 +3459,58 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 	return i, err
 }
 
+const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason
+FROM (
+    SELECT
+        workspace_id, MAX(build_number) as max_build_number
+    FROM
+        workspace_builds
+    GROUP BY
+        workspace_id
+) m
+JOIN
+    workspace_builds wb
+ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuild
+	for rows.Next() {
+		var i WorkspaceBuild
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.BuildNumber,
+			&i.Transition,
+			&i.InitiatorID,
+			&i.ProvisionerState,
+			&i.JobID,
+			&i.Deadline,
+			&i.Reason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason
 FROM (
@@ -3895,6 +3947,80 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getWorkspaceResourceMetadataByResourceID = `-- name: GetWorkspaceResourceMetadataByResourceID :many
+SELECT
+	workspace_resource_id, key, value, sensitive
+FROM
+	workspace_resource_metadata
+WHERE
+	workspace_resource_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceMetadataByResourceID(ctx context.Context, workspaceResourceID uuid.UUID) ([]WorkspaceResourceMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourceMetadataByResourceID, workspaceResourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResourceMetadatum
+	for rows.Next() {
+		var i WorkspaceResourceMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceResourceID,
+			&i.Key,
+			&i.Value,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceResourceMetadataByResourceIDs = `-- name: GetWorkspaceResourceMetadataByResourceIDs :many
+SELECT
+	workspace_resource_id, key, value, sensitive
+FROM
+	workspace_resource_metadata
+WHERE
+	workspace_resource_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourceMetadataByResourceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResourceMetadatum
+	for rows.Next() {
+		var i WorkspaceResourceMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceResourceID,
+			&i.Key,
+			&i.Value,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
 	id, created_at, job_id, transition, type, name
@@ -4001,6 +4127,37 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Transition,
 		&i.Type,
 		&i.Name,
+	)
+	return i, err
+}
+
+const insertWorkspaceResourceMetadata = `-- name: InsertWorkspaceResourceMetadata :one
+INSERT INTO
+	workspace_resource_metadata (workspace_resource_id, key, value, sensitive)
+VALUES
+	($1, $2, $3, $4) RETURNING workspace_resource_id, key, value, sensitive
+`
+
+type InsertWorkspaceResourceMetadataParams struct {
+	WorkspaceResourceID uuid.UUID      `db:"workspace_resource_id" json:"workspace_resource_id"`
+	Key                 string         `db:"key" json:"key"`
+	Value               sql.NullString `db:"value" json:"value"`
+	Sensitive           bool           `db:"sensitive" json:"sensitive"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) (WorkspaceResourceMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceResourceMetadata,
+		arg.WorkspaceResourceID,
+		arg.Key,
+		arg.Value,
+		arg.Sensitive,
+	)
+	var i WorkspaceResourceMetadatum
+	err := row.Scan(
+		&i.WorkspaceResourceID,
+		&i.Key,
+		&i.Value,
+		&i.Sensitive,
 	)
 	return i, err
 }

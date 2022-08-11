@@ -28,7 +28,7 @@ NullResource.args = {
   type: "null_resource",
 }
 
-export const UnkownResource = Template.bind({})
-UnkownResource.args = {
+export const UnknownResource = Template.bind({})
+UnknownResource.args = {
   type: "noexistentvalue",
 }

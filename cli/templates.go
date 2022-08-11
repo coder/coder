@@ -71,7 +71,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) st
 			template.OrganizationID.String(),
 			template.Provisioner,
 			template.ActiveVersionID.String(),
-			cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+			cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
 			(time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
 			(time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		})

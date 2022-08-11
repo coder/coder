@@ -16,11 +16,11 @@ var errInvalidTimeFormat = xerrors.New("Start time must be in the format hh:mm[a
 var errUnsupportedTimezone = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 
 // durationDisplay formats a duration for easier display:
-//   * Durations of 24 hours or greater are displays as Xd
-//   * Durations less than 1 minute are displayed as <1m
-//   * Duration is truncated to the nearest minute
-//   * Empty minutes and seconds are truncated
-//   * The returned string is the absolute value. Use sign()
+//   - Durations of 24 hours or greater are displays as Xd
+//   - Durations less than 1 minute are displayed as <1m
+//   - Duration is truncated to the nearest minute
+//   - Empty minutes and seconds are truncated
+//   - The returned string is the absolute value. Use sign()
 //     if you need to indicate if the duration is positive or
 //     negative.
 func durationDisplay(d time.Duration) string {
@@ -114,7 +114,7 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 	if loc == nil {
 		loc, err = tz.TimezoneIANA()
 		if err != nil {
-			return nil, xerrors.Errorf("Could not automatically determine your timezone")
+			loc = time.UTC
 		}
 	}
 

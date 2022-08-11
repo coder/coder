@@ -4,7 +4,7 @@ The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
 - [VS Code Remote SSH](#vs-code-remote)
-- [JetBrains with Gateway](./ides/configuring-gateway.md)
+- [JetBrains with Gateway](./ides/gateway.md)
   - IntelliJ IDEA
   - CLion
   - GoLand
@@ -12,8 +12,9 @@ support should work:
   - Rider
   - RubyMine
   - WebStorm
-- Web IDEs (code-server, JupyterLab, Jetbrains Projector)
-  - Note: These are [configured in the template](./ides/configuring-web-ides.md)
+- Web IDEs (code-server, JupyterLab, JetBrains Projector)
+  - Note: These are [configured in the template](./ides/web-ides.md)
+- [Emacs](./ides/emacs-tramp.md)
 
 ## SSH configuration
 
@@ -66,7 +67,7 @@ already done so, you may wish to open a terminal on your Coder workspace and
 check out a copy of the project you intend to work on.
 
 After installing Gateway on your local system, [follow these steps to create a
-Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
+Connection and connect to your Coder workspace.](./ides/gateway.md)
 
 | Version   | Status  | Notes                                                    |
 | --------- | ------- | -------------------------------------------------------- |
@@ -74,6 +75,10 @@ Connection and connect to your Coder workspace.](./ides/configuring-gateway.md)
 | 2022.1.4  | Working | Windows clients are unable to connect to Linux workspace |
 | 2022.2 RC | Working | Version >= 222.3345.108                                  |
 
-## Web IDEs (Jupyter, code-server, Jetbrains Projector)
+## Web IDEs (Jupyter, code-server, JetBrains Projector)
 
-Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [configuring IDEs](./ides/configuring-web-ides.md).
+Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the template. See [IDEs](./ides/web-ides.md).
+
+## Up next
+
+- Learn about [Port Forwarding](./port-forwarding.md)

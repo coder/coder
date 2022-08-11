@@ -1,4 +1,4 @@
-# Configuring web IDEs
+# Web IDEs
 
 By default, Coder workspaces allow connections via:
 
@@ -62,7 +62,7 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
 RUN code-server --install-extension eamodio.gitlens
 
 # directly start code-server with the agent's startup_script (see above),
-# or use a proccess manager like supervisord
+# or use a process manager like supervisord
 ```
 
 You'll also need to specify a `coder_app` resource related to the agent. This is how code-server is displayed on the workspace page.

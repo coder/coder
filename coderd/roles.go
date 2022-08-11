@@ -43,7 +43,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -74,10 +74,9 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		}
 		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.Action(v.Action),
 			rbac.Object{
-				ResourceID: v.Object.ResourceID,
-				Owner:      v.Object.OwnerID,
-				OrgID:      v.Object.OrganizationID,
-				Type:       v.Object.ResourceType,
+				Owner: v.Object.OwnerID,
+				OrgID: v.Object.OrganizationID,
+				Type:  v.Object.ResourceType,
 			})
 		response[k] = err == nil
 	}

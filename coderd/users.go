@@ -258,7 +258,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -277,7 +277,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -345,7 +345,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		user := httpmw.UserParam(r)
 		apiKey := httpmw.APIKey(r)
 
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -415,7 +415,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	// admins can change passwords without sending old_password
 	if params.OldPassword == "" {
-		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -504,7 +504,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.AuthorizationUserRoles(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 	apiKey := httpmw.APIKey(r)
 
 	if apiKey.UserID == user.ID {
@@ -519,24 +519,30 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
-	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
-	for _, roleName := range added {
-		// Assigning a role requires the create permission.
-		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
-			httpapi.Forbidden(rw)
-			return
-		}
+	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
+
+	// Assigning a role requires the create permission.
+	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment) {
+		httpapi.Forbidden(rw)
+		return
 	}
-	for _, roleName := range removed {
-		// Removing a role requires the delete permission.
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
+
+	// Removing a role requires the delete permission.
+	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -631,8 +637,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceOrganization.
-			InOrg(organization.ID).
-			WithID(organization.ID.String())) {
+			InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

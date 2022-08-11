@@ -402,7 +402,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// These should override all variables we manually specify.
 	for envKey, value := range metadata.EnvironmentVariables {
 		// Expanding environment variables allows for customization
-		// of the $PATH, among other variables. Customers can prepand
+		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
 	}

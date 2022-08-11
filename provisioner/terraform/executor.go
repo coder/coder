@@ -23,6 +23,7 @@ import (
 )
 
 type executor struct {
+	initMu     sync.Locker
 	binaryPath string
 	cachePath  string
 	workdir    string
@@ -142,6 +143,19 @@ func (e executor) init(ctx context.Context, logr logger) error {
 		"-no-color",
 		"-input=false",
 	}
+
+	// When cache path is set, we must protect against multiple calls
+	// to `terraform init`.
+	//
+	// From the Terraform documentation:
+	//     Note: The plugin cache directory is not guaranteed to be
+	//     concurrency safe. The provider installer's behavior in
+	//     environments with multiple terraform init calls is undefined.
+	if e.cachePath != "" {
+		e.initMu.Lock()
+		defer e.initMu.Unlock()
+	}
+
 	return e.execWriteOutput(ctx, args, e.basicEnv(), outWriter, errWriter)
 }
 

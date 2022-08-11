@@ -33,6 +33,19 @@ type agentAppAttributes struct {
 	RelativePath bool   `mapstructure:"relative_path"`
 }
 
+// A mapping of attributes on the "coder_metadata" resource.
+type metadataAttributes struct {
+	ResourceID string         `mapstructure:"resource_id"`
+	Items      []metadataItem `mapstructure:"item"`
+}
+
+type metadataItem struct {
+	Key       string `mapstructure:"key"`
+	Value     string `mapstructure:"value"`
+	Sensitive bool   `mapstructure:"sensitive"`
+	IsNull    bool   `mapstructure:"is_null"`
+}
+
 // ConvertResources consumes Terraform state and a GraphViz representation produced by
 // `terraform graph` to produce resources consumable by Coder.
 func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, error) {
@@ -48,16 +61,30 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	resources := make([]*proto.Resource, 0)
 	resourceAgents := map[string][]*proto.Agent{}
 
-	// Indexes Terraform resources by it's label. The label
-	// is what "terraform graph" uses to reference nodes.
+	// Indexes Terraform resources by their label and ID.
+	// The label is what "terraform graph" uses to reference nodes, and the ID
+	// is used by "coder_metadata" resources to refer to their targets. (The ID
+	// field is only available when reading a state file, and not when reading a
+	// plan file.)
 	tfResourceByLabel := map[string]*tfjson.StateResource{}
+	resourceLabelByID := map[string]string{}
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
 			findTerraformResources(module)
 		}
 		for _, resource := range mod.Resources {
-			tfResourceByLabel[convertAddressToLabel(resource.Address)] = resource
+			label := convertAddressToLabel(resource.Address)
+			// index by label
+			tfResourceByLabel[label] = resource
+			// index by ID, if it exists
+			id, ok := resource.AttributeValues["id"]
+			if ok {
+				idString, ok := id.(string)
+				if ok {
+					resourceLabelByID[idString] = label
+				}
+			}
 		}
 	}
 	findTerraformResources(module)
@@ -205,23 +232,59 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 	}
 
+	// Associate metadata blocks with resources.
+	resourceMetadata := map[string][]*proto.Resource_Metadata{}
+	for label, resource := range tfResourceByLabel {
+		if resource.Type != "coder_metadata" {
+			continue
+		}
+		var attrs metadataAttributes
+		err = mapstructure.Decode(resource.AttributeValues, &attrs)
+		if err != nil {
+			return nil, xerrors.Errorf("decode metadata attributes: %w", err)
+		}
+
+		if attrs.ResourceID == "" {
+			// TODO: detect this as an error
+			// At plan time, change.after_unknown.resource_id should be "true".
+			// At provision time, values.resource_id should be set.
+			continue
+		}
+		targetLabel, ok := resourceLabelByID[attrs.ResourceID]
+		if !ok {
+			return nil, xerrors.Errorf("attribute %s.resource_id = %q does not refer to a valid resource", label, attrs.ResourceID)
+		}
+
+		for _, item := range attrs.Items {
+			resourceMetadata[targetLabel] = append(resourceMetadata[targetLabel],
+				&proto.Resource_Metadata{
+					Key:       item.Key,
+					Value:     item.Value,
+					Sensitive: item.Sensitive,
+					IsNull:    item.IsNull,
+				})
+		}
+	}
+
 	for _, resource := range tfResourceByLabel {
 		if resource.Mode == tfjson.DataResourceMode {
 			continue
 		}
-		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" {
+		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
 			continue
 		}
+		label := convertAddressToLabel(resource.Address)
 
-		agents, exists := resourceAgents[convertAddressToLabel(resource.Address)]
+		agents, exists := resourceAgents[label]
 		if exists {
 			applyAutomaticInstanceID(resource, agents)
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:   resource.Name,
-			Type:   resource.Type,
-			Agents: agents,
+			Name:     resource.Name,
+			Type:     resource.Type,
+			Agents:   agents,
+			Metadata: resourceMetadata[label],
 		})
 	}
 
@@ -247,8 +310,9 @@ func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Ag
 	key, isValid := map[string]string{
 		"google_compute_instance":         "instance_id",
 		"aws_instance":                    "id",
-		"azurerm_linux_virtual_machine":   "id",
-		"azurerm_windows_virtual_machine": "id",
+		"aws_spot_instance_request":       "spot_instance_id",
+		"azurerm_linux_virtual_machine":   "virtual_machine_id",
+		"azurerm_windows_virtual_machine": "virtual_machine_id",
 	}[resource.Type]
 	if !isValid {
 		return

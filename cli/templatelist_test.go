@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,10 +37,15 @@ func TestTemplateList(t *testing.T) {
 			errC <- cmd.Execute()
 		}()
 
+		// expect that templates are listed alphebetically
+		var templatesList = []string{firstTemplate.Name, secondTemplate.Name}
+		sort.Strings(templatesList)
+
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch(firstTemplate.Name)
-		pty.ExpectMatch(secondTemplate.Name)
+		for _, name := range templatesList {
+			pty.ExpectMatch(name)
+		}
 	})
 	t.Run("NoTemplates", func(t *testing.T) {
 		t.Parallel()

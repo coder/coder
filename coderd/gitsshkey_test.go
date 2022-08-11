@@ -12,59 +12,75 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestGitSSHKey(t *testing.T) {
 	t.Parallel()
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, nil)
 		res := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("Ed25519", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("ECDSA", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmECDSA,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("RSA4096", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmRSA4096,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		key, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("Regenerate", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		key1, err := client.GitSSHKey(ctx, res.UserID.String())
 		require.NoError(t, err)
 		require.NotEmpty(t, key1.PublicKey)
@@ -112,7 +128,10 @@ func TestAgentGitSSHKey(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 
-	agentKey, err := agentClient.AgentGitSSHKey(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	agentKey, err := agentClient.AgentGitSSHKey(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, agentKey.PrivateKey)
 }

@@ -22,17 +22,16 @@ bool_flip(b) = flipped {
 # perms_grant returns a set of boolean values {true, false}.
 # True means a positive permission in the set, false is a negative permission.
 # It will only return `bool_flip(perm.negate)` for permissions that affect a given
-# resource_type, resource_id, and action.
+# resource_type, and action.
 # The empty set is returned if no relevant permissions are found.
 perms_grant(permissions) = grants {
     # If there are no permissions, this value is the empty set {}.
     grants := { x |
         # All permissions ...
         perm := permissions[_]
-        # Such that the permission action, type, and resource_id matches
+        # Such that the permission action, and type matches
         perm.action in [input.action, "*"]
         perm.resource_type in [input.object.type, "*"]
-        perm.resource_id in [input.object.id, "*"]
         x := bool_flip(perm.negate)
     }
 }
@@ -105,7 +104,7 @@ org = set {
 
 # The allow block is quite simple. Any set with `false` cascades down in levels.
 # Authorization looks for any `allow` statement that is true. Multiple can be true!
-# Note that the absense of `allow` means "unauthorized".
+# Note that the absence of `allow` means "unauthorized".
 # An explicit `"allow": true` is required.
 
 # site allow
