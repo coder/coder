@@ -1,4 +1,5 @@
 import { useSelector } from "@xstate/react"
+import { SetupPage } from "pages/SetupPage/SetupPage"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
@@ -47,6 +48,7 @@ export const AppRouter: FC = () => {
         />
 
         <Route path="login" element={<LoginPage />} />
+        <Route path="setup" element={<SetupPage />} />
         <Route path="healthz" element={<HealthzPage />} />
         <Route
           path="cli-auth"

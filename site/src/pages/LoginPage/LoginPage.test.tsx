@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react"
+import { act, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Language } from "../../components/SignInForm/SignInForm"
@@ -88,5 +88,20 @@ describe("LoginPage", () => {
     // Then
     await screen.findByText(Language.passwordSignIn)
     await screen.findByText(Language.githubSignIn)
+  })
+
+  it("redirects to the setup page if there is no first user", async () => {
+    // Given
+    server.use(
+      rest.get("/api/v2/users/first", async (req, res, ctx) => {
+        return res(ctx.status(404))
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    await waitFor(() => expect(history.location.pathname).toEqual("/setup"))
   })
 })

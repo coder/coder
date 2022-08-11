@@ -282,7 +282,24 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
-export const postFirstUser = async (
+// API definition:
+// https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
+export const hasFirstUser = async (): Promise<boolean> => {
+  try {
+    // If it is success, it is true
+    await axios.get("/api/v2/users/first")
+    return true
+  } catch (error) {
+    // If it returns a 404, it is false
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return false
+    }
+
+    throw error
+  }
+}
+
+export const createFirstUser = async (
   req: TypesGen.CreateFirstUserRequest,
 ): Promise<TypesGen.CreateFirstUserResponse> => {
   const response = await axios.post(`/api/v2/users/first`, req)
