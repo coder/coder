@@ -9,15 +9,18 @@ import (
 )
 
 type PartialAuthorizer struct {
-	// PartialQueries is mainly used for unit testing to assert our rego policy
+	// partialQueries is mainly used for unit testing to assert our rego policy
 	// can always be compressed into a set of queries.
-	PartialQueries  *rego.PartialQueries
-	PreparedQueries []rego.PreparedEvalQuery
-	// Input is used purely for debugging and logging.
-	Input map[string]interface{}
-	// AlwaysTrue is if the subject can always perform the action on the
+	partialQueries *rego.PartialQueries
+	// input is used purely for debugging and logging.
+	input map[string]interface{}
+	// preparedQueries are the compiled set of queries after partial evaluation.
+	// Cache these prepared queries to avoid re-compiling the queries.
+	// If alwaysTrue is true, then ignore these.
+	preparedQueries []rego.PreparedEvalQuery
+	// alwaysTrue is if the subject can always perform the action on the
 	// resource type, regardless of the unknown fields.
-	AlwaysTrue bool
+	alwaysTrue bool
 }
 
 func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
@@ -48,9 +51,9 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 	}
 
 	pAuth := &PartialAuthorizer{
-		PartialQueries:  partialQueries,
-		PreparedQueries: []rego.PreparedEvalQuery{},
-		Input:           input,
+		partialQueries:  partialQueries,
+		preparedQueries: []rego.PreparedEvalQuery{},
+		input:           input,
 	}
 
 	// Prepare each query to optimize the runtime when we iterate over the objects.
@@ -61,7 +64,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 			//	'WHERE true'
 			// This is likely an admin. We don't even need to use rego going
 			// forward.
-			pAuth.AlwaysTrue = true
+			pAuth.alwaysTrue = true
 			preparedQueries = []rego.PreparedEvalQuery{}
 			break
 		}
@@ -73,14 +76,14 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		}
 		preparedQueries = append(preparedQueries, results)
 	}
-	pAuth.PreparedQueries = preparedQueries
+	pAuth.preparedQueries = preparedQueries
 
 	return pAuth, nil
 }
 
 // Authorize authorizes a single object using the partially prepared queries.
 func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	if a.AlwaysTrue {
+	if a.alwaysTrue {
 		return nil
 	}
 
@@ -95,7 +98,7 @@ func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	// all boolean expressions. In the above 1st example, there are 2.
 	// These expressions within a single query are `AND` together by rego.
 EachQueryLoop:
-	for _, q := range a.PreparedQueries {
+	for _, q := range a.preparedQueries {
 		// We need to eval each query with the newly known fields.
 		results, err := q.Eval(ctx, rego.EvalInput(map[string]interface{}{
 			"object": object,
@@ -140,5 +143,5 @@ EachQueryLoop:
 		return nil
 	}
 
-	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), a.Input, nil)
+	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), a.input, nil)
 }
