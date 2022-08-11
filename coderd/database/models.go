@@ -465,8 +465,8 @@ type Template struct {
 	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 	Description          string          `db:"description" json:"description"`
-	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
-	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
+	MaxTtl               int64           `db:"max-ttl" json:"max-ttl"`
+	MinAutostartInterval int64           `db:"min-autostart-interval" json:"min-autostart-interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 }
 

@@ -65,8 +65,8 @@ INSERT INTO
 		provisioner,
 		active_version_id,
 		description,
-		max_ttl,
-		min_autostart_interval,
+		max-ttl,
+		min-autostart-interval,
 		created_by
 	)
 VALUES
@@ -96,8 +96,8 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	max_ttl = $4,
-	min_autostart_interval = $5
+	max-ttl = $4,
+	min-autostart-interval = $5
 WHERE
 	id = $1
 RETURNING
