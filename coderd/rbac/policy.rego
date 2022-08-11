@@ -61,7 +61,7 @@ number(set) = c {
 
 
 # site, org, and user rules are all similar. Each rule should return a number
-# from [-1, 1]. The number correlates to "negative", "abstain", and "positive"
+# from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
 default site = 0
 site := num {
