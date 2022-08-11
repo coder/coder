@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
   }
 }
@@ -146,12 +146,28 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
-  instance_type     = "${var.instance_type}"
+  instance_type     = var.instance_type
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
+  }
+}
+
+resource "coder_metadata" "workspace_info" {
+  resource_id = aws_instance.dev.id
+  item {
+    key   = "region"
+    value = var.region
+  }
+  item {
+    key   = "instance type"
+    value = aws_instance.dev.instance_type
+  }
+  item {
+    key   = "disk"
+    value = "${aws_instance.dev.root_block_device[0].volume_size} GiB"
   }
 }

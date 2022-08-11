@@ -30,7 +30,7 @@ export const Section: SectionFC = ({
 }) => {
   const styles = useStyles({ layout })
   return (
-    <div className={combineClasses([styles.root, className])}>
+    <section className={combineClasses([styles.root, className])}>
       <div className={styles.inner}>
         {(title || description) && (
           <div className={styles.header}>
@@ -49,7 +49,7 @@ export const Section: SectionFC = ({
         {alert && <div className={styles.alert}>{alert}</div>}
         {children}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -63,6 +63,7 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
     borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("sm")]: {
       padding: theme.spacing(4, 3, 4, 3),

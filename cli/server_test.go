@@ -463,6 +463,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		res, err := client.HTTPClient.Get(githubURL.String())
 		require.NoError(t, err)
+		defer res.Body.Close()
 		fakeURL, err := res.Location()
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())

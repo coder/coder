@@ -3,12 +3,10 @@ import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
+import { defaultSchedule, emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
+import { defaultTTL, emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { makeMockApiError } from "testHelpers/entities"
-import {
-  defaultWorkspaceSchedule,
-  WorkspaceScheduleForm,
-  WorkspaceScheduleFormProps,
-} from "./WorkspaceScheduleForm"
+import { WorkspaceScheduleForm, WorkspaceScheduleFormProps } from "./WorkspaceScheduleForm"
 
 dayjs.extend(advancedFormat)
 dayjs.extend(utc)
@@ -29,51 +27,60 @@ export default {
 
 const Template: Story<WorkspaceScheduleFormProps> = (args) => <WorkspaceScheduleForm {...args} />
 
-export const WorkspaceWillNotShutDown = Template.bind({})
-WorkspaceWillNotShutDown.args = {
+const defaultInitialValues = {
+  autoStartEnabled: true,
+  ...defaultSchedule(),
+  autoStopEnabled: true,
+  ttl: defaultTTL,
+}
+
+export const AllDisabled = Template.bind({})
+AllDisabled.args = {
   initialValues: {
-    ...defaultWorkspaceSchedule(5),
-    ttl: 0,
+    autoStartEnabled: false,
+    ...emptySchedule,
+    autoStopEnabled: false,
+    ttl: emptyTTL,
   },
 }
 
-export const WorkspaceWillShutdownInAnHour = Template.bind({})
-WorkspaceWillShutdownInAnHour.args = {
+export const AutoStart = Template.bind({})
+AutoStart.args = {
   initialValues: {
-    ...defaultWorkspaceSchedule(5),
-    ttl: 1,
+    autoStartEnabled: true,
+    ...defaultSchedule(),
+    autoStopEnabled: false,
+    ttl: emptyTTL,
   },
 }
 
 export const WorkspaceWillShutdownInTwoHours = Template.bind({})
 WorkspaceWillShutdownInTwoHours.args = {
-  initialValues: {
-    ...defaultWorkspaceSchedule(2),
-    ttl: 2,
-  },
+  initialValues: { ...defaultInitialValues, ttl: 2 },
 }
 
 export const WorkspaceWillShutdownInADay = Template.bind({})
 WorkspaceWillShutdownInADay.args = {
-  initialValues: {
-    ...defaultWorkspaceSchedule(2),
-    ttl: 24,
-  },
+  initialValues: { ...defaultInitialValues, ttl: 24 },
 }
 
 export const WorkspaceWillShutdownInTwoDays = Template.bind({})
 WorkspaceWillShutdownInTwoDays.args = {
-  initialValues: {
-    ...defaultWorkspaceSchedule(2),
-    ttl: 48,
-  },
+  initialValues: { ...defaultInitialValues, ttl: 48 },
 }
 
 export const WithError = Template.bind({})
 WithError.args = {
+  initialValues: { ...defaultInitialValues, ttl: 100 },
   initialTouched: { ttl: true },
   submitScheduleError: makeMockApiError({
     message: "Something went wrong.",
     validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }],
   }),
+}
+
+export const Loading = Template.bind({})
+Loading.args = {
+  initialValues: defaultInitialValues,
+  isLoading: true,
 }
