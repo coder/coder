@@ -389,7 +389,7 @@ export const authMachine =
             onDone: [
               {
                 cond: "isTrue",
-                target: "signedOut",
+                target: "gettingMethods",
               },
               {
                 target: "waitingForTheFirstUser",

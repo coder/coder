@@ -20,12 +20,11 @@ export const LoginPage: React.FC = () => {
   const redirectTo = retrieveRedirect(location.search)
   const locationState = location.state ? (location.state as LocationState) : null
   const isRedirected = locationState ? locationState.isRedirect : false
+  const { authError, getUserError, checkPermissionsError, getMethodsError } = authState.context
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
     authSend({ type: "SIGN_IN", email, password })
   }
-
-  const { authError, getUserError, checkPermissionsError, getMethodsError } = authState.context
 
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
