@@ -49,6 +49,10 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	echo '== Waiting for Coder to become ready'
 	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
 
+	#  create the first user, the admin
+	"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password="${CODER_DEV_ADMIN_PASSWORD}" ||
+		echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
+
 	# || true to always exit code 0. If this fails, whelp.
 	"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${CODER_DEV_ADMIN_PASSWORD}" ||
 		echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
