@@ -95,4 +95,4 @@ Join our community on [Discord](https://discord.gg/coder) and [Twitter](https://
 
 Read the [contributing docs](https://coder.com/docs/coder-oss/latest/CONTRIBUTING).
 
-Find our list of contributors [here](./docs/CONTRIBUTORS.md).
+Find our list of contributors [here](https://github.com/coder/coder/graphs/contributors).

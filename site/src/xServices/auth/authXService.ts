@@ -14,6 +14,7 @@ export const checks = {
   updateUsers: "updateUsers",
   createUser: "createUser",
   createTemplates: "createTemplates",
+  viewAuditLog: "viewAuditLog",
 } as const
 
 export const permissionsToCheck = {
@@ -40,6 +41,12 @@ export const permissionsToCheck = {
       resource_type: "template",
     },
     action: "write",
+  },
+  [checks.viewAuditLog]: {
+    object: {
+      resource_type: "audit_log",
+    },
+    action: "read",
   },
 } as const
 

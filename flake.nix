@@ -19,13 +19,13 @@
             bat
             drpc.defaultPackage.${system}
             exa
+            getopt
             git
             go-migrate
             go_1_19
             golangci-lint
             gopls
             gotestsum
-            helm
             jq
             nfpm
             nodePackages.typescript
