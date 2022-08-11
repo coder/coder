@@ -11,7 +11,7 @@ import * as TypesGen from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 
 export const Language = {
-  createFirstUserError: Failed to create the user.",
+  createFirstUserError: "Failed to create the user.",
 }
 
 export interface SetupContext {
