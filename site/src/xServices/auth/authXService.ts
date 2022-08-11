@@ -381,11 +381,16 @@ export const authMachine =
             src: "hasFirstUser",
             onDone: [
               {
-                cond: "dontHaveFirstUser",
+                cond: "isTrue",
+                target: "signedOut",
+              },
+              {
                 target: "waitingForTheFirstUser",
               },
             ],
+            onError: "signedOut",
           },
+          tags: "loading",
         },
         waitingForTheFirstUser: {
           entry: "redirectToSetupPage",
@@ -516,7 +521,7 @@ export const authMachine =
         },
       },
       guards: {
-        dontHaveFirstUser: (_, event) => event.data,
+        isTrue: (_, event) => event.data,
       },
     },
   )
