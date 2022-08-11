@@ -300,7 +300,6 @@ RUN mv /usr/local/bin/bat /usr/local/bin/cat
 
 USER coder
 
-
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
 # home volume.
