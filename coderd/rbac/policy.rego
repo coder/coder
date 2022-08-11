@@ -5,7 +5,13 @@ import future.keywords
 # opa eval --format=pretty 'data.authz.allow = true' -d policy.rego  -i input.json
 # opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner -i input.json
 
-
+#
+# This policy is specifically constructed to compress to a set of queries if the
+# object's 'owner' and 'org_owner' fields are unknown. There is no specific set
+# of rules that will guarantee that this policy has this property. However, there
+# are some tricks. A unit test will
+#
+#
 
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
@@ -40,24 +46,33 @@ number(set) = c {
 }
 
 
+# site, org, and user rules are all similar. Each rule should return a number
+# from [-1, 1]. The number corrolates to "negative", "abstain", and "positive"
+# for the given level. See the 'allow' rules for how these numbers are used.
 default site = 0
 site := num {
+	# allow is a set of boolean values without duplicates.
 	allow := { x |
+		# Iterate over all site permissions in all roles
     	perm := input.subject.roles[_].site[_]
         perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
+		# x is either 'true' or 'false' if a matching permission exists.
         x := bool_flip(perm.negate)
     }
     num := number(allow)
 }
 
+# org_members is the list of organizations the actor is apart of.
 org_members := { orgID |
 	input.subject.roles[_].org[orgID]
 }
 
+# org is the same as 'site' except we need to iterate over each organization
+# that the actor is a member of.
 default org = 0
 org := num {
-	orgPerms := { id: num |
+	allow := { id: num |
 		id := org_members[_]
 		set := { x |
 			perm := input.subject.roles[_].org[id][_]
@@ -68,20 +83,28 @@ org := num {
 		num := number(set)
 	}
 
-	num := orgPerms[input.object.org_owner]
+	# Return only the org value of the input's org.
+	# The reason why we do not do this up front, is that we need to make sure
+	# this policy compresses down to simple queries. One way to ensure this is
+	# to keep unknown values out of comprehensions.
+	# (https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions)
+	num := allow[input.object.org_owner]
 }
 
 # 'org_mem' is set to true if the user is an org member
-# or if the object has no org.
 org_mem := true {
 	input.object.org_owner != ""
 	input.object.org_owner in org_members
 }
 
+# If the oject has no organization, then the user is also considered part of
+# the non-existant org.
 org_mem := true {
 	input.object.org_owner == ""
 }
 
+# User is the same as the site, except it only applies if the user owns the object and
+# the user is apart of the org (if the object has an org).
 default user = 0
 user := num {
     input.object.owner != ""
@@ -95,22 +118,27 @@ user := num {
     num := number(allow)
 }
 
+# The allow block is quite simple. Any set with `-1` cascades down in levels.
+# Authorization looks for any `allow` statement that is true. Multiple can be true!
+# Note that the absence of `allow` means "unauthorized".
+# An explicit `"allow": true` is required.
+
+
 default allow = false
-# Site
 allow {
 	site = 1
 }
 
-# Org
 allow {
 	not site = -1
 	org = 1
 }
 
-# User
 allow {
 	not site = -1
 	not org = -1
+	# If we are not a member of an org, and the object has an org, then we are
+	# not authorized. This is an "implied -1" for not being in the org.
 	org_mem
 	user = 1
 }
