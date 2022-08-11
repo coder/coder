@@ -15,6 +15,7 @@ import { UserDropdown } from "../UserDropdown/UsersDropdown"
 export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
+  canViewAuditLog: boolean
 }
 
 export const Language = {
@@ -24,7 +25,10 @@ export const Language = {
   audit: "Audit",
 }
 
-const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ className }) => {
+const NavItems: React.FC<{ className?: string; canViewAuditLog: boolean }> = ({
+  className,
+  canViewAuditLog,
+}) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -49,7 +53,7 @@ const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ cl
         </NavLink>
       </ListItem>
       {/* REMARK: the below link is under-construction  */}
-      {process.env.NODE_ENV !== "production" && (
+      {process.env.NODE_ENV !== "production" && canViewAuditLog && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">
             {Language.audit}
@@ -60,7 +64,7 @@ const NavItems: React.FC<{ className?: string; linkClassName?: string }> = ({ cl
   )
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, canViewAuditLog }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
@@ -81,7 +85,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
           <div className={styles.drawerHeader}>
             <Logo fill="white" opacity={1} width={125} />
           </div>
-          <NavItems />
+          <NavItems canViewAuditLog={canViewAuditLog} />
         </div>
       </Drawer>
 
@@ -89,7 +93,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         <Logo fill="white" opacity={1} width={125} />
       </NavLink>
 
-      <NavItems className={styles.desktopNavItems} />
+      <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
 
       <div className={styles.profileButton}>
         {user && <UserDropdown user={user} onSignOut={onSignOut} />}
