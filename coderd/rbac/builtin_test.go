@@ -41,7 +41,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		{
 			Name: "Admin",
 			// Give some extra roles that an admin might have
-			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleAdmin(), rbac.RoleMember()},
+			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
 			UserID: users[0],
 		},
 		{
@@ -119,7 +119,7 @@ func TestRolePermissions(t *testing.T) {
 	memberMe := authSubject{Name: "member_me", UserID: currentUser.String(), Roles: []string{rbac.RoleMember()}}
 	orgMemberMe := authSubject{Name: "org_member_me", UserID: currentUser.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(orgID)}}
 
-	admin := authSubject{Name: "admin", UserID: adminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleAdmin()}}
+	admin := authSubject{Name: "admin", UserID: adminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOwner()}}
 	orgAdmin := authSubject{Name: "org_admin", UserID: adminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(orgID), rbac.RoleOrgAdmin(orgID)}}
 
 	otherOrgMember := authSubject{Name: "org_member_other", UserID: uuid.NewString(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg)}}
@@ -358,7 +358,7 @@ func TestIsOrgRole(t *testing.T) {
 		OrgID    string
 	}{
 		// Not org roles
-		{RoleName: rbac.RoleAdmin()},
+		{RoleName: rbac.RoleOwner()},
 		{RoleName: rbac.RoleMember()},
 		{RoleName: "auditor"},
 
@@ -413,7 +413,7 @@ func TestListRoles(t *testing.T) {
 	// Always use constant strings, as if the names change, we need to write
 	// a SQL migration to change the name on the backend.
 	require.ElementsMatch(t, []string{
-		"admin",
+		"owner",
 		"member",
 		"auditor",
 		"template-admin",

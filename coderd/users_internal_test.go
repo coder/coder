@@ -57,7 +57,7 @@ func TestSearchUsers(t *testing.T) {
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleAdmin()},
+				RbacRole: []string{rbac.RoleOwner()},
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func TestSearchUsers(t *testing.T) {
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleAdmin()},
+				RbacRole: []string{rbac.RoleOwner()},
 			},
 		},
 		{

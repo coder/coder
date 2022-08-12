@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +79,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{
 			ID:        userID,
-			RBACRoles: []string{"admin"},
+			RBACRoles: []string{rbac.RoleOwner()},
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
