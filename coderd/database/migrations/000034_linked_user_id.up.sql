@@ -51,4 +51,19 @@ ALTER TABLE api_keys
 	DROP COLUMN oauth_id_token,
 	DROP COLUMN oauth_expiry;
 
+ALTER TABLE users ADD COLUMN login_type login_type NOT NULL DEFAULT 'password';
+
+UPDATE
+  users
+SET
+  login_type =  (
+    SELECT
+      login_type
+    FROM
+      user_links
+    WHERE
+      user_links.user_id = users.id
+    LIMIT 1
+  );
+
 COMMIT;

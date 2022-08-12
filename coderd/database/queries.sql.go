@@ -2617,7 +2617,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 FROM
 	users
 WHERE
@@ -2644,13 +2644,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 FROM
 	users
 WHERE
@@ -2671,6 +2672,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }
@@ -2691,7 +2693,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 FROM
 	users
 WHERE
@@ -2783,6 +2785,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.UpdatedAt,
 			&i.Status,
 			pq.Array(&i.RBACRoles),
+			&i.LoginType,
 		); err != nil {
 			return nil, err
 		}
@@ -2798,7 +2801,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error) {
@@ -2819,6 +2822,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.UpdatedAt,
 			&i.Status,
 			pq.Array(&i.RBACRoles),
+			&i.LoginType,
 		); err != nil {
 			return nil, err
 		}
@@ -2842,10 +2846,11 @@ INSERT INTO
 		hashed_password,
 		created_at,
 		updated_at,
-		rbac_roles
+		rbac_roles,
+    login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 `
 
 type InsertUserParams struct {
@@ -2856,6 +2861,7 @@ type InsertUserParams struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 	RBACRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -2867,6 +2873,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		pq.Array(arg.RBACRoles),
+		arg.LoginType,
 	)
 	var i User
 	err := row.Scan(
@@ -2878,6 +2885,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }
@@ -2909,7 +2917,7 @@ SET
 	username = $3,
 	updated_at = $4
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 `
 
 type UpdateUserProfileParams struct {
@@ -2936,6 +2944,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }
@@ -2948,7 +2957,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
  	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 `
 
 type UpdateUserRolesParams struct {
@@ -2968,6 +2977,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }
@@ -2979,7 +2989,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 `
 
 type UpdateUserStatusParams struct {
@@ -3000,6 +3010,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.UpdatedAt,
 		&i.Status,
 		pq.Array(&i.RBACRoles),
+		&i.LoginType,
 	)
 	return i, err
 }

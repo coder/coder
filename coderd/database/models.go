@@ -487,6 +487,7 @@ type User struct {
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 	Status         UserStatus `db:"status" json:"status"`
 	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType  `db:"login_type" json:"login_type"`
 }
 
 type UserLink struct {

@@ -136,7 +136,6 @@ func Open() (string, func(), error) {
 		}
 		err = database.MigrateUp(db)
 		if err != nil {
-			fmt.Printf("err: %v\n", err)
 			return xerrors.Errorf("migrate db: %w", err)
 		}
 

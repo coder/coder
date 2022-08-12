@@ -37,10 +37,11 @@ INSERT INTO
 		hashed_password,
 		created_at,
 		updated_at,
-		rbac_roles
+		rbac_roles,
+    login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE

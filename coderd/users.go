@@ -77,10 +77,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), codersdk.CreateUserRequest{
-		Email:    createUser.Email,
-		Username: createUser.Username,
-		Password: createUser.Password,
+	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: codersdk.CreateUserRequest{
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Password: createUser.Password,
+		},
+		LoginType: database.LoginTypePassword,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -243,7 +246,10 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), req)
+	user, _, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: req,
+		LoginType:         database.LoginTypePassword,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -684,6 +690,13 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
+		})
+		return
+	}
+
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
@@ -896,7 +909,12 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params cre
 	return sessionToken, true
 }
 
-func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
+type createUserRequest struct {
+	codersdk.CreateUserRequest
+	LoginType database.LoginType
+}
+
+func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
 		orgRoles := make([]string, 0)
@@ -923,6 +941,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
+			LoginType: req.LoginType,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

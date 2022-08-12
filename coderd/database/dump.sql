@@ -280,7 +280,8 @@ CREATE TABLE users (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::public.login_type NOT NULL
 );
 
 CREATE TABLE workspace_agents (

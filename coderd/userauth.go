@@ -137,7 +137,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, database.LoginTypeGithub, githubLinkedID(ghUser), verifiedEmails...)
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "An internal error occurred.",
@@ -146,9 +146,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if link.UserID != uuid.Nil && link.LoginType != database.LoginTypeGithub {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, link.LoginType),
+	if user.ID != uuid.Nil && user.LoginType != database.LoginTypeGithub {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
 		})
 		return
 	}
@@ -184,10 +184,13 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		user, _, err = api.createUser(r.Context(), codersdk.CreateUserRequest{
-			Email:          *verifiedEmail.Email,
-			Username:       *ghUser.Login,
-			OrganizationID: organizationID,
+		user, _, err = api.createUser(ctx, createUserRequest{
+			CreateUserRequest: codersdk.CreateUserRequest{
+				Email:          *verifiedEmail.Email,
+				Username:       *ghUser.Login,
+				OrganizationID: organizationID,
+			},
+			LoginType: database.LoginTypeGithub,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -332,7 +335,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, database.LoginTypeOIDC, oidcLinkedID(idToken), claims.Email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), claims.Email)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find user.",
@@ -348,9 +351,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if link.UserID != uuid.Nil && link.LoginType != database.LoginTypeOIDC {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, link.LoginType),
+	if user.ID != uuid.Nil && user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
 		})
 		return
 	}
@@ -365,10 +368,13 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			organizationID = organizations[0].ID
 		}
 
-		user, _, err = api.createUser(ctx, codersdk.CreateUserRequest{
-			Email:          claims.Email,
-			Username:       claims.Username,
-			OrganizationID: organizationID,
+		user, _, err = api.createUser(ctx, createUserRequest{
+			CreateUserRequest: codersdk.CreateUserRequest{
+				Email:          claims.Email,
+				Username:       claims.Username,
+				OrganizationID: organizationID,
+			},
+			LoginType: database.LoginTypeOIDC,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -477,7 +483,7 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
 // If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, loginType database.LoginType, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -518,7 +524,7 @@ func findLinkedUser(ctx context.Context, db database.Store, loginType database.L
 	// possible that a user_link exists without a populated 'linked_id'.
 	link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    user.ID,
-		LoginType: loginType,
+		LoginType: user.LoginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)

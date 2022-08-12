@@ -175,7 +175,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
-	t.Run("Login", func(t *testing.T) {
+	t.Run("MultiLoginNotAllowed", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -199,6 +199,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
+		// Creates the first user with login_type 'password'.
 		_ = coderdtest.CreateFirstUser(t, client)
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
