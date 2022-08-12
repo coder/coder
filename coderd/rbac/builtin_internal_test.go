@@ -18,6 +18,8 @@ func TestRoleByName(t *testing.T) {
 		}{
 			{Role: builtInRoles[admin]("")},
 			{Role: builtInRoles[member]("")},
+			{Role: builtInRoles[templateAdmin]("")},
+			{Role: builtInRoles[userAdmin]("")},
 			{Role: builtInRoles[auditor]("")},
 
 			{Role: builtInRoles[orgAdmin](uuid.New().String())},
