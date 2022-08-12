@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     google = {
       source  = "hashicorp/google"
@@ -87,4 +87,14 @@ resource "coder_agent_instance" "dev" {
   count       = data.coder_workspace.me.start_count
   agent_id    = coder_agent.main.id
   instance_id = google_compute_instance.dev[0].instance_id
+}
+
+resource "coder_metadata" "workspace_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = google_compute_instance.dev[0].id
+
+  item {
+    key   = "image"
+    value = module.gce-container.container.image
+  }
 }

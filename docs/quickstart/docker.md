@@ -8,7 +8,7 @@ Coder with Docker has the following advantages:
 
 ## Requirements
 
-- A single MacOS or Linux box
+- A single macOS or Linux box
 - A running Docker daemon
 
 ## Instructions
@@ -84,4 +84,4 @@ Coder with Docker has the following advantages:
 ## Next Steps
 
 - [Learn more about template configuration](../templates.md)
-- [Configure more IDEs](../ides/configuring-web-ides.md)
+- [Configure more IDEs](../ides/web-ides.md)

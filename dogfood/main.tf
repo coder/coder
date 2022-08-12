@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -49,6 +49,18 @@ resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
 }
 
+resource "coder_metadata" "home_info" {
+  resource_id = docker_volume.home_volume.id
+  item {
+    key = "🤫🤫🤫<br/><br/>"
+    value = "❤️❤️❤️"
+    sensitive = true
+  }
+}
+
+
+
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "docker.io/codercom/oss-dogfood:main"
@@ -77,5 +89,18 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count = data.coder_workspace.me.start_count
+  resource_id = docker_container.workspace[0].id
+  item {
+    key = "memory"
+    value = docker_container.workspace[0].memory
+  }
+  item {
+    key = "runtime"
+    value = docker_container.workspace[0].runtime
   }
 }

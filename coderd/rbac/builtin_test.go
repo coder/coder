@@ -62,7 +62,8 @@ func BenchmarkRBACFilter(b *testing.B) {
 				rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
 				rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
 				rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
-				rbac.RoleMember()},
+				rbac.RoleMember(),
+			},
 			UserID: users[0],
 		},
 	}
@@ -75,7 +76,8 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, rbac.ActionRead, objects)
+			require.NoError(b, err)
 			var _ = allowed
 		})
 	}

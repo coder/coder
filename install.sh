@@ -388,7 +388,7 @@ install_standalone() {
 	echoh "Installing v$VERSION of the $ARCH release from GitHub."
 	echoh
 
-	# MacOS releases are packaged as .zip
+	# macOS releases are packaged as .zip
 	case $OS in
 	darwin) STANDALONE_ARCHIVE_FORMAT=zip ;;
 	*) STANDALONE_ARCHIVE_FORMAT=tar.gz ;;
