@@ -138,6 +138,7 @@ func Open() (string, func(), error) {
 		}
 		retryErr = database.MigrateUp(db)
 		if retryErr != nil {
+			fmt.Printf("err: %v\n", retryErr)
 			return xerrors.Errorf("migrate db: %w", retryErr)
 		}
 

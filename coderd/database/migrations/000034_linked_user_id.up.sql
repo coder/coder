@@ -1,7 +1,5 @@
 BEGIN;
 
-ALTER TYPE login_type ADD VALUE 'oidc';
-
 CREATE TABLE IF NOT EXISTS user_links (
 	user_id uuid NOT NULL,
 	login_type login_type NOT NULL,
@@ -39,6 +37,10 @@ FROM
 	) as keys
  WHERE x=1 AND keys.login_type != 'password';
 
-ALTER TABLE api_keys RENAME COLUMN login_type TO _login_type
+ALTER TABLE api_keys 
+	DROP COLUMN oauth_access_token,
+	DROP COLUMN oauth_refresh_token,
+	DROP COLUMN oauth_id_token,
+	DROP COLUMN oauth_expiry;
 
 COMMIT;
