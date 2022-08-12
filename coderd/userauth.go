@@ -137,7 +137,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
+	user, link, err := findLinkedUser(ctx, api.Database, database.LoginTypeGithub, githubLinkedID(ghUser), verifiedEmails...)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "An internal error occurred.",
@@ -332,7 +332,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), claims.Email)
+	user, link, err := findLinkedUser(ctx, api.Database, database.LoginTypeOIDC, oidcLinkedID(idToken), claims.Email)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find user.",
@@ -477,7 +477,7 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
 // If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+func findLinkedUser(ctx context.Context, db database.Store, loginType database.LoginType, linkedID string, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -505,9 +505,24 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
-		return user, link, nil
+		break
 	}
 
-	// No user found.
+	if user.ID == uuid.Nil {
+		// No user found.
+		return database.User{}, database.UserLink{}, nil
+	}
+
+	// LEGACY: This is annoying but we have to search for the user_link
+	// again except this time we search by user_id and login_type. It's
+	// possible that a user_link exists without a populated 'linked_id'.
+	link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: loginType,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+	}
+
 	return user, link, nil
 }
