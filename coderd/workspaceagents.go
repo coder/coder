@@ -302,14 +302,21 @@ func (api *API) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request
 	httpapi.Write(rw, http.StatusOK, api.ICEServers)
 }
 
-// workspaceAgentTurn proxies a WebSocket connection to the TURN server.
-func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
+// userWorkspaceAgentTurn is a user connecting to a remote workspace agent
+// through turn.
+func (api *API) userWorkspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
+	// Passed authorization
+	api.workspaceAgentTurn(rw, r)
+}
+
+// workspaceAgentTurn proxies a WebSocket connection to the TURN server.
+func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()

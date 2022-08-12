@@ -340,7 +340,7 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceAgent)
 				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
-				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 				r.Get("/derp", api.derpMap)
