@@ -151,7 +151,9 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			changed := false
 
 			var link database.UserLink
-			if key.LoginType != database.LoginTypePassword {
+			// The login_type should never be empty but sometimes it is
+			// for tests.
+			if key.LoginType != "" && key.LoginType != database.LoginTypePassword {
 				link, err = db.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,

@@ -361,6 +361,13 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
+
+		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
@@ -396,6 +403,13 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
+		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
+			UserID:      user.ID,
+			LoginType:   database.LoginTypeGithub,
+			OAuthExpiry: database.Now().AddDate(0, 0, -1),
+		})
+		require.NoError(t, err)
+
 		token := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
