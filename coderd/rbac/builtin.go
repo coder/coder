@@ -112,6 +112,8 @@ var (
 					// CRUD all files, even those they did not upload.
 					ResourceFile:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					ResourceWorkspace: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// CRUD to provisioner daemons for now.
+					ResourceProvisionerDaemon: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
