@@ -1,15 +1,21 @@
-# User management
+# Users
 
 This article walks you through the user roles available in Coder and creating and managing users.
 
-## User roles
+## Roles
 
-Coder offers three user roles:
+Coder offers these user roles in the community edition:
 
-* **Admin**: Has full access to the Coder system, including all workspaces, users, organizations, and templates
-* **Member**: Has limited access to Coder; can create workspaces using the templates and resources they have access to
-* **Auditor**: Has the same access rights as a **member**, as well as access to
-  audit logs
+|                                            | User Admin | Template Admin | Admin |
+| ------------------------------------------ | ---------- | -------------- | ----- |
+| Add and remove Users                       | ✅         |                | ✅    |
+| Change User roles                          |            |                | ✅    |
+| Manage Templates                           |            | ✅             | ✅    |
+| View, update and delete **ALL** Workspaces |            | ✅             | ✅    |
+| Execute and use **ALL** Workspaces         |            |                | ✅    |
+
+A user may have one or more roles. All users have an implicit Member role
+that may use personal workspaces.
 
 ## Create a user
 
@@ -42,8 +48,8 @@ https://github.com/coder/coder/releases
 
 Run  coder login https://<accessURL>.coder.app  to authenticate.
 
-Your email is:  email@exampleCo.com 
-Your password is:  <redacted> 
+Your email is:  email@exampleCo.com
+Your password is:  <redacted>
 
 Create a workspace   coder create !
 ```
