@@ -7,6 +7,8 @@ import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { UsersTableBody } from "./UsersTableBody"
+import {UserRoleHelpTooltip} from "../Tooltips"
+import {Stack} from "../Stack/Stack";
 
 export const Language = {
   usernameLabel: "User",
@@ -44,7 +46,12 @@ export const UsersTable: FC<UsersTableProps> = ({
           <TableRow>
             <TableCell>{Language.usernameLabel}</TableCell>
             <TableCell>{Language.statusLabel}</TableCell>
-            <TableCell>{Language.rolesLabel}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>{Language.rolesLabel}</span>
+                <UserRoleHelpTooltip />
+              </Stack>
+            </TableCell>
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
