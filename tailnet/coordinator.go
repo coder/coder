@@ -11,8 +11,8 @@ import (
 	"nhooyr.io/websocket/wsjson"
 )
 
-// Coordinate matches the RW structure of a coordinator to exchange node messages.
-func Coordinate(ctx context.Context, socket *websocket.Conn, updateNodes func(node []*Node)) (func(node *Node), <-chan error) {
+// ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
+func ServeCoordinator(ctx context.Context, socket *websocket.Conn, updateNodes func(node []*Node)) (func(node *Node), <-chan error) {
 	errChan := make(chan error, 1)
 	go func() {
 		for {
@@ -37,139 +37,178 @@ func Coordinate(ctx context.Context, socket *websocket.Conn, updateNodes func(no
 // NewCoordinator constructs a new in-memory connection coordinator.
 func NewCoordinator() *Coordinator {
 	return &Coordinator{
-		agentNodes:         map[uuid.UUID]*Node{},
-		agentClientNodes:   map[uuid.UUID]map[uuid.UUID]*Node{},
-		agentSockets:       map[uuid.UUID]*websocket.Conn{},
-		agentClientSockets: map[uuid.UUID]map[uuid.UUID]*websocket.Conn{},
+		nodes:                    map[uuid.UUID]*Node{},
+		agentSockets:             map[uuid.UUID]*websocket.Conn{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*websocket.Conn{},
 	}
 }
 
-// Coordinator brokers connections over WebSockets.
+// Coordinator exchanges nodes with agents to establish connections.
+// ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
+// │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
+// └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
+// This coordinator is incompatible with multiple Coder
+// replicas as all node data is in-memory.
 type Coordinator struct {
 	mutex sync.Mutex
-	// Stores the most recent node an agent sent.
-	agentNodes map[uuid.UUID]*Node
-	// Stores the most recent node reported by each client.
-	agentClientNodes map[uuid.UUID]map[uuid.UUID]*Node
-	// Stores the active connection from an agent.
+
+	// Maps agent and connection IDs to a node.
+	nodes map[uuid.UUID]*Node
+	// Maps agent ID to an open socket.
 	agentSockets map[uuid.UUID]*websocket.Conn
-	// Stores the active connection from a client to an agent.
-	agentClientSockets map[uuid.UUID]map[uuid.UUID]*websocket.Conn
+	// Maps agent ID to connection ID for sending
+	// new node data as it comes in!
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*websocket.Conn
 }
 
-// Client represents a tailnet looking to peer with an agent.
-func (c *Coordinator) Client(ctx context.Context, agentID uuid.UUID, socket *websocket.Conn) error {
-	id := uuid.New()
+// Node returns an in-memory node by ID.
+func (c *Coordinator) Node(id uuid.UUID) *Node {
 	c.mutex.Lock()
-	clients, ok := c.agentClientSockets[agentID]
-	if !ok {
-		clients = map[uuid.UUID]*websocket.Conn{}
-		c.agentClientSockets[agentID] = clients
-	}
-	clients[id] = socket
-	agentNode, ok := c.agentNodes[agentID]
+	defer c.mutex.Unlock()
+	node := c.nodes[id]
+	return node
+}
+
+// ServeClient accepts a WebSocket connection that wants to
+// connect to an agent with the specified ID.
+func (c *Coordinator) ServeClient(ctx context.Context, socket *websocket.Conn, id uuid.UUID, agent uuid.UUID) error {
+	c.mutex.Lock()
+	// When a new connection is requested, we update it with the latest
+	// node of the agent. This allows the connection to establish.
+	node, ok := c.nodes[agent]
 	if ok {
-		err := wsjson.Write(ctx, socket, []*Node{agentNode})
+		err := wsjson.Write(ctx, socket, []*Node{node})
 		if err != nil {
 			c.mutex.Unlock()
-			return xerrors.Errorf("write agent node: %w", err)
+			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
-
+	connectionSockets, ok := c.agentToConnectionSockets[agent]
+	if !ok {
+		connectionSockets = map[uuid.UUID]*websocket.Conn{}
+		c.agentToConnectionSockets[agent] = connectionSockets
+	}
+	// Insert this connection into a map so the agent
+	// can publish node updates.
+	connectionSockets[id] = socket
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
-		clients, ok := c.agentClientSockets[agentID]
+		// Clean all traces of this connection from the map.
+		delete(c.nodes, id)
+		connectionSockets, ok := c.agentToConnectionSockets[agent]
 		if !ok {
 			return
 		}
-		delete(clients, id)
-		nodes, ok := c.agentClientNodes[agentID]
-		if !ok {
+		delete(connectionSockets, id)
+		if len(connectionSockets) != 0 {
 			return
 		}
-		delete(nodes, id)
+		delete(c.agentToConnectionSockets, agent)
 	}()
 
 	for {
 		var node Node
 		err := wsjson.Read(ctx, socket, &node)
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) || errors.As(err, &websocket.CloseError{}) {
 			return nil
 		}
 		if err != nil {
 			return xerrors.Errorf("read json: %w", err)
 		}
 		c.mutex.Lock()
-		nodes, ok := c.agentClientNodes[agentID]
+		// Update the node of this client in our in-memory map.
+		// If an agent entirely shuts down and reconnects, it
+		// needs to be aware of all clients attempting to
+		// establish connections.
+		c.nodes[id] = &node
+		agentSocket, ok := c.agentSockets[agent]
 		if !ok {
-			nodes = map[uuid.UUID]*Node{}
-			c.agentClientNodes[agentID] = nodes
-		}
-		nodes[id] = &node
-
-		agentSocket, ok := c.agentSockets[agentID]
-		if !ok {
-			// If the agent isn't connected yet, that's fine. It'll reconcile later.
 			c.mutex.Unlock()
 			continue
 		}
+		// Write the new node from this client to the actively
+		// connected agent.
 		err = wsjson.Write(ctx, agentSocket, []*Node{&node})
+		if errors.Is(err, context.Canceled) {
+			c.mutex.Unlock()
+			return nil
+		}
 		if err != nil {
 			c.mutex.Unlock()
-			return xerrors.Errorf("write node to agent: %w", err)
+			return xerrors.Errorf("write json: %w", err)
 		}
 		c.mutex.Unlock()
 	}
 }
 
-func (c *Coordinator) Agent(ctx context.Context, agentID uuid.UUID, socket *websocket.Conn) error {
+// ServeAgent accepts a WebSocket connection to an agent that
+// listens to incoming connections and publishes node updates.
+func (c *Coordinator) ServeAgent(ctx context.Context, socket *websocket.Conn, id uuid.UUID) error {
 	c.mutex.Lock()
-	agentSocket, ok := c.agentSockets[agentID]
+	sockets, ok := c.agentToConnectionSockets[id]
 	if ok {
-		agentSocket.Close(websocket.StatusGoingAway, "another agent started with the same id")
-	}
-	c.agentSockets[agentID] = socket
-	nodes, ok := c.agentClientNodes[agentID]
-	if ok {
+		// Publish all nodes that want to connect to the
+		// desired agent ID.
+		nodes := make([]*Node, 0, len(sockets))
+		for targetID := range sockets {
+			node, ok := c.nodes[targetID]
+			if !ok {
+				continue
+			}
+			nodes = append(nodes, node)
+		}
 		err := wsjson.Write(ctx, socket, nodes)
 		if err != nil {
 			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
+
+	// If an old agent socket is connected, we close it
+	// to avoid any leaks. This shouldn't ever occur because
+	// we expect one agent to be running.
+	oldAgentSocket, ok := c.agentSockets[id]
+	if ok {
+		_ = oldAgentSocket.Close(websocket.StatusNormalClosure, "another agent connected with the same id")
+	}
+	c.agentSockets[id] = socket
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
-		delete(c.agentSockets, agentID)
+		delete(c.agentSockets, id)
+		delete(c.nodes, id)
 	}()
 
 	for {
 		var node Node
 		err := wsjson.Read(ctx, socket, &node)
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) || errors.As(err, &websocket.CloseError{}) {
 			return nil
 		}
 		if err != nil {
-			return xerrors.Errorf("read node: %w", err)
+			return xerrors.Errorf("read json: %w", err)
 		}
 		c.mutex.Lock()
-		c.agentNodes[agentID] = &node
-
-		clients, ok := c.agentClientSockets[agentID]
+		c.nodes[id] = &node
+		connectionSockets, ok := c.agentToConnectionSockets[id]
 		if !ok {
 			c.mutex.Unlock()
 			continue
 		}
-		for _, client := range clients {
-			err = wsjson.Write(ctx, client, []*Node{&node})
-			if err != nil {
-				c.mutex.Unlock()
-				return xerrors.Errorf("write to client: %w", err)
-			}
+		// Publish the new node to every listening socket.
+		var wg sync.WaitGroup
+		wg.Add(len(connectionSockets))
+		for _, connectionSocket := range connectionSockets {
+			connectionSocket := connectionSocket
+			go func() {
+				_ = wsjson.Write(ctx, connectionSocket, []*Node{&node})
+				wg.Done()
+			}()
 		}
+		wg.Wait()
 		c.mutex.Unlock()
 	}
 }

@@ -2,6 +2,7 @@
   "cSpell.words": [
     "apps",
     "awsidentity",
+    "bodyclose",
     "buildinfo",
     "buildname",
     "circbuf",
@@ -92,6 +93,7 @@
     "templateversions",
     "testdata",
     "testid",
+    "testutil",
     "tfexec",
     "tfjson",
     "tfplan",
