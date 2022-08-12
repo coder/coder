@@ -151,9 +151,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			changed := false
 
 			var link database.UserLink
-			// The login_type should never be empty but sometimes it is
-			// for tests.
-			if key.LoginType != "" && key.LoginType != database.LoginTypePassword {
+			if key.LoginType != database.LoginTypePassword {
 				link, err = db.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
@@ -249,6 +247,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 					})
 					return
 				}
+				// If the API Key is associated with a user_link (e.g. Github/OIDC)
+				// then we want to update the relevant oauth fields.
 				if link.UserID != uuid.Nil {
 					link, err = db.UpdateUserLink(r.Context(), database.UpdateUserLinkParams{
 						UserID:            link.UserID,

@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS user_links (
 	oauth_access_token text DEFAULT ''::text NOT NULL,
 	oauth_refresh_token text DEFAULT ''::text NOT NULL,
 	oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-	UNIQUE(user_id, login_type)
+	UNIQUE(user_id, login_type),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- This migrates columns on api_keys to the new user_links table.

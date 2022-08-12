@@ -187,6 +187,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -215,6 +216,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -253,6 +255,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -288,6 +291,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -323,6 +327,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -455,6 +460,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
