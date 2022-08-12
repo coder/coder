@@ -73,6 +73,7 @@ type data struct {
 	organizations       []database.Organization
 	organizationMembers []database.OrganizationMember
 	users               []database.User
+	userLinks           []database.UserLink
 
 	// New tables
 	auditLogs                      []database.AuditLog
@@ -2251,4 +2252,80 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
+}
+
+func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, link := range q.userLinks {
+		if link.LinkedID == id {
+			return link, nil
+		}
+	}
+	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, link := range q.userLinks {
+		if link.UserID == params.UserID && link.LoginType == params.LoginType {
+			return link, nil
+		}
+	}
+	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertUserLink(_ context.Context, params database.InsertUserLinkParams) (database.UserLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	link := database.UserLink{
+		UserID:            params.UserID,
+		LoginType:         params.LoginType,
+		LinkedID:          params.LinkedID,
+		OAuthAccessToken:  params.OAuthAccessToken,
+		OAuthRefreshToken: params.OAuthRefreshToken,
+		OAuthExpiry:       params.OAuthExpiry,
+	}
+
+	q.userLinks = append(q.userLinks, link)
+
+	return link, nil
+}
+
+func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for i, link := range q.userLinks {
+		if link.UserID == params.UserID && link.LoginType == params.LoginType {
+			link.LinkedID = params.LinkedID
+
+			q.userLinks[i] = link
+			return link, nil
+		}
+	}
+
+	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUserLinkParams) (database.UserLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for i, link := range q.userLinks {
+		if link.UserID == params.UserID && link.LoginType == params.LoginType {
+			link.OAuthAccessToken = params.OAuthAccessToken
+			link.OAuthRefreshToken = params.OAuthRefreshToken
+			link.OAuthExpiry = params.OAuthExpiry
+
+			q.userLinks[i] = link
+			return link, nil
+		}
+	}
+
+	return database.UserLink{}, sql.ErrNoRows
 }

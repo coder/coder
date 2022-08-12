@@ -254,7 +254,13 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 						OAuthRefreshToken: link.OAuthRefreshToken,
 						OAuthExpiry:       link.OAuthExpiry,
 					})
-
+					if err != nil {
+						write(http.StatusInternalServerError, codersdk.Response{
+							Message: internalErrorMessage,
+							Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+						})
+						return
+					}
 				}
 			}
 

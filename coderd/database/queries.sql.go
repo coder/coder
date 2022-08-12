@@ -2413,7 +2413,7 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 FROM
   user_links
 WHERE
@@ -2429,7 +2429,6 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.LinkedID,
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
-		&i.OAuthIDToken,
 		&i.OAuthExpiry,
 	)
 	return i, err
@@ -2437,7 +2436,7 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 FROM
   user_links
 WHERE
@@ -2458,7 +2457,6 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.LinkedID,
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
-		&i.OAuthIDToken,
 		&i.OAuthExpiry,
 	)
 	return i, err
@@ -2472,11 +2470,10 @@ INSERT INTO
     linked_id,
     oauth_access_token,
     oauth_refresh_token,
-    oauth_id_token,
     oauth_expiry
   )
 VALUES
-  ( $1, $2, $3, $4, $5, $6, $7 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+  ( $1, $2, $3, $4, $5, $6 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type InsertUserLinkParams struct {
@@ -2485,7 +2482,6 @@ type InsertUserLinkParams struct {
 	LinkedID          string    `db:"linked_id" json:"linked_id"`
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
@@ -2496,7 +2492,6 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.LinkedID,
 		arg.OAuthAccessToken,
 		arg.OAuthRefreshToken,
-		arg.OAuthIDToken,
 		arg.OAuthExpiry,
 	)
 	var i UserLink
@@ -2506,7 +2501,6 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.LinkedID,
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
-		&i.OAuthIDToken,
 		&i.OAuthExpiry,
 	)
 	return i, err
@@ -2518,16 +2512,14 @@ UPDATE
 SET
   oauth_access_token = $1,
   oauth_refresh_token = $2,
-  oauth_id_token = $3,
-  oauth_expiry = $4
+  oauth_expiry = $3
 WHERE
-  user_id = $5 AND login_type = $6 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+  user_id = $4 AND login_type = $5 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateUserLinkParams struct {
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LoginType         LoginType `db:"login_type" json:"login_type"`
@@ -2537,7 +2529,6 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	row := q.db.QueryRowContext(ctx, updateUserLink,
 		arg.OAuthAccessToken,
 		arg.OAuthRefreshToken,
-		arg.OAuthIDToken,
 		arg.OAuthExpiry,
 		arg.UserID,
 		arg.LoginType,
@@ -2549,7 +2540,6 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.LinkedID,
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
-		&i.OAuthIDToken,
 		&i.OAuthExpiry,
 	)
 	return i, err
@@ -2561,7 +2551,7 @@ UPDATE
 SET
   linked_id = $1
 WHERE
-  user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+  user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -2579,7 +2569,6 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.LinkedID,
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
-		&i.OAuthIDToken,
 		&i.OAuthExpiry,
 	)
 	return i, err

@@ -44,8 +44,6 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			LinkedID:       uuid.NewString(),
-			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 

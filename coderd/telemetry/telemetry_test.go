@@ -59,8 +59,6 @@ func TestTelemetry(t *testing.T) {
 		_, err = db.InsertUser(ctx, database.InsertUserParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
-			LinkedID:  uuid.NewString(),
-			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
@@ -107,8 +105,6 @@ func TestTelemetry(t *testing.T) {
 			ID:        uuid.New(),
 			Email:     "kyle@coder.com",
 			CreatedAt: database.Now(),
-			LinkedID:  uuid.NewString(),
-			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		snapshot := collectSnapshot(t, db)

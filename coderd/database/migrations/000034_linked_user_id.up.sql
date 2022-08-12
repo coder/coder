@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS user_links (
 	linked_id text DEFAULT ''::text NOT NULL,
 	oauth_access_token text DEFAULT ''::text NOT NULL,
 	oauth_refresh_token text DEFAULT ''::text NOT NULL,
-	oauth_id_token text DEFAULT ''::text NOT NULL,
 	oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
 	UNIQUE(user_id, login_type)
 );
@@ -18,7 +17,6 @@ INSERT INTO user_links
 		linked_id,
 		oauth_access_token,
 		oauth_refresh_token,
-		oauth_id_token,
 		oauth_expiry
 	)
 SELECT 
@@ -27,7 +25,6 @@ SELECT
 	'',
 	keys.oauth_access_token,
 	keys.oauth_refresh_token,
-	keys.oauth_id_token,
 	keys.oauth_expiry 
 FROM 
 	( 

@@ -495,7 +495,6 @@ type UserLink struct {
 	LinkedID          string    `db:"linked_id" json:"linked_id"`
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 

@@ -78,8 +78,6 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{
 			ID:        userID,
 			RBACRoles: []string{"admin"},
-			LinkedID:  uuid.NewString(),
-			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
