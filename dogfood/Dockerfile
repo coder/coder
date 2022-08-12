@@ -152,7 +152,8 @@ RUN apt-get update --quiet && apt-get install --yes \
       podman \
       skopeo \
       fish \
-      gh && \
+      gh \
+      zstd && \
     # Delete package cache to avoid consuming space in layer
     apt-get clean && \
     # Configure FIPS-compliant policies

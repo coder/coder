@@ -29,7 +29,7 @@ resource "coder_app" "portainer" {
 
 ![code-server in a workspace](../images/code-server-ide.png)
 
-[code-server](https://github.com/coder/coder) is our supported method of running VS Code in the web browser. A simple way to install code-server in Linux/MacOS workspaces is via the Coder agent in your template:
+[code-server](https://github.com/coder/coder) is our supported method of running VS Code in the web browser. A simple way to install code-server in Linux/macOS workspaces is via the Coder agent in your template:
 
 ```sh
 # edit your template

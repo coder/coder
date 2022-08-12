@@ -1196,7 +1196,6 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "all users", limit: 10, allUsers: allUsers},
 		{name: "all users", limit: 5, allUsers: allUsers},
 		{name: "all users", limit: 3, allUsers: allUsers},
-		{name: "all users", limit: 1, allUsers: allUsers},
 		{name: "gmail search", limit: 3, allUsers: specialUsers, opt: gmailSearch},
 		{name: "gmail search", limit: 7, allUsers: specialUsers, opt: gmailSearch},
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},

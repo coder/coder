@@ -2,6 +2,7 @@
 alog = "alog"
 Jetbrains = "JetBrains"
 IST = "IST"
+MacOS = "macOS"
 
 [default.extend-words]
 

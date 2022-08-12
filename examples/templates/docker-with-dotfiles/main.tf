@@ -2,7 +2,7 @@
 # dotfiles with Coder templates.
 
 # The Docker aspect of the template only works
-# with MacOS/Linux amd64 systems. See the full
+# with macOS/Linux amd64 systems. See the full
 # Docker example for details
 
 terraform {

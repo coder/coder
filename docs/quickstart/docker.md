@@ -8,7 +8,7 @@ Coder with Docker has the following advantages:
 
 ## Requirements
 
-- A single MacOS or Linux box
+- A single macOS or Linux box
 - A running Docker daemon
 
 ## Instructions
