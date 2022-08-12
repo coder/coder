@@ -82,8 +82,7 @@ var (
 					ResourceProvisionerDaemon: {ActionRead},
 				}),
 				User: permissions(map[Object][]Action{
-					ResourceWildcard:           {WildcardSymbol},
-					ResourceWorkspaceExecution: {WildcardSymbol},
+					ResourceWildcard: {WildcardSymbol},
 				}),
 			}
 		},
