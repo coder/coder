@@ -1,6 +1,3 @@
 BEGIN;
 
-ALTER TABLE users DROP COLUMN linked_id;
-ALTER TABLE users DROP COLUMN login_type;
-
 COMMIT;
