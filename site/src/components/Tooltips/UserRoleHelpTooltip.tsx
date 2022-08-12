@@ -21,7 +21,7 @@ export const UserRoleHelpTooltip: FC = () => {
       <HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
       <HelpTooltipText>{Language.text}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/users">
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/users#user-roles">
           {Language.link}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
