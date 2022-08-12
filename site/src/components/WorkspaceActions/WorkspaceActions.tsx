@@ -1,7 +1,6 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import { StayPrimaryLandscape } from "@material-ui/icons"
 import { FC, useEffect, useMemo, useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
