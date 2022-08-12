@@ -120,7 +120,7 @@ func TestListRoles(t *testing.T) {
 	require.NoError(t, err, "create org")
 
 	const forbidden = "Forbidden"
-	siteRoles := convertRoles(rbac.RoleAdmin(), "auditor")
+	siteRoles := convertRoles(rbac.RoleAdmin(), "auditor", "template-admin", "user-admin")
 	orgRoles := convertRoles(rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	testCases := []struct {
@@ -131,19 +131,20 @@ func TestListRoles(t *testing.T) {
 		AuthorizedError string
 	}{
 		{
+			// Members cannot assign any roles
 			Name: "MemberListSite",
 			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			ExpectedRoles: siteRoles,
+			ExpectedRoles: []codersdk.Role{},
 		},
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: orgRoles,
+			ExpectedRoles: []codersdk.Role{},
 		},
 		{
 			Name: "NonOrgMemberListOrg",
@@ -158,7 +159,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: siteRoles,
+			ExpectedRoles: []codersdk.Role{},
 		},
 		{
 			Name: "OrgAdminListOrg",
