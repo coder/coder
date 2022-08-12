@@ -14,7 +14,7 @@ UPDATE
 	users
 SET
 	-- Replace 'admin' role with 'template-admin' and 'user-admin'
-	rbac_roles = array_cat(array_remove(users.rbac_roles, 'admin'), ARRAY ['template-admin', 'user-admin'])
+	rbac_roles = array_cat(array_remove(rbac_roles, 'admin'), ARRAY ['template-admin', 'user-admin'])
 WHERE
 	-- Only on existing admins
 	'admin' = ANY(rbac_roles);
