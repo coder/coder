@@ -68,7 +68,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     // if an update is available, we make the update button the primary CTA
     // and move the former primary CTA to the secondary actions list
     const updatedActions = { ...WorkspaceStateActions[workspaceState] }
-    updatedActions.secondary.unshift(updatedActions.primary)
+    updatedActions.secondary = [updatedActions.primary, ...updatedActions.secondary]
     updatedActions.primary = ButtonTypesEnum.update
 
     return updatedActions
