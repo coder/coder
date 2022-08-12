@@ -129,6 +129,7 @@ func (a *agent) run(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		a.logger.Info(ctx, "connecting")
 		metadata, peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -255,6 +256,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 }
 
 func (a *agent) init(ctx context.Context) {
+	a.logger.Info(ctx, "generating host key")
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
