@@ -1,5 +1,5 @@
 export const spacing = 8
-export const borderRadius = 4
+export const borderRadius = 8
 export const buttonBorderWidth = 2
 export const MONOSPACE_FONT_FAMILY =
   "'IBM Plex Mono', 'Lucida Console', 'Lucida Sans Typewriter', 'Liberation Mono', 'Monaco', 'Courier New', Courier, monospace"

@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { createDayString } from "util/createDayString"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
-import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   usedByLabel: "Used by",
@@ -59,7 +59,7 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     backgroundColor: theme.palette.background.paper,
-    borderRadius: CardRadius,
+    borderRadius: theme.shape.borderRadius,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
