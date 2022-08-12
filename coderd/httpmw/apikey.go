@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
@@ -149,9 +150,21 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Tracks if the API key has properties updated!
 			changed := false
 
+			var link database.UserLink
 			if key.LoginType != database.LoginTypePassword {
+				link, err = db.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
+					UserID:    key.UserID,
+					LoginType: key.LoginType,
+				})
+				if err != nil {
+					write(http.StatusInternalServerError, codersdk.Response{
+						Message: "A database error occurred",
+						Detail:  err.Error(),
+					})
+					return
+				}
 				// Check if the OAuth token is expired!
-				if key.OAuthExpiry.Before(now) && !key.OAuthExpiry.IsZero() {
+				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() {
 					var oauthConfig OAuth2Config
 					switch key.LoginType {
 					case database.LoginTypeGithub:
@@ -167,9 +180,9 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 					}
 					// If it is, let's refresh it from the provided config!
 					token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-						AccessToken:  key.OAuthAccessToken,
-						RefreshToken: key.OAuthRefreshToken,
-						Expiry:       key.OAuthExpiry,
+						AccessToken:  link.OAuthAccessToken,
+						RefreshToken: link.OAuthRefreshToken,
+						Expiry:       link.OAuthExpiry,
 					}).Token()
 					if err != nil {
 						write(http.StatusUnauthorized, codersdk.Response{
@@ -178,9 +191,9 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 						})
 						return
 					}
-					key.OAuthAccessToken = token.AccessToken
-					key.OAuthRefreshToken = token.RefreshToken
-					key.OAuthExpiry = token.Expiry
+					link.OAuthAccessToken = token.AccessToken
+					link.OAuthRefreshToken = token.RefreshToken
+					link.OAuthExpiry = token.Expiry
 					key.ExpiresAt = token.Expiry
 					changed = true
 				}
@@ -222,13 +235,10 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 			if changed {
 				err := db.UpdateAPIKeyByID(r.Context(), database.UpdateAPIKeyByIDParams{
-					ID:                key.ID,
-					LastUsed:          key.LastUsed,
-					ExpiresAt:         key.ExpiresAt,
-					IPAddress:         key.IPAddress,
-					OAuthAccessToken:  key.OAuthAccessToken,
-					OAuthRefreshToken: key.OAuthRefreshToken,
-					OAuthExpiry:       key.OAuthExpiry,
+					ID:        key.ID,
+					LastUsed:  key.LastUsed,
+					ExpiresAt: key.ExpiresAt,
+					IPAddress: key.IPAddress,
 				})
 				if err != nil {
 					write(http.StatusInternalServerError, codersdk.Response{
@@ -236,6 +246,15 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 						Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
 					})
 					return
+				}
+				if link.UserID != uuid.Nil {
+					link, err = db.UpdateUserLink(r.Context(), database.UpdateUserLinkParams{
+						UserID:            link.UserID,
+						OAuthAccessToken:  link.OAuthAccessToken,
+						OAuthRefreshToken: link.OAuthRefreshToken,
+						OAuthExpiry:       link.OAuthExpiry,
+					})
+
 				}
 			}
 

@@ -393,7 +393,6 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
-			OAuthExpiry:  database.Now().AddDate(0, 0, -1),
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
@@ -418,7 +417,6 @@ func TestAPIKey(t *testing.T) {
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
-		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
 	})
 
 	t.Run("RemoteIPUpdates", func(t *testing.T) {
@@ -466,8 +464,6 @@ func createUser(ctx context.Context, t *testing.T, db database.Store) database.U
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		RBACRoles:      []string{},
-		LinkedID:       uuid.NewString(),
-		LoginType:      database.LoginTypePassword,
 	})
 	require.NoError(t, err, "create user")
 	return user

@@ -22,7 +22,8 @@ INSERT INTO
 		last_used,
 		expires_at,
 		created_at,
-		updated_at
+		updated_at,
+		login_type
 	)
 VALUES
 	(@id,
@@ -31,7 +32,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at) RETURNING *;
+	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

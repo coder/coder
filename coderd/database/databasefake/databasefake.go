@@ -1453,20 +1453,16 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	//nolint:gosimple
 	key := database.APIKey{
-		ID:                arg.ID,
-		LifetimeSeconds:   arg.LifetimeSeconds,
-		HashedSecret:      arg.HashedSecret,
-		IPAddress:         arg.IPAddress,
-		UserID:            arg.UserID,
-		ExpiresAt:         arg.ExpiresAt,
-		CreatedAt:         arg.CreatedAt,
-		UpdatedAt:         arg.UpdatedAt,
-		LastUsed:          arg.LastUsed,
-		LoginType:         arg.LoginType,
-		OAuthAccessToken:  arg.OAuthAccessToken,
-		OAuthRefreshToken: arg.OAuthRefreshToken,
-		OAuthIDToken:      arg.OAuthIDToken,
-		OAuthExpiry:       arg.OAuthExpiry,
+		ID:              arg.ID,
+		LifetimeSeconds: arg.LifetimeSeconds,
+		HashedSecret:    arg.HashedSecret,
+		IPAddress:       arg.IPAddress,
+		UserID:          arg.UserID,
+		ExpiresAt:       arg.ExpiresAt,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		LastUsed:        arg.LastUsed,
+		LoginType:       arg.LoginType,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -1743,8 +1739,6 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		Username:       arg.Username,
 		Status:         database.UserStatusActive,
 		RBACRoles:      arg.RBACRoles,
-		LoginType:      arg.LoginType,
-		LinkedID:       arg.LinkedID,
 	}
 	q.users = append(q.users, user)
 	return user, nil
@@ -1900,9 +1894,6 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		apiKey.LastUsed = arg.LastUsed
 		apiKey.ExpiresAt = arg.ExpiresAt
 		apiKey.IPAddress = arg.IPAddress
-		apiKey.OAuthAccessToken = arg.OAuthAccessToken
-		apiKey.OAuthRefreshToken = arg.OAuthRefreshToken
-		apiKey.OAuthExpiry = arg.OAuthExpiry
 		q.apiKeys[index] = apiKey
 		return nil
 	}
@@ -2260,31 +2251,4 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
-}
-
-func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, arg database.UpdateUserLinkedIDParams) (database.User, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, user := range q.users {
-		if user.ID != arg.ID {
-			continue
-		}
-		user.LinkedID = arg.LinkedID
-		q.users[index] = user
-		return user, nil
-	}
-	return database.User{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetUserByLinkedID(_ context.Context, linkedID string) (database.User, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, user := range q.users {
-		if user.LinkedID == linkedID {
-			return user, nil
-		}
-	}
-	return database.User{}, sql.ErrNoRows
 }

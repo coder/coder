@@ -107,7 +107,8 @@ INSERT INTO
 		last_used,
 		expires_at,
 		created_at,
-		updated_at
+		updated_at,
+		login_type
 	)
 VALUES
 	($1,
@@ -116,7 +117,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
+	 , $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
 `
 
 type InsertAPIKeyParams struct {
@@ -129,6 +130,7 @@ type InsertAPIKeyParams struct {
 	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
 	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType   `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -142,6 +144,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.ExpiresAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.LoginType,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -2406,6 +2409,180 @@ type UpdateTemplateVersionDescriptionByJobIDParams struct {
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
 	return err
+}
+
+const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
+SELECT
+  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+FROM
+  user_links
+WHERE
+  linked_id = $1
+`
+
+func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, getUserLinkByLinkedID, linkedID)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
+SELECT
+  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+FROM
+  user_links
+WHERE
+  user_id = $1 AND login_type = $2
+`
+
+type GetUserLinkByUserIDLoginTypeParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+}
+
+func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, getUserLinkByUserIDLoginType, arg.UserID, arg.LoginType)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const insertUserLink = `-- name: InsertUserLink :one
+INSERT INTO
+  user_links (
+    user_id,
+    login_type,
+    linked_id,
+    oauth_access_token,
+    oauth_refresh_token,
+    oauth_id_token,
+    oauth_expiry
+  )
+VALUES
+  ( $1, $2, $3, $4, $5, $6, $7 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+`
+
+type InsertUserLinkParams struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType         LoginType `db:"login_type" json:"login_type"`
+	LinkedID          string    `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
+func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, insertUserLink,
+		arg.UserID,
+		arg.LoginType,
+		arg.LinkedID,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthIDToken,
+		arg.OAuthExpiry,
+	)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const updateUserLink = `-- name: UpdateUserLink :one
+UPDATE
+  user_links
+SET
+  oauth_access_token = $1,
+  oauth_refresh_token = $2,
+  oauth_id_token = $3,
+  oauth_expiry = $4
+WHERE
+  user_id = $5 AND login_type = $6 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+`
+
+type UpdateUserLinkParams struct {
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType         LoginType `db:"login_type" json:"login_type"`
+}
+
+func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLink,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthIDToken,
+		arg.OAuthExpiry,
+		arg.UserID,
+		arg.LoginType,
+	)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
+UPDATE
+  user_links
+SET
+  linked_id = $1
+WHERE
+  user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+`
+
+type UpdateUserLinkedIDParams struct {
+	LinkedID  string    `db:"linked_id" json:"linked_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+}
+
+func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
 }
 
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one

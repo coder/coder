@@ -137,7 +137,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, found, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find user.",
@@ -145,15 +145,15 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if found && user.LoginType != database.LoginTypeGithub {
+	if link.UserID != uuid.Nil && link.LoginType != database.LoginTypeGithub {
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, link.LoginType),
 		})
 		return
 	}
 
 	// If the user doesn't exist, create a new one!
-	if !found {
+	if user.ID == uuid.Nil {
 		if !api.GithubOAuth2Config.AllowSignups {
 			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
 				Message: "Signups are disabled for Github authentication!",
@@ -183,14 +183,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		user, _, err = api.createUser(r.Context(), createUserRequest{
-			CreateUserRequest: codersdk.CreateUserRequest{
-				Email:          *verifiedEmail.Email,
-				Username:       *ghUser.Login,
-				OrganizationID: organizationID,
-			},
-			LinkedID:  githubLinkedID(ghUser),
-			LoginType: database.LoginTypeGithub,
+		user, _, err = api.createUser(r.Context(), codersdk.CreateUserRequest{
+			Email:          *verifiedEmail.Email,
+			Username:       *ghUser.Login,
+			OrganizationID: organizationID,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -199,31 +195,50 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+
 	}
 
-	// LEGACY: Remove 10/2022.
-	// We started tracking linked IDs later so it's possible for a user to be a
-	// pre-existing Github user and not have a linked ID.
-	if user.LinkedID == "" {
-		user, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-			ID:       user.ID,
-			LinkedID: githubLinkedID(ghUser),
+	// This can happen if a user is a built-in user but is signing in
+	// with Github for the first time.
+	if link.UserID == uuid.Nil {
+		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
+			UserID:            user.ID,
+			LoginType:         database.LoginTypeGithub,
+			LinkedID:          githubLinkedID(ghUser),
+			OAuthAccessToken:  state.Token.AccessToken,
+			OAuthRefreshToken: state.Token.RefreshToken,
+			OAuthExpiry:       state.Token.Expiry,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to set user linked ID.",
-				Detail:  err.Error(),
+				Message: "A database error occurred.",
+				Detail:  xerrors.Errorf("insert user link: %w", err.Error).Error(),
 			})
 			return
 		}
 	}
 
-	_, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
-		UserID:            user.ID,
-		LoginType:         database.LoginTypeGithub,
-		OAuthAccessToken:  state.Token.AccessToken,
-		OAuthRefreshToken: state.Token.RefreshToken,
-		OAuthExpiry:       state.Token.Expiry,
+	// LEGACY: Remove 10/2022.
+	// We started tracking linked IDs later so it's possible for a user to be a
+	// pre-existing Github user and not have a linked ID.
+	if link.LinkedID == "" {
+		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
+			UserID:    user.ID,
+			LinkedID:  githubLinkedID(ghUser),
+			LoginType: database.LoginTypeGithub,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "A database error occurred.",
+				Detail:  xerrors.Errorf("update user link: %w", err.Error).Error(),
+			})
+			return
+		}
+	}
+
+	_, created := api.createAPIKey(rw, r, createAPIKeyParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeGithub,
 	})
 	if !created {
 		return
@@ -315,7 +330,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, found, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), claims.Email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), claims.Email)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find user.",
@@ -324,21 +339,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !found && !api.OIDCConfig.AllowSignups {
+	if user.ID == uuid.Nil && !api.OIDCConfig.AllowSignups {
 		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
 			Message: "Signups are disabled for OIDC authentication!",
 		})
 		return
 	}
 
-	if found && user.LoginType != database.LoginTypeOIDC {
+	if link.UserID != uuid.Nil && link.LoginType != database.LoginTypeOIDC {
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, link.LoginType),
 		})
 		return
 	}
 
-	if !found {
+	if user.ID == uuid.Nil {
 		var organizationID uuid.UUID
 		organizations, _ := api.Database.GetOrganizations(ctx)
 		if len(organizations) > 0 {
@@ -347,14 +362,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// email to organization.
 			organizationID = organizations[0].ID
 		}
-		user, _, err = api.createUser(ctx, createUserRequest{
-			CreateUserRequest: codersdk.CreateUserRequest{
-				Email:          claims.Email,
-				Username:       claims.Username,
-				OrganizationID: organizationID,
-			},
-			LinkedID:  oidcLinkedID(idToken),
-			LoginType: database.LoginTypeOIDC,
+
+		user, _, err = api.createUser(ctx, codersdk.CreateUserRequest{
+			Email:          claims.Email,
+			Username:       claims.Username,
+			OrganizationID: organizationID,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -372,18 +384,38 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// LEGACY: Remove 10/2022.
-	// We started tracking linked IDs later so it's possible for a user to be a
-	// pre-existing OIDC user and not have a linked ID.
-	if user.LinkedID == "" {
-		user, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-			ID:       user.ID,
-			LinkedID: oidcLinkedID(idToken),
+	if link.UserID == uuid.Nil {
+		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
+			UserID:            user.ID,
+			LoginType:         database.LoginTypeGithub,
+			LinkedID:          oidcLinkedID(idToken),
+			OAuthAccessToken:  state.Token.AccessToken,
+			OAuthRefreshToken: state.Token.RefreshToken,
+			OAuthExpiry:       state.Token.Expiry,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update user linked ID.",
-				Detail:  err.Error(),
+				Message: "A database error occurred.",
+				Detail:  xerrors.Errorf("insert user link: %w", err.Error).Error(),
+			})
+			return
+		}
+
+	}
+
+	// LEGACY: Remove 10/2022.
+	// We started tracking linked IDs later so it's possible for a user to be a
+	// pre-existing OIDC user and not have a linked ID.
+	if link.LinkedID == "" {
+		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
+			UserID:    user.ID,
+			LinkedID:  oidcLinkedID(idToken),
+			LoginType: database.LoginTypeGithub,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "A database error occurred.",
+				Detail:  xerrors.Errorf("update user link: %w", err.Error).Error(),
 			})
 			return
 		}
@@ -414,12 +446,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
-		UserID:            user.ID,
-		LoginType:         database.LoginTypeOIDC,
-		OAuthAccessToken:  state.Token.AccessToken,
-		OAuthRefreshToken: state.Token.RefreshToken,
-		OAuthExpiry:       state.Token.Expiry,
+	_, created := api.createAPIKey(rw, r, createAPIKeyParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOIDC,
 	})
 	if !created {
 		return
@@ -445,14 +474,19 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
 // If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, bool, error) {
-	user, err := db.GetUserByLinkedID(ctx, linkedID)
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+	var (
+		user database.User
+		link database.UserLink
+	)
+	link, err := db.GetUserLinkByLinkedID(ctx, linkedID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return user, false, xerrors.Errorf("get user auth by linked ID: %w", err)
+		return user, link, xerrors.Errorf("get user auth by linked ID: %w", err)
 	}
 
 	if err == nil {
-		return user, true, nil
+		user, err = db.GetUserByID(ctx, link.UserID)
+		return user, link, nil
 	}
 
 	for _, email := range emails {
@@ -460,14 +494,14 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 			Email: email,
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return user, false, xerrors.Errorf("get user by email: %w", err)
+			return user, link, xerrors.Errorf("get user by email: %w", err)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
-		return user, true, nil
+		return user, link, nil
 	}
 
 	// No user found.
-	return user, false, nil
+	return user, link, nil
 }

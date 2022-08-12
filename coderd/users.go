@@ -77,14 +77,10 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
-		CreateUserRequest: codersdk.CreateUserRequest{
-			Email:    createUser.Email,
-			Username: createUser.Username,
-			Password: createUser.Password,
-		},
-		LoginType: database.LoginTypePassword,
-		LinkedID:  createUser.Email,
+	user, organizationID, err := api.createUser(r.Context(), codersdk.CreateUserRequest{
+		Email:    createUser.Email,
+		Username: createUser.Username,
+		Password: createUser.Password,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -192,14 +188,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var createUser codersdk.CreateUserRequest
-	if !httpapi.Read(rw, r, &createUser) {
+	var req codersdk.CreateUserRequest
+	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
 	// Create the organization member in the org.
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
+		rbac.ResourceOrganizationMember.InOrg(req.OrganizationID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -207,8 +203,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Username: createUser.Username,
-		Email:    createUser.Email,
+		Username: req.Username,
+		Email:    req.Email,
 	})
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
@@ -224,10 +220,10 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
+	_, err = api.Database.GetOrganizationByID(r.Context(), req.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", createUser.OrganizationID),
+			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
 		})
 		return
 	}
@@ -239,11 +235,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), createUserRequest{
-		CreateUserRequest: createUser,
-		LinkedID:          createUser.Email,
-		LoginType:         database.LoginTypePassword,
-	})
+	user, _, err := api.createUser(r.Context(), req)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -257,7 +249,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
 }
 
 // Returns the parameterized user requested. All validation
@@ -695,7 +687,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 	})
@@ -718,7 +710,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lifeTime := time.Hour * 24 * 7
-	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 		// All api generated keys will last 1 week. Browser login tokens have
@@ -804,7 +796,16 @@ func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	return id, secret, nil
 }
 
-func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params database.InsertAPIKeyParams) (string, bool) {
+type createAPIKeyParams struct {
+	UserID    uuid.UUID
+	LoginType database.LoginType
+
+	// Optional.
+	ExpiresAt       time.Time
+	LifetimeSeconds int64
+}
+
+func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params createAPIKeyParams) (string, bool) {
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -842,15 +843,11 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 			Valid: true,
 		},
 		// Make sure in UTC time for common time zone
-		ExpiresAt:         params.ExpiresAt.UTC(),
-		CreatedAt:         database.Now(),
-		UpdatedAt:         database.Now(),
-		HashedSecret:      hashed[:],
-		LoginType:         params.LoginType,
-		OAuthAccessToken:  params.OAuthAccessToken,
-		OAuthRefreshToken: params.OAuthRefreshToken,
-		OAuthIDToken:      params.OAuthIDToken,
-		OAuthExpiry:       params.OAuthExpiry,
+		ExpiresAt:    params.ExpiresAt.UTC(),
+		CreatedAt:    database.Now(),
+		UpdatedAt:    database.Now(),
+		HashedSecret: hashed[:],
+		LoginType:    params.LoginType,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -877,13 +874,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	return sessionToken, true
 }
 
-type createUserRequest struct {
-	codersdk.CreateUserRequest
-	LoginType database.LoginType
-	LinkedID  string
-}
-
-func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
 		orgRoles := make([]string, 0)
@@ -910,8 +901,6 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
-			LoginType: req.LoginType,
-			LinkedID:  req.LinkedID,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -966,8 +955,6 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0),
-		LoginType:       codersdk.LoginType(user.LoginType),
-		LinkedID:        user.LinkedID,
 	}
 
 	for _, roleName := range user.RBACRoles {

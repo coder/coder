@@ -158,8 +158,6 @@ func TestDiff(t *testing.T) {
 				UpdatedAt:      time.Now(),
 				Status:         database.UserStatusActive,
 				RBACRoles:      []string{"omega admin"},
-				LoginType:      database.LoginTypePassword,
-				LinkedID:       "foobar",
 			},
 			exp: audit.Map{
 				"id":              uuid.UUID{1}.String(),
@@ -168,8 +166,6 @@ func TestDiff(t *testing.T) {
 				"hashed_password": ([]byte)(nil),
 				"status":          database.UserStatusActive,
 				"rbac_roles":      []string{"omega admin"},
-				"login_type":      database.LoginTypePassword,
-				"linked_id":       "foobar",
 			},
 		},
 	})
