@@ -21,8 +21,9 @@ export const Logs: FC<LogsProps> = ({ lines, className = "" }) => {
     <div className={combineClasses([className, styles.root])}>
       {lines.map((line, idx) => (
         <div className={styles.line} key={idx}>
-          <div className={styles.time}>{dayjs(line.time).format(`HH:mm:ss.SSS`)}</div>
-          <div>{line.output}</div>
+          <span className={styles.time}>{dayjs(line.time).format(`HH:mm:ss.SSS`)}</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;
+          <span>{line.output}</span>
         </div>
       ))}
     </div>
@@ -42,12 +43,10 @@ const useStyles = makeStyles((theme) => ({
     overflowX: "auto",
   },
   line: {
-    display: "flex",
-    alignItems: "baseline",
+    whiteSpace: "nowrap",
   },
   time: {
     width: theme.spacing(12.5),
-    marginRight: theme.spacing(3),
-    flexShrink: 0,
+    display: "inline-block",
   },
 }))
