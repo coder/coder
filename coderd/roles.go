@@ -32,8 +32,6 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
-	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
-	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
 	actorRoles := httpmw.AuthorizationUserRoles(r)
 

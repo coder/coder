@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	admin           string = "admin"
-	member          string = "member"
-	templateManager string = "template-manager"
-	auditor         string = "auditor"
+	admin         string = "admin"
+	member        string = "member"
+	templateAdmin string = "template-admin"
+	userAdmin     string = "user-admin"
+	auditor       string = "auditor"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -25,6 +26,14 @@ const (
 
 func RoleAdmin() string {
 	return roleName(admin, "")
+}
+
+func RoleTemplateAdmin() string {
+	return roleName(templateAdmin, "")
+}
+
+func RoleUserAdmin() string {
+	return roleName(userAdmin, "")
 }
 
 func RoleMember() string {
@@ -73,7 +82,8 @@ var (
 					ResourceProvisionerDaemon: {ActionRead},
 				}),
 				User: permissions(map[Object][]Action{
-					ResourceWildcard: {WildcardSymbol},
+					ResourceWildcard:           {WildcardSymbol},
+					ResourceWorkspaceExecution: {WildcardSymbol},
 				}),
 			}
 		},
@@ -94,14 +104,25 @@ var (
 			}
 		},
 
-		templateManager: func(_ string) Role {
+		templateAdmin: func(_ string) Role {
 			return Role{
-				Name:        templateManager,
-				DisplayName: "Template Manager",
+				Name:        templateAdmin,
+				DisplayName: "Template Admin",
 				Site: permissions(map[Object][]Action{
 					ResourceTemplate: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
-					ResourceFile: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceFile:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceWorkspace: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				}),
+			}
+		},
+
+		userAdmin: func(_ string) Role {
+			return Role{
+				Name:        userAdmin,
+				DisplayName: "User Admin",
+				Site: permissions(map[Object][]Action{
+					ResourceUser: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
@@ -166,12 +187,13 @@ var (
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
 		admin: {
-			admin:           true,
-			auditor:         true,
-			member:          true,
-			orgAdmin:        true,
-			orgMember:       true,
-			templateManager: true,
+			admin:         true,
+			auditor:       true,
+			member:        true,
+			orgAdmin:      true,
+			orgMember:     true,
+			templateAdmin: true,
+			userAdmin:     true,
 		},
 		orgAdmin: {
 			orgAdmin:  true,

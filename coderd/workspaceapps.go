@@ -43,7 +43,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
+
+	if !api.Authorize(r, rbac.ActionCreate,
+		rbac.ResourceWorkspaceExecution.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
