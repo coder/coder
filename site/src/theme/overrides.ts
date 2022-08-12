@@ -2,7 +2,7 @@ import { Theme } from "@material-ui/core/styles"
 import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
-import { MONOSPACE_FONT_FAMILY } from "./constants"
+import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
 
 export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
@@ -74,7 +74,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTableContainer: {
       root: {
-        borderRadius: 2,
+        borderRadius,
         border: `1px solid ${palette.divider}`,
       },
     },
@@ -124,7 +124,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiInputBase: {
       root: {
-        borderRadius: 2,
+        borderRadius,
       },
     },
     MuiOutlinedInput: {
@@ -148,7 +148,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiPaper: {
       root: {
-        borderRadius: 2,
+        borderRadius,
         border: `1px solid ${palette.divider}`,
       },
     },
