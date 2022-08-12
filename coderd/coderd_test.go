@@ -220,6 +220,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(workspace.OwnerID.String())
+	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(organization.ID).WithOwner(workspace.OwnerID.String())
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -268,7 +269,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/wireguardlisten":          {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -331,12 +331,16 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
-			AssertAction: rbac.ActionUpdate,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/turn": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
-			AssertAction: rbac.ActionUpdate,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaces/": {
 			StatusCode:   http.StatusOK,

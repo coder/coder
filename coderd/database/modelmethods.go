@@ -17,6 +17,10 @@ func (w Workspace) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspace.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
 }
 
+func (w Workspace) ExecutionRBAC() rbac.Object {
+	return rbac.ResourceWorkspaceExecution.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
+}
+
 func (m OrganizationMember) RBACObject() rbac.Object {
 	return rbac.ResourceOrganizationMember.InOrg(m.OrganizationID)
 }

@@ -22,6 +22,15 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceExecution CRUD. Org + User owner
+	//	create = workspace remote execution
+	// 	read = ?
+	//	update = ?
+	// 	delete = ?
+	ResourceWorkspaceExecution = Object{
+		Type: "workspace_execution",
+	}
+
 	// ResourceAuditLog
 	// read = access audit log
 	ResourceAuditLog = Object{

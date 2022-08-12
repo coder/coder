@@ -111,7 +111,7 @@ org_mem := true {
 	input.object.org_owner in org_members
 }
 
-# If the oject has no organization, then the user is also considered part of
+# If the object has no organization, then the user is also considered part of
 # the non-existent org.
 org_mem := true {
 	input.object.org_owner == ""

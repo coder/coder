@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func Test_formatExamples(t *testing.T) {
@@ -67,7 +67,11 @@ func Test_formatExamples(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	// Replace with goleak.VerifyTestMain(m) when we enable goleak.
-	os.Exit(m.Run())
-	// goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m,
+		// The lumberjack library is used by by agent and seems to leave
+		// goroutines after Close(), fails TestGitSSH tests.
+		// https://github.com/natefinch/lumberjack/pull/100
+		goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).millRun"),
+		goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).mill.func1"),
+	)
 }

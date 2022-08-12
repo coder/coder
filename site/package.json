@@ -49,7 +49,6 @@
     "react-markdown": "8.0.3",
     "react-router-dom": "6.3.0",
     "sourcemapped-stacktrace": "1.1.11",
-    "swr": "1.2.2",
     "tzdata": "1.0.30",
     "uuid": "8.3.2",
     "xstate": "4.32.1",

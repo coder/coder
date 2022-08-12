@@ -641,7 +641,6 @@ func TestPutUserSuspend(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SuspendAnotherUser", func(t *testing.T) {
-		t.Skip()
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		me := coderdtest.CreateFirstUser(t, client)
