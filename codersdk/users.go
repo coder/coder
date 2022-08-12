@@ -50,8 +50,6 @@ type User struct {
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
-	LoginType       LoginType   `json:"login_type"`
-	LinkedID        string      `json:"linked_id"`
 }
 
 type APIKey struct {

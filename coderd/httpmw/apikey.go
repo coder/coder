@@ -159,7 +159,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 				if err != nil {
 					write(http.StatusInternalServerError, codersdk.Response{
 						Message: "A database error occurred",
-						Detail:  err.Error(),
+						Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
 					})
 					return
 				}
@@ -250,6 +250,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 				if link.UserID != uuid.Nil {
 					link, err = db.UpdateUserLink(r.Context(), database.UpdateUserLinkParams{
 						UserID:            link.UserID,
+						LoginType:         link.LoginType,
 						OAuthAccessToken:  link.OAuthAccessToken,
 						OAuthRefreshToken: link.OAuthRefreshToken,
 						OAuthExpiry:       link.OAuthExpiry,

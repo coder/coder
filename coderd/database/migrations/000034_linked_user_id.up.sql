@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS user_links (
 	UNIQUE(user_id, login_type)
 );
 
+-- This migrates columns on api_keys to the new user_links table.
+-- It does this by finding all the API keys for each user, choosing
+-- the most recently updated for each one and then assigning its relevant
+-- values to the user_links table.
+-- A user should at most have a row for an OIDC account and a Github account.
+-- 'password' login types are ignored.
+
 INSERT INTO user_links 
 	( 
 		user_id,
@@ -34,6 +41,9 @@ FROM
 	) as keys
  WHERE x=1 AND keys.login_type != 'password';
 
+-- Drop columns that have been migrated to user_links.
+-- It appears the 'oauth_id_token' was unused and so it has
+-- been dropped here as well to avoid future confusion.
 ALTER TABLE api_keys 
 	DROP COLUMN oauth_access_token,
 	DROP COLUMN oauth_refresh_token,

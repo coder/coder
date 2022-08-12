@@ -140,7 +140,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to find user.",
+			Message: "An internal error occurred.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -195,7 +196,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 	}
 
 	// This can happen if a user is a built-in user but is signing in
@@ -220,7 +220,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	// LEGACY: Remove 10/2022.
 	// We started tracking linked IDs later so it's possible for a user to be a
-	// pre-existing Github user and not have a linked ID.
+	// pre-existing Github user and not have a linked ID. The migration
+	// to user_links did not populate this field as it requires calling out
+	// to Github to query the user's ID.
 	if link.LinkedID == "" {
 		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 			UserID:    user.ID,
@@ -387,7 +389,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if link.UserID == uuid.Nil {
 		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
 			UserID:            user.ID,
-			LoginType:         database.LoginTypeGithub,
+			LoginType:         database.LoginTypeOIDC,
 			LinkedID:          oidcLinkedID(idToken),
 			OAuthAccessToken:  state.Token.AccessToken,
 			OAuthRefreshToken: state.Token.RefreshToken,
@@ -400,12 +402,13 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 	}
 
 	// LEGACY: Remove 10/2022.
 	// We started tracking linked IDs later so it's possible for a user to be a
 	// pre-existing OIDC user and not have a linked ID.
+	// The migration that added the user_links table could not populate
+	// the 'linked_id' field since it requires fields off the access token.
 	if link.LinkedID == "" {
 		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 			UserID:    user.ID,
@@ -440,7 +443,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update user profile.",
-				Detail:  err.Error(),
+				Detail:  fmt.Sprintf("udpate user profile: %s", err.Error()),
 			})
 			return
 		}
@@ -486,6 +489,9 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 
 	if err == nil {
 		user, err = db.GetUserByID(ctx, link.UserID)
+		if err != nil {
+			return database.User{}, database.UserLink{}, xerrors.Errorf("get user by id: %w", err)
+		}
 		return user, link, nil
 	}
 

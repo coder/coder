@@ -175,6 +175,34 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
+	t.Run("Login", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &oauth2Config{},
+				AllowOrganizations: []string{"coder"},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("testuser@coder.com"),
+						Verified: github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -210,7 +238,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		client.SessionToken = resp.Cookies()[0].Value
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
-		require.Equal(t, "1234", user.LinkedID)
 		require.Equal(t, "kyle@coder.com", user.Email)
 		require.Equal(t, "kyle", user.Username)
 	})
@@ -341,7 +368,6 @@ func TestUserOIDC(t *testing.T) {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
-				require.Equal(t, "https://coder.com||hello", user.LinkedID)
 			}
 		})
 	}
@@ -384,35 +410,6 @@ func TestUserOIDC(t *testing.T) {
 		})
 		resp := oidcCallback(t, client)
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	})
-
-	// Test that we do not allow collisions with pre-existing accounts
-	// of differing login types.
-	t.Run("InvalidLoginType", func(t *testing.T) {
-		t.Parallel()
-		config := createOIDCConfig(t, jwt.MapClaims{
-			"email":              "kyle@kwc.io",
-			"email_verified":     true,
-			"preferred_username": "kyle",
-		})
-
-		client := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: config,
-		})
-
-		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{
-			Email:            "kyle@kwc.io",
-			Username:         "kyle",
-			Password:         "yeah",
-			OrganizationName: "default",
-		})
-		require.NoError(t, err)
-
-		config.AllowSignups = true
-		config.EmailDomain = "kwc.io"
-
-		resp := oidcCallback(t, client)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
 	})
 }
 

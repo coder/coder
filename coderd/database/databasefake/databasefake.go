@@ -2278,17 +2278,18 @@ func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertUserLink(_ context.Context, params database.InsertUserLinkParams) (database.UserLink, error) {
+func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	//nolint:gosimple
 	link := database.UserLink{
-		UserID:            params.UserID,
-		LoginType:         params.LoginType,
-		LinkedID:          params.LinkedID,
-		OAuthAccessToken:  params.OAuthAccessToken,
-		OAuthRefreshToken: params.OAuthRefreshToken,
-		OAuthExpiry:       params.OAuthExpiry,
+		UserID:            args.UserID,
+		LoginType:         args.LoginType,
+		LinkedID:          args.LinkedID,
+		OAuthAccessToken:  args.OAuthAccessToken,
+		OAuthRefreshToken: args.OAuthRefreshToken,
+		OAuthExpiry:       args.OAuthExpiry,
 	}
 
 	q.userLinks = append(q.userLinks, link)

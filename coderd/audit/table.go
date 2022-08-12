@@ -94,8 +94,6 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"status":          ActionTrack,
 		"rbac_roles":      ActionTrack,
-		"login_type":      ActionTrack,
-		"linked_id":       ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

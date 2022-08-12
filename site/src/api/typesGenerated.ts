@@ -352,8 +352,6 @@ export interface User {
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
-  readonly login_type: LoginType
-  readonly linked_id: string
 }
 
 // From codersdk/users.go
