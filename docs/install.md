@@ -112,7 +112,7 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
    ```sh
-   # ex. MacOS and Linux
+   # ex. macOS and Linux
    mv coder /usr/local/bin
    ```
 
