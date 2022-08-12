@@ -15,12 +15,18 @@ type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceScheduleContext {
   getWorkspaceError?: Error | unknown
+  getTemplateError?: Error | unknown
   /**
    * Each workspace has their own schedule (start and ttl). For this reason, we
    * re-fetch the workspace to ensure we're up-to-date. As a result, this
    * machine is partially influenced by workspaceXService.
    */
   workspace?: TypesGen.Workspace
+  /**
+   * Each template has a maximum period of time (ttl) before it automatically stops.
+   * Once we fetch the workspace, we can fetch the template to determine the maximum ttl.
+   */
+  template?: TypesGen.Template
   // permissions
   userId?: string
   permissions?: Permissions
@@ -61,6 +67,9 @@ export const workspaceSchedule = createMachine(
         getWorkspace: {
           data: TypesGen.Workspace
         }
+        getTemplate: {
+          data: TypesGen.Template
+        }
       },
     },
     id: "workspaceScheduleState",
@@ -78,12 +87,28 @@ export const workspaceSchedule = createMachine(
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
-            target: "gettingPermissions",
+            target: "gettingTemplate",
             actions: ["assignWorkspace"],
           },
           onError: {
             target: "error",
             actions: ["assignGetWorkspaceError"],
+          },
+        },
+        tags: "loading",
+      },
+      gettingTemplate: {
+        entry: ["clearGetTemplateError", "clearContext"],
+        invoke: {
+          src: "getTemplate",
+          id: "getTemplate",
+          onDone: {
+            target: "gettingPermissions",
+            actions: ["assignTemplate"],
+          },
+          onError: {
+            target: "error",
+            actions: ["assignGetTemplateError"],
           },
         },
         tags: "loading",
@@ -147,6 +172,12 @@ export const workspaceSchedule = createMachine(
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
       }),
+      assignTemplate: assign({
+        template: (_, event) => event.data,
+      }),
+      assignGetTemplateError: assign({
+        getTemplateError: (_, event) => event.data,
+      }),
       assignGetWorkspaceError: assign({
         getWorkspaceError: (_, event) => event.data,
       }),
@@ -167,6 +198,9 @@ export const workspaceSchedule = createMachine(
       clearGetWorkspaceError: (context) => {
         assign({ ...context, getWorkspaceError: undefined })
       },
+      clearGetTemplateError: (context) => {
+        assign({ ...context, getTemplateError: undefined })
+      },
       displaySuccess: () => {
         displaySuccess(Language.successMessage)
       },
@@ -175,6 +209,13 @@ export const workspaceSchedule = createMachine(
     services: {
       getWorkspace: async (_, event) => {
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+      },
+      getTemplate: async (context) => {
+        if (context.workspace) {
+          return await API.getTemplate(context.workspace.template_id)
+        } else {
+          throw new Error("Cannot load template without workspace")
+        }
       },
       checkPermissions: async (context) => {
         if (context.workspace && context.userId) {

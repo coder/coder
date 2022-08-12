@@ -66,6 +66,7 @@ export const Language = {
 export interface WorkspaceScheduleFormProps {
   submitScheduleError?: Error | unknown
   initialValues: WorkspaceScheduleFormValues
+  maxTTLms?: number
   isLoading: boolean
   onCancel: () => void
   onSubmit: (values: WorkspaceScheduleFormValues) => void
@@ -90,89 +91,91 @@ export interface WorkspaceScheduleFormValues {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const validationSchema = Yup.object({
-  sunday: Yup.boolean(),
-  monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
-    const parent = this.parent as WorkspaceScheduleFormValues
-
-    if (!parent.autoStartEnabled) {
-      return true
-    } else {
-      return ![
-        parent.sunday,
-        value,
-        parent.tuesday,
-        parent.wednesday,
-        parent.thursday,
-        parent.friday,
-        parent.saturday,
-      ].every((day) => day === false)
-    }
-  }),
-  tuesday: Yup.boolean(),
-  wednesday: Yup.boolean(),
-  thursday: Yup.boolean(),
-  friday: Yup.boolean(),
-  saturday: Yup.boolean(),
-
-  startTime: Yup.string()
-    .ensure()
-    .test("required-if-auto-start", Language.errorNoTime, function (value) {
+export const validationSchema = (maxTTLHours?: number) =>
+  Yup.object({
+    sunday: Yup.boolean(),
+    monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
-      if (parent.autoStartEnabled) {
-        return value !== ""
-      } else {
+
+      if (!parent.autoStartEnabled) {
         return true
-      }
-    })
-    .test("is-time-string", Language.errorTime, (value) => {
-      if (value === "") {
-        return true
-      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
-        return false
       } else {
-        const parts = value.split(":")
-        const HH = Number(parts[0])
-        const mm = Number(parts[1])
-        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
+        return ![
+          parent.sunday,
+          value,
+          parent.tuesday,
+          parent.wednesday,
+          parent.thursday,
+          parent.friday,
+          parent.saturday,
+        ].every((day) => day === false)
       }
     }),
-  timezone: Yup.string()
-    .ensure()
-    .test("is-timezone", Language.errorTimezone, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+    tuesday: Yup.boolean(),
+    wednesday: Yup.boolean(),
+    thursday: Yup.boolean(),
+    friday: Yup.boolean(),
+    saturday: Yup.boolean(),
 
-      if (!parent.startTime) {
-        return true
-      } else {
-        // Unfortunately, there's not a good API on dayjs at this time for
-        // evaluating a timezone. Attempt to parse today in the supplied timezone
-        // and return as valid if the function doesn't throw.
-        try {
-          dayjs.tz(dayjs(), value)
+    startTime: Yup.string()
+      .ensure()
+      .test("required-if-auto-start", Language.errorNoTime, function (value) {
+        const parent = this.parent as WorkspaceScheduleFormValues
+        if (parent.autoStartEnabled) {
+          return value !== ""
+        } else {
           return true
-        } catch (e) {
-          return false
         }
-      }
-    }),
-  ttl: Yup.number()
-    .integer()
-    .min(0)
-    .max(24 * 7 /* 7 days */)
-    .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
-      if (parent.autoStopEnabled) {
-        return !!value
-      } else {
-        return true
-      }
-    }),
-})
+      })
+      .test("is-time-string", Language.errorTime, (value) => {
+        if (value === "") {
+          return true
+        } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+          return false
+        } else {
+          const parts = value.split(":")
+          const HH = Number(parts[0])
+          const mm = Number(parts[1])
+          return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
+        }
+      }),
+    timezone: Yup.string()
+      .ensure()
+      .test("is-timezone", Language.errorTimezone, function (value) {
+        const parent = this.parent as WorkspaceScheduleFormValues
+
+        if (!parent.startTime) {
+          return true
+        } else {
+          // Unfortunately, there's not a good API on dayjs at this time for
+          // evaluating a timezone. Attempt to parse today in the supplied timezone
+          // and return as valid if the function doesn't throw.
+          try {
+            dayjs.tz(dayjs(), value)
+            return true
+          } catch (e) {
+            return false
+          }
+        }
+      }),
+    ttl: Yup.number()
+      .integer()
+      .min(0)
+      .max(maxTTLHours ?? 24 * 7 /* 1 week */)
+      .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
+        const parent = this.parent as WorkspaceScheduleFormValues
+        if (parent.autoStopEnabled) {
+          return !!value
+        } else {
+          return true
+        }
+      }),
+  })
 
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
   initialValues,
+  maxTTLms,
   isLoading,
   onCancel,
   onSubmit,
@@ -180,10 +183,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 }) => {
   const styles = useStyles()
 
+  const schema = validationSchema(maxTTLms ? Math.floor(maxTTLms / 3600000) : undefined)
+
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
     onSubmit,
-    validationSchema,
+    validationSchema: schema,
     initialTouched,
   })
   const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(

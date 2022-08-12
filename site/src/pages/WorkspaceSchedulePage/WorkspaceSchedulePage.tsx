@@ -33,8 +33,14 @@ export const WorkspaceSchedulePage: React.FC = () => {
       userId: me?.id,
     },
   })
-  const { checkPermissionsError, submitScheduleError, getWorkspaceError, permissions, workspace } =
-    scheduleState.context
+  const {
+    checkPermissionsError,
+    submitScheduleError,
+    getWorkspaceError,
+    permissions,
+    workspace,
+    template,
+  } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
   // scheduleSend should not change.
@@ -46,13 +52,20 @@ export const WorkspaceSchedulePage: React.FC = () => {
     scheduleToAutoStart(workspace?.autostart_schedule)
   const getAutoStop = (workspace?: TypesGen.Workspace) => ttlMsToAutoStop(workspace?.ttl_ms)
 
+  const getMaxTTLms = (template?: TypesGen.Template) => template?.max_ttl_ms
+
   const [autoStart, setAutoStart] = useState(getAutoStart(workspace))
   const [autoStop, setAutoStop] = useState(getAutoStop(workspace))
+  const [maxTTLms, setMaxTTL] = useState(getMaxTTLms(template))
 
   useEffect(() => {
     setAutoStart(getAutoStart(workspace))
     setAutoStop(getAutoStop(workspace))
   }, [workspace])
+
+  useEffect(() => {
+    setMaxTTL(getMaxTTLms(template))
+  }, [template])
 
   if (!username || !workspaceName) {
     return <Navigate to="/workspaces" />
@@ -88,6 +101,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
         initialValues={{ ...autoStart, ...autoStop }}
+        maxTTLms={maxTTLms}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
