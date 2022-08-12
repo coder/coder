@@ -124,7 +124,7 @@
       "path": "./secrets.md"
     },
     {
-      "title": "User Management",
+      "title": "Users",
       "description": "Learn about user roles available in Coder and how to create and manage users",
       "icon_path": "./images/icons/users.svg",
       "path": "./users.md"
