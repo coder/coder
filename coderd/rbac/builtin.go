@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	admin   string = "admin"
-	member  string = "member"
-	auditor string = "auditor"
+	admin           string = "admin"
+	member          string = "member"
+	templateManager string = "template-manager"
+	auditor         string = "auditor"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -93,6 +94,18 @@ var (
 			}
 		},
 
+		templateManager: func(_ string) Role {
+			return Role{
+				Name:        templateManager,
+				DisplayName: "Template Manager",
+				Site: permissions(map[Object][]Action{
+					ResourceTemplate: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// CRUD all files, even those they did not upload.
+					ResourceFile: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				}),
+			}
+		},
+
 		// orgAdmin returns a role with all actions allows in a given
 		// organization scope.
 		orgAdmin: func(organizationID string) Role {
@@ -153,11 +166,12 @@ var (
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
 		admin: {
-			admin:     true,
-			auditor:   true,
-			member:    true,
-			orgAdmin:  true,
-			orgMember: true,
+			admin:           true,
+			auditor:         true,
+			member:          true,
+			orgAdmin:        true,
+			orgMember:       true,
+			templateManager: true,
 		},
 		orgAdmin: {
 			orgAdmin:  true,
