@@ -136,7 +136,7 @@ func (c *WebRTCConn) Close() error {
 
 type TailnetConn struct {
 	Target netip.Addr
-	*tailnet.Server
+	*tailnet.Conn
 }
 
 func (c *TailnetConn) Closed() <-chan struct{} {

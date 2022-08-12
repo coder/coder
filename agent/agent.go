@@ -126,7 +126,7 @@ type agent struct {
 	sshServer     *ssh.Server
 
 	enableTailnet bool
-	network       *tailnet.Server
+	network       *tailnet.Conn
 	nodeDialer    NodeDialer
 }
 
@@ -180,7 +180,7 @@ func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap 
 		ipRanges = append(ipRanges, netip.PrefixFrom(address, 128))
 	}
 	var err error
-	a.network, err = tailnet.New(&tailnet.Options{
+	a.network, err = tailnet.NewConn(&tailnet.Options{
 		Addresses: ipRanges,
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),

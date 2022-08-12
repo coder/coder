@@ -49,8 +49,8 @@ type Options struct {
 	Logger slog.Logger
 }
 
-// New constructs a new Wireguard server that will accept connections from the addresses provided.
-func New(options *Options) (*Server, error) {
+// NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
+func NewConn(options *Options) (*Conn, error) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -186,7 +186,7 @@ func New(options *Options) (*Server, error) {
 	logIPSet := netipx.IPSetBuilder{}
 	logIPs, _ := logIPSet.IPSet()
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
-	server := &Server{
+	server := &Conn{
 		logger:           options.Logger,
 		magicConn:        magicConn,
 		dialer:           dialer,
@@ -218,8 +218,8 @@ func IP() netip.Addr {
 	return netip.AddrFrom16(uid)
 }
 
-// Server is an actively listening Wireguard connection.
-type Server struct {
+// Conn is an actively listening Wireguard connection.
+type Conn struct {
 	mutex  sync.Mutex
 	logger slog.Logger
 
@@ -237,15 +237,15 @@ type Server struct {
 // SetNodeCallback is triggered when a network change occurs and peer
 // renegotiation may be required. Clients should constantly be emitting
 // node changes.
-func (s *Server) SetNodeCallback(callback func(node *Node)) {
-	s.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-		s.logger.Info(context.Background(), "latency", slog.F("latency", ni.DERPLatency))
+func (c *Conn) SetNodeCallback(callback func(node *Node)) {
+	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+		c.logger.Info(context.Background(), "latency", slog.F("latency", ni.DERPLatency))
 		callback(&Node{
-			ID:            s.netMap.SelfNode.ID,
-			Key:           s.netMap.SelfNode.Key,
-			Addresses:     s.netMap.SelfNode.Addresses,
-			AllowedIPs:    s.netMap.SelfNode.AllowedIPs,
-			DiscoKey:      s.magicConn.DiscoPublicKey(),
+			ID:            c.netMap.SelfNode.ID,
+			Key:           c.netMap.SelfNode.Key,
+			Addresses:     c.netMap.SelfNode.Addresses,
+			AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
+			DiscoKey:      c.magicConn.DiscoPublicKey(),
 			PreferredDERP: ni.PreferredDERP,
 			DERPLatency:   ni.DERPLatency,
 		})
@@ -254,11 +254,11 @@ func (s *Server) SetNodeCallback(callback func(node *Node)) {
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
 // and peers will continually be reconnected as necessary.
-func (s *Server) UpdateNodes(nodes []*Node) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (c *Conn) UpdateNodes(nodes []*Node) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	peerMap := map[tailcfg.NodeID]*tailcfg.Node{}
-	for _, peer := range s.netMap.Peers {
+	for _, peer := range c.netMap.Peers {
 		peerMap[peer.ID] = peer
 	}
 	for _, node := range nodes {
@@ -272,41 +272,41 @@ func (s *Server) UpdateNodes(nodes []*Node) error {
 			Hostinfo:   hostinfo.New().View(),
 		}
 	}
-	s.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
+	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
 	for _, peer := range peerMap {
-		s.netMap.Peers = append(s.netMap.Peers, peer)
+		c.netMap.Peers = append(c.netMap.Peers, peer)
 	}
-	cfg, err := nmcfg.WGCfg(s.netMap, Logger(s.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
+	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
 	}
-	err = s.wireguardEngine.Reconfig(cfg, s.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
+	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
 		return xerrors.Errorf("reconfig: %w", err)
 	}
-	netMapCopy := *s.netMap
-	s.wireguardEngine.SetNetworkMap(&netMapCopy)
+	netMapCopy := *c.netMap
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	return nil
 }
 
 // Ping sends a ping to the Wireguard engine.
-func (s *Server) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
-	s.wireguardEngine.Ping(ip, pingType, cb)
+func (c *Conn) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.PingResult)) {
+	c.wireguardEngine.Ping(ip, pingType, cb)
 }
 
 // Close shuts down the Wireguard connection.
-func (s *Server) Close() error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	for _, l := range s.listeners {
+func (c *Conn) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for _, l := range c.listeners {
 		_ = l.Close()
 	}
-	_ = s.dialer.Close()
-	_ = s.magicConn.Close()
-	_ = s.netStack.Close()
-	_ = s.wireguardMonitor.Close()
-	_ = s.tunDevice.Close()
-	s.wireguardEngine.Close()
+	_ = c.dialer.Close()
+	_ = c.magicConn.Close()
+	_ = c.netStack.Close()
+	_ = c.wireguardMonitor.Close()
+	_ = c.tunDevice.Close()
+	c.wireguardEngine.Close()
 	return nil
 }
 
@@ -326,54 +326,54 @@ type Node struct {
 
 // Listen announces only on the Tailscale network.
 // It will start the server if it has not been started yet.
-func (s *Server) Listen(network, addr string) (net.Listener, error) {
+func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("wgnet: %w", err)
 	}
 	lk := listenKey{network, host, port}
 	ln := &listener{
-		s:    s,
+		s:    c,
 		key:  lk,
 		addr: addr,
 
 		conn: make(chan net.Conn),
 	}
-	s.mutex.Lock()
-	if s.listeners == nil {
-		s.listeners = map[listenKey]*listener{}
+	c.mutex.Lock()
+	if c.listeners == nil {
+		c.listeners = map[listenKey]*listener{}
 	}
-	if _, ok := s.listeners[lk]; ok {
-		s.mutex.Unlock()
+	if _, ok := c.listeners[lk]; ok {
+		c.mutex.Unlock()
 		return nil, xerrors.Errorf("wgnet: listener already open for %s, %s", network, addr)
 	}
-	s.listeners[lk] = ln
-	s.mutex.Unlock()
+	c.listeners[lk] = ln
+	c.mutex.Unlock()
 	return ln, nil
 }
 
-func (s *Server) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
-	return s.netStack.DialContextTCP(ctx, ipp)
+func (c *Conn) DialContextTCP(ctx context.Context, ipp netip.AddrPort) (*gonet.TCPConn, error) {
+	return c.netStack.DialContextTCP(ctx, ipp)
 }
 
-func (s *Server) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
-	return s.netStack.DialContextUDP(ctx, ipp)
+func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.UDPConn, error) {
+	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (s *Server) forwardTCP(c net.Conn, port uint16) {
-	s.mutex.Lock()
-	ln, ok := s.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
-	s.mutex.Unlock()
+func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
+	c.mutex.Lock()
+	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	c.mutex.Unlock()
 	if !ok {
-		_ = c.Close()
+		_ = conn.Close()
 		return
 	}
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
 	select {
-	case ln.conn <- c:
+	case ln.conn <- conn:
 	case <-t.C:
-		_ = c.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -384,7 +384,7 @@ type listenKey struct {
 }
 
 type listener struct {
-	s    *Server
+	s    *Conn
 	key  listenKey
 	addr string
 	conn chan net.Conn
@@ -420,12 +420,3 @@ func Logger(logger slog.Logger) tslogger.Logf {
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
 }
-
-// The exchanger is entirely in-memory and works based on connected nodes.
-// It uses a PubSub system to dynamically add/remove nodes from the network
-// and build a netmap based on connection ID.
-//
-// Each node is allocated it's own internal connection ID.
-//
-// The connecting node *just* requires information about the other node.
-// The other node needs connection information of all the others.

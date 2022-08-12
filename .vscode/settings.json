@@ -81,7 +81,9 @@
     "Srcs",
     "stretchr",
     "stuntest",
+    "tailbroker",
     "tailcfg",
+    "tailexchange",
     "tailnet",
     "Tailscale",
     "TCGETS",
@@ -118,6 +120,7 @@
     "workspacebuilds",
     "workspacename",
     "wsconncache",
+    "wsjson",
     "xerrors",
     "xstate",
     "yamux"

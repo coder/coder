@@ -319,7 +319,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUI
 	}
 
 	ip := tailnet.IP()
-	server, err := tailnet.New(&tailnet.Options{
+	server, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:   &derpMap,
 		Logger:    logger,

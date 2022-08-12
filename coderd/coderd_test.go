@@ -609,14 +609,14 @@ func TestDERP(t *testing.T) {
 		},
 	}
 	w1IP := tailnet.IP()
-	w1, err := tailnet.New(&tailnet.Options{
+	w1, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
 
-	w2, err := tailnet.New(&tailnet.Options{
+	w2, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w2"),
 		DERPMap:   derpMap,
