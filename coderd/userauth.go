@@ -443,7 +443,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update user profile.",
-				Detail:  fmt.Sprintf("udpate user profile: %s", err.Error()),
+				Detail:  fmt.Sprintf("update user profile: %s", err.Error()),
 			})
 			return
 		}
