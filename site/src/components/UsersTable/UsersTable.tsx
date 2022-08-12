@@ -6,9 +6,9 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { Stack } from "../Stack/Stack"
+import { UserRoleHelpTooltip } from "../Tooltips"
 import { UsersTableBody } from "./UsersTableBody"
-import {UserRoleHelpTooltip} from "../Tooltips"
-import {Stack} from "../Stack/Stack";
 
 export const Language = {
   usernameLabel: "User",
