@@ -89,7 +89,7 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: theme.spacing(1),
   },
   copyButton: {
-    borderRadius: 7,
+    borderRadius: theme.shape.borderRadius,
     padding: theme.spacing(0.85),
     minWidth: 32,
 

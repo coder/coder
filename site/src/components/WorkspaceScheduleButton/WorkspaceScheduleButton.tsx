@@ -179,7 +179,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   iconButton: {
-    borderRadius: 2,
+    borderRadius: theme.shape.borderRadius,
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,
