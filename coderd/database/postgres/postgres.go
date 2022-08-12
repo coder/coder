@@ -122,27 +122,29 @@ func Open() (string, func(), error) {
 		return "", nil, xerrors.Errorf("expire resource: %w", err)
 	}
 
-	pool.MaxWait = 120 * time.Second
+	pool.MaxWait = 15 * time.Second
+	var retryErr error
 	err = pool.Retry(func() error {
-		db, err := sql.Open("postgres", dbURL)
-		if err != nil {
-			return xerrors.Errorf("open postgres: %w", err)
+		var db *sql.DB
+		db, retryErr := sql.Open("postgres", dbURL)
+		if retryErr != nil {
+			return xerrors.Errorf("open postgres: %w", retryErr)
 		}
 		defer db.Close()
 
-		err = db.Ping()
-		if err != nil {
-			return xerrors.Errorf("ping postgres: %w", err)
+		retryErr = db.Ping()
+		if retryErr != nil {
+			return xerrors.Errorf("ping postgres: %w", retryErr)
 		}
-		err = database.MigrateUp(db)
-		if err != nil {
-			return xerrors.Errorf("migrate db: %w", err)
+		retryErr = database.MigrateUp(db)
+		if retryErr != nil {
+			return xerrors.Errorf("migrate db: %w", retryErr)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return "", nil, err
+		return "", nil, retryErr
 	}
 	return dbURL, func() {
 		_ = pool.Purge(resource)
