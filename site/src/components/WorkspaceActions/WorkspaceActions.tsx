@@ -1,6 +1,7 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
+import { StayPrimaryLandscape } from "@material-ui/icons"
 import { FC, useEffect, useMemo, useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
@@ -68,7 +69,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     // if an update is available, we make the update button the primary CTA
     // and move the former primary CTA to the secondary actions list
     const updatedActions = { ...WorkspaceStateActions[workspaceState] }
-    updatedActions.secondary.unshift(updatedActions.primary)
+    updatedActions.secondary = [updatedActions.primary, ...updatedActions.secondary]
     updatedActions.primary = ButtonTypesEnum.update
 
     return updatedActions
