@@ -70,7 +70,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -305,7 +305,7 @@ func (api *API) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request
 // workspaceAgentTurn proxies a WebSocket connection to the TURN server.
 func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -370,7 +370,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -484,7 +484,7 @@ func (api *API) postWorkspaceAgentWireguardPeer(rw http.ResponseWriter, r *http.
 		workspace      = httpmw.WorkspaceParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionUpdate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
