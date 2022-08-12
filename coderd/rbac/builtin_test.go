@@ -396,10 +396,13 @@ func TestListRoles(t *testing.T) {
 
 	// If this test is ever failing, just update the list to the roles
 	// expected from the builtin set.
+	// Always use constant strings, as if the names change, we need to write
+	// a SQL migration to change the name on the backend.
 	require.ElementsMatch(t, []string{
 		"admin",
 		"member",
 		"auditor",
+		"template-manager",
 	},
 		siteRoleNames)
 
