@@ -690,13 +690,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.LoginType != database.LoginTypePassword {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
-		})
-		return
-	}
-
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
@@ -710,6 +703,13 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// users are registered or not. Attackers still could with a timing attack.
 		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Incorrect email or password.",
+		})
+		return
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
 		return
 	}

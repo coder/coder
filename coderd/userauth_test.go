@@ -201,8 +201,10 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		// Creates the first user with login_type 'password'.
 		_ = coderdtest.CreateFirstUser(t, client)
+		// Attempting to login should give us a 403 since the user
+		// already has a login_type of 'password'.
 		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()

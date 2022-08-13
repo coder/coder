@@ -1740,6 +1740,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		Username:       arg.Username,
 		Status:         database.UserStatusActive,
 		RBACRoles:      arg.RBACRoles,
+		LoginType:      arg.LoginType,
 	}
 	q.users = append(q.users, user)
 	return user, nil
