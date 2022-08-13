@@ -18,5 +18,6 @@ ALTER TABLE
   api_keys
 ADD COLUMN oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL;
 
+ALTER TABLE users DROP COLUMN login_type;
 
 COMMIT;
