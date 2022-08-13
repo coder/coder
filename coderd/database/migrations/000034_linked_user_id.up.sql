@@ -37,7 +37,7 @@ SELECT
 FROM 
 	( 
 		SELECT 
-			row_number() OVER (partition by user_id, login_type ORDER BY updated_at DESC) AS x, 
+			row_number() OVER (partition by user_id, login_type ORDER BY last_used DESC) AS x, 
 			api_keys.* FROM api_keys
 	) as keys
  WHERE x=1 AND keys.login_type != 'password';
@@ -63,7 +63,12 @@ SET
       user_links
     WHERE
       user_links.user_id = users.id
+    ORDER BY oauth_expiry DESC
     LIMIT 1
-  );
+  )
+FROM
+	user_links
+WHERE
+	user_links.user_id = users.id;
 
 COMMIT;
