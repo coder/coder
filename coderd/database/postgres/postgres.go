@@ -123,27 +123,35 @@ func Open() (string, func(), error) {
 	}
 
 	pool.MaxWait = 120 * time.Second
+
+	var (
+		db       *sql.DB
+		retryErr error
+	)
 	err = pool.Retry(func() error {
-		db, err := sql.Open("postgres", dbURL)
+		db, err = sql.Open("postgres", dbURL)
 		if err != nil {
-			return xerrors.Errorf("open postgres: %w", err)
+			retryErr = xerrors.Errorf("open postgres: %w", err)
+			return retryErr
 		}
 		defer db.Close()
 
 		err = db.Ping()
 		if err != nil {
-			return xerrors.Errorf("ping postgres: %w", err)
+			retryErr = xerrors.Errorf("ping postgres: %w", err)
+			return retryErr
 		}
-		err = database.MigrateUp(db)
-		if err != nil {
-			return xerrors.Errorf("migrate db: %w", err)
-		}
-
 		return nil
 	})
 	if err != nil {
-		return "", nil, err
+		return "", nil, retryErr
 	}
+
+	err = database.MigrateUp(db)
+	if err != nil {
+		return "", nil, xerrors.Errorf("migrate db: %w", err)
+	}
+
 	return dbURL, func() {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)
