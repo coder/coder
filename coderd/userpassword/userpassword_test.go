@@ -1,4 +1,4 @@
-// This test runs slowly on MacOS instance, and really
+// This test runs slowly on macOS instance, and really
 // only needs to run on Linux anyways.
 //go:build linux
 

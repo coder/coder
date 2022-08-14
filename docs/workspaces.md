@@ -51,7 +51,7 @@ coder update <workspace-name>
 
 ## Logging
 
-Coder stores MacOS and Linux logs at the following locations:
+Coder stores macOS and Linux logs at the following locations:
 
 | Service          | Location                        |
 | ---------------- | ------------------------------- |

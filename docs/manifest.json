@@ -29,6 +29,16 @@
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
           "path": "./install/auth.md"
+        },
+        {
+          "title": "Configuration",
+          "description": "Learn how to configure Coder",
+          "path": "./install/configure.md"
+        },
+        {
+          "title": "Upgrading",
+          "description": "Learn how to upgrade Coder.",
+          "path": "./install/upgrade.md"
         }
       ]
     },
@@ -43,12 +53,6 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
-        },
-        {
-          "title": "Generic",
-          "description": "Setup Coder on anything",
-          "icon_path": "./images/icons/generic.svg",
-          "path": "./quickstart/generic.md"
         }
       ]
     },
@@ -61,7 +65,14 @@
         {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
-          "path": "./templates/authentication.md"
+          "path": "./templates/authentication.md",
+          "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Resource Metadata",
+          "description": "Learn how to expose resource data to users",
+          "path": "./templates/resource-metadata.md",
+          "icon_path": "./images/icons/table-rows.svg"
         }
       ]
     },
@@ -75,24 +86,30 @@
       "title": "IDEs",
       "description": "Learn how to use your IDE of choice with Coder",
       "path": "./ides.md",
-      "icon_path": "./images/icons/terminal.svg",
+      "icon_path": "./images/icons/code.svg",
       "children": [
         {
-          "title": "Configuring Web IDEs",
+          "title": "Web IDEs",
           "description": "Learn how to configure web IDEs in your templates",
-          "path": "./ides/configuring-web-ides.md"
+          "path": "./ides/web-ides.md"
         },
         {
-          "title": "Configuring JetBrains Gateway",
+          "title": "JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
-          "path": "./ides/configuring-gateway.md"
+          "path": "./ides/gateway.md"
         },
         {
-          "title": "Configuring Emacs",
+          "title": "Emacs",
           "description": "Learn how to configure Emacs with TRAMP in Coder",
-          "path": "./ides/configuring-emacs-tramp.md"
+          "path": "./ides/emacs-tramp.md"
         }
       ]
+    },
+    {
+      "title": "Port Forwarding",
+      "description": "Learn how to forward ports in Coder",
+      "path": "./port-forwarding.md",
+      "icon_path": "./images/icons/port-forward.svg"
     },
     {
       "title": "Dotfiles",
@@ -107,7 +124,7 @@
       "path": "./secrets.md"
     },
     {
-      "title": "User Management",
+      "title": "Users",
       "description": "Learn about user roles available in Coder and how to create and manage users",
       "icon_path": "./images/icons/users.svg",
       "path": "./users.md"

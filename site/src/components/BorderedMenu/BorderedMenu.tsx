@@ -36,7 +36,7 @@ const useStyles = makeStyles((theme) => ({
   paperRoot: {
     width: "292px",
     border: `2px solid ${theme.palette.secondary.dark}`,
-    borderRadius: 7,
+    borderRadius: theme.shape.borderRadius,
     boxShadow: `4px 4px 0px ${fade(theme.palette.secondary.dark, 0.2)}`,
   },
 }))

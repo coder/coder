@@ -220,13 +220,17 @@ func TestInstanceIDAssociation(t *testing.T) {
 		ResourceType:  "aws_instance",
 		InstanceIDKey: "id",
 	}, {
+		Auth:          "aws-instance-identity",
+		ResourceType:  "aws_spot_instance_request",
+		InstanceIDKey: "spot_instance_id",
+	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_linux_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_windows_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}} {
 		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {

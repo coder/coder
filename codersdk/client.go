@@ -186,7 +186,12 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Friendly() string {
-	return fmt.Sprintf("%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
+	for _, err := range e.Validations {
+		_, _ = fmt.Fprintf(&sb, "\n- %s: %s", err.Field, err.Detail)
+	}
+	return sb.String()
 }
 
 func (e *Error) Error() string {

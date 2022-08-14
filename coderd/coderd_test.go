@@ -53,7 +53,11 @@ func TestMain(m *testing.M) {
 func TestBuildInfo(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	buildInfo, err := client.BuildInfo(context.Background())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	buildInfo, err := client.BuildInfo(ctx)
 	require.NoError(t, err)
 	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
@@ -62,10 +66,10 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
-	var (
-		ctx        = context.Background()
-		authorizer = &fakeAuthorizer{}
-	)
+	authorizer := &recordingAuthorizer{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	// This function was taken from coderdtest.newWithAPI. It is intentionally
 	// copied to avoid exposing the API to other tests in coderd. Tests should
@@ -87,7 +91,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			require.NoError(t, err)
 			db = database.New(sqlDB)
 
-			pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+			pubsub, err = database.NewPubsub(ctx, sqlDB, connectionURL)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_ = pubsub.Close()
@@ -97,8 +101,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		tickerCh := make(chan time.Time)
 		t.Cleanup(func() { close(tickerCh) })
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
+		ctx, cancel := context.WithCancel(ctx) // Shadowed to avoid mixing contexts.
+		defer t.Cleanup(cancel)                // Defer to ensure cancelFunc is executed first.
 
 		lifecycleExecutor := executor.New(
 			ctx,
@@ -218,7 +222,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
 	// Some quick reused objects
-	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String())
+	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(workspace.OwnerID.String())
+	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(organization.ID).WithOwner(workspace.OwnerID.String())
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -329,12 +334,12 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
-			AssertAction: rbac.ActionUpdate,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
-			AssertAction: rbac.ActionUpdate,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaces/": {
 			StatusCode:   http.StatusOK,
@@ -344,7 +349,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/templates": {
 			AssertAction: rbac.ActionCreate,
@@ -352,99 +357,99 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		},
 		"DELETE:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionDelete,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
 		"GET:/api/v2/files/{fileHash}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash),
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()),
 		},
 		"GET:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"PATCH:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/schema": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/templateversions/{templateversion}/dry-run": {
 			// The first check is to read the template
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/cancel": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(version.OrganizationID),
 		},
 		"GET:/api/v2/provisionerdaemons": {
 			StatusCode:   http.StatusOK,
-			AssertObject: rbac.ResourceProvisionerDaemon.WithID(provisionerds[0].ID.String()),
+			AssertObject: rbac.ResourceProvisionerDaemon,
 		},
 
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"GET:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate,
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/workspaces": {
 			AssertAction: rbac.ActionCreate,
 			// No ID when creating
-			AssertObject: workspaceRBACObj.WithID(""),
+			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaces/{workspace}/watch": {
 			AssertAction: rbac.ActionRead,
@@ -515,7 +520,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{scope}", string(templateParam.Scope))
 			route = strings.ReplaceAll(route, "{id}", templateParam.ScopeID.String())
 
-			resp, err := client.Request(context.Background(), method, route, nil)
+			resp, err := client.Request(ctx, method, route, nil)
 			require.NoError(t, err, "do req")
 			body, _ := io.ReadAll(resp.Body)
 			t.Logf("Response Body: %q", string(body))
@@ -544,9 +549,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 					if routeAssertions.AssertObject.OrgID != "" {
 						assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
 					}
-					if routeAssertions.AssertObject.ResourceID != "" {
-						assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
-					}
 				}
 			} else {
 				assert.Nil(t, authorizer.Called, "authorize not expected")
@@ -564,23 +566,43 @@ type authCall struct {
 	Object    rbac.Object
 }
 
-type fakeAuthorizer struct {
+type recordingAuthorizer struct {
 	Called       *authCall
 	AlwaysReturn error
 }
 
-func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
-	f.Called = &authCall{
+func (r *recordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
 		Action:    action,
 		Object:    object,
 	}
-	return f.AlwaysReturn
+	return r.AlwaysReturn
 }
 
-func (f *fakeAuthorizer) reset() {
-	f.Called = nil
+func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+	return &fakePreparedAuthorizer{
+		Original:  r,
+		SubjectID: subjectID,
+		Roles:     roles,
+		Action:    action,
+	}, nil
+}
+
+func (r *recordingAuthorizer) reset() {
+	r.Called = nil
+}
+
+type fakePreparedAuthorizer struct {
+	Original  *recordingAuthorizer
+	SubjectID string
+	Roles     []string
+	Action    rbac.Action
+}
+
+func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Action, object)
 }
 
 func TestDERP(t *testing.T) {

@@ -41,6 +41,12 @@ replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.202204091
 
 replace golang.zx2c4.com/wireguard/tun/netstack => github.com/coder/wireguard-go/tun/netstack v0.0.0-20220803190501-a3df633de59c
 
+// https://github.com/pion/udp/pull/73
+replace github.com/pion/udp => github.com/mafredri/udp v0.1.2-0.20220805105907-b2872e92e98d
+
+// https://github.com/hashicorp/hc-install/pull/68
+replace github.com/hashicorp/hc-install => github.com/mafredri/hc-install v0.4.1-0.20220727132613-e91868e28445
+
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.7.0
@@ -163,7 +169,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v0.14.0 // indirect
 	github.com/bep/golibsass v1.1.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/bubbles v0.10.3 // indirect
 	github.com/charmbracelet/bubbletea v0.20.0 // indirect

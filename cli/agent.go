@@ -73,6 +73,7 @@ func workspaceAgent() *cobra.Command {
 				return nil
 			}
 
+			logger.Info(cmd.Context(), "starting agent", slog.F("url", coderURL), slog.F("auth", auth))
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -138,6 +139,7 @@ func workspaceAgent() *cobra.Command {
 			}
 
 			if exchangeToken != nil {
+				logger.Info(cmd.Context(), "exchanging identity token")
 				// Agent's can start before resources are returned from the provisioner
 				// daemon. If there are many resources being provisioned, this time
 				// could be significant. This is arbitrarily set at an hour to prevent

@@ -6482,10 +6482,10 @@ eslint-plugin-import@2.26.0:
     resolve "^1.22.0"
     tsconfig-paths "^3.14.1"
 
-eslint-plugin-jest@26.6.0:
-  version "26.6.0"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-jest/-/eslint-plugin-jest-26.6.0.tgz#546804fa42da75d7d58d4d3b278d5186abd3f6c0"
-  integrity sha512-f8n46/97ZFdU4KqeQYqO8AEVGIhHWvkpgNBWHH3jrM28/y8llnbf3IjfIKv6p2pZIMinK1PCqbbROxs9Eud02Q==
+eslint-plugin-jest@26.7.0:
+  version "26.7.0"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-jest/-/eslint-plugin-jest-26.7.0.tgz#41d405ac9143e1284a3401282db47ed459436778"
+  integrity sha512-/YNitdfG3o3cC6juZziAdkk6nfJt01jXVfj4AgaYVLs7bupHzRDL5K+eipdzhDXtQsiqaX1TzfwSuRlEgeln1A==
   dependencies:
     "@typescript-eslint/utils" "^5.10.0"
 
@@ -13112,11 +13112,6 @@ svgo@^2.7.0:
     csso "^4.2.0"
     picocolors "^1.0.0"
     stable "^0.1.8"
-
-swr@1.2.2:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/swr/-/swr-1.2.2.tgz#6cae09928d30593a7980d80f85823e57468fac5d"
-  integrity sha512-ky0BskS/V47GpW8d6RU7CPsr6J8cr7mQD6+do5eky3bM0IyJaoi3vO8UhvrzJaObuTlGhPl2szodeB2dUd76Xw==
 
 symbol-tree@^3.2.4:
   version "3.2.4"

@@ -13,23 +13,27 @@ import (
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
-	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
-	// 	role of the user.
-
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
 	roles := rbac.SiteRoles()
-	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
+	assignable := make([]rbac.Role, 0)
+	for _, role := range roles {
+		if rbac.CanAssignRole(actorRoles.Roles, role.Name) {
+			assignable = append(assignable, role)
+		}
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertRoles(assignable))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
-	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
-	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
@@ -37,13 +41,20 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
+	assignable := make([]rbac.Role, 0)
+	for _, role := range roles {
+		if rbac.CanAssignRole(actorRoles.Roles, role.Name) {
+			assignable = append(assignable, role)
+		}
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertRoles(assignable))
 }
 
 func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -74,10 +85,9 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		}
 		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.Action(v.Action),
 			rbac.Object{
-				ResourceID: v.Object.ResourceID,
-				Owner:      v.Object.OwnerID,
-				OrgID:      v.Object.OrganizationID,
-				Type:       v.Object.ResourceType,
+				Owner: v.Object.OwnerID,
+				OrgID: v.Object.OrganizationID,
+				Type:  v.Object.ResourceType,
 			})
 		response[k] = err == nil
 	}

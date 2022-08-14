@@ -69,7 +69,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -293,6 +293,19 @@ func (api *API) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request
 	httpapi.Write(rw, http.StatusOK, api.ICEServers)
 }
 
+// userWorkspaceAgentTurn is a user connecting to a remote workspace agent
+// through turn.
+func (api *API) userWorkspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Passed authorization
+	api.workspaceAgentTurn(rw, r)
+}
+
 // workspaceAgentTurn proxies a WebSocket connection to the TURN server.
 func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
@@ -355,7 +368,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

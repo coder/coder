@@ -44,7 +44,7 @@ export const Language = {
   emptyDescription: (
     <>
       To create a workspace you need to have a template. You can{" "}
-      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+      <Link target="_blank" href="https://coder.com/docs/coder-oss/latest/templates">
         create one from scratch
       </Link>{" "}
       or use a built-in template using the following Coder CLI command:
@@ -63,7 +63,7 @@ const TemplateHelpTooltip: React.FC = () => {
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#manage-templates">
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/templates#manage-templates">
           {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
@@ -91,7 +91,23 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
           </Stack>
         </PageHeaderTitle>
         {props.templates && props.templates.length > 0 && (
-          <PageHeaderSubtitle>Choose a template to create a new workspace.</PageHeaderSubtitle>
+          <PageHeaderSubtitle>
+            Choose a template to create a new workspace
+            {props.canCreateTemplate ? (
+              <>
+                , or{" "}
+                <Link
+                  href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
+                  target="_blank"
+                >
+                  manage templates
+                </Link>{" "}
+                from the CLI.
+              </>
+            ) : (
+              "."
+            )}
+          </PageHeaderSubtitle>
         )}
       </PageHeader>
 

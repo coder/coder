@@ -50,7 +50,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
-	daemons = AuthorizeFilter(api, r, rbac.ActionRead, daemons)
+	daemons, err = AuthorizeFilter(api, r, rbac.ActionRead, daemons)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner daemons.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	httpapi.Write(rw, http.StatusOK, daemons)
 }

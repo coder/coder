@@ -1,4 +1,4 @@
-# Configuring JetBrains Gateway
+# JetBrains Gateway
 
 The following walkthrough details how to connect JetBrains Gateway to
 Coder.

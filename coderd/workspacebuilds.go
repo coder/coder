@@ -25,8 +25,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -240,8 +239,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -304,8 +302,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !api.Authorize(r, action, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, action, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -520,8 +517,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -575,8 +571,7 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -602,8 +597,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceWorkspace.
-		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

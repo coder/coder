@@ -1889,7 +1889,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 
 const getTemplates = `-- name: GetTemplates :many
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by FROM templates
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
@@ -1954,7 +1954,7 @@ WHERE
 			id = ANY($4)
 		ELSE true
 	END
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
@@ -3469,6 +3469,58 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.Reason,
 	)
 	return i, err
+}
+
+const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason
+FROM (
+    SELECT
+        workspace_id, MAX(build_number) as max_build_number
+    FROM
+        workspace_builds
+    GROUP BY
+        workspace_id
+) m
+JOIN
+    workspace_builds wb
+ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuild
+	for rows.Next() {
+		var i WorkspaceBuild
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.BuildNumber,
+			&i.Transition,
+			&i.InitiatorID,
+			&i.ProvisionerState,
+			&i.JobID,
+			&i.Deadline,
+			&i.Reason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many

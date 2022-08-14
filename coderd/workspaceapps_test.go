@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
@@ -94,7 +95,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		location, err := resp.Location()
@@ -105,7 +110,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	t.Run("RedirectsWithSlash", func(t *testing.T) {
 		t.Parallel()
-		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -113,7 +122,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	t.Run("RedirectsWithQuery", func(t *testing.T) {
 		t.Parallel()
-		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example/", nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -124,7 +137,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	t.Run("Proxies", func(t *testing.T) {
 		t.Parallel()
-		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?query=true", nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?query=true", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -135,7 +152,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	t.Run("ProxyError", func(t *testing.T) {
 		t.Parallel()
-		resp, err := client.Request(context.Background(), http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
