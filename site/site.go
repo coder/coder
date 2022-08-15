@@ -346,7 +346,7 @@ func secureHeaders(next http.Handler) http.Handler {
 	return secure.New(secure.Options{
 		PermissionsPolicy: permissions,
 
-		// Prevent the browser from sending Referer header with requests
+		// Prevent the browser from sending Referrer header with requests
 		ReferrerPolicy: "no-referrer",
 	}).Handler(cspHeaders(next))
 }
