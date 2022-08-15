@@ -3,7 +3,7 @@
 # This script builds multiple Go binaries for Coder with the given OS and
 # architecture combinations.
 #
-# Usage: ./build_go_matrix.sh [--version 1.2.3-devel+abcdef] [--output dist/] [--slim] [--sign-darwin] [--archive] [--package-linux] os1:arch1,arch2 os2:arch1 os1:arch3
+# Usage: ./build_go_matrix.sh [--version 1.2.3-devel+abcdef] [--output dist/] [--slim] [--sign-darwin] [--archive] [--package-linux] [--agpl] os1:arch1,arch2 os2:arch1 os1:arch3
 #
 # If no OS:arch combinations are provided, nothing will happen and no error will
 # be returned. Slim builds are disabled by default. If no version is specified,
@@ -30,6 +30,9 @@
 #
 # If the --package-linux parameter is specified, all linux binaries will be
 # packaged using ./package.sh. Requires the nfpm binary.
+#
+# If the --agpl parameter is specified, builds only the AGPL-licensed code (no
+# Coder enterprise features).
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -41,8 +44,9 @@ slim=0
 sign_darwin=0
 archive=0
 package_linux=0
+agpl=0
 
-args="$(getopt -o "" -l version:,output:,slim,sign-darwin,archive,package-linux -- "$@")"
+args="$(getopt -o "" -l version:,output:,slim,sign-darwin,archive,package-linux,agpl -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -71,6 +75,10 @@ while true; do
 		;;
 	--package-linux)
 		package_linux=1
+		shift
+		;;
+	--agpl)
+		agpl=1
 		shift
 		;;
 	--)
@@ -166,6 +174,9 @@ if [[ "$slim" == 1 ]]; then
 fi
 if [[ "$sign_darwin" == 1 ]]; then
 	build_args+=(--sign-darwin)
+fi
+if [[ "$agpl" == 1 ]]; then
+	build_args+=(--agpl)
 fi
 
 # Build each spec.
