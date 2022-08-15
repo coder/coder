@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/coder/coder/codersdk"
 )
+
+var featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 
 func features() *cobra.Command {
 	cmd := &cobra.Command{
@@ -35,6 +38,10 @@ func featuresList() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			err := cliui.ValidateColumns(featureColumns, columns)
+			if err != nil {
+				return err
+			}
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
@@ -64,8 +71,9 @@ func featuresList() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "entitlement", "enabled", "limit", "actual"},
-		"Specify a column to filter in the table. Available columns are: name, entitlement, enabled, limit, actual.")
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", featureColumns,
+		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s",
+			strings.Join(featureColumns, ", ")))
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format. Available formats are: table, json.")
 	return cmd
 }
@@ -75,7 +83,10 @@ func featuresList() *cobra.Command {
 // columns to display
 func displayFeatures(filterColumns []string, features map[string]codersdk.Feature) string {
 	tableWriter := cliui.Table()
-	header := table.Row{"name", "entitlement", "enabled", "limit", "actual"}
+	header := table.Row{}
+	for _, h := range featureColumns {
+		header = append(header, h)
+	}
 	tableWriter.AppendHeader(header)
 	tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, filterColumns))
 	tableWriter.SortBy([]table.SortBy{{

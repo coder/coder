@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -40,4 +41,20 @@ func FilterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 		})
 	}
 	return columnConfigs
+}
+
+func ValidateColumns(all, given []string) error {
+	for _, col := range given {
+		found := false
+		for _, c := range all {
+			if strings.EqualFold(strings.ReplaceAll(col, "_", " "), c) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("unknown column: %s", col)
+		}
+	}
+	return nil
 }
