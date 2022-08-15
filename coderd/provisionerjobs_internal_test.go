@@ -11,17 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
