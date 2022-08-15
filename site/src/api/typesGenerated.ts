@@ -129,6 +129,21 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+// From codersdk/features.go
+export interface Entitlements {
+  readonly features: Record<string, Feature>
+  readonly warnings: string[]
+  readonly has_license: boolean
+}
+
+// From codersdk/features.go
+export interface Feature {
+  readonly entitlement: Entitlement
+  readonly enabled: boolean
+  readonly limit?: number
+  readonly actual?: number
+}
+
 // From codersdk/users.go
 export interface GenerateAPIKeyResponse {
   readonly key: string
@@ -529,6 +544,9 @@ export interface WorkspaceResourceMetadata {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
+
+// From codersdk/features.go
+export type Entitlement = "entitled" | "grace_period" | "not_entitled"
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
