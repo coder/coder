@@ -251,8 +251,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceRoleAssignment,
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {admin},
-				false: {orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin, userAdmin},
+				true:  {admin, userAdmin},
+				false: {orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
 			},
 		},
 		{
@@ -305,8 +305,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceOrganizationMember.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {admin, orgAdmin},
-				false: {orgMemberMe, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+				true:  {admin, orgAdmin, userAdmin},
+				false: {orgMemberMe, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
 			},
 		},
 		{
@@ -314,8 +314,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceOrganizationMember.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {admin, orgAdmin, orgMemberMe},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+				true:  {admin, orgAdmin, orgMemberMe, userAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
 			},
 		},
 	}
