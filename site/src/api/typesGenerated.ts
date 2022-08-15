@@ -137,6 +137,9 @@ export interface Entitlements {
 }
 
 // From codersdk/features.go
+export interface EntitlementsRequest {}
+
+// From codersdk/features.go
 export interface Feature {
   readonly entitlement: Entitlement
   readonly enabled: boolean
