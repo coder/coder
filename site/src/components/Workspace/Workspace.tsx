@@ -67,11 +67,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   return (
     <Margins>
       <Stack spacing={1}>
-        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] && (
+        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
           <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+        ) : (
+          <></>
         )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] && (
+        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
           <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+        ) : (
+          <></>
         )}
       </Stack>
       <PageHeader

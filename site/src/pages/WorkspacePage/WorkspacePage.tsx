@@ -62,8 +62,8 @@ export const WorkspacePage: React.FC = () => {
   if (workspaceState.matches("error")) {
     return (
       <div className={styles.error}>
-        {getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
-        {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
+        {getWorkspaceError ? <ErrorSummary error={getWorkspaceError} /> : <></>}
+        {checkPermissionsError ? <ErrorSummary error={checkPermissionsError} /> : <></>}
       </div>
     )
   } else if (!workspace) {

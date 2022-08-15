@@ -92,15 +92,19 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   if (props.hasTemplateErrors) {
     return (
       <Stack>
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] && (
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] ? (
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
           />
+        ) : (
+          <></>
         )}
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] && (
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
           />
+        ) : (
+          <></>
         )}
       </Stack>
     )
@@ -110,10 +114,12 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR] && (
+          {props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR] ? (
             <ErrorSummary
               error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
             />
+          ) : (
+            <></>
           )}
           <TextField
             disabled

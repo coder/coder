@@ -1,12 +1,12 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import React, { ReactNode } from "react"
 import { Stack } from "../Stack/Stack"
 
 interface StyleProps {
   highlight?: boolean
 }
 
-export const TableCellData: React.FC<React.ReactNode> = ({ children }) => {
+export const TableCellData: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <Stack spacing={0}>{children}</Stack>
 }
 

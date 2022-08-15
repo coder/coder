@@ -1,6 +1,6 @@
 import Popover, { PopoverProps } from "@material-ui/core/Popover"
 import { fade, makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 
 type BorderedMenuVariant = "admin-dropdown" | "user-dropdown"
 

@@ -221,7 +221,7 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
     <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
-          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
+          {submitScheduleError ? <ErrorSummary error={submitScheduleError} /> : <></>}
           <Section title={Language.startSection}>
             <FormControlLabel
               control={

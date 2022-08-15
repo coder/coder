@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { rest } from "msw"
+import { act } from "react-dom/test-utils"
 import { history, MockUser, render } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { Language as SetupLanguage } from "xServices/setup/setupXService"
@@ -28,7 +29,7 @@ const fillForm = async ({
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
   const submitButton = screen.getByRole("button", { name: PageViewLanguage.create })
-  submitButton.click()
+  act(() => submitButton.click())
 }
 
 describe("Setup Page", () => {
