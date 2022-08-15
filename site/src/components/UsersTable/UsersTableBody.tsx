@@ -106,17 +106,17 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
                     // Return either suspend or activate depending on status
                     (user.status === "active"
                       ? [
-                        {
-                          label: Language.suspendMenuItem,
-                          onClick: onSuspendUser,
-                        },
-                      ]
+                          {
+                            label: Language.suspendMenuItem,
+                            onClick: onSuspendUser,
+                          },
+                        ]
                       : [
-                        {
-                          label: Language.activateMenuItem,
-                          onClick: onActivateUser,
-                        },
-                      ]
+                          {
+                            label: Language.activateMenuItem,
+                            onClick: onActivateUser,
+                          },
+                        ]
                     ).concat({
                       label: Language.resetPasswordMenuItem,
                       onClick: onResetUserPassword,

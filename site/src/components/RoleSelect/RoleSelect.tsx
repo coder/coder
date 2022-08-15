@@ -3,7 +3,7 @@ import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import { FC } from "react"
-import { Role, AssignableRoles } from "../../api/typesGenerated"
+import { AssignableRoles, Role } from "../../api/typesGenerated"
 
 export const Language = {
   label: "Roles",
