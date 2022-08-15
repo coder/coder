@@ -23,7 +23,9 @@ func TestCoordinator(t *testing.T) {
 		t.Parallel()
 		coordinator := tailnet.NewCoordinator()
 		client, server := pipeWS(t)
-		sendNode, errChan := tailnet.ServeCoordinator(context.Background(), client, func(node []*tailnet.Node) {})
+		sendNode, errChan := tailnet.ServeCoordinator(context.Background(), client, func(node []*tailnet.Node) error {
+			return nil
+		})
 		id := uuid.New()
 		closeChan := make(chan struct{})
 		go func() {
@@ -45,7 +47,9 @@ func TestCoordinator(t *testing.T) {
 		t.Parallel()
 		coordinator := tailnet.NewCoordinator()
 		client, server := pipeWS(t)
-		sendNode, errChan := tailnet.ServeCoordinator(context.Background(), client, func(node []*tailnet.Node) {})
+		sendNode, errChan := tailnet.ServeCoordinator(context.Background(), client, func(node []*tailnet.Node) error {
+			return nil
+		})
 		id := uuid.New()
 		closeChan := make(chan struct{})
 		go func() {
@@ -70,8 +74,9 @@ func TestCoordinator(t *testing.T) {
 		agentWS, agentServerWS := pipeWS(t)
 		defer agentWS.Close(websocket.StatusNormalClosure, "")
 		agentNodeChan := make(chan []*tailnet.Node)
-		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(context.Background(), agentWS, func(nodes []*tailnet.Node) {
+		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(context.Background(), agentWS, func(nodes []*tailnet.Node) error {
 			agentNodeChan <- nodes
+			return nil
 		})
 		agentID := uuid.New()
 		closeAgentChan := make(chan struct{})
@@ -89,8 +94,9 @@ func TestCoordinator(t *testing.T) {
 		defer clientWS.Close(websocket.StatusNormalClosure, "")
 		defer clientServerWS.Close(websocket.StatusNormalClosure, "")
 		clientNodeChan := make(chan []*tailnet.Node)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(context.Background(), clientWS, func(nodes []*tailnet.Node) {
+		sendClientNode, clientErrChan := tailnet.ServeCoordinator(context.Background(), clientWS, func(nodes []*tailnet.Node) error {
 			clientNodeChan <- nodes
+			return nil
 		})
 		clientID := uuid.New()
 		closeClientChan := make(chan struct{})
@@ -120,8 +126,9 @@ func TestCoordinator(t *testing.T) {
 		agentWS, agentServerWS = pipeWS(t)
 		defer agentWS.Close(websocket.StatusNormalClosure, "")
 		agentNodeChan = make(chan []*tailnet.Node)
-		_, agentErrChan = tailnet.ServeCoordinator(context.Background(), agentWS, func(nodes []*tailnet.Node) {
+		_, agentErrChan = tailnet.ServeCoordinator(context.Background(), agentWS, func(nodes []*tailnet.Node) error {
 			agentNodeChan <- nodes
+			return nil
 		})
 		closeAgentChan = make(chan struct{})
 		go func() {

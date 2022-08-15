@@ -12,7 +12,7 @@ import (
 )
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
-func ServeCoordinator(ctx context.Context, socket *websocket.Conn, updateNodes func(node []*Node)) (func(node *Node), <-chan error) {
+func ServeCoordinator(ctx context.Context, socket *websocket.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
 	errChan := make(chan error, 1)
 	go func() {
 		for {
@@ -22,12 +22,19 @@ func ServeCoordinator(ctx context.Context, socket *websocket.Conn, updateNodes f
 				errChan <- xerrors.Errorf("read: %w", err)
 				return
 			}
-			updateNodes(nodes)
+			err = updateNodes(nodes)
+			if err != nil {
+				errChan <- xerrors.Errorf("update nodes: %w", err)
+			}
 		}
 	}()
 
 	return func(node *Node) {
 		err := wsjson.Write(ctx, socket, node)
+		if errors.Is(err, context.Canceled) || errors.As(err, &websocket.CloseError{}) {
+			errChan <- nil
+			return
+		}
 		if err != nil {
 			errChan <- xerrors.Errorf("write: %w", err)
 		}

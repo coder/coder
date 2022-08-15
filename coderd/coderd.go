@@ -72,7 +72,8 @@ type Options struct {
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 
-	DERPMap *tailcfg.DERPMap
+	ConnCoordinator *tailnet.Coordinator
+	DERPMap         *tailcfg.DERPMap
 }
 
 // New constructs a Coder API handler.
@@ -98,6 +99,9 @@ func New(options *Options) *API {
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
+	if options.ConnCoordinator == nil {
+		options.ConnCoordinator = tailnet.NewCoordinator()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -338,7 +342,7 @@ func New(options *Options) *API {
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
 				// Everything below this is Tailnet.
-				r.Get("/node", api.workspaceAgentNode)
+				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -355,7 +359,7 @@ func New(options *Options) *API {
 				r.Get("/derpmap", func(w http.ResponseWriter, r *http.Request) {
 					httpapi.Write(w, http.StatusOK, options.DERPMap)
 				})
-				r.Post("/node", api.postWorkspaceAgentNode)
+				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {

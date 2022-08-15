@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
-	"tailscale.com/types/key"
 )
 
 type WorkspaceAgentStatus string
@@ -54,11 +52,6 @@ type WorkspaceAgent struct {
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
 	Apps                 []WorkspaceApp       `json:"apps"`
-
-	// For internal routing only.
-	IPAddresses    []netip.Addr    `json:"ip_addresses"`
-	NodePublicKey  key.NodePublic  `json:"node_public_key"`
-	DiscoPublicKey key.DiscoPublic `json:"disco_public_key"`
 	// PreferredDERP represents the connected region.
 	PreferredDERP int `json:"preferred_derp"`
 	// Maps DERP region to MS latency.

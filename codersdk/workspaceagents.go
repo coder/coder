@@ -3,12 +3,14 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
@@ -29,6 +31,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/retry"
 )
 
 type GoogleInstanceIdentityToken struct {
@@ -49,6 +52,11 @@ type AzureInstanceIdentityToken struct {
 // has been exchanged for a session token.
 type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
+}
+
+type WorkspaceAgentConnectionRequest struct {
+	DERPMap   tailcfg.DERPMap `json:"derp_map"`
+	IPAddress netip.Addr      `json:"ip_address"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
@@ -303,7 +311,7 @@ func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker
 	return &workspaceAgentNodeBroker{conn}, nil
 }
 
-func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUID, logger slog.Logger) (agent.Conn, error) {
+func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (agent.Conn, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/derpmap", agentID), nil)
 	if err != nil {
 		return nil, err
@@ -319,7 +327,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUI
 	}
 
 	ip := tailnet.IP()
-	server, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:   &derpMap,
 		Logger:    logger,
@@ -327,40 +335,56 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, agentID uuid.UUI
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
-	server.SetNodeCallback(func(node *tailnet.Node) {
-		res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/node", agentID), node)
-		if err != nil {
-			logger.Error(ctx, "update node", slog.Error(err), slog.F("node", node))
-			return
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			logger.Error(ctx, "update node", slog.F("status_code", res.StatusCode), slog.F("node", node))
-		}
-	})
-	workspaceAgent, err := c.WorkspaceAgent(ctx, agentID)
+
+	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent: %w", err)
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	ipRanges := make([]netip.Prefix, 0, len(workspaceAgent.IPAddresses))
-	for _, address := range workspaceAgent.IPAddresses {
-		ipRanges = append(ipRanges, netip.PrefixFrom(address, 128))
-	}
-	agentNode := &tailnet.Node{
-		Key:           workspaceAgent.NodePublicKey,
-		DiscoKey:      workspaceAgent.DiscoPublicKey,
-		PreferredDERP: workspaceAgent.PreferredDERP,
-		Addresses:     ipRanges,
-		AllowedIPs:    ipRanges,
-	}
-	logger.Debug(ctx, "adding agent node", slog.F("node", agentNode))
-	err = server.UpdateNodes([]*tailnet.Node{agentNode})
+	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("update nodes: %w", err)
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
+	jar.SetCookies(coordinateURL, []*http.Cookie{{
+		Name:  SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	go func() {
+		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			logger.Debug(ctx, "connecting")
+			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+				HTTPClient: httpClient,
+				// Need to disable compression to avoid a data-race.
+				CompressionMode: websocket.CompressionDisabled,
+			})
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				continue
+			}
+			_ = res.Body.Close()
+			sendNode, errChan := tailnet.ServeCoordinator(ctx, ws, func(node []*tailnet.Node) error {
+				return conn.UpdateNodes(node)
+			})
+			conn.SetNodeCallback(sendNode)
+			logger.Debug(ctx, "serving coordinator")
+			err = <-errChan
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
+				continue
+			}
+		}
+	}()
 	return &agent.TailnetConn{
 		Target: workspaceAgent.IPAddresses[0],
-		Server: server,
+		Conn:   conn,
 	}, nil
 }
 

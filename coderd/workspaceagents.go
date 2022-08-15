@@ -507,10 +507,10 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Co
 	}, nil
 }
 
-// workspaceAgentNode accepts a WebSocket that reads node network updates.
+// workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
-func (api *API) workspaceAgentNode(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()

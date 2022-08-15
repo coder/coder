@@ -181,5 +181,5 @@ func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
 func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(rawPort)
-	return c.Server.DialContextTCP(ctx, netip.AddrPortFrom(c.Target, uint16(port)))
+	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.Target, uint16(port)))
 }
