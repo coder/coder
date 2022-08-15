@@ -120,7 +120,7 @@ func TestListRoles(t *testing.T) {
 	require.NoError(t, err, "create org")
 
 	const forbidden = "Forbidden"
-	siteRoles := convertRoles(rbac.RoleAdmin(), "auditor", "template-admin", "user-admin")
+	siteRoles := convertRoles(rbac.RoleOwner(), "auditor", "template-admin", "user-admin")
 	orgRoles := convertRoles(rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	testCases := []struct {
