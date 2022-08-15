@@ -15,7 +15,7 @@ WHERE
 UPDATE
     users
 SET
-    -- Replace 'owner' with 'admin
+    -- Replace 'owner' with 'admin'
     rbac_roles = array_replace(rbac_roles, 'owner', 'admin')
 WHERE
     -- Only on the owner
