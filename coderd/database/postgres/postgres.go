@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
@@ -123,27 +124,38 @@ func Open() (string, func(), error) {
 	}
 
 	pool.MaxWait = 120 * time.Second
+
+	// Record the error that occurs during the retry.
+	// The 'pool' pkg hardcodes a deadline error devoid
+	// of any useful context.
+	var retryErr error
 	err = pool.Retry(func() error {
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
-			return xerrors.Errorf("open postgres: %w", err)
+			retryErr = xerrors.Errorf("open postgres: %w", err)
+			return retryErr
 		}
 		defer db.Close()
 
 		err = db.Ping()
 		if err != nil {
-			return xerrors.Errorf("ping postgres: %w", err)
+			retryErr = xerrors.Errorf("ping postgres: %w", err)
+			return retryErr
 		}
+
 		err = database.MigrateUp(db)
 		if err != nil {
-			return xerrors.Errorf("migrate db: %w", err)
+			retryErr = xerrors.Errorf("migrate db: %w", err)
+			// Only try to migrate once.
+			return backoff.Permanent(retryErr)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return "", nil, err
+		return "", nil, retryErr
 	}
+
 	return dbURL, func() {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)
