@@ -123,7 +123,8 @@ var (
 				Name:        userAdmin,
 				DisplayName: "User Admin",
 				Site: permissions(map[Object][]Action{
-					ResourceUser: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceRoleAssignment: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceUser:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},

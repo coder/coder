@@ -311,8 +311,8 @@ export const updateUserPassword = async (
   updatePassword: TypesGen.UpdateUserPasswordRequest,
 ): Promise<undefined> => axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
-export const getSiteRoles = async (): Promise<Array<TypesGen.Role>> => {
-  const response = await axios.get<Array<TypesGen.Role>>(`/api/v2/users/roles`)
+export const getSiteRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
+  const response = await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`)
   return response.data
 }
 

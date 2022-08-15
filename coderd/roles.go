@@ -20,14 +20,21 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
-	assignable := make([]rbac.Role, 0)
+	assignable := make([]codersdk.AssignableRoles, 0)
 	for _, role := range roles {
-		if rbac.CanAssignRole(actorRoles.Roles, role.Name) {
-			assignable = append(assignable, role)
+		if role.DisplayName == "" {
+			continue
 		}
+		assignable = append(assignable, codersdk.AssignableRoles{
+			Role: codersdk.Role{
+				Name:        role.Name,
+				DisplayName: role.DisplayName,
+			},
+			Assignable: rbac.CanAssignRole(actorRoles.Roles, role.Name),
+		})
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertRoles(assignable))
+	httpapi.Write(rw, http.StatusOK, assignable)
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
@@ -41,14 +48,21 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	assignable := make([]rbac.Role, 0)
+	assignable := make([]codersdk.AssignableRoles, 0)
 	for _, role := range roles {
-		if rbac.CanAssignRole(actorRoles.Roles, role.Name) {
-			assignable = append(assignable, role)
+		if role.DisplayName == "" {
+			continue
 		}
+		assignable = append(assignable, codersdk.AssignableRoles{
+			Role: codersdk.Role{
+				Name:        role.Name,
+				DisplayName: role.DisplayName,
+			},
+			Assignable: rbac.CanAssignRole(actorRoles.Roles, role.Name),
+		})
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertRoles(assignable))
+	httpapi.Write(rw, http.StatusOK, assignable)
 }
 
 func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
