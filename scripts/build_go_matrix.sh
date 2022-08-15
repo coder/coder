@@ -219,6 +219,9 @@ for spec in "${specs[@]}"; do
 		if [[ "$sign_darwin" == 1 ]] && [[ "$spec_os" == "darwin" ]]; then
 			archive_args+=(--sign-darwin)
 		fi
+		if [[ "$agpl" == 1 ]]; then
+			archive_args+=(--agpl)
+		fi
 
 		log "--- Creating archive for $spec_os $spec_arch ($spec_output_archive)"
 		execrelative ./archive.sh \

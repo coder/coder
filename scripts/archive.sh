@@ -3,7 +3,7 @@
 # This script creates an archive containing the given binary renamed to
 # `coder(.exe)?`, as well as the README.md and LICENSE files from the repo root.
 #
-# Usage: ./archive.sh --format tar.gz [--output path/to/output.tar.gz] [--sign-darwin] path/to/binary
+# Usage: ./archive.sh --format tar.gz [--output path/to/output.tar.gz] [--sign-darwin] [--agpl] path/to/binary
 #
 # The --format parameter must be set, and must either be "zip" or "tar.gz".
 #
@@ -14,7 +14,9 @@
 # utility and then notarized using the `gon` utility, which may take a while.
 # $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
 # imported for this to work. Also, the input binary must already be signed with
-# the `codesign` tool.
+# the `codesign` tool.=
+#
+# If the --agpl parameter is specified, only includes AGPL license.
 #
 # The absolute output path is printed on success.
 
@@ -25,8 +27,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 format=""
 output_path=""
 sign_darwin=0
+agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l format:,output:,sign-darwin -- "$@")"
+args="$(getopt -o "" -l format:,output:,sign-darwin,agpl -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -50,7 +53,10 @@ while true; do
 		sign_darwin=1
 		shift
 		;;
-	--)
+	--agpl)
+		agpl=1
+		shift
+		;;	--)
 		shift
 		break
 		;;
@@ -101,7 +107,13 @@ cdroot
 temp_dir="$(mktemp -d)"
 ln -s "$input_file" "$temp_dir/$output_file"
 ln -s "$(realpath README.md)" "$temp_dir/"
+if [[ "$agpl" == 1 ]]; then
+ln -s "$(realpath LICENSE.agpl)" "$temp_dir/LICENSE"
+else
 ln -s "$(realpath LICENSE)" "$temp_dir/"
+ln -s "$(realpath LICENSE.agpl)" "$temp_dir/"
+ln -s "$(realpath LICENSE.enterprise)" "$temp_dir/"
+fi
 
 # Ensure parent output dir and non-existent output file.
 mkdir -p "$(dirname "$output_path")"
