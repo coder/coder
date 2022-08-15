@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
+import { act } from "react-dom/test-utils"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
@@ -29,10 +30,14 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Click on the "more" button to display the "Suspend" option
   const moreButton = within(firstUserRow).getByLabelText("more")
-  fireEvent.click(moreButton)
+  act(() => {
+    fireEvent.click(moreButton)
+  })
   const menu = screen.getByRole("menu")
   const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
-  fireEvent.click(suspendButton)
+  act(() => {
+    fireEvent.click(suspendButton)
+  })
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
@@ -45,7 +50,9 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Click on the "Confirm" button
   const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.suspendDialogAction)
-  fireEvent.click(confirmButton)
+  act(() => {
+    fireEvent.click(confirmButton)
+  })
 }
 
 const activateUser = async (setupActionSpies: () => void) => {
@@ -58,10 +65,14 @@ const activateUser = async (setupActionSpies: () => void) => {
 
   // Click on the "more" button to display the "Activate" option
   const moreButton = within(firstUserRow).getByLabelText("more")
-  fireEvent.click(moreButton)
+  act(() => {
+    fireEvent.click(moreButton)
+  })
   const menu = screen.getByRole("menu")
   const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
-  fireEvent.click(activateButton)
+  act(() => {
+    fireEvent.click(activateButton)
+  })
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
@@ -74,7 +85,9 @@ const activateUser = async (setupActionSpies: () => void) => {
 
   // Click on the "Confirm" button
   const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.activateDialogAction)
-  fireEvent.click(confirmButton)
+  act(() => {
+    fireEvent.click(confirmButton)
+  })
 }
 
 const resetUserPassword = async (setupActionSpies: () => void) => {
@@ -87,10 +100,14 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
 
   // Click on the "more" button to display the "Suspend" option
   const moreButton = within(firstUserRow).getByLabelText("more")
-  fireEvent.click(moreButton)
+  act(() => {
+    fireEvent.click(moreButton)
+  })
   const menu = screen.getByRole("menu")
   const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
-  fireEvent.click(resetPasswordButton)
+  act(() => {
+    fireEvent.click(resetPasswordButton)
+  })
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
@@ -105,7 +122,9 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   const confirmButton = within(confirmDialog).getByRole("button", {
     name: ResetPasswordDialogLanguage.confirmText,
   })
-  fireEvent.click(confirmButton)
+  act(() => {
+    fireEvent.click(confirmButton)
+  })
 }
 
 const updateUserRole = async (setupActionSpies: () => void, role: Role) => {

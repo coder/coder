@@ -21,6 +21,6 @@ describe("TemplatePage", () => {
     await screen.findByText(MockTemplate.name)
     screen.getByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
-    screen.getByText(`${MockTemplateVersion.id}`)
+    screen.getByText(`${MockTemplateVersion.name}`)
   })
 })

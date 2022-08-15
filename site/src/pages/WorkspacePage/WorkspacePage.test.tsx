@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -46,7 +46,9 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   // REMARK: exact here because the "Start" button and "START" label for
   //         workspace schedule could otherwise conflict.
   const button = await screen.findByText(label, { exact: true })
-  await waitFor(() => fireEvent.click(button))
+  act(() => {
+    fireEvent.click(button)
+  })
   expect(actionMock).toBeCalled()
 }
 
@@ -90,7 +92,9 @@ describe("Workspace Page", () => {
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = await screen.findByTestId("workspace-actions-button")
-    trigger.click()
+    act(() => {
+      trigger.click()
+    })
 
     const button = await screen.findByText(Language.delete)
     await waitFor(() => fireEvent.click(button))
