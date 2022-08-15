@@ -8,6 +8,7 @@ import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
+import { getWorkspaceStatus, WorkspaceStateEnum } from "util/workspace"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
@@ -41,6 +42,10 @@ export const Resources: FC<ResourcesProps> = ({
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
+
+  const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
+    workspace.latest_build,
+  )
 
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
@@ -102,9 +107,11 @@ export const Resources: FC<ResourcesProps> = ({
                         {agent.name}
                         <div className={styles.agentInfo}>
                           <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          <span style={{ color: agentStatus.color }} className={styles.status}>
-                            {agentStatus.status}
-                          </span>
+                          {WorkspaceStateEnum[workspaceStatus] !== "Stopped" && (
+                            <span style={{ color: agentStatus.color }} className={styles.status}>
+                              {agentStatus.status}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
