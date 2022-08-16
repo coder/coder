@@ -106,7 +106,7 @@ export const Resources: FC<ResourcesProps> = ({
                         {agent.name}
                         <div className={styles.agentInfo}>
                           <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          {WorkspaceStateEnum[workspaceStatus] !== "Stopped" && (
+                          {WorkspaceStateEnum[workspaceStatus] !== WorkspaceStateEnum["stopped"] && (
                             <span style={{ color: agentStatus.color }} className={styles.status}>
                               {agentStatus.status}
                             </span>
