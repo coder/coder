@@ -447,7 +447,7 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	req, err := http.NewRequest("GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:  "oauth_state",
+		Name:  codersdk.OAuth2StateKey,
 		Value: state,
 	})
 	res, err := client.HTTPClient.Do(req)
@@ -469,7 +469,7 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 	req, err := http.NewRequest("GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:  "oauth_state",
+		Name:  codersdk.OAuth2StateKey,
 		Value: state,
 	})
 	res, err := client.HTTPClient.Do(req)

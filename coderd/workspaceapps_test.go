@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -27,6 +28,8 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	require.NoError(t, err)
 	server := http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := r.Cookie(codersdk.SessionTokenKey)
+			assert.ErrorIs(t, err, http.ErrNoCookie)
 			w.WriteHeader(http.StatusOK)
 		}),
 	}
