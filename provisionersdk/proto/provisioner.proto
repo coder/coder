@@ -151,8 +151,7 @@ message Provision {
         bytes state = 4;
         bool dry_run = 5;
     }
-    message Cancel {
-	}
+    message Cancel {}
     message Request {
         oneof type {
             Start start = 1;
