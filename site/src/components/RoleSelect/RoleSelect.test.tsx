@@ -24,7 +24,7 @@ describe("UserRoleSelect", () => {
         selectedRoles={[MockUserAdminRole, MockTemplateAdminRole, MockMemberRole]}
         loading={false}
         onChange={jest.fn()}
-        open={true}
+        open
       />,
     )
 
