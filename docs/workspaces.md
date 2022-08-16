@@ -54,6 +54,34 @@ In order to use your workspace past the "time until shutdown," you can use bumpe
 
 ![Dashboard bumpers](./images/add-bumper-terminal.png)
 
+### Activity detection (alpha)
+
+To keep your workspace running past the "time until shutdown," Coder can bump the workspace lifetime by 1 hour when it detects the following activities:
+
+- Open tunnel (SSH connection)
+
+  If you have an open tunnel/SSH connection, the CLI will send keepalives to Coder, even if you are not typing.
+
+  Use `coder tunnel --disable-keep-alive` or `coder config-ssh --disable-keep-alive` to avoid send keepalives to Coder.
+
+- HTTP (or websocket) request on `coder_app`
+
+  Coder's proxy will detect any traffic on apps (e.g. code-server)
+
+- Typing in web terminal
+
+- API Request (Manual/custom integrations)
+
+  ```sh
+  curl https://coder.example.com/api/v2/workspaces/id/extend
+  ```
+
+> To prevent false positives, we are considering using VS Code and JetBrains plugins to detect activity, instead of examining network requests. [Let us know](https://github.com/coder/coder/needs-issue) if this feature interesting is to you.
+
+If a template has a maximum lifetime (e.g. 16 hours), workspaces can no longer be bumped manually or by activity after that time.
+
+> If you are a Coder admin and would like increased visibility and fine-grained controls on auto start/stop, [we'd like to hear from you](https://coder.com/contact)
+
 ## Updating workspaces
 
 Use the following command to update a workspace to the latest template version.
