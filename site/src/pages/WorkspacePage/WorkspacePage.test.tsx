@@ -97,10 +97,14 @@ describe("Workspace Page", () => {
     })
 
     const button = await screen.findByText(Language.delete)
-    await waitFor(() => fireEvent.click(button))
+    act(() => {
+      fireEvent.click(button)
+    })
     const confirmDialog = await screen.findByRole("dialog")
     const confirmButton = within(confirmDialog).getByText("Delete")
-    await waitFor(() => fireEvent.click(confirmButton))
+    act(() => {
+      fireEvent.click(confirmButton)
+    })
     expect(deleteWorkspaceMock).toBeCalled()
   })
   it("requests a start job when the user presses Start", async () => {
