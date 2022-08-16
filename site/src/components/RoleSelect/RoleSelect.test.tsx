@@ -36,7 +36,8 @@ describe("UserRoleSelect", () => {
 
     expect(owner).toHaveProperty("disabled", true)
     expect(templateAdmin).toHaveProperty("disabled", true)
-    expect(auditor).toHaveProperty("disabled", true)
-    expect(userAdmin).toHaveProperty("disabled", true)
+
+    expect(auditor).toHaveProperty("disabled", false)
+    expect(userAdmin).toHaveProperty("disabled", false)
   })
 })
