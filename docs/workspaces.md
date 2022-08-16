@@ -56,7 +56,7 @@ In order to use your workspace past the "time until shutdown," you can use bumpe
 
 ### Activity detection (alpha)
 
-To keep your workspace running past the "time until shutdown," Coder can bump the workspace lifetime by 1 hour when it detects the following activities:
+To keep your workspace running past the "time until shutdown," Coder can bump the workspace lifetime by 1 hour when it detects any of the following activities:
 
 - Open tunnel (SSH connection)
 
