@@ -35,7 +35,6 @@ export const MockTemplateAdminRole: TypesGen.Role = {
   display_name: "Template Admin",
 }
 
-
 export const MockAssignableUserAdminRole: TypesGen.AssignableRoles = {
   ...MockUserAdminRole,
   assignable: true,
@@ -57,7 +56,11 @@ export const MockAssignableAuditorRole: TypesGen.AssignableRoles = {
 }
 
 export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
-export const MockAssignableSiteRoles = [MockAssignableOwnerRole, MockAssignableUserAdminRole, MockAssignableAuditorRole]
+export const MockAssignableSiteRoles = [
+  MockAssignableOwnerRole,
+  MockAssignableUserAdminRole,
+  MockAssignableAuditorRole,
+]
 
 export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
   return {
