@@ -347,6 +347,23 @@ func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	return state, nil
 }
 
+func interruptCommandOnCancel(ctx, killCtx context.Context, cmd *exec.Cmd) {
+	go func() {
+		select {
+		case <-ctx.Done():
+			switch runtime.GOOS {
+			case "windows":
+				// Interrupts aren't supported by Windows.
+				_ = cmd.Process.Kill()
+			default:
+				_ = cmd.Process.Signal(os.Interrupt)
+			}
+
+		case <-killCtx.Done():
+		}
+	}()
+}
+
 type logger interface {
 	Log(*proto.Log) error
 }
