@@ -34,10 +34,11 @@ describe("UserRoleSelect", () => {
     const auditor = await screen.findByText(MockAuditorRole.display_name)
     const userAdmin = await screen.findByText(MockUserAdminRole.display_name)
 
-    expect(owner.getAttribute("aria-disabled")).toBeTruthy()
-    expect(templateAdmin.getAttribute("aria-disabled")).toBeTruthy()
+    // The attributes are "strings", not boolean types.
+    expect(owner.getAttribute("aria-disabled")).toBe("true")
+    expect(templateAdmin.getAttribute("aria-disabled")).toBe("true")
 
-    expect(auditor.getAttribute("aria-disabled")).toBeUndefined()
-    expect(userAdmin.getAttribute("aria-disabled")).toBeUndefined()
+    expect(userAdmin.getAttribute("aria-disabled")).toBe("false")
+    expect(auditor.getAttribute("aria-disabled")).toBe("false")
   })
 })
