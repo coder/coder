@@ -65,6 +65,9 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			switch {
 			case rc == nil:
 			case rc.GetForce():
+				// Likely not needed, but this ensures
+				// cancel happens before kill.
+				cancel()
 				kill()
 				return
 			default:
@@ -78,20 +81,17 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	logr := streamLogger{stream: stream}
 	start := request.GetStart()
 
-	if err != nil {
-		return xerrors.Errorf("create new terraform executor: %w", err)
-	}
 	e := s.executor(start.Directory)
-	if err := e.checkMinVersion(stream.Context()); err != nil {
+	if err = e.checkMinVersion(stream.Context()); err != nil {
 		return err
 	}
-	if err := logTerraformEnvVars(logr); err != nil {
+	if err = logTerraformEnvVars(logr); err != nil {
 		return err
 	}
 
 	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
 	if len(start.State) > 0 {
-		err := os.WriteFile(statefilePath, start.State, 0600)
+		err = os.WriteFile(statefilePath, start.State, 0o600)
 		if err != nil {
 			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 		}
