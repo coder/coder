@@ -50,6 +50,10 @@ You can also set a "time until shutdown" to auto-stop your workspace (e.g "8" ho
 
 ![Auto stop](./images/auto-stop.png)
 
+In order to use your workspace past the "time until shutdown," you can use bumpers in the dashboard to keep the workspace alive:
+
+![Dashboard bumpers](./images/add-bumper-terminal.png)
+
 ## Updating workspaces
 
 Use the following command to update a workspace to the latest template version.
