@@ -28,6 +28,7 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -51,10 +52,10 @@ const (
 )
 
 type Options struct {
-	EnableTailnet bool
-	NodeDialer    NodeDialer
-	WebRTCDialer  WebRTCDialer
-	FetchMetadata FetchMetadata
+	EnableTailnet     bool
+	CoordinatorDialer CoordinatorDialer
+	WebRTCDialer      WebRTCDialer
+	FetchMetadata     FetchMetadata
 
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
@@ -71,18 +72,9 @@ type Metadata struct {
 
 type WebRTCDialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
 
-// NodeBroker handles the exchange of node information.
-type NodeBroker interface {
-	io.Closer
-	// Read will be a constant stream of incoming connection requests.
-	Read(ctx context.Context) (*tailnet.Node, error)
-	// Write should be called with the listening agent node information.
-	Write(ctx context.Context, node *tailnet.Node) error
-}
-
-// NodeDialer is a function that constructs a new broker.
+// CoordinatorDialer is a function that constructs a new broker.
 // A dialer must be passed in to allow for reconnects.
-type NodeDialer func(ctx context.Context) (NodeBroker, error)
+type CoordinatorDialer func(ctx context.Context) (*websocket.Conn, error)
 
 // FetchMetadata is a function to obtain metadata for the agent.
 type FetchMetadata func(ctx context.Context) (Metadata, error)
@@ -100,7 +92,7 @@ func New(options Options) io.Closer {
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
 		enableTailnet:          options.EnableTailnet,
-		nodeDialer:             options.NodeDialer,
+		coordinatorDialer:      options.CoordinatorDialer,
 		fetchMetadata:          options.FetchMetadata,
 	}
 	server.init(ctx)
@@ -125,9 +117,9 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	enableTailnet bool
-	network       *tailnet.Conn
-	nodeDialer    NodeDialer
+	enableTailnet     bool
+	network           *tailnet.Conn
+	coordinatorDialer CoordinatorDialer
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -190,7 +182,7 @@ func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap 
 		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
 		return
 	}
-	go a.runNodeBroker(ctx)
+	go a.runCoordinator(ctx)
 
 	sshListener, err := a.network.Listen("tcp", ":12212")
 	if err != nil {
@@ -208,14 +200,14 @@ func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap 
 	}()
 }
 
-// runNodeBroker listens for nodes and updates the self-node as it changes.
-func (a *agent) runNodeBroker(ctx context.Context) {
-	var nodeBroker NodeBroker
+// runCoordinator listens for nodes and updates the self-node as it changes.
+func (a *agent) runCoordinator(ctx context.Context) {
+	var coordinator *websocket.Conn
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		nodeBroker, err = a.nodeDialer(ctx)
+		coordinator, err = a.coordinatorDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -226,36 +218,24 @@ func (a *agent) runNodeBroker(ctx context.Context) {
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		a.logger.Info(context.Background(), "connected to node broker")
+		a.logger.Info(context.Background(), "connected to coordination server")
 		break
 	}
+	sendNodes, errChan := tailnet.ServeCoordinator(ctx, coordinator, a.network.UpdateNodes)
+	a.network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
 		return
-	default:
-	}
-
-	a.network.SetNodeCallback(func(node *tailnet.Node) {
-		err := nodeBroker.Write(ctx, node)
-		if err != nil {
-			a.logger.Warn(context.Background(), "write node", slog.Error(err), slog.F("node", node))
-		}
-	})
-
-	for {
-		node, err := nodeBroker.Read(ctx)
-		if err != nil {
-			if a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
-			a.runNodeBroker(ctx)
+	case err := <-errChan:
+		if a.isClosed() {
 			return
 		}
-		err = a.network.UpdateNodes([]*tailnet.Node{node})
-		if err != nil {
-			a.logger.Error(ctx, "update tailnet nodes", slog.Error(err), slog.F("node", node))
+		if errors.Is(err, context.Canceled) {
+			return
 		}
+		a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
+		a.runCoordinator(ctx)
+		return
 	}
 }
 
@@ -887,7 +867,9 @@ func (a *agent) Close() error {
 	}
 	close(a.closed)
 	a.closeCancel()
+	fmt.Printf("CLOSING NETWORK!!!!\n")
 	if a.network != nil {
+		fmt.Printf("ACTUALLY CLOSING NETWORK!!!!\n")
 		_ = a.network.Close()
 	}
 	_ = a.sshServer.Close()

@@ -54,9 +54,11 @@ type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
-type WorkspaceAgentConnectionRequest struct {
-	DERPMap   tailcfg.DERPMap `json:"derp_map"`
-	IPAddress netip.Addr      `json:"ip_address"`
+// WorkspaceAgentConnectionInfo returns required information for establishing
+// a connection with a workspace.
+type WorkspaceAgentConnectionInfo struct {
+	DERPMap     *tailcfg.DERPMap `json:"derp_map"`
+	IPAddresses []netip.Addr     `json:"ip_address"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
@@ -280,8 +282,8 @@ func (c *Client) UpdateWorkspaceAgentNode(ctx context.Context, agentID uuid.UUID
 	return nil
 }
 
-func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker, error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/node")
+func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (*websocket.Conn, error) {
+	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -289,30 +291,21 @@ func (c *Client) WorkspaceAgentNodeBroker(ctx context.Context) (agent.NodeBroker
 	if err != nil {
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
+	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
 		Jar: jar,
 	}
-
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
 	})
-	if err != nil {
-		if res == nil {
-			return nil, xerrors.Errorf("websocket dial: %w", err)
-		}
-		return nil, readBodyAsError(res)
-	}
-	return &workspaceAgentNodeBroker{conn}, nil
+	return conn, err
 }
 
 func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (agent.Conn, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/derpmap", agentID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -320,23 +313,23 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var derpMap tailcfg.DERPMap
-	err = json.NewDecoder(res.Body).Decode(&derpMap)
+	var connInfo WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&connInfo)
 	if err != nil {
-		return nil, xerrors.Errorf("decode derpmap: %w", err)
+		return nil, xerrors.Errorf("decode conn info: %w", err)
 	}
 
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:   &derpMap,
+		DERPMap:   connInfo.DERPMap,
 		Logger:    logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 
-	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
+	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -354,7 +347,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	go func() {
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "connecting")
-			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+			ws, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 				HTTPClient: httpClient,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
@@ -366,7 +359,6 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			_ = res.Body.Close()
 			sendNode, errChan := tailnet.ServeCoordinator(ctx, ws, func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
 			})
@@ -383,7 +375,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 		}
 	}()
 	return &agent.TailnetConn{
-		Target: workspaceAgent.IPAddresses[0],
+		Target: connInfo.IPAddresses[0],
 		Conn:   conn,
 	}, nil
 }

@@ -558,7 +558,7 @@ func currentBinPath(w io.Writer) (string, error) {
 
 // diffBytes takes two byte slices and diffs them as if they were in a
 // file named name.
-//nolint: revive // Color is an option, not a control coupling.
+// nolint: revive // Color is an option, not a control coupling.
 func diffBytes(name string, b1, b2 []byte, color bool) ([]byte, error) {
 	var buf bytes.Buffer
 	var opts []write.Option

@@ -341,8 +341,7 @@ func New(options *Options) *API {
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
-				// Everything below this is Tailnet.
-				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				r.Get("/coordinate", api.workspaceAgentCoordinate)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -356,9 +355,7 @@ func New(options *Options) *API {
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
-				r.Get("/derpmap", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(w, http.StatusOK, options.DERPMap)
-				})
+				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})
 		})

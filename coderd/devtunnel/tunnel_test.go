@@ -100,8 +100,8 @@ func TestTunnel(t *testing.T) {
 
 // fakeTunnelServer is a fake version of the real dev tunnel server.  It fakes 2 client interactions
 // that we want to test:
-//   1. Responding to a POST /tun from the client
-//   2. Sending an HTTP request down the wireguard connection
+//  1. Responding to a POST /tun from the client
+//  2. Sending an HTTP request down the wireguard connection
 //
 // Note that for 2, we don't implement a full proxy that accepts arbitrary requests, we just send
 // a test request over the Wireguard tunnel to make sure that we can listen.  The proxy behavior is

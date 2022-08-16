@@ -296,11 +296,11 @@ func (c *Conn) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.
 
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	for _, l := range c.listeners {
 		_ = l.Close()
 	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	_ = c.dialer.Close()
 	_ = c.magicConn.Close()
 	_ = c.netStack.Close()

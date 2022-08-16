@@ -304,31 +304,30 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata: agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
-		EnableTailnet: true,
-		NodeDialer:    agentClient.WorkspaceAgentNodeBroker,
-		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		EnableTailnet:     true,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
+	defer agentCloser.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 
-	time.Sleep(3 * time.Second)
-
-	conn, err := client.DialWorkspaceAgentTailnet(context.Background(), resources[0].Agents[0].ID, slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug))
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug), resources[0].Agents[0].ID)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
+	defer conn.Close()
 	sshClient, err := conn.SSHClient()
 	require.NoError(t, err)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	output, err := session.CombinedOutput("echo test")
 	require.NoError(t, err)
-	fmt.Printf("Output: %s\n", output)
+	_ = session.Close()
+	_ = sshClient.Close()
+	_ = conn.Close()
+	fmt.Printf("\n\n\n\nOutput: %s\n\n\n\n", output)
 }
 
 func TestWorkspaceAgentPTY(t *testing.T) {

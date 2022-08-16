@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -17,7 +16,6 @@ import (
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
@@ -120,6 +118,12 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	ips := make([]netip.Addr, 0)
+	for _, ip := range workspaceAgent.IPAddresses {
+		var ipData [16]byte
+		copy(ipData[:], []byte(ip.IPNet.IP))
+		ips = append(ips, netip.AddrFrom16(ipData))
+	}
 	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -130,7 +134,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		IPAddresses:          apiAgent.IPAddresses,
+		IPAddresses:          ips,
 		DERPMap:              api.DERPMap,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
@@ -507,10 +511,26 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Co
 	}, nil
 }
 
-// workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
-// After accept a PubSub starts listening for new connection node updates
-// which are written to the WebSocket.
-func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	ips := make([]netip.Addr, 0)
+	for _, ip := range workspaceAgent.IPAddresses {
+		var ipData [16]byte
+		copy(ipData[:], []byte(ip.IPNet.IP))
+		ips = append(ips, netip.AddrFrom16(ipData))
+	}
+	httpapi.Write(rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
+		DERPMap:     api.DERPMap,
+		IPAddresses: ips,
+	})
+}
+
+func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
@@ -526,54 +546,36 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
-	subCancel, err := api.Pubsub.Subscribe("tailnet", func(ctx context.Context, message []byte) {
-		// Since we subscribe to all peer broadcasts, we do a light check to
-		// make sure we're the intended recipient without fully decoding the
-		// message.
-		if len(message) < len(agentIDBytes) {
-			api.Logger.Error(ctx, "wireguard peer message too short", slog.F("got", len(message)))
-			return
-		}
-		// We aren't the intended recipient.
-		if !bytes.Equal(message[:len(agentIDBytes)], agentIDBytes) {
-			return
-		}
-		_ = conn.Write(ctx, websocket.MessageText, message[len(agentIDBytes):])
-	})
+	err = api.ConnCoordinator.ServeAgent(r.Context(), conn, workspaceAgent.ID)
 	if err != nil {
-		api.Logger.Error(context.Background(), "pubsub listen", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
-	defer subCancel()
+}
 
-	for {
-		var node tailnet.Node
-		err = wsjson.Read(r.Context(), conn, &node)
-		if err != nil {
-			return
-		}
-		err := api.Database.UpdateWorkspaceAgentNetworkByID(r.Context(), database.UpdateWorkspaceAgentNetworkByIDParams{
-			ID: workspaceAgent.ID,
-			NodePublicKey: sql.NullString{
-				String: node.Key.String(),
-				Valid:  true,
-			},
-			DERPLatency: node.DERPLatency,
-			DiscoPublicKey: sql.NullString{
-				String: node.DiscoKey.String(),
-				Valid:  true,
-			},
-			PreferredDERP: int32(node.PreferredDERP),
-			UpdatedAt:     database.Now(),
+// workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
+// After accept a PubSub starts listening for new connection node updates
+// which are written to the WebSocket.
+func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
 		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error setting agent keys.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+	err = api.ConnCoordinator.ServeClient(r.Context(), conn, uuid.New(), workspaceAgent.ID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		return
 	}
 }
 
@@ -655,20 +657,6 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		Apps:                 apps,
 		PreferredDERP:        int(dbAgent.PreferredDERP),
 		DERPLatency:          dbAgent.DERPLatency,
-		IPAddresses:          ips,
-	}
-
-	if dbAgent.NodePublicKey.Valid {
-		err := workspaceAgent.NodePublicKey.UnmarshalText([]byte(dbAgent.NodePublicKey.String))
-		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse node public key: %w", err)
-		}
-	}
-	if dbAgent.DiscoPublicKey.Valid {
-		err := workspaceAgent.DiscoPublicKey.UnmarshalText([]byte(dbAgent.DiscoPublicKey.String))
-		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("parse disco public key: %w", err)
-		}
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {
