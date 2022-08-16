@@ -40,6 +40,16 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 
 When a workspace is deleted, all of the workspace's resources are deleted.
 
+## Workspace Schedule
+
+You can set a schedule for you workspace to automatically start at a given time (e.g. Monday - Friday at 9 AM).
+
+![Auto start](./images/auto-start.png)
+
+You can also set a "time until shutdown" to auto-stop your workspace (e.g "8" hours after stopped).
+
+![Auto stop](./images/auto-stop.png)
+
 ## Updating workspaces
 
 Use the following command to update a workspace to the latest template version.
