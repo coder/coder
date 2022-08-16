@@ -15,9 +15,30 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
-export const MockAdminRole: TypesGen.Role = {
-  name: "admin",
-  display_name: "Admin",
+export const MockOwnerRole: TypesGen.Role = {
+  name: "owner",
+  display_name: "Owner",
+}
+
+export const MockAssignableOwnerRole: TypesGen.AssignableRoles = {
+  ...MockOwnerRole,
+  assignable: false,
+}
+
+export const MockUserAdminRole: TypesGen.Role = {
+  name: "user_admin",
+  display_name: "User Admin",
+}
+
+export const MockTemplateAdminRole: TypesGen.Role = {
+  name: "template_admin",
+  display_name: "Template Admin",
+}
+
+
+export const MockAssignableUserAdminRole: TypesGen.AssignableRoles = {
+  ...MockUserAdminRole,
+  assignable: true,
 }
 
 export const MockMemberRole: TypesGen.Role = {
@@ -30,7 +51,20 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockAdminRole, MockAuditorRole]
+export const MockAssignableAuditorRole: TypesGen.AssignableRoles = {
+  ...MockAuditorRole,
+  assignable: true,
+}
+
+export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
+export const MockAssignableSiteRoles = [MockAssignableOwnerRole, MockAssignableUserAdminRole, MockAssignableAuditorRole]
+
+export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
+  return {
+    ...role,
+    assignable: assignable,
+  }
+}
 
 export const MockUser: TypesGen.User = {
   id: "test-user",
@@ -39,7 +73,7 @@ export const MockUser: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockAdminRole],
+  roles: [MockOwnerRole],
 }
 
 export const MockUser2: TypesGen.User = {

@@ -1,5 +1,10 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockAdminRole, MockMemberRole, MockSiteRoles } from "../../testHelpers/renderHelpers"
+import {
+  assignableRole,
+  MockAssignableSiteRoles, MockAuditorRole,
+  MockMemberRole, MockOwnerRole, MockTemplateAdminRole,
+  MockUserAdminRole
+} from "../../testHelpers/renderHelpers"
 import { RoleSelect, RoleSelectProps } from "./RoleSelect"
 
 export default {
@@ -9,15 +14,30 @@ export default {
 
 const Template: Story<RoleSelectProps> = (args) => <RoleSelect {...args} />
 
+// Include 4 roles:
+// - owner (disabled, not checked)
+// - template admin (disabled, checked)
+// - auditor (enabled, not checked)
+// - user admin (enabled, checked)
 export const Close = Template.bind({})
 Close.args = {
-  roles: MockSiteRoles,
-  selectedRoles: [MockAdminRole, MockMemberRole],
+  roles: [
+    assignableRole(MockOwnerRole, false),
+    assignableRole(MockTemplateAdminRole, false),
+    assignableRole(MockAuditorRole, true),
+    assignableRole(MockUserAdminRole, true),
+  ],
+  selectedRoles: [MockUserAdminRole, MockTemplateAdminRole, MockMemberRole],
 }
 
 export const Open = Template.bind({})
 Open.args = {
   open: true,
-  roles: MockSiteRoles,
-  selectedRoles: [MockAdminRole, MockMemberRole],
+  roles: [
+    assignableRole(MockOwnerRole, false),
+    assignableRole(MockTemplateAdminRole, false),
+    assignableRole(MockAuditorRole, true),
+    assignableRole(MockUserAdminRole, true),
+  ],
+  selectedRoles: [MockUserAdminRole, MockTemplateAdminRole, MockMemberRole],
 }
