@@ -7,7 +7,7 @@ import {
   MockTemplateAdminRole,
   MockUserAdminRole,
   render,
-} from "../../testHelpers/renderHelpers"
+} from "testHelpers/renderHelpers"
 import { RoleSelect } from "./RoleSelect"
 
 describe("UserRoleSelect", () => {

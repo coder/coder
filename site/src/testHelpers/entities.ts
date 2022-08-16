@@ -20,11 +20,6 @@ export const MockOwnerRole: TypesGen.Role = {
   display_name: "Owner",
 }
 
-export const MockAssignableOwnerRole: TypesGen.AssignableRoles = {
-  ...MockOwnerRole,
-  assignable: false,
-}
-
 export const MockUserAdminRole: TypesGen.Role = {
   name: "user_admin",
   display_name: "User Admin",
@@ -33,11 +28,6 @@ export const MockUserAdminRole: TypesGen.Role = {
 export const MockTemplateAdminRole: TypesGen.Role = {
   name: "template_admin",
   display_name: "Template Admin",
-}
-
-export const MockAssignableUserAdminRole: TypesGen.AssignableRoles = {
-  ...MockUserAdminRole,
-  assignable: true,
 }
 
 export const MockMemberRole: TypesGen.Role = {
@@ -50,18 +40,10 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockAssignableAuditorRole: TypesGen.AssignableRoles = {
-  ...MockAuditorRole,
-  assignable: true,
-}
-
 export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
-export const MockAssignableSiteRoles = [
-  MockAssignableOwnerRole,
-  MockAssignableUserAdminRole,
-  MockAssignableAuditorRole,
-]
 
+// assignableRole takes a role and a boolean. The boolean implies if the
+// actor can assign (add/remove) the role from other users.
 export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
   return {
     ...role,
