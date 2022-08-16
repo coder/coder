@@ -152,7 +152,6 @@ message Provision {
         bool dry_run = 5;
     }
     message Cancel {
-		bool force = 1;
 	}
     message Request {
         oneof type {
