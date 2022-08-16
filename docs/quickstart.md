@@ -62,7 +62,7 @@ You can edit the Terraform template as follows:
 coder templates init
 cd gcp-linux # modify this line as needed to access the template
 vim main.tf
-coder templates update gcp-linux # updates the template
+coder templates push gcp-linux # updates the template
 ```
 
 ## Up Next
