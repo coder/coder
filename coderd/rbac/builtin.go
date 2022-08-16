@@ -123,7 +123,10 @@ var (
 				Name:        userAdmin,
 				DisplayName: "User Admin",
 				Site: permissions(map[Object][]Action{
-					ResourceUser: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceRoleAssignment: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceUser:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// Full perms to manage org members
+					ResourceOrganizationMember: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
@@ -195,6 +198,10 @@ var (
 			orgMember:     true,
 			templateAdmin: true,
 			userAdmin:     true,
+		},
+		userAdmin: {
+			member:    true,
+			orgMember: true,
 		},
 		orgAdmin: {
 			orgAdmin:  true,
