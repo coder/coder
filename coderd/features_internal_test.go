@@ -26,7 +26,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result.HasLicense)
 		assert.Empty(t, result.Warnings)
-		for _, f := range codersdk.AllFeatures {
+		for _, f := range codersdk.FeatureNames {
 			require.Contains(t, result.Features, f)
 			fe := result.Features[f]
 			assert.False(t, fe.Enabled)

@@ -9,7 +9,7 @@ import (
 
 func entitlements(rw http.ResponseWriter, _ *http.Request) {
 	features := make(map[string]codersdk.Feature)
-	for _, f := range codersdk.AllFeatures {
+	for _, f := range codersdk.FeatureNames {
 		features[f] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementNotEntitled,
 			Enabled:     false,
