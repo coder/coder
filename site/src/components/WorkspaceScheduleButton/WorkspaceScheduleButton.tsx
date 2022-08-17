@@ -44,8 +44,8 @@ export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
-  deadlineMinusEnabled: (workspace: Workspace, now: dayjs.Dayjs) => boolean
-  deadlinePlusEnabled: (workspace: Workspace, now: dayjs.Dayjs) => boolean
+  deadlineMinusEnabled: () => boolean
+  deadlinePlusEnabled: () => boolean
   canUpdateWorkspace: boolean
 }
 
@@ -75,7 +75,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={!deadlineMinusEnabled(workspace, dayjs())}
+              disabled={!deadlineMinusEnabled()}
               onClick={onDeadlineMinus}
             >
               <Tooltip title={Language.editDeadlineMinus}>
@@ -85,7 +85,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={!deadlinePlusEnabled(workspace, dayjs())}
+              disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
               <Tooltip title={Language.editDeadlinePlus}>

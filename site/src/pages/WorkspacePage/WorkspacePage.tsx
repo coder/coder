@@ -8,7 +8,6 @@ import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { Workspace as GenWorkspace } from "../../api/typesGenerated"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
@@ -19,6 +18,9 @@ import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
 
 dayjs.extend(minMax)
+
+const deadlineExtensionMin = dayjs.duration(30, "minutes")
+const deadlineExtensionMax = dayjs.duration(24, "hours")
 
 export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
@@ -35,6 +37,7 @@ export const WorkspacePage: React.FC = () => {
   })
   const {
     workspace,
+    template,
     getWorkspaceError,
     resources,
     getResourcesError,
@@ -67,9 +70,17 @@ export const WorkspacePage: React.FC = () => {
         {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
-  } else if (!workspace) {
+  } else if (!workspace || !template) {
     return <FullScreenLoader />
   } else {
+    const now = dayjs().utc()
+    const deadline = dayjs(workspace.latest_build.deadline).utc()
+    const startedAt = dayjs(workspace.latest_build.updated_at).utc()
+    const templateMaxTTL = dayjs.duration(template.max_ttl_ms, "milliseconds")
+    const maxTemplateDeadline = startedAt.add(templateMaxTTL)
+    const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
+    const maxDeadline = dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+    const minDeadline = now.add(deadlineExtensionMin)
     const favicon = getFaviconByStatus(workspace.latest_build)
     return (
       <>
@@ -86,7 +97,7 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: dayjs(workspace.latest_build.deadline).utc().add(4, "hours"),
+                newDeadline: dayjs.min(deadline.add(4, "hours"), maxDeadline),
               })
             },
           }}
@@ -95,24 +106,22 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: boundedDeadline(
-                  dayjs(workspace.latest_build.deadline).utc().add(-1, "hours"),
-                  dayjs(),
-                ),
+                newDeadline: dayjs.max(deadline.add(-1, "hours"), minDeadline),
               })
             },
             onDeadlinePlus: () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: boundedDeadline(
-                  dayjs(workspace.latest_build.deadline).utc().add(1, "hours"),
-                  dayjs(),
-                ),
+                newDeadline: dayjs.min(deadline.add(1, "hours"), maxDeadline),
               })
             },
-            deadlineMinusEnabled,
-            deadlinePlusEnabled
+            deadlineMinusEnabled: () => {
+              return deadline > minDeadline
+            },
+            deadlinePlusEnabled: () => {
+              return deadline < maxDeadline
+            },
           }}
           workspace={workspace}
           handleStart={() => workspaceSend("START")}
@@ -141,24 +150,6 @@ export const WorkspacePage: React.FC = () => {
     )
   }
 }
-
-export const boundedDeadline = (newDeadline: dayjs.Dayjs, now: dayjs.Dayjs): dayjs.Dayjs => {
-  const minDeadline = now.add(30, "minutes")
-  const maxDeadline = now.add(24, "hours")
-  const bounded = dayjs.min(dayjs.max(minDeadline, newDeadline), maxDeadline)
-  return bounded
-}
-
-export const deadlineMinusEnabled = (workspace: GenWorkspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta > (30 * 60 * 1000) // 30 minutes
-}
-
-export const deadlinePlusEnabled = (workspace: GenWorkspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta < (24 * 60 * 60 * 1000) // 24 hours
-}
-
 
 const useStyles = makeStyles((theme) => ({
   error: {
