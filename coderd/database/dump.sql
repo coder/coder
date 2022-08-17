@@ -423,7 +423,7 @@ ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY user_links
-    ADD CONSTRAINT user_links_user_id_login_type_key UNIQUE (user_id, login_type);
+    ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);

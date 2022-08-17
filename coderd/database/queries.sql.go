@@ -2413,11 +2413,11 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 FROM
-  user_links
+	user_links
 WHERE
-  linked_id = $1
+	linked_id = $1
 `
 
 func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error) {
@@ -2436,11 +2436,11 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-  user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 FROM
-  user_links
+	user_links
 WHERE
-  user_id = $1 AND login_type = $2
+	user_id = $1 AND login_type = $2
 `
 
 type GetUserLinkByUserIDLoginTypeParams struct {
@@ -2464,16 +2464,16 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 
 const insertUserLink = `-- name: InsertUserLink :one
 INSERT INTO
-  user_links (
-    user_id,
-    login_type,
-    linked_id,
-    oauth_access_token,
-    oauth_refresh_token,
-    oauth_expiry
-  )
+	user_links (
+		user_id,
+		login_type,
+		linked_id,
+		oauth_access_token,
+		oauth_refresh_token,
+		oauth_expiry
+	)
 VALUES
-  ( $1, $2, $3, $4, $5, $6 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	( $1, $2, $3, $4, $5, $6 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type InsertUserLinkParams struct {
@@ -2508,13 +2508,13 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 
 const updateUserLink = `-- name: UpdateUserLink :one
 UPDATE
-  user_links
+	user_links
 SET
-  oauth_access_token = $1,
-  oauth_refresh_token = $2,
-  oauth_expiry = $3
+	oauth_access_token = $1,
+	oauth_refresh_token = $2,
+	oauth_expiry = $3
 WHERE
-  user_id = $4 AND login_type = $5 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id = $4 AND login_type = $5 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateUserLinkParams struct {
@@ -2547,11 +2547,11 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 
 const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
 UPDATE
-  user_links
+	user_links
 SET
-  linked_id = $1
+	linked_id = $1
 WHERE
-  user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -2585,13 +2585,13 @@ SELECT
 			array_append(users.rbac_roles, 'member'),
 		-- All org_members get the org-member role for their orgs
 			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
-	    AS roles
+		AS roles
 FROM
 	users
 LEFT JOIN organization_members
 	ON id = user_id
 WHERE
-    id = $1
+	id = $1
 `
 
 type GetAuthorizationUserRolesRow struct {
@@ -2743,8 +2743,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-    -- Deterministic and consistent ordering of all users, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
+	-- Deterministic and consistent ordering of all users, even if they share
+	-- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
@@ -2847,7 +2847,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-    login_type
+		login_type
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
@@ -2951,12 +2951,12 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 
 const updateUserRoles = `-- name: UpdateUserRoles :one
 UPDATE
-    users
+	users
 SET
 	-- Remove all duplicates from the roles.
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
- 	id = $2
+	id = $2
 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type
 `
 
