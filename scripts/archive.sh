@@ -108,11 +108,8 @@ cdroot
 temp_dir="$(mktemp -d)"
 ln -s "$input_file" "$temp_dir/$output_file"
 ln -s "$(realpath README.md)" "$temp_dir/"
-if [[ "$agpl" == 1 ]]; then
-	ln -s "$(realpath LICENSE.agpl)" "$temp_dir/LICENSE"
-else
-	ln -s "$(realpath LICENSE)" "$temp_dir/"
-	ln -s "$(realpath LICENSE.agpl)" "$temp_dir/"
+ln -s "$(realpath LICENSE)" "$temp_dir/"
+if [[ "$agpl" == 0 ]]; then
 	ln -s "$(realpath LICENSE.enterprise)" "$temp_dir/"
 fi
 
