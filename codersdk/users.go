@@ -42,11 +42,11 @@ type UsersRequest struct {
 
 // User represents a user in Coder.
 type User struct {
-	ID              uuid.UUID   `json:"id" validate:"required" table:"ID"`
-	Username        string      `json:"username" validate:"required" table:"Username"`
-	Email           string      `json:"email" validate:"required" table:"Email"`
-	CreatedAt       time.Time   `json:"created_at" validate:"required" table:"Created at"`
-	Status          UserStatus  `json:"status" table:"Status"`
+	ID              uuid.UUID   `json:"id" validate:"required" table:"id"`
+	Username        string      `json:"username" validate:"required" table:"username"`
+	Email           string      `json:"email" validate:"required" table:"email"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required" table:"created at"`
+	Status          UserStatus  `json:"status" table:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
 }

@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/xerrors"
 )
 
 // Table creates a new table with standardized styles.
@@ -46,15 +48,14 @@ func FilterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 }
 
 // DisplayTable renders a table as a string. The input argument must be a slice
-// of structs (panics otherwise, even for empty slices). At least one field in
-// the struct must have a `table:""` tag containing the name of the column in
-// the outputted table.
+// of structs. At least one field in the struct must have a `table:""` tag
+// containing the name of the column in the outputted table.
 //
 // Nested structs are processed if the field has the `table:"$NAME,recursive"`
 // tag and their fields will be named as `$PARENT_NAME $NAME`. If the tag is
 // malformed or a field is marked as recursive but does not contain a struct or
-// a pointer to a struct, this function will panic (even with an empty input
-// slice).
+// a pointer to a struct, this function will return an error (even with an empty
+// input slice).
 //
 // If sort is empty, the input order will be used. If filterColumns is empty or
 // nil, all available columns are included.
@@ -62,12 +63,15 @@ func DisplayTable(out interface{}, sort string, filterColumns []string) (string,
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	if v.Kind() != reflect.Slice {
-		panic("DisplayTable called with a non-slice type")
+		return "", xerrors.Errorf("DisplayTable called with a non-slice type")
 	}
 
-	headersRaw := typeToTableHeaders(v.Type().Elem())
+	headersRaw, err := typeToTableHeaders(v.Type().Elem())
+	if err != nil {
+		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
+	}
 	if len(headersRaw) == 0 {
-		panic("no table tags found on the input type")
+		return "", xerrors.New(`no table headers found on the input type, make sure there is at least one "table" struct tag`)
 	}
 	headers := make(table.Row, len(headersRaw))
 	for i, header := range headersRaw {
@@ -84,7 +88,11 @@ func DisplayTable(out interface{}, sort string, filterColumns []string) (string,
 	// Write each struct to the table.
 	for i := 0; i < v.Len(); i++ {
 		// Format the row as a slice.
-		rowMap := valueToTableMap(v.Index(i))
+		rowMap, err := valueToTableMap(v.Index(i))
+		if err != nil {
+			return "", xerrors.Errorf("get table row map %v: %w", i, err)
+		}
+
 		rowSlice := make([]interface{}, len(headers))
 		for i, h := range headersRaw {
 			v, ok := rowMap[h]
@@ -111,21 +119,34 @@ func DisplayTable(out interface{}, sort string, filterColumns []string) (string,
 	return tw.Render(), nil
 }
 
-func parseTableStructTag(field reflect.StructField) (name string, recurse bool, ok bool) {
-	tag, ok := field.Tag.Lookup("table")
-	if !ok {
-		return "", false, false
+// parseTableStructTag returns the name of the field according to the `table`
+// struct tag. If the table tag does not exist or is "-", an empty string is
+// returned. If the table tag is malformed, an error is returned.
+//
+// The returned name is transformed from "snake_case" to "normal text".
+func parseTableStructTag(field reflect.StructField) (name string, recurse bool, err error) {
+	tags, err := structtag.Parse(string(field.Tag))
+	if err != nil {
+		return "", false, xerrors.Errorf("parse struct field tag %q: %w", string(field.Tag), err)
 	}
 
-	tagSplit := strings.Split(tag, ",")
-	if len(tagSplit) == 0 || tagSplit[0] == "" {
-		panic(fmt.Sprintf(`invalid table tag %q, name must be a non-empty string`, tag))
-	}
-	if len(tagSplit) > 2 || (len(tagSplit) == 2 && strings.TrimSpace(tagSplit[1]) != "recursive") {
-		panic(fmt.Sprintf(`invalid table tag %q, must be a non-empty string, optionally followed by ",recursive"`, tag))
+	tag, err := tags.Get("table")
+	if err != nil || tag.Name == "-" {
+		// tags.Get only returns an error if the tag is not found.
+		return "", false, nil
 	}
 
-	return tagSplit[0], len(tagSplit) == 2, true
+	recursive := false
+	for _, opt := range tag.Options {
+		if opt == "recursive" {
+			recursive = true
+			continue
+		}
+
+		return "", false, xerrors.Errorf("unknown option %q in struct field tag", opt)
+	}
+
+	return strings.ReplaceAll(tag.Name, "_", " "), recursive, nil
 }
 
 func isStructOrStructPointer(t reflect.Type) bool {
@@ -133,10 +154,11 @@ func isStructOrStructPointer(t reflect.Type) bool {
 }
 
 // typeToTableHeaders converts a type to a slice of column names. If the given
-// type is not a struct, this function will panic.
-func typeToTableHeaders(t reflect.Type) []string {
+// type is invalid (not a struct or a pointer to a struct, has invalid table
+// tags, etc.), an error is returned.
+func typeToTableHeaders(t reflect.Type) ([]string, error) {
 	if !isStructOrStructPointer(t) {
-		panic("typeToTableHeaders called with a non-struct or a non-pointer-to-a-struct type")
+		return nil, xerrors.Errorf("typeToTableHeaders called with a non-struct or a non-pointer-to-a-struct type")
 	}
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -145,19 +167,24 @@ func typeToTableHeaders(t reflect.Type) []string {
 	headers := []string{}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		name, recurse, ok := parseTableStructTag(field)
-		if !ok {
+		name, recursive, err := parseTableStructTag(field)
+		if err != nil {
+			return nil, xerrors.Errorf("parse struct tags for field %q in type %q: %w", field.Name, t.String(), err)
+		}
+		if name == "" {
 			continue
 		}
 
-		if recurse {
-			// If we're recursing, it must be a struct or a pointer to a struct.
-			if !isStructOrStructPointer(field.Type) {
-				panic(fmt.Sprintf("invalid recursive table tag, field %q is not a struct or a pointer to a struct so we cannot recurse", field.Name))
+		fieldType := field.Type
+		if recursive {
+			if !isStructOrStructPointer(fieldType) {
+				return nil, xerrors.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, t.String())
 			}
 
-			// typeToTableHeaders can handle pointers.
-			childNames := typeToTableHeaders(field.Type)
+			childNames, err := typeToTableHeaders(fieldType)
+			if err != nil {
+				return nil, xerrors.Errorf("get child field header names for field %q in type %q: %w", field.Name, fieldType.String(), err)
+			}
 			for _, childName := range childNames {
 				headers = append(headers, fmt.Sprintf("%s %s", name, childName))
 			}
@@ -167,18 +194,21 @@ func typeToTableHeaders(t reflect.Type) []string {
 		headers = append(headers, name)
 	}
 
-	return headers
+	return headers, nil
 }
 
 // valueToTableMap converts a struct to a map of column name to value. If the
-// given value is not a struct, this function will panic.
-func valueToTableMap(val reflect.Value) map[string]interface{} {
+// given type is invalid (not a struct or a pointer to a struct, has invalid
+// table tags, etc.), an error is returned.
+func valueToTableMap(val reflect.Value) (map[string]interface{}, error) {
 	if !isStructOrStructPointer(val.Type()) {
-		panic("valueToTableMap called with a non-struct or a non-pointer-to-a-struct type")
+		return nil, xerrors.Errorf("valueToTableMap called with a non-struct or a non-pointer-to-a-struct type")
 	}
 	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
-			return nil
+			// No data for this struct, so return an empty map. All values will
+			// be rendered as nil in the resulting table.
+			return map[string]interface{}{}, nil
 		}
 
 		val = val.Elem()
@@ -188,21 +218,27 @@ func valueToTableMap(val reflect.Value) map[string]interface{} {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Type().Field(i)
 		fieldVal := val.Field(i)
-		name, recurse, ok := parseTableStructTag(field)
-		if !ok {
+		name, recursive, err := parseTableStructTag(field)
+		if err != nil {
+			return nil, xerrors.Errorf("parse struct tags for field %q in type %T: %w", field.Name, val, err)
+		}
+		if name == "" {
 			continue
 		}
 
-		// If the field is a struct, recursively process it.
-		if recurse {
-			// It must be a struct or a pointer to a struct.
-			if !isStructOrStructPointer(val.Type()) {
-				panic(fmt.Sprintf("invalid recursive table tag, field %q is not a struct or a pointer to a struct so we cannot recurse", field.Name))
+		// Recurse if it's a struct.
+		fieldType := field.Type
+		if recursive {
+			if !isStructOrStructPointer(fieldType) {
+				return nil, xerrors.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, fieldType.String())
 			}
 
 			// valueToTableMap does nothing on pointers so we don't need to
 			// filter here.
-			childMap := valueToTableMap(fieldVal)
+			childMap, err := valueToTableMap(fieldVal)
+			if err != nil {
+				return nil, xerrors.Errorf("get child field values for field %q in type %q: %w", field.Name, fieldType.String(), err)
+			}
 			for childName, childValue := range childMap {
 				row[fmt.Sprintf("%s %s", name, childName)] = childValue
 			}
@@ -213,5 +249,5 @@ func valueToTableMap(val reflect.Value) map[string]interface{} {
 		row[name] = val.Field(i).Interface()
 	}
 
-	return row
+	return row, nil
 }

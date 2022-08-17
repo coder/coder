@@ -1,7 +1,7 @@
 package cliui_test
 
 import (
-	"fmt"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -17,19 +17,20 @@ type tableTest1 struct {
 	NotIncluded string      // no table tag
 	Age         int         `table:"age"`
 	Roles       []string    `table:"roles"`
-	Sub1        tableTest2  `table:"sub 1,recursive"`
-	Sub2        *tableTest2 `table:"sub 2,recursive"`
+	Sub1        tableTest2  `table:"sub_1,recursive"`
+	Sub2        *tableTest2 `table:"sub_2,recursive"`
 	Sub3        tableTest3  `table:"sub 3,recursive"`
+	Sub4        tableTest2  `table:"sub 4"` // not recursive
 
 	// Types with special formatting.
 	Time    time.Time  `table:"time"`
-	TimePtr *time.Time `table:"time ptr"`
+	TimePtr *time.Time `table:"time_ptr"`
 }
 
 type tableTest2 struct {
 	Name        string `table:"name"`
 	Age         int    `table:"age"`
-	NotIncluded string // no table tag
+	NotIncluded string `table:"-"`
 }
 
 type tableTest3 struct {
@@ -65,6 +66,10 @@ func Test_DisplayTable(t *testing.T) {
 						Age:  13,
 					},
 				},
+				Sub4: tableTest2{
+					Name: "foo4",
+					Age:  14,
+				},
 				Time:    someTime,
 				TimePtr: &someTime,
 			},
@@ -82,6 +87,10 @@ func Test_DisplayTable(t *testing.T) {
 						Name: "bar3",
 						Age:  23,
 					},
+				},
+				Sub4: tableTest2{
+					Name: "bar4",
+					Age:  24,
 				},
 				Time:    someTime,
 				TimePtr: nil,
@@ -101,21 +110,25 @@ func Test_DisplayTable(t *testing.T) {
 						Age:  33,
 					},
 				},
+				Sub4: tableTest2{
+					Name: "baz4",
+					Age:  34,
+				},
 				Time:    someTime,
 				TimePtr: nil,
 			},
 		}
 
 		expected := `
-			NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  TIME             TIME PTR
-			foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  Aug  2 15:49:10  Aug  2 15:49:10
-			bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  Aug  2 15:49:10  <nil>
-			baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  Aug  2 15:49:10  <nil>
+NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME             TIME PTR
+foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  Aug  2 15:49:10  Aug  2 15:49:10
+bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  Aug  2 15:49:10  <nil>
+baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  Aug  2 15:49:10  <nil>
 		`
 
 		// Test with non-pointer values.
 		out, err := cliui.DisplayTable(in, "", nil)
-		fmt.Println(out)
+		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
 
@@ -131,17 +144,16 @@ func Test_DisplayTable(t *testing.T) {
 	})
 
 	// This test ensures that safeties against invalid use of `table` tags
-	// causes panics (even without data).
-	t.Run("Panics", func(t *testing.T) {
+	// causes errors (even without data).
+	t.Run("Errors", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("NotSlice", func(t *testing.T) {
 			t.Parallel()
 
 			var in string
-			require.Panics(t, func() {
-				_, _ = cliui.DisplayTable(in, "", nil)
-			})
+			_, err := cliui.DisplayTable(in, "", nil)
+			require.Error(t, err)
 		})
 
 		t.Run("Interfaces", func(t *testing.T) {
@@ -151,18 +163,16 @@ func Test_DisplayTable(t *testing.T) {
 				t.Parallel()
 
 				var in []interface{}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 
 			t.Run("WithData", func(t *testing.T) {
 				t.Parallel()
 
 				in := []interface{}{tableTest1{}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 		})
 
@@ -173,18 +183,16 @@ func Test_DisplayTable(t *testing.T) {
 				t.Parallel()
 
 				var in []string
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 
 			t.Run("WithData", func(t *testing.T) {
 				t.Parallel()
 
 				in := []string{"foo", "bar", "baz"}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 		})
 
@@ -199,18 +207,16 @@ func Test_DisplayTable(t *testing.T) {
 				t.Parallel()
 
 				var in []noTableTagsTest
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 
 			t.Run("WithData", func(t *testing.T) {
 				t.Parallel()
 
 				in := []noTableTagsTest{{Field: "hi"}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 		})
 
@@ -225,18 +231,16 @@ func Test_DisplayTable(t *testing.T) {
 				t.Parallel()
 
 				var in []noNameTest
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 
 			t.Run("WithData", func(t *testing.T) {
 				t.Parallel()
 
 				in := []noNameTest{{Field: "test"}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 		})
 
@@ -244,78 +248,23 @@ func Test_DisplayTable(t *testing.T) {
 			t.Parallel()
 
 			type invalidSyntaxTest struct {
-				Field string `table:"hi,hi"`
+				Field string `table:"asda,asdjada"`
 			}
 
 			t.Run("WithoutData", func(t *testing.T) {
 				t.Parallel()
 
 				var in []invalidSyntaxTest
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 
 			t.Run("WithData", func(t *testing.T) {
 				t.Parallel()
 
 				in := []invalidSyntaxTest{{Field: "test"}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
-			})
-		})
-
-		t.Run("RecurseNonStruct/Raw", func(t *testing.T) {
-			t.Parallel()
-
-			type recurseNonStruct struct {
-				Field string `table:"field,recursive"`
-			}
-
-			t.Run("WithoutData", func(t *testing.T) {
-				t.Parallel()
-
-				var in []recurseNonStruct
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
-			})
-
-			t.Run("WithData", func(t *testing.T) {
-				t.Parallel()
-
-				in := []recurseNonStruct{{Field: "test"}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
-			})
-		})
-
-		t.Run("RecurseNonStruct/Pointer", func(t *testing.T) {
-			t.Parallel()
-
-			type recurseNonStruct struct {
-				Field *string `table:"field,recursive"`
-			}
-
-			t.Run("WithoutData", func(t *testing.T) {
-				t.Parallel()
-
-				var in []recurseNonStruct
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
-			})
-
-			t.Run("WithData", func(t *testing.T) {
-				t.Parallel()
-
-				val := "test"
-				in := []recurseNonStruct{{Field: &val}}
-				require.Panics(t, func() {
-					_, _ = cliui.DisplayTable(in, "", nil)
-				})
+				_, err := cliui.DisplayTable(in, "", nil)
+				require.Error(t, err)
 			})
 		})
 	})
