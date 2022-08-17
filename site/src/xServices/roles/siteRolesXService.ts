@@ -8,7 +8,7 @@ export const Language = {
 }
 
 type SiteRolesContext = {
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   getRolesError: Error | unknown
 }
 
@@ -25,7 +25,7 @@ export const siteRolesMachine = createMachine(
       events: {} as SiteRolesEvent,
       services: {
         getRoles: {
-          data: {} as TypesGen.Role[],
+          data: {} as TypesGen.AssignableRoles[],
         },
       },
     },

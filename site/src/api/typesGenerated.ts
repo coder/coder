@@ -24,6 +24,11 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/roles.go
+export interface AssignableRoles extends Role {
+  readonly assignable: boolean
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
