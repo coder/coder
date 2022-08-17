@@ -38,7 +38,10 @@ func userList() *cobra.Command {
 			out := ""
 			switch outputFormat {
 			case "table", "":
-				out = displayUsers(columns, users...)
+				out, err = cliui.DisplayTable(users, "Username", columns)
+				if err != nil {
+					return xerrors.Errorf("render table: %w", err)
+				}
 			case "json":
 				outBytes, err := json.Marshal(users)
 				if err != nil {

@@ -59,7 +59,11 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			}
 
 			// Display the user
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), displayUsers(columns, user))
+			table, err := cliui.DisplayTable([]codersdk.User{user}, "", columns)
+			if err != nil {
+				return xerrors.Errorf("render user table: %w", err)
+			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), table)
 
 			// User status is already set to this
 			if user.Status == sdkStatus {
