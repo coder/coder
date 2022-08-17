@@ -15,26 +15,16 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// This is the exact version of Terraform used internally
-// when Terraform is missing on the system.
-var terraformVersion = version.Must(version.NewVersion("1.2.1"))
-var minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-var maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
-
 var (
-	// The minimum version of Terraform supported by the provisioner.
-	// Validation came out in 0.13.0, which was released August 10th, 2020.
-	// https://www.hashicorp.com/blog/announcing-hashicorp-terraform-0-13
-	minimumTerraformVersion = func() *version.Version {
-		v, err := version.NewSemver("0.13.0")
-		if err != nil {
-			panic(err)
-		}
-		return v
-	}()
-)
+	// This is the exact version of Terraform used internally
+	// when Terraform is missing on the system.
+	terraformVersion = version.Must(version.NewVersion("1.2.1"))
 
-var terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
+	maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
+
+	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+)
 
 type ServeOptions struct {
 	*provisionersdk.ServeOptions

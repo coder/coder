@@ -116,11 +116,11 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !v.GreaterThanOrEqual(minimumTerraformVersion) {
+	if !v.GreaterThanOrEqual(minTerraformVersion) {
 		return xerrors.Errorf(
 			"terraform version %q is too old. required >= %q",
 			v.String(),
-			minimumTerraformVersion.String())
+			minTerraformVersion.String())
 	}
 	return nil
 }
@@ -435,9 +435,6 @@ func provisionReadAndLog(logr logger, reader io.Reader, done chan<- any) {
 
 		// If the diagnostic is provided, let's provide a bit more info!
 		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, logr)
-		if err != nil {
-			continue
-		}
 		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
 		if err != nil {
 			// Not much we can do.  We can't log because logging is itself breaking!
