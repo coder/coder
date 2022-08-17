@@ -237,7 +237,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
 		})
 		req := codersdk.UpdateTemplateMeta{
-			Name:                       "My edited template name",
+			Name:                       "new-template-name",
 			Description:                "lorem ipsum dolor sit amet et cetera",
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),

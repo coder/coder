@@ -34,7 +34,7 @@ type UpdateActiveTemplateVersion struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name                       string `json:"name,omitempty"`
+	Name                       string `json:"name,omitempty" validate:"username"`
 	Description                string `json:"description,omitempty"`
 	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
 	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
