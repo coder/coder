@@ -2,12 +2,9 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import * as TypesGen from "../../api/typesGenerated"
 import * as Mocks from "../../testHelpers/entities"
-import {
-  shouldDisplayPlusMinus,
-} from "./WorkspaceScheduleButton"
+import { shouldDisplayPlusMinus } from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
-const now = dayjs()
 
 describe("WorkspaceScheduleButton", () => {
   describe("shouldDisplayPlusMinus", () => {

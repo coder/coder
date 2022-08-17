@@ -5,6 +5,7 @@ import minMax from "dayjs/plugin/minMax"
 import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
+import * as TypesGen from "../../api/typesGenerated"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -75,12 +76,8 @@ export const WorkspacePage: React.FC = () => {
   } else {
     const now = dayjs().utc()
     const deadline = dayjs(workspace.latest_build.deadline).utc()
-    const startedAt = dayjs(workspace.latest_build.updated_at).utc()
-    const templateMaxTTL = dayjs.duration(template.max_ttl_ms, "milliseconds")
-    const maxTemplateDeadline = startedAt.add(templateMaxTTL)
-    const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
-    const maxDeadline = dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
-    const minDeadline = now.add(deadlineExtensionMin)
+    const dmax = maxDeadline(workspace, template)
+    const dmin = minDeadline(now)
     const favicon = getFaviconByStatus(workspace.latest_build)
     return (
       <>
@@ -97,7 +94,7 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: dayjs.min(deadline.add(4, "hours"), maxDeadline),
+                newDeadline: dayjs.min(deadline.add(4, "hours"), dmax),
               })
             },
           }}
@@ -106,21 +103,21 @@ export const WorkspacePage: React.FC = () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: dayjs.max(deadline.add(-1, "hours"), minDeadline),
+                newDeadline: dayjs.max(deadline.add(-1, "hours"), dmin),
               })
             },
             onDeadlinePlus: () => {
               bannerSend({
                 type: "UPDATE_DEADLINE",
                 workspaceId: workspace.id,
-                newDeadline: dayjs.min(deadline.add(1, "hours"), maxDeadline),
+                newDeadline: dayjs.min(deadline.add(1, "hours"), dmin),
               })
             },
             deadlineMinusEnabled: () => {
-              return deadline > minDeadline
+              return deadline > dmin
             },
             deadlinePlusEnabled: () => {
-              return deadline < maxDeadline
+              return deadline < dmax
             },
           }}
           workspace={workspace}
@@ -149,6 +146,18 @@ export const WorkspacePage: React.FC = () => {
       </>
     )
   }
+}
+
+export function maxDeadline(ws: TypesGen.Workspace, tpl: TypesGen.Template): dayjs.Dayjs {
+  const startedAt = dayjs(ws.latest_build.updated_at)
+  const templateMaxTTL = dayjs.duration(tpl.max_ttl_ms, "milliseconds")
+  const maxTemplateDeadline = startedAt.add(templateMaxTTL)
+  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
+  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+}
+
+export function minDeadline(now: dayjs.Dayjs): dayjs.Dayjs {
+  return now.add(deadlineExtensionMin)
 }
 
 const useStyles = makeStyles((theme) => ({
