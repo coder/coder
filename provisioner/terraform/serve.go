@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
@@ -26,6 +27,10 @@ var (
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
 
+const (
+	defaultExitTimeout = 5 * time.Minute
+)
+
 type ServeOptions struct {
 	*provisionersdk.ServeOptions
 
@@ -34,6 +39,17 @@ type ServeOptions struct {
 	BinaryPath string
 	CachePath  string
 	Logger     slog.Logger
+
+	// ExitTimeout defines how long we will wait for a running Terraform
+	// command to exit (cleanly) if the provision was stopped. This only
+	// happens when the command is still running after the provision
+	// stream is closed. If the provision is canceled via RPC, this
+	// timeout will not be used.
+	//
+	// This is a no-op on Windows where the process can't be interrupted.
+	//
+	// Default value: 5 minutes.
+	ExitTimeout time.Duration
 }
 
 func absoluteBinaryPath(ctx context.Context) (string, error) {
@@ -92,10 +108,14 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			options.BinaryPath = absoluteBinary
 		}
 	}
+	if options.ExitTimeout == 0 {
+		options.ExitTimeout = defaultExitTimeout
+	}
 	return provisionersdk.Serve(ctx, &server{
-		binaryPath: options.BinaryPath,
-		cachePath:  options.CachePath,
-		logger:     options.Logger,
+		binaryPath:  options.BinaryPath,
+		cachePath:   options.CachePath,
+		logger:      options.Logger,
+		exitTimeout: options.ExitTimeout,
 	}, options.ServeOptions)
 }
 
@@ -107,6 +127,8 @@ type server struct {
 	binaryPath string
 	cachePath  string
 	logger     slog.Logger
+
+	exitTimeout time.Duration
 }
 
 func (s *server) executor(workdir string) executor {

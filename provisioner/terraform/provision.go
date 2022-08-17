@@ -14,12 +14,6 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-const (
-	// Define how long we will wait for Terraform to exit cleanly
-	// after receiving an interrupt (if the provision was stopped).
-	terraformCancelTimeout = 5 * time.Minute
-)
-
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
 func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	request, err := stream.Recv()
@@ -54,7 +48,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		// part of graceful server shutdown procedure. Waiting on a
 		// process here should delay provisioner/coder shutdown.
 		select {
-		case <-time.After(terraformCancelTimeout):
+		case <-time.After(s.exitTimeout):
 			kill()
 		case <-killCtx.Done():
 		}
