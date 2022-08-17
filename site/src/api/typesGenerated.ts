@@ -366,9 +366,9 @@ export interface UploadResponse {
 // From codersdk/users.go
 export interface User {
   readonly id: string
+  readonly username: string
   readonly email: string
   readonly created_at: string
-  readonly username: string
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
