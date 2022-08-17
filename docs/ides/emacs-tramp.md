@@ -42,7 +42,7 @@ To fix this:
 
    resource "coder_agent" "main" {
      # ...
-     env {
+     env = {
        name = "CODER_WORKSPACE_NAME"
        value = data.coder_workspace.me.name
      }
