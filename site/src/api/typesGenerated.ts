@@ -317,6 +317,7 @@ export interface UpdateRoles {
 
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
+  readonly name?: string
   readonly description?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
