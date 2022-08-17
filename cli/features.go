@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/jedib0t/go-pretty/v6/table"
-
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 

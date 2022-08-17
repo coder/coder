@@ -67,8 +67,10 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+type CoderServerBuilder func(*coderd.Options) *coderd.API
+
 // nolint:gocyclo
-func server() *cobra.Command {
+func Server(builder CoderServerBuilder) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -284,6 +286,7 @@ func server() *cobra.Command {
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
 				Telemetry:            telemetry.NewNoop(),
+				//LicenseHandler:       coderd.Licenses(),
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -421,7 +424,7 @@ func server() *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := coderd.New(options)
+			coderAPI := builder(options)
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
@@ -881,16 +884,16 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 // nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 ▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 ▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 ▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 ░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
   ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-░ ░          ░ ░     ░       ░  ░   ░     
-░                  ░                      		
+░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+░ ░          ░ ░     ░       ░  ░   ░
+░                  ░
 `)
 		return
 	}

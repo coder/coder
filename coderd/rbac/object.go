@@ -115,6 +115,15 @@ var (
 	ResourceWildcard = Object{
 		Type: WildcardSymbol,
 	}
+
+	// ResourceLicense is the license in the 'licenses' table.
+	// ResourceLicense is site wide.
+	// 	create/delete = add or remove license from site.
+	// 	read = view license claims
+	// 	update = not applicable; licenses are immutable
+	ResourceLicense = Object{
+		Type: "license",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in

@@ -137,8 +137,9 @@ CREATE TABLE gitsshkeys (
 
 CREATE TABLE licenses (
     id integer NOT NULL,
-    license jsonb NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    uploaded_at timestamp with time zone NOT NULL,
+    jwt text NOT NULL,
+    exp timestamp with time zone NOT NULL
 );
 
 CREATE SEQUENCE licenses_id_seq

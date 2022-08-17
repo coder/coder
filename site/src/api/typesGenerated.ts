@@ -18,6 +18,11 @@ export interface AWSInstanceIdentityToken {
   readonly document: string
 }
 
+// From codersdk/licenses.go
+export interface AddLicenseRequest {
+  readonly license: string
+}
+
 // From codersdk/gitsshkey.go
 export interface AgentGitSSHKey {
   readonly public_key: string
