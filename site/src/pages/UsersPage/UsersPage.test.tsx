@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
+import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
@@ -9,6 +10,7 @@ import { Language as UsersTableBodyLanguage } from "../../components/UsersTable/
 import {
   MockAuditorRole,
   MockUser,
+  MockUser2,
   render,
   SuspendedMockUser,
 } from "../../testHelpers/renderHelpers"
@@ -142,7 +144,7 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   }
 }
 
-describe("Users Page", () => {
+describe("UsersPage", () => {
   it("shows users", async () => {
     render(<UsersPage />)
     const users = await screen.findAllByText(/.*@coder.com/)
@@ -175,127 +177,127 @@ describe("Users Page", () => {
     expect(createUserButton).toBeNull()
   })
 
-  //   describe("suspend user", () => {
-  //     describe("when it fails", () => {
-  //       it("shows an error message", async () => {
-  //         render(
-  //           <>
-  //             <UsersPage />
-  //             <GlobalSnackbar />
-  //           </>,
-  //         )
-  //
-  //         await suspendUser(() => {
-  //           jest.spyOn(API, "suspendUser").mockRejectedValueOnce({})
-  //         })
-  //
-  //         // Check if the error message is displayed
-  //         await screen.findByText(usersXServiceLanguage.suspendUserError)
-  //
-  //         // Check if the API was called correctly
-  //         expect(API.suspendUser).toBeCalledTimes(1)
-  //         expect(API.suspendUser).toBeCalledWith(MockUser.id)
-  //       })
-  //     })
-  //   })
+  describe("suspend user", () => {
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await suspendUser(() => {
+          jest.spyOn(API, "suspendUser").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        screen.findByText(usersXServiceLanguage.suspendUserError)
+
+        // Check if the API was called correctly
+        expect(API.suspendUser).toBeCalledTimes(1)
+        expect(API.suspendUser).toBeCalledWith(MockUser.id)
+      })
+    })
+  })
 
   describe("activate user", () => {
-    //     describe("when user is successfully activated", () => {
-    //       it("shows a success message and refreshes the page", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         await activateUser(() => {
-    //           jest.spyOn(API, "activateUser").mockResolvedValueOnce(SuspendedMockUser)
-    //           jest
-    //             .spyOn(API, "getUsers")
-    //             .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2, SuspendedMockUser]))
-    //         })
-    //
-    //         // Check if the success message is displayed
-    //         await screen.findByText(usersXServiceLanguage.activateUserSuccess)
-    //
-    //         // Check if the API was called correctly
-    //         expect(API.activateUser).toBeCalledTimes(1)
-    //         expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
-    //       })
-    //     })
-    //     describe("when activation fails", () => {
-    //       it("shows an error message", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         await activateUser(() => {
-    //           jest.spyOn(API, "activateUser").mockRejectedValueOnce({})
-    //         })
-    //
-    //         // Check if the error message is displayed
-    //         await screen.findByText(usersXServiceLanguage.activateUserError)
-    //
-    //         // Check if the API was called correctly
-    //         expect(API.activateUser).toBeCalledTimes(1)
-    //         expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
-    //       })
-    //     })
+    describe("when user is successfully activated", () => {
+      it("shows a success message and refreshes the page", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await activateUser(() => {
+          jest.spyOn(API, "activateUser").mockResolvedValueOnce(SuspendedMockUser)
+          jest
+            .spyOn(API, "getUsers")
+            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2, SuspendedMockUser]))
+        })
+
+        // Check if the success message is displayed
+        screen.findByText(usersXServiceLanguage.activateUserSuccess)
+
+        // Check if the API was called correctly
+        expect(API.activateUser).toBeCalledTimes(1)
+        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
+      })
+    })
+    describe("when activation fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await activateUser(() => {
+          jest.spyOn(API, "activateUser").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        screen.findByText(usersXServiceLanguage.activateUserError)
+
+        // Check if the API was called correctly
+        expect(API.activateUser).toBeCalledTimes(1)
+        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
+      })
+    })
   })
 
   describe("reset user password", () => {
-    //     describe("when it is success", () => {
-    //       it("shows a success message", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         await resetUserPassword(() => {
-    //           jest.spyOn(API, "updateUserPassword").mockResolvedValueOnce(undefined)
-    //         })
-    //
-    //         // Check if the success message is displayed
-    //         await screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
-    //
-    //         // Check if the API was called correctly
-    //         expect(API.updateUserPassword).toBeCalledTimes(1)
-    //         expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
-    //           password: expect.any(String),
-    //           old_password: "",
-    //         })
-    //       })
-    //     })
-    //     describe("when it fails", () => {
-    //       it("shows an error message", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         await resetUserPassword(() => {
-    //           jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({})
-    //         })
-    //
-    //         // Check if the error message is displayed
-    //         await screen.findByText(usersXServiceLanguage.resetUserPasswordError)
-    //
-    //         // Check if the API was called correctly
-    //         expect(API.updateUserPassword).toBeCalledTimes(1)
-    //         expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
-    //           password: expect.any(String),
-    //           old_password: "",
-    //         })
-    //       })
-    //     })
+    describe("when it is success", () => {
+      it("shows a success message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await resetUserPassword(() => {
+          jest.spyOn(API, "updateUserPassword").mockResolvedValueOnce(undefined)
+        })
+
+        // Check if the success message is displayed
+        screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
+
+        // Check if the API was called correctly
+        expect(API.updateUserPassword).toBeCalledTimes(1)
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
+      })
+    })
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await resetUserPassword(() => {
+          jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        screen.findByText(usersXServiceLanguage.resetUserPasswordError)
+
+        // Check if the API was called correctly
+        expect(API.updateUserPassword).toBeCalledTimes(1)
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
+          password: expect.any(String),
+          old_password: "",
+        })
+      })
+    })
   })
 
   describe("Update user role", () => {
@@ -328,50 +330,53 @@ describe("Users Page", () => {
       })
     })
 
-    //     describe("when it fails", () => {
-    //       it("shows an error message", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         await updateUserRole(() => {
-    //           jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
-    //         }, MockAuditorRole)
-    //
-    //         // Check if the error message is displayed
-    //         await screen.findByText(usersXServiceLanguage.updateUserRolesError)
-    //
-    //         // Check if the API was called correctly
-    //         const currentRoles = MockUser.roles.map((r) => r.name)
-    //         expect(API.updateUserRoles).toBeCalledTimes(1)
-    //         expect(API.updateUserRoles).toBeCalledWith(
-    //           [...currentRoles, MockAuditorRole.name],
-    //           MockUser.id,
-    //         )
-    //       })
-    //       it("shows an error from the backend", async () => {
-    //         render(
-    //           <>
-    //             <UsersPage />
-    //             <GlobalSnackbar />
-    //           </>,
-    //         )
-    //
-    //         server.use(
-    //           rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
-    //             return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
-    //           }),
-    //         )
-    //
-    //         // eslint-disable-next-line @typescript-eslint/no-empty-function
-    //         await updateUserRole(() => {}, MockAuditorRole)
-    //
-    //         // Check if the error message is displayed
-    //         await screen.findByText("message from the backend")
-    //       })
-    //     })
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await updateUserRole(() => {
+          jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
+        }, MockAuditorRole)
+
+        // Check if the error message is displayed
+        const errorMessage = screen.findByText(usersXServiceLanguage.updateUserRolesError)
+        await waitFor(() => expect(errorMessage).toBeDefined())
+
+        // Check if the API was called correctly
+        const currentRoles = MockUser.roles.map((r) => r.name)
+
+        expect(API.updateUserRoles).toBeCalledTimes(1)
+        expect(API.updateUserRoles).toBeCalledWith(
+          [...currentRoles, MockAuditorRole.name],
+          MockUser.id,
+        )
+      })
+      it("shows an error from the backend", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        server.use(
+          rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
+            return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
+          }),
+        )
+
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        await updateUserRole(() => {}, MockAuditorRole)
+
+        // Check if the error message is displayed
+        const errorMessage = screen.findByText("message from the backend")
+        await waitFor(() => expect(errorMessage).toBeDefined())
+      })
+    })
   })
 })
