@@ -57,4 +57,4 @@ resource "coder_metadata" "deployment" {
 
 ## Up next
 
-- Learn about [secrets](../secrets.md)
+- Learn about [secrets](../secrets.md#displaying-secrets)
