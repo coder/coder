@@ -301,3 +301,19 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 
 	return row, nil
 }
+
+func ValidateColumns(all, given []string) error {
+	for _, col := range given {
+		found := false
+		for _, c := range all {
+			if strings.EqualFold(strings.ReplaceAll(col, "_", " "), c) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("unknown column: %s", col)
+		}
+	}
+	return nil
+}

@@ -1,5 +1,11 @@
 package codersdk
 
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+)
+
 type Entitlement string
 
 const (
@@ -26,4 +32,17 @@ type Entitlements struct {
 	Features   map[string]Feature `json:"features"`
 	Warnings   []string           `json:"warnings"`
 	HasLicense bool               `json:"has_license"`
+}
+
+func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/entitlements", nil)
+	if err != nil {
+		return Entitlements{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Entitlements{}, readBodyAsError(res)
+	}
+	var ent Entitlements
+	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
