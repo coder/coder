@@ -148,7 +148,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	if user.ID != uuid.Nil && user.LoginType != database.LoginTypeGithub {
 		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeGithub, user.LoginType),
 		})
 		return
 	}
@@ -215,7 +215,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred.",
-				Detail:  xerrors.Errorf("insert user link: %w", err.Error).Error(),
+				Detail:  fmt.Sprintf("insert user link: %s", err.Error()),
 			})
 			return
 		}
@@ -358,6 +358,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This can happen if a user is a built-in user but is signing in
+	// with OIDC for the first time.
 	if user.ID == uuid.Nil {
 		var organizationID uuid.UUID
 		organizations, _ := api.Database.GetOrganizations(ctx)
@@ -404,7 +406,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred.",
-				Detail:  xerrors.Errorf("insert user link: %w", err.Error).Error(),
+				Detail:  fmt.Sprintf("insert user link: %s", err.Error()),
 			})
 			return
 		}

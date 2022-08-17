@@ -38,7 +38,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-    login_type
+		login_type
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
@@ -55,12 +55,12 @@ WHERE
 
 -- name: UpdateUserRoles :one
 UPDATE
-    users
+	users
 SET
 	-- Remove all duplicates from the roles.
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
 WHERE
- 	id = @id
+	id = @id
 RETURNING *;
 
 -- name: UpdateUserHashedPassword :exec
@@ -123,8 +123,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-    -- Deterministic and consistent ordering of all users, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
+	-- Deterministic and consistent ordering of all users, even if they share
+	-- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
@@ -153,10 +153,10 @@ SELECT
 			array_append(users.rbac_roles, 'member'),
 		-- All org_members get the org-member role for their orgs
 			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
-	    AS roles
+		AS roles
 FROM
 	users
 LEFT JOIN organization_members
 	ON id = user_id
 WHERE
-    id = @user_id;
+	id = @user_id;
