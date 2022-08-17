@@ -34,12 +34,7 @@ type Entitlements struct {
 	HasLicense bool               `json:"has_license"`
 }
 
-type EntitlementsRequest struct {
-	// placeholder so that we can add request parameters in future
-	// without breaking changes to the go API
-}
-
-func (c *Client) Entitlements(ctx context.Context, _ EntitlementsRequest) (Entitlements, error) {
+func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/entitlements", nil)
 	if err != nil {
 		return Entitlements{}, err

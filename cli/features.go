@@ -46,7 +46,7 @@ func featuresList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			entitlements, err := client.Entitlements(cmd.Context(), codersdk.EntitlementsRequest{})
+			entitlements, err := client.Entitlements(cmd.Context())
 			if err != nil {
 				return err
 			}
