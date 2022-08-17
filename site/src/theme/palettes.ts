@@ -24,7 +24,7 @@ export const darkPalette: PaletteOptions = {
   },
   divider: colors.gray[13],
   warning: {
-    main: colors.orange[11],
+    main: colors.orange[9],
     dark: colors.orange[15],
   },
   success: {
