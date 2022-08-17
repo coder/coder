@@ -283,6 +283,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
+			Name:                       template.Name,
 			Description:                template.Description,
 			MaxTTLMillis:               template.MaxTTLMillis,
 			MinAutostartIntervalMillis: template.MinAutostartIntervalMillis,
@@ -292,6 +293,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
@@ -327,6 +329,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.WithinDuration(t, template.UpdatedAt, updated.UpdatedAt, time.Minute)
+		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
