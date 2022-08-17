@@ -1,19 +1,5 @@
 import { ReactNode } from "react"
-
-// all the possible states returned by the API
-export enum WorkspaceStateEnum {
-  starting = "Starting",
-  started = "Started",
-  stopping = "Stopping",
-  stopped = "Stopped",
-  canceling = "Canceling",
-  canceled = "Canceled",
-  deleting = "Deleting",
-  deleted = "Deleted",
-  queued = "Queued",
-  error = "Error",
-  loading = "Loading",
-}
+import { WorkspaceStateEnum } from "util/workspace"
 
 // the button types we have
 export enum ButtonTypesEnum {

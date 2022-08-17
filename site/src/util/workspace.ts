@@ -6,6 +6,21 @@ import * as TypesGen from "../api/typesGenerated"
 
 dayjs.extend(utc)
 
+// all the possible states returned by the API
+export enum WorkspaceStateEnum {
+  starting = "Starting",
+  started = "Started",
+  stopping = "Stopping",
+  stopped = "Stopped",
+  canceling = "Canceling",
+  canceled = "Canceled",
+  deleting = "Deleting",
+  deleted = "Deleted",
+  queued = "Queued",
+  error = "Error",
+  loading = "Loading",
+}
+
 export type WorkspaceStatus =
   | "queued"
   | "started"
