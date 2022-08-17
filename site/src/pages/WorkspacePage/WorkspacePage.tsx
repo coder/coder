@@ -71,8 +71,14 @@ export const WorkspacePage: React.FC = () => {
         {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
-  } else if (!workspace || !template) {
+  } else if (!workspace) {
     return <FullScreenLoader />
+  } else if (!template) {
+    return (
+      <div className={styles.error}>
+        dude don't block the entier page lol just make the bumper load the template
+      </div>
+    )
   } else {
     const now = dayjs().utc()
     const deadline = dayjs(workspace.latest_build.deadline).utc()

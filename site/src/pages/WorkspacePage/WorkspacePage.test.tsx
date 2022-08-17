@@ -60,11 +60,14 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   expect(actionMock).toBeCalled()
 }
 
-const testStatus = async (mock: Workspace, label: string) => {
+const testStatus = async (ws: Workspace, tpl: Template, label: string) => {
   server.use(
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json(mock))
+      return res(ctx.status(200), ctx.json(ws))
     }),
+    // rest.get(`/api/v2/templates/:templateId`, (req, res, ctx) => {
+    //   return res(ctx.status(200), ctx.json(tpl))
+    // }),
   )
   await renderWorkspacePage()
   const status = await screen.findByRole("status")
@@ -149,31 +152,31 @@ describe("Workspace Page", () => {
     await testButton(Language.update, getTemplateMock)
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
+    await testStatus(MockStoppingWorkspace, MockTemplate, DisplayStatusLanguage.stopping)
   })
   it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(MockStoppedWorkspace, DisplayStatusLanguage.stopped)
+    await testStatus(MockStoppedWorkspace, MockTemplate, DisplayStatusLanguage.stopped)
   })
   it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(MockStartingWorkspace, DisplayStatusLanguage.starting)
+    await testStatus(MockStartingWorkspace, MockTemplate, DisplayStatusLanguage.starting)
   })
   it("shows the Running status when the workspace is started", async () => {
-    await testStatus(MockWorkspace, DisplayStatusLanguage.started)
+    await testStatus(MockWorkspace, MockTemplate, DisplayStatusLanguage.started)
   })
   it("shows the Failed status when the workspace is failed or canceled", async () => {
-    await testStatus(MockFailedWorkspace, DisplayStatusLanguage.failed)
+    await testStatus(MockFailedWorkspace, MockTemplate, DisplayStatusLanguage.failed)
   })
   it("shows the Canceling status when the workspace is canceling", async () => {
-    await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
+    await testStatus(MockCancelingWorkspace, MockTemplate, DisplayStatusLanguage.canceling)
   })
   it("shows the Canceled status when the workspace is canceling", async () => {
-    await testStatus(MockCanceledWorkspace, DisplayStatusLanguage.canceled)
+    await testStatus(MockCanceledWorkspace, MockTemplate, DisplayStatusLanguage.canceled)
   })
   it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
+    await testStatus(MockDeletingWorkspace, MockTemplate, DisplayStatusLanguage.deleting)
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
+    await testStatus(MockDeletedWorkspace, MockTemplate, DisplayStatusLanguage.deleted)
   })
 
   describe("Timeline", () => {
