@@ -99,7 +99,7 @@ func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if !api.Authorize(r, rbac.ActionRead,
-		rbac.ResourceFile.WithOwner(file.CreatedBy.String()).WithID(file.Hash)) {
+		rbac.ResourceFile.WithOwner(file.CreatedBy.String())) {
 		// Return 404 to not leak the file exists
 		httpapi.ResourceNotFound(rw)
 		return

@@ -14,9 +14,13 @@ type Role struct {
 	DisplayName string `json:"display_name"`
 }
 
-// ListSiteRoles lists all available site wide roles.
-// This is not user specific.
-func (c *Client) ListSiteRoles(ctx context.Context) ([]Role, error) {
+type AssignableRoles struct {
+	Role
+	Assignable bool `json:"assignable"`
+}
+
+// ListSiteRoles lists all assignable site wide roles.
+func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/roles", nil)
 	if err != nil {
 		return nil, err
@@ -25,13 +29,12 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]Role, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var roles []Role
+	var roles []AssignableRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
-// ListOrganizationRoles lists all available roles for a given organization.
-// This is not user specific.
-func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Role, error) {
+// ListOrganizationRoles lists all assignable roles for a given organization.
+func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]AssignableRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles", org.String()), nil)
 	if err != nil {
 		return nil, err
@@ -40,7 +43,7 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var roles []Role
+	var roles []AssignableRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 

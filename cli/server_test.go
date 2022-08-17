@@ -416,6 +416,7 @@ func TestServer(t *testing.T) {
 
 		scanner := bufio.NewScanner(res.Body)
 		hasActiveUsers := false
+		hasWorkspaces := false
 		for scanner.Scan() {
 			// This metric is manually registered to be tracked in the server. That's
 			// why we test it's tracked here.
@@ -423,9 +424,49 @@ func TestServer(t *testing.T) {
 				hasActiveUsers = true
 				continue
 			}
+			if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
+				hasWorkspaces = true
+				continue
+			}
+			t.Logf("scanned %s", scanner.Text())
 		}
 		require.NoError(t, scanner.Err())
 		require.True(t, hasActiveUsers)
+		require.True(t, hasWorkspaces)
+		cancelFunc()
+		<-serverErr
+	})
+	t.Run("GitHubOAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		fakeRedirect := "https://fake-url.com"
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--oauth2-github-client-id", "fake",
+			"--oauth2-github-client-secret", "fake",
+			"--oauth2-github-enterprise-base-url", fakeRedirect,
+		)
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- root.ExecuteContext(ctx)
+		}()
+		accessURL := waitAccessURL(t, cfg)
+		client := codersdk.New(accessURL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		githubURL, err := accessURL.Parse("/api/v2/users/oauth2/github")
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Get(githubURL.String())
+		require.NoError(t, err)
+		defer res.Body.Close()
+		fakeURL, err := res.Location()
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
 		cancelFunc()
 		<-serverErr
 	})

@@ -187,10 +187,10 @@ jobs:
       - name: Install dependencies
         run: |
           set -euo pipefail
-          # The version of bash that MacOS ships with is too old
+          # The version of bash that macOS ships with is too old
           brew install bash
 
-          # The version of make that MacOS ships with is too old
+          # The version of make that macOS ships with is too old
           brew install make
           echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
 

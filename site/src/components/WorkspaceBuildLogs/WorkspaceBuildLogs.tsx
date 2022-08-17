@@ -79,7 +79,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
 const useStyles = makeStyles((theme) => ({
   logs: {
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: 2,
+    borderRadius: theme.shape.borderRadius,
     fontFamily: MONOSPACE_FONT_FAMILY,
   },
 

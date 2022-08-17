@@ -275,10 +275,15 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
+	userClient, _ := createAnotherUserRetry(t, client, organizationID, 5, roles...)
+	return userClient
+}
+
+func CreateAnotherUserWithUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) *codersdk.Client {
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
@@ -337,7 +342,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 			require.NoError(t, err, "update org membership roles")
 		}
 	}
-	return other
+	return other, user
 }
 
 // CreateTemplateVersion creates a template import provisioner job

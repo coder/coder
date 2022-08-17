@@ -1,15 +1,15 @@
 import { Theme } from "@material-ui/core/styles"
 import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
 import { Overrides } from "@material-ui/core/styles/overrides"
-import { MONOSPACE_FONT_FAMILY } from "./constants"
+import { colors } from "./colors"
+import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
 
 export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
     MuiCssBaseline: {
       "@global": {
         body: {
-          backgroundImage:
-            "linear-gradient(to right bottom, hsl(223, 38%, 14%), hsl(221, 53%, 3%))",
+          backgroundImage: `linear-gradient(to right bottom, ${colors.gray[15]}, ${colors.gray[17]})`,
           backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
@@ -40,7 +40,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
       contained: {
         boxShadow: "none",
         color: palette.text.primary,
-        backgroundColor: "hsl(223, 27%, 3%)",
+        backgroundColor: colors.gray[17],
         "&:hover": {
           boxShadow: "none",
           backgroundColor: "#000000",
@@ -68,19 +68,23 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTableHead: {
       root: {
+        display: "table-header-group",
         fontFamily: MONOSPACE_FONT_FAMILY,
-        textTransform: "uppercase",
       },
     },
     MuiTableContainer: {
       root: {
-        borderRadius: 2,
+        borderRadius,
         border: `1px solid ${palette.divider}`,
       },
     },
     MuiTable: {
       root: {
-        background: "hsla(222, 31%, 19%, .5)",
+        borderCollapse: "collapse",
+        border: "none",
+        background: colors.gray[15],
+        boxShadow: `0 0 0 1px ${colors.gray[15]} inset`,
+        overflow: "hidden",
 
         "& td": {
           paddingTop: 16,
@@ -95,16 +99,19 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
+
     MuiTableCell: {
       head: {
-        color: palette.text.secondary,
+        fontSize: 14,
+        color: colors.gray[5],
+        fontWeight: 600,
       },
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
-        padding: 8,
+        padding: "12px 8px",
         // This targets the first+last td elements, and also the first+last elements
         // of a TableCellLink.
         "&:not(:only-child):first-child, &:not(:only-child):first-child > a": {
@@ -117,7 +124,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiInputBase: {
       root: {
-        borderRadius: 2,
+        borderRadius,
       },
     },
     MuiOutlinedInput: {
@@ -141,7 +148,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiPaper: {
       root: {
-        borderRadius: 2,
+        borderRadius,
         border: `1px solid ${palette.divider}`,
       },
     },

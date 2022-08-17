@@ -16,8 +16,10 @@ func TestRoleByName(t *testing.T) {
 		testCases := []struct {
 			Role Role
 		}{
-			{Role: builtInRoles[admin]("")},
+			{Role: builtInRoles[owner]("")},
 			{Role: builtInRoles[member]("")},
+			{Role: builtInRoles[templateAdmin]("")},
+			{Role: builtInRoles[userAdmin]("")},
 			{Role: builtInRoles[auditor]("")},
 
 			{Role: builtInRoles[orgAdmin](uuid.New().String())},

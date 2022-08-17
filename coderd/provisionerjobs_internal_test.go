@@ -17,9 +17,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -77,7 +77,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{
 			ID:        userID,
-			RBACRoles: []string{"admin"},
+			RBACRoles: []string{rbac.RoleOwner()},
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{

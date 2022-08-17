@@ -22,6 +22,21 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceExecution CRUD. Org + User owner
+	//	create = workspace remote execution
+	// 	read = ?
+	//	update = ?
+	// 	delete = ?
+	ResourceWorkspaceExecution = Object{
+		Type: "workspace_execution",
+	}
+
+	// ResourceAuditLog
+	// read = access audit log
+	ResourceAuditLog = Object{
+		Type: "audit_log",
+	}
+
 	// ResourceTemplate CRUD. Org owner only.
 	//	create/delete = Make or delete a new template
 	//	update = Update the template, make new template versions
@@ -88,7 +103,7 @@ var (
 	}
 
 	// ResourceOrganizationMember is a user's membership in an organization.
-	// Has ONLY an organization owner. The resource ID is the user's ID
+	// Has ONLY an organization owner.
 	//	create/delete  = Create/delete member from org.
 	//	update  = Update organization member
 	//	read	= View member
@@ -108,8 +123,7 @@ var (
 // that represents the set of workspaces you are trying to get access too.
 // Do not export this type, as it can be created from a resource type constant.
 type Object struct {
-	ResourceID string `json:"id"`
-	Owner      string `json:"owner"`
+	Owner string `json:"owner"`
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
 
@@ -125,39 +139,26 @@ func (z Object) RBACObject() Object {
 // All returns an object matching all resources of the same type.
 func (z Object) All() Object {
 	return Object{
-		ResourceID: "",
-		Owner:      "",
-		OrgID:      "",
-		Type:       z.Type,
+		Owner: "",
+		OrgID: "",
+		Type:  z.Type,
 	}
 }
 
 // InOrg adds an org OwnerID to the resource
 func (z Object) InOrg(orgID uuid.UUID) Object {
 	return Object{
-		ResourceID: z.ResourceID,
-		Owner:      z.Owner,
-		OrgID:      orgID.String(),
-		Type:       z.Type,
+		Owner: z.Owner,
+		OrgID: orgID.String(),
+		Type:  z.Type,
 	}
 }
 
 // WithOwner adds an OwnerID to the resource
 func (z Object) WithOwner(ownerID string) Object {
 	return Object{
-		ResourceID: z.ResourceID,
-		Owner:      ownerID,
-		OrgID:      z.OrgID,
-		Type:       z.Type,
-	}
-}
-
-// WithID adds a ResourceID to the resource
-func (z Object) WithID(resourceID string) Object {
-	return Object{
-		ResourceID: resourceID,
-		Owner:      z.Owner,
-		OrgID:      z.OrgID,
-		Type:       z.Type,
+		Owner: ownerID,
+		OrgID: z.OrgID,
+		Type:  z.Type,
 	}
 }

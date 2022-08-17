@@ -6,6 +6,8 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { Stack } from "../Stack/Stack"
+import { UserRoleHelpTooltip } from "../Tooltips"
 import { UsersTableBody } from "./UsersTableBody"
 
 export const Language = {
@@ -16,7 +18,7 @@ export const Language = {
 
 export interface UsersTableProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
   isLoading?: boolean
@@ -44,7 +46,12 @@ export const UsersTable: FC<UsersTableProps> = ({
           <TableRow>
             <TableCell>{Language.usernameLabel}</TableCell>
             <TableCell>{Language.statusLabel}</TableCell>
-            <TableCell>{Language.rolesLabel}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>{Language.rolesLabel}</span>
+                <UserRoleHelpTooltip />
+              </Stack>
+            </TableCell>
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>

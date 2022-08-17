@@ -30,7 +30,7 @@ func startPty(cmd *exec.Cmd) (PTY, Process, error) {
 		_ = ptty.Close()
 		_ = tty.Close()
 		if runtime.GOOS == "darwin" && strings.Contains(err.Error(), "bad file descriptor") {
-			// MacOS has an obscure issue where the PTY occasionally closes
+			// macOS has an obscure issue where the PTY occasionally closes
 			// before it's used. It's unknown why this is, but creating a new
 			// TTY resolves it.
 			return startPty(cmd)
