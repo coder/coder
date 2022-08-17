@@ -8,6 +8,7 @@ import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { Workspace as GenWorkspace } from "../../api/typesGenerated"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
@@ -110,6 +111,8 @@ export const WorkspacePage: React.FC = () => {
                 ),
               })
             },
+            deadlineMinusEnabled,
+            deadlinePlusEnabled
           }}
           workspace={workspace}
           handleStart={() => workspaceSend("START")}
@@ -142,8 +145,20 @@ export const WorkspacePage: React.FC = () => {
 export const boundedDeadline = (newDeadline: dayjs.Dayjs, now: dayjs.Dayjs): dayjs.Dayjs => {
   const minDeadline = now.add(30, "minutes")
   const maxDeadline = now.add(24, "hours")
-  return dayjs.min(dayjs.max(minDeadline, newDeadline), maxDeadline)
+  const bounded = dayjs.min(dayjs.max(minDeadline, newDeadline), maxDeadline)
+  return bounded
 }
+
+export const deadlineMinusEnabled = (workspace: GenWorkspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta > (30 * 60 * 1000) // 30 minutes
+}
+
+export const deadlinePlusEnabled = (workspace: GenWorkspace, now: dayjs.Dayjs): boolean => {
+  const delta = dayjs(workspace.latest_build.deadline).diff(now)
+  return delta < (24 * 60 * 60 * 1000) // 24 hours
+}
+
 
 const useStyles = makeStyles((theme) => ({
   error: {

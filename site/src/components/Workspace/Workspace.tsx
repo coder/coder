@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
+import dayjs from "dayjs"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -9,6 +10,7 @@ import { Margins } from "../Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
+import { Workspace as GenWorkspace } from "../../api/typesGenerated"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
@@ -31,6 +33,8 @@ export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: () => void
     onDeadlineMinus: () => void
+    deadlinePlusEnabled: (workspace: GenWorkspace, now: dayjs.Dayjs) => boolean
+    deadlineMinusEnabled: (workspace: GenWorkspace, now: dayjs.Dayjs) => boolean
   }
   handleStart: () => void
   handleStop: () => void
@@ -81,6 +85,8 @@ export const Workspace: FC<WorkspaceProps> = ({
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
+              deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions

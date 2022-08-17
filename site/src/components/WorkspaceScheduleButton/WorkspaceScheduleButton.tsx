@@ -40,20 +40,12 @@ export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   return deadline.year() > 1
 }
 
-export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta <= 30 * 60 * 1000 // 30 minutes
-}
-
-export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta >= 24 * 60 * 60 * 1000 // 24 hours
-}
-
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
+  deadlineMinusEnabled: (workspace: Workspace, now: dayjs.Dayjs) => boolean
+  deadlinePlusEnabled: (workspace: Workspace, now: dayjs.Dayjs) => boolean
   canUpdateWorkspace: boolean
 }
 
@@ -61,6 +53,8 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
+  deadlinePlusEnabled,
+  deadlineMinusEnabled,
   canUpdateWorkspace,
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
@@ -81,7 +75,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlineMinusDisabled(workspace, dayjs())}
+              disabled={!deadlineMinusEnabled(workspace, dayjs())}
               onClick={onDeadlineMinus}
             >
               <Tooltip title={Language.editDeadlineMinus}>
@@ -91,7 +85,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlinePlusDisabled(workspace, dayjs())}
+              disabled={!deadlinePlusEnabled(workspace, dayjs())}
               onClick={onDeadlinePlus}
             >
               <Tooltip title={Language.editDeadlinePlus}>
