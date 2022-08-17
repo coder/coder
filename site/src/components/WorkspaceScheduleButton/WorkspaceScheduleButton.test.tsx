@@ -6,6 +6,8 @@ import { shouldDisplayPlusMinus } from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
 
+const now = dayjs()
+
 describe("WorkspaceScheduleButton", () => {
   describe("shouldDisplayPlusMinus", () => {
     it("should not display if the workspace is not running", () => {

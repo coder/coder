@@ -20,8 +20,8 @@ import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedul
 
 dayjs.extend(minMax)
 
-const deadlineExtensionMin = dayjs.duration(30, "minutes")
-const deadlineExtensionMax = dayjs.duration(24, "hours")
+export const deadlineExtensionMin = dayjs.duration(30, "minutes")
+export const deadlineExtensionMax = dayjs.duration(24, "hours")
 
 export const WorkspacePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
