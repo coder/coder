@@ -1,6 +1,6 @@
 ---
 name: Develop in Docker
-description: Run workspaces on a Docker host using registry images 
+description: Run workspaces on a Docker host using registry images
 tags: [local, docker]
 ---
 
@@ -37,7 +37,7 @@ variable "docker_image" {
 Update the template:
 
 ```sh
-coder template update docker
+coder template push docker
 ```
 
 You can also remove images from the validation list. Workspaces using older template versions will continue using

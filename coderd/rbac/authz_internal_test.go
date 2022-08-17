@@ -87,7 +87,7 @@ func TestFilter(t *testing.T) {
 		{
 			Name:       "Admin",
 			SubjectID:  userIDs[0].String(),
-			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleAdmin(), RoleMember()},
+			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     ActionRead,
 		},
@@ -292,7 +292,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = subject{
 		UserID: "me",
 		Roles: []Role{
-			must(RoleByName(RoleAdmin())),
+			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -499,7 +499,7 @@ func TestAuthorizeLevels(t *testing.T) {
 	user := subject{
 		UserID: "me",
 		Roles: []Role{
-			must(RoleByName(RoleAdmin())),
+			must(RoleByName(RoleOwner())),
 			{
 				Name: "org-deny:" + defOrg.String(),
 				Org: map[string][]Permission{

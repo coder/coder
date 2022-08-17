@@ -17,7 +17,7 @@ export const Language = {
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   filter?: string
   error?: unknown
   isUpdatingUserRoles?: boolean

@@ -105,7 +105,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
 	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleAdmin()},
+		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})
 	if err != nil {
