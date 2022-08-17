@@ -23,7 +23,7 @@ const config: PlaywrightTestConfig = {
     // Run the coder daemon directly.
     command: `go run -tags embed ${path.join(
       __dirname,
-      "../../cmd/coder/main.go",
+      "../../enterprise/cmd/coder/main.go",
     )} server --in-memory`,
     port: basePort,
     timeout: 120 * 10000,

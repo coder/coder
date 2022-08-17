@@ -2,7 +2,7 @@
 
 # This script builds a single Go binary of Coder with the given parameters.
 #
-# Usage: ./build_go.sh [--version 1.2.3-devel+abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim]
+# Usage: ./build_go.sh [--version 1.2.3-devel+abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim] [--agpl]
 #
 # Defaults to linux:amd64 with slim disabled, but can be controlled with GOOS,
 # GOARCH and CODER_SLIM_BUILD=1. If no version is specified, defaults to the
@@ -19,6 +19,9 @@
 # If the --sign-darwin parameter is specified and the OS is darwin, binaries
 # will be signed using the `codesign` utility. $AC_APPLICATION_IDENTITY must be
 # set and the signing certificate must be imported for this to work.
+#
+# If the --agpl parameter is specified, builds only the AGPL-licensed code (no
+# Coder enterprise features).
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -31,8 +34,9 @@ arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
 sign_darwin=0
 output_path=""
+agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,sign-darwin -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -54,6 +58,10 @@ while true; do
 		;;
 	--slim)
 		slim=1
+		shift
+		;;
+	--agpl)
+		agpl=1
 		shift
 		;;
 	--sign-darwin)
@@ -115,9 +123,13 @@ elif [[ "$arch" == "armv"* ]] || [[ "$arch" == "arm64v"* ]]; then
 	arch="${arch//v*/}"
 fi
 
+cmd_path="./enterprise/cmd/coder"
+if [[ "$agpl" == 1 ]]; then
+	cmd_path="./cmd/coder"
+fi
 CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"${build_args[@]}" \
-	./cmd/coder 1>&2
+	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
 	codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
