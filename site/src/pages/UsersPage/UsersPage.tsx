@@ -1,5 +1,5 @@
 import { useActor } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
@@ -19,7 +19,7 @@ export const Language = {
   activateDialogMessagePrefix: "Do you want to activate the user",
 }
 
-export const UsersPage: React.FC = () => {
+export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
   const {

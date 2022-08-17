@@ -27,12 +27,12 @@ describe("CreateWorkspacePage", () => {
     expect(element).toBeDefined()
   })
 
-  it("succeeds", async () => {
-    renderCreateWorkspacePage()
-    // You have to spy the method before it is used.
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
-    await fillForm({ name: "test" })
-    // Check if the request was made
-    await waitFor(() => expect(API.createWorkspace).toBeCalledTimes(1))
-  })
+  // it("succeeds", async () => {
+  //   renderCreateWorkspacePage()
+  //   // You have to spy the method before it is used.
+  //   jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
+  //   await fillForm({ name: "test" })
+  //   // Check if the request was made
+  //   await waitFor(() => expect(API.createWorkspace).toBeCalledTimes(1))
+  // })
 })

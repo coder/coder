@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import { FC, useEffect, useMemo, useRef, useState } from "react"
+import { FC, ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Workspace } from "../../api/typesGenerated"
 import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
@@ -37,9 +37,10 @@ export interface WorkspaceActionsProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  children?: ReactNode
 }
 
-export const WorkspaceActions: FC<React.PropsWithChildren<WorkspaceActionsProps>> = ({
+export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
   handleStart,
   handleStop,

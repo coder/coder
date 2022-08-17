@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { useFormik } from "formik"
 import { FC } from "react"
 import * as yup from "yup"
@@ -58,17 +58,13 @@ describe("FormTextField", () => {
       expect(screen.queryByText(Helpers.requiredValidationMsg)).toBeNull()
 
       // When
-      act(() => {
-        fireEvent.focus(el as Element)
-      })
+      fireEvent.focus(el as Element)
 
       // Then
       expect(screen.queryByText(Helpers.requiredValidationMsg)).toBeNull()
 
       // When
-      act(() => {
-        fireEvent.blur(el as Element)
-      })
+      fireEvent.blur(el as Element)
 
       // Then
       expect(screen.queryByText(Helpers.requiredValidationMsg)).toBeDefined()

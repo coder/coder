@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import * as Mocks from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language } from "./ActionCtas"
@@ -30,7 +30,7 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
     />,
   )
   const trigger = await screen.findByTestId("workspace-actions-button")
-  trigger.click()
+  fireEvent.click(trigger)
 }
 
 describe("WorkspaceActions", () => {

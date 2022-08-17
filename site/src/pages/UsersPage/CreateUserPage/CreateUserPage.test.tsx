@@ -1,7 +1,6 @@
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { act } from "react-dom/test-utils"
 import * as API from "../../../api/api"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
@@ -26,7 +25,7 @@ const fillForm = async ({
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
   const submitButton = await screen.findByText(FooterLanguage.defaultSubmitLabel)
-  act(() => submitButton.click())
+  fireEvent.click(submitButton)
 }
 
 describe("Create User Page", () => {
