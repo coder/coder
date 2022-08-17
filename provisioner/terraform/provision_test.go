@@ -137,7 +137,6 @@ func TestProvision_Cancel(t *testing.T) {
 				if log == nil {
 					goto LoopStart
 				}
-				require.NotNil(t, log)
 				require.Equal(t, line, log.Output)
 			}
 
