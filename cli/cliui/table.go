@@ -59,13 +59,14 @@ func FilterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 //
 // If sort is empty, the input order will be used. If filterColumns is empty or
 // nil, all available columns are included.
-func DisplayTable(out interface{}, sort string, filterColumns []string) (string, error) {
+func DisplayTable(out any, sort string, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	if v.Kind() != reflect.Slice {
 		return "", xerrors.Errorf("DisplayTable called with a non-slice type")
 	}
 
+	// Get the list of table column headers.
 	headersRaw, err := typeToTableHeaders(v.Type().Elem())
 	if err != nil {
 		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
@@ -78,12 +79,61 @@ func DisplayTable(out interface{}, sort string, filterColumns []string) (string,
 		headers[i] = header
 	}
 
+	// Verify that the given sort column and filter columns are valid.
+	if sort != "" || len(filterColumns) != 0 {
+		headersMap := make(map[string]string, len(headersRaw))
+		for _, header := range headersRaw {
+			headersMap[strings.ToLower(header)] = header
+		}
+
+		if sort != "" {
+			sort = strings.ToLower(strings.ReplaceAll(sort, "_", " "))
+			h, ok := headersMap[sort]
+			if !ok {
+				return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
+			}
+
+			// Autocorrect
+			sort = h
+		}
+
+		for i, column := range filterColumns {
+			column := strings.ToLower(strings.ReplaceAll(column, "_", " "))
+			h, ok := headersMap[column]
+			if !ok {
+				return "", xerrors.Errorf("specified filter column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
+			}
+
+			// Autocorrect
+			filterColumns[i] = h
+		}
+	}
+
+	// Verify that the given sort column is valid.
+	if sort != "" {
+		sort = strings.ReplaceAll(sort, "_", " ")
+		found := false
+		for _, header := range headersRaw {
+			if strings.EqualFold(sort, header) {
+				found = true
+				sort = header
+				break
+			}
+		}
+		if !found {
+			return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
+		}
+	}
+
+	// Setup the table formatter.
 	tw := Table()
 	tw.AppendHeader(headers)
 	tw.SetColumnConfigs(FilterTableColumns(headers, filterColumns))
-	tw.SortBy([]table.SortBy{{
-		Name: sort,
-	}})
+	if sort != "" {
+		tw.SortBy([]table.SortBy{{
+			Name: sort,
+		}})
+	}
 
 	// Write each struct to the table.
 	for i := 0; i < v.Len(); i++ {
@@ -93,7 +143,7 @@ func DisplayTable(out interface{}, sort string, filterColumns []string) (string,
 			return "", xerrors.Errorf("get table row map %v: %w", i, err)
 		}
 
-		rowSlice := make([]interface{}, len(headers))
+		rowSlice := make([]any, len(headers))
 		for i, h := range headersRaw {
 			v, ok := rowMap[h]
 			if !ok {
@@ -200,7 +250,7 @@ func typeToTableHeaders(t reflect.Type) ([]string, error) {
 // valueToTableMap converts a struct to a map of column name to value. If the
 // given type is invalid (not a struct or a pointer to a struct, has invalid
 // table tags, etc.), an error is returned.
-func valueToTableMap(val reflect.Value) (map[string]interface{}, error) {
+func valueToTableMap(val reflect.Value) (map[string]any, error) {
 	if !isStructOrStructPointer(val.Type()) {
 		return nil, xerrors.Errorf("valueToTableMap called with a non-struct or a non-pointer-to-a-struct type")
 	}
@@ -208,13 +258,13 @@ func valueToTableMap(val reflect.Value) (map[string]interface{}, error) {
 		if val.IsNil() {
 			// No data for this struct, so return an empty map. All values will
 			// be rendered as nil in the resulting table.
-			return map[string]interface{}{}, nil
+			return map[string]any{}, nil
 		}
 
 		val = val.Elem()
 	}
 
-	row := map[string]interface{}{}
+	row := map[string]any{}
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Type().Field(i)
 		fieldVal := val.Field(i)
