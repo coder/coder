@@ -73,7 +73,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	start := request.GetStart()
 
 	e := s.executor(start.Directory)
-	if err = e.checkMinVersion(stream.Context()); err != nil {
+	if err = e.checkMinVersion(ctx); err != nil {
 		return err
 	}
 	if err = logTerraformEnvVars(logr); err != nil {

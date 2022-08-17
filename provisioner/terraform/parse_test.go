@@ -16,7 +16,7 @@ import (
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	ctx, api := setupProvisioner(t)
+	ctx, api := setupProvisioner(t, nil)
 
 	testCases := []struct {
 		Name     string
@@ -171,7 +171,7 @@ func TestParse(t *testing.T) {
 			// Write all files to the temporary test directory.
 			directory := t.TempDir()
 			for path, content := range testCase.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
+				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0o600)
 				require.NoError(t, err)
 			}
 

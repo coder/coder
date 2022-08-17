@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	// This is the exact version of Terraform used internally
-	// when Terraform is missing on the system.
-	terraformVersion = version.Must(version.NewVersion("1.2.1"))
+	// TerraformVersion is the version of Terraform used internally
+	// when Terraform is not available on the system.
+	TerraformVersion = version.Must(version.NewVersion("1.2.1"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
@@ -96,7 +96,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
-				Version:    terraformVersion,
+				Version:    TerraformVersion,
 			}
 
 			execPath, err := installer.Install(ctx)
