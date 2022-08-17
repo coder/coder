@@ -2119,7 +2119,8 @@ SET
 	updated_at = $2,
 	description = $3,
 	max_ttl = $4,
-	min_autostart_interval = $5
+	min_autostart_interval = $5,
+	name = $6
 WHERE
 	id = $1
 RETURNING
@@ -2132,6 +2133,7 @@ type UpdateTemplateMetaByIDParams struct {
 	Description          string    `db:"description" json:"description"`
 	MaxTtl               int64     `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64     `db:"min_autostart_interval" json:"min_autostart_interval"`
+	Name                 string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -2141,6 +2143,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.Description,
 		arg.MaxTtl,
 		arg.MinAutostartInterval,
+		arg.Name,
 	)
 	return err
 }
