@@ -10,14 +10,14 @@ const Template: Story<LicenseBannerViewProps> = (args) => <LicenseBannerView {..
 
 export const OneWarning = Template.bind({})
 OneWarning.args = {
-  warnings: ["You have exceeded the number of seats in your license"],
+  warnings: ["You have exceeded the number of seats in your license."],
 }
 
 export const TwoWarnings = Template.bind({})
 TwoWarnings.args = {
   warnings: [
-    "You have exceeded the number of seats in your license",
-    "You are flying too close to the sun",
+    "You have exceeded the number of seats in your license.",
+    "You are flying too close to the sun.",
   ],
 }
 
