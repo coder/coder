@@ -113,6 +113,15 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	s.logger.Debug(ctx, "running initialization")
 	err = e.init(ctx, killCtx, logr)
 	if err != nil {
+		if ctx.Err() != nil {
+			return stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Error: err.Error(),
+					},
+				},
+			})
+		}
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
