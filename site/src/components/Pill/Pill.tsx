@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
@@ -7,16 +8,16 @@ export type PaletteIndex = "primary" | "secondary" | "info" | "success" | "error
 
 export interface PillProps {
   className?: string
-  icon: React.ReactNode
+  icon?: React.ReactNode
   text: string
   type?: PaletteIndex
 }
 
 export const Pill: React.FC<PillProps> = ({ className, icon, text, type }) => {
-  const styles = useStyles({ type })
+  const styles = useStyles({ icon, type })
   return (
     <div className={combineClasses([styles.wrapper, styles.pillColor, className])} role="status">
-      <div className={styles.iconWrapper}>{icon}</div>
+      {icon && <div className={styles.iconWrapper}>{icon}</div>}
       {text}
     </div>
   )
@@ -34,7 +35,8 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 500,
     color: "#FFF",
     height: theme.spacing(3),
-    paddingLeft: theme.spacing(0.75),
+    paddingLeft: ({ icon }: { icon?: React.ReactNode }) =>
+      icon ? theme.spacing(0.75) : theme.spacing(1.5),
     paddingRight: theme.spacing(1.5),
     whiteSpace: "nowrap",
   },
