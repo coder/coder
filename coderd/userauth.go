@@ -478,7 +478,7 @@ func githubLinkedID(u *github.User) string {
 }
 
 // oidcLinkedID returns the uniqued ID for an OIDC user.
-// See https://openid.net/specs/openid-connect-core-1_0.html#ClaimStability.
+// See https://openid.net/specs/openid-connect-core-1_0.html#ClaimStability .
 func oidcLinkedID(tok *oidc.IDToken) string {
 	return strings.Join([]string{tok.Issuer, tok.Subject}, "||")
 }
