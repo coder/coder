@@ -1,7 +1,7 @@
 import { MockEntitlements } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { Entitlements } from "../../api/types"
+import { Entitlements } from "../../api/typesGenerated"
 
 export const Language = {
   getEntitlementsError: "Error getting license entitlements.",
