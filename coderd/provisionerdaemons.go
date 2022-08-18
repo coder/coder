@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
@@ -61,11 +62,18 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, daemons)
+	var results []codersdk.ProvisionerDaemon
+	for _, daemon := range daemons {
+		results = append(results, convertProvisionerDaemon(daemon))
+	}
+	httpapi.Write(rw, http.StatusOK, results)
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
+	daemon := httpmw.ProvisionerDaemon(r)
+	api.Logger.Warn(r.Context(), "daemon connected", slog.F("daemon", daemon.Name))
+
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
@@ -85,17 +93,6 @@ func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 	// Align with the frame size of yamux.
 	conn.SetReadLimit(256 * 1024)
 
-	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
-		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
-		Name:         namesgenerator.GetRandomName(1),
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert provisioner daemon: %s", err))
-		return
-	}
-
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
@@ -113,6 +110,7 @@ func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		Database:     api.Database,
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
+		Telemetry:    api.Telemetry,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
@@ -134,6 +132,36 @@ func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
+}
+
+func (api *API) postProvisionerDaemon(rw http.ResponseWriter, r *http.Request) {
+	// Create the user on the site.
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.CreateProvisionerDaemonRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	provisioner, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
+		ID:           uuid.New(),
+		CreatedAt:    database.Now(),
+		Name:         req.Name,
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeTerraform},
+		AuthToken:    uuid.NullUUID{Valid: true, UUID: uuid.New()},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error inserting provisioner daemon.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertProvisionerDaemon(provisioner))
 }
 
 // ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
@@ -1033,4 +1061,20 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 	default:
 		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
 	}
+}
+
+func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
+	result := codersdk.ProvisionerDaemon{
+		ID:        daemon.ID,
+		CreatedAt: daemon.CreatedAt,
+		UpdatedAt: daemon.UpdatedAt,
+		Name:      daemon.Name,
+	}
+	for _, provisionerType := range daemon.Provisioners {
+		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
+	}
+	if daemon.AuthToken.Valid {
+		result.AuthToken = &daemon.AuthToken.UUID
+	}
+	return result
 }

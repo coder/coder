@@ -416,6 +416,7 @@ type ProvisionerDaemon struct {
 	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	AuthToken    uuid.NullUUID     `db:"auth_token" json:"auth_token"`
 }
 
 type ProvisionerJob struct {

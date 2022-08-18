@@ -200,7 +200,8 @@ CREATE TABLE provisioner_daemons (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
-    provisioners provisioner_type[] NOT NULL
+    provisioners provisioner_type[] NOT NULL,
+    auth_token uuid
 );
 
 CREATE TABLE provisioner_job_logs (

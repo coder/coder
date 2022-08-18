@@ -120,6 +120,7 @@ func Root() *cobra.Command {
 		logout(),
 		parameters(),
 		portForward(),
+		provisioners(),
 		publickey(),
 		resetPassword(),
 		schedules(),

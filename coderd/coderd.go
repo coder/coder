@@ -178,11 +178,13 @@ func New(options *Options) *API {
 			r.Post("/", api.postFile)
 		})
 		r.Route("/provisionerdaemons", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.provisionerDaemons)
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/", api.provisionerDaemons)
+				r.Post("/", api.postProvisionerDaemon)
+			})
 			r.Route("/me", func(r chi.Router) {
+				r.Use(httpmw.ExtractProvisionerDaemon(options.Database))
 				r.Get("/listen", api.provisionerDaemonsListen)
 			})
 		})

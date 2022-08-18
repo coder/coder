@@ -463,7 +463,7 @@ func server() *cobra.Command {
 				}
 			}()
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cacheDir, errCh, false)
+				daemon, err := newProvisionerDaemon(ctx, coderAPI.ListenProvisionerDaemon, logger, cacheDir, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -805,7 +805,7 @@ func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout
 }
 
 // nolint:revive
-func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
+func newProvisionerDaemon(ctx context.Context, dialer provisionerd.Dialer,
 	logger slog.Logger, cacheDir string, errCh chan error, dev bool,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -873,7 +873,7 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
 	}
-	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	return provisionerd.New(dialer, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   500 * time.Millisecond,
 		UpdateInterval: 500 * time.Millisecond,

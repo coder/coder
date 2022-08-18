@@ -83,6 +83,11 @@ export interface CreateParameterRequest {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerDaemonRequest {
+  readonly name: string
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
@@ -242,6 +247,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+  readonly auth_token?: string
 }
 
 // From codersdk/provisionerdaemons.go

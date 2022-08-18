@@ -46,6 +46,7 @@ type querier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error)
 	GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error)
+	GetProvisionerDaemonByAuthToken(ctx context.Context, authToken uuid.NullUUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)

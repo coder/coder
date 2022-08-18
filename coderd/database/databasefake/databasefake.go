@@ -1306,6 +1306,26 @@ func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) 
 	return database.ProvisionerDaemon{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProvisionerDaemonByAuthToken(_ context.Context, token uuid.NullUUID) (database.ProvisionerDaemon, error) {
+	if !token.Valid {
+		return database.ProvisionerDaemon{}, sql.ErrNoRows
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, provisionerDaemon := range q.provisionerDaemons {
+		if !provisionerDaemon.AuthToken.Valid {
+			continue
+		}
+		if provisionerDaemon.AuthToken.UUID.String() != token.UUID.String() {
+			continue
+		}
+		return provisionerDaemon, nil
+	}
+	return database.ProvisionerDaemon{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1663,6 +1683,7 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
+		AuthToken:    arg.AuthToken,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
