@@ -15,6 +15,10 @@ export interface HelpTooltipProps {
   size?: Size
 }
 
+export const Language = {
+  ariaLabel: "tooltip",
+}
+
 const HelpTooltipContext = createContext<{ open: boolean; onClose: () => void } | undefined>(
   undefined,
 )
@@ -52,6 +56,7 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
         onMouseEnter={() => {
           setIsOpen(true)
         }}
+        aria-label={Language.ariaLabel}
       >
         <HelpIcon className={styles.icon} />
       </button>

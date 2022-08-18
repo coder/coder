@@ -30,6 +30,7 @@ func TestTemplateEdit(t *testing.T) {
 		})
 
 		// Test the cli command.
+		name := "new-template-name"
 		desc := "lorem ipsum dolor sit amet et cetera"
 		maxTTL := 12 * time.Hour
 		minAutostartInterval := time.Minute
@@ -37,9 +38,10 @@ func TestTemplateEdit(t *testing.T) {
 			"templates",
 			"edit",
 			template.Name,
+			"--name", name,
 			"--description", desc,
-			"--max_ttl", maxTTL.String(),
-			"--min_autostart_interval", minAutostartInterval.String(),
+			"--max-ttl", maxTTL.String(),
+			"--min-autostart-interval", minAutostartInterval.String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -51,6 +53,7 @@ func TestTemplateEdit(t *testing.T) {
 		// Assert that the template metadata changed.
 		updated, err := client.Template(context.Background(), template.ID)
 		require.NoError(t, err)
+		assert.Equal(t, name, updated.Name)
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, maxTTL.Milliseconds(), updated.MaxTTLMillis)
 		assert.Equal(t, minAutostartInterval.Milliseconds(), updated.MinAutostartIntervalMillis)
@@ -73,9 +76,10 @@ func TestTemplateEdit(t *testing.T) {
 			"templates",
 			"edit",
 			template.Name,
+			"--name", template.Name,
 			"--description", template.Description,
-			"--max_ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
-			"--min_autostart_interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
+			"--max-ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
+			"--min-autostart-interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -87,6 +91,7 @@ func TestTemplateEdit(t *testing.T) {
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
 		require.NoError(t, err)
+		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)

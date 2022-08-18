@@ -23,12 +23,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -52,6 +54,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
@@ -84,6 +87,13 @@ func server() *cobra.Command {
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowedTeams         []string
 		oauth2GithubAllowSignups         bool
+		oauth2GithubEnterpriseBaseURL    string
+		oidcAllowSignups                 bool
+		oidcClientID                     string
+		oidcClientSecret                 string
+		oidcEmailDomain                  string
+		oidcIssuerURL                    string
+		oidcScopes                       []string
 		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
@@ -116,6 +126,19 @@ func server() *cobra.Command {
 			// of running services.
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
+
+			// Register signals early on so that graceful shutdown can't
+			// be interrupted by additional signals. Note that we avoid
+			// shadowing cancel() (from above) here because notifyStop()
+			// restores default behavior for the signals. This protects
+			// the shutdown sequence from abrubtly terminating things
+			// like: database migrations, provisioner work, workspace
+			// cleanup in dev-mode, etc.
+			//
+			// To get out of a graceful shutdown, the user can send
+			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
+			notifyCtx, notifyStop := signal.NotifyContext(ctx, interruptSignals...)
+			defer notifyStop()
 
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
@@ -217,22 +240,23 @@ func server() *cobra.Command {
 				accessURL = devTunnel.URL
 			}
 
+			accessURLParsed, err := parseURL(ctx, accessURL)
+			if err != nil {
+				return xerrors.Errorf("parse URL: %w", err)
+			}
+
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, accessURL)
+			isLocal, err := isLocalURL(ctx, accessURLParsed)
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURL), reason)
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
-			cmd.Printf("View the Web UI: %s\n", accessURL)
 
-			accessURLParsed, err := url.Parse(accessURL)
-			if err != nil {
-				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
-			}
+			cmd.Printf("View the Web UI: %s\n", accessURLParsed.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -276,9 +300,41 @@ func server() *cobra.Command {
 			}
 
 			if oauth2GithubClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams)
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams, oauth2GithubEnterpriseBaseURL)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
+				}
+			}
+
+			if oidcClientSecret != "" {
+				if oidcClientID == "" {
+					return xerrors.Errorf("OIDC client ID be set!")
+				}
+				if oidcIssuerURL == "" {
+					return xerrors.Errorf("OIDC issuer URL must be set!")
+				}
+
+				oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
+				if err != nil {
+					return xerrors.Errorf("configure oidc provider: %w", err)
+				}
+				redirectURL, err := accessURLParsed.Parse("/api/v2/users/oidc/callback")
+				if err != nil {
+					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+				}
+				options.OIDCConfig = &coderd.OIDCConfig{
+					OAuth2Config: &oauth2.Config{
+						ClientID:     oidcClientID,
+						ClientSecret: oidcClientSecret,
+						RedirectURL:  redirectURL.String(),
+						Endpoint:     oidcProvider.Endpoint(),
+						Scopes:       oidcScopes,
+					},
+					Verifier: oidcProvider.Verifier(&oidc.Config{
+						ClientID: oidcClientID,
+					}),
+					EmailDomain:  oidcEmailDomain,
+					AllowSignups: oidcAllowSignups,
 				}
 			}
 
@@ -324,7 +380,7 @@ func server() *cobra.Command {
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := url.Parse(telemetryURL)
+			telemetryURL, err := parseURL(ctx, telemetryURL)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
@@ -340,6 +396,8 @@ func server() *cobra.Command {
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
 					GitHubOAuth:     oauth2GithubClientID != "",
+					OIDCAuth:        oidcClientID != "",
+					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
 					STUN:            len(stunServers) != 0,
 					Tunnel:          tunnel,
@@ -348,6 +406,32 @@ func server() *cobra.Command {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
 				}
 				defer options.Telemetry.Close()
+			}
+
+			// This prevents the pprof import from being accidentally deleted.
+			_ = pprof.Handler
+			if pprofEnabled {
+				//nolint:revive
+				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
+			}
+			if promEnabled {
+				options.PrometheusRegistry = prometheus.NewRegistry()
+				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register active users prometheus metric: %w", err)
+				}
+				defer closeUsersFunc()
+
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
+				}
+				defer closeWorkspacesFunc()
+
+				//nolint:revive
+				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+				), promAddress, "prometheus")()
 			}
 
 			coderAPI := coderd.New(options)
@@ -362,17 +446,6 @@ func server() *cobra.Command {
 						InsecureSkipVerify: true,
 					},
 				}
-			}
-
-			// This prevents the pprof import from being accidentally deleted.
-			_ = pprof.Handler
-			if pprofEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
-			}
-			if promEnabled {
-				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -440,7 +513,7 @@ func server() *cobra.Command {
 			if !hasFirstUser && err == nil {
 				cmd.Println()
 				cmd.Println("Get started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURL))
+				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
 			}
 
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
@@ -461,22 +534,13 @@ func server() *cobra.Command {
 			// such as via the systemd service.
 			_ = config.URL().Write(client.URL.String())
 
-			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
-			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
-			// two or more times.  So the stopChan is unlimited in size and we don't call
-			// signal.Stop() until graceful shutdown finished--this means we swallow additional
-			// SIGINT after the first.  To get out of a graceful shutdown, the user can send SIGQUIT
-			// with ctrl+\ or SIGTERM with `kill`.
-			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-			defer stop()
-
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-ctx.Done():
-				exitErr = ctx.Err()
+			case <-notifyCtx.Done():
+				exitErr = notifyCtx.Err()
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
@@ -636,6 +700,20 @@ func server() *cobra.Command {
 		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubEnterpriseBaseURL, "oauth2-github-enterprise-base-url", "", "CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL", "",
+		"Specifies the base URL of a GitHub Enterprise instance to use for oauth2.")
+	cliflag.BoolVarP(root.Flags(), &oidcAllowSignups, "oidc-allow-signups", "", "CODER_OIDC_ALLOW_SIGNUPS", true,
+		"Specifies whether new users can sign up with OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientID, "oidc-client-id", "", "CODER_OIDC_CLIENT_ID", "",
+		"Specifies a client ID to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcClientSecret, "oidc-client-secret", "", "CODER_OIDC_CLIENT_SECRET", "",
+		"Specifies a client secret to use for OIDC.")
+	cliflag.StringVarP(root.Flags(), &oidcEmailDomain, "oidc-email-domain", "", "CODER_OIDC_EMAIL_DOMAIN", "",
+		"Specifies an email domain that clients authenticating with OIDC must match.")
+	cliflag.StringVarP(root.Flags(), &oidcIssuerURL, "oidc-issuer-url", "", "CODER_OIDC_ISSUER_URL", "",
+		"Specifies an issuer URL to use for OIDC.")
+	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
+		"Specifies scopes to grant when authenticating with OIDC.")
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
@@ -670,6 +748,54 @@ func server() *cobra.Command {
 	_ = root.Flags().MarkHidden("spooky")
 
 	return root
+}
+
+// parseURL parses a string into a URL. It works around some technically correct
+// but undesired behavior of url.Parse by prepending a scheme if one does not
+// exist so that the URL does not get parsed improprely.
+func parseURL(ctx context.Context, u string) (*url.URL, error) {
+	var (
+		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
+	)
+
+	if !hasScheme {
+		// Append a scheme if it doesn't have one. Otherwise the hostname
+		// will likely get parsed as the scheme and cause methods like Hostname()
+		// to return an empty string, largely obviating the purpose of this
+		// function.
+		u = "https://" + u
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the specified url is a loopback device and no scheme has been
+	// specified, prefer http over https. It's unlikely anyone intends to use
+	// https on a loopback and if they do they can specify a scheme.
+	if local, _ := isLocalURL(ctx, parsed); local && !hasScheme {
+		parsed.Scheme = "http"
+	}
+
+	return parsed, nil
+}
+
+// isLocalURL returns true if the hostname of the provided URL appears to
+// resolve to a loopback address.
+func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
+	if err != nil {
+		return false, err
+	}
+
+	for _, ip := range ips {
+		if ip.IP.IsLoopback() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout time.Duration) error {
@@ -853,7 +979,7 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	return tls.NewListener(listener, tlsConfig), nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
@@ -869,11 +995,38 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			Slug:         parts[1],
 		})
 	}
+	createClient := func(client *http.Client) (*github.Client, error) {
+		if enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		}
+		return github.NewClient(client), nil
+	}
+
+	endpoint := xgithub.Endpoint
+	if enterpriseBaseURL != "" {
+		enterpriseURL, err := url.Parse(enterpriseBaseURL)
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise base url: %w", err)
+		}
+		authURL, err := enterpriseURL.Parse("/login/oauth/authorize")
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise auth url: %w", err)
+		}
+		tokenURL, err := enterpriseURL.Parse("/login/oauth/access_token")
+		if err != nil {
+			return nil, xerrors.Errorf("parse enterprise token url: %w", err)
+		}
+		endpoint = oauth2.Endpoint{
+			AuthURL:  authURL.String(),
+			TokenURL: tokenURL.String(),
+		}
+	}
+
 	return &coderd.GithubOAuth2Config{
 		OAuth2Config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			Endpoint:     xgithub.Endpoint,
+			Endpoint:     endpoint,
 			RedirectURL:  redirectURL.String(),
 			Scopes: []string{
 				"read:user",
@@ -885,15 +1038,27 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-			user, _, err := github.NewClient(client).Users.Get(ctx, "")
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			user, _, err := api.Users.Get(ctx, "")
 			return user, err
 		},
 		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-			emails, _, err := github.NewClient(client).Users.ListEmails(ctx, &github.ListOptions{})
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			emails, _, err := api.Users.ListEmails(ctx, &github.ListOptions{})
 			return emails, err
 		},
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-			memberships, _, err := github.NewClient(client).Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			memberships, _, err := api.Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
 				State: "active",
 				ListOptions: github.ListOptions{
 					PerPage: 100,
@@ -902,7 +1067,11 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return memberships, err
 		},
 		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
-			team, _, err := github.NewClient(client).Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
+			api, err := createClient(client)
+			if err != nil {
+				return nil, err
+			}
+			team, _, err := api.Teams.GetTeamMembershipBySlug(ctx, org, teamSlug, username)
 			return team, err
 		},
 	}, nil
@@ -920,27 +1089,6 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
-}
-
-// isLocalURL returns true if the hostname of the provided URL appears to
-// resolve to a loopback address.
-func isLocalURL(ctx context.Context, urlString string) (bool, error) {
-	parsedURL, err := url.Parse(urlString)
-	if err != nil {
-		return false, err
-	}
-	resolver := &net.Resolver{}
-	ips, err := resolver.LookupIPAddr(ctx, parsedURL.Hostname())
-	if err != nil {
-		return false, err
-	}
-
-	for _, ip := range ips {
-		if ip.IP.IsLoopback() {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.

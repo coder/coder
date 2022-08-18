@@ -34,6 +34,17 @@ import (
 
 const workspaceDefaultTTL = 2 * time.Hour
 
+var (
+	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
+	ttlMax = 7 * 24 * time.Hour
+
+	errTTLMin                  = xerrors.New("time until shutdown must be at least one minute")
+	errTTLMax                  = xerrors.New("time until shutdown must be less than 7 days")
+	errDeadlineTooSoon         = xerrors.New("new deadline must be at least 30 minutes in the future")
+	errDeadlineBeforeStart     = xerrors.New("new deadline must be before workspace start time")
+	errDeadlineOverTemplateMax = xerrors.New("new deadline is greater than template allows")
+)
+
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
@@ -134,7 +145,14 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return workspaces the user can read
-	workspaces = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+	workspaces, err = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
 	if err != nil {
@@ -318,7 +336,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Message: fmt.Sprintf("Workspace %q already exists in the %q template.", createWorkspace.Name, template.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
-				Detail: "this value is already in use and should be unique",
+				Detail: "This value is already in use and should be unique.",
 			}},
 		})
 		return
@@ -623,9 +641,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		newDeadline := req.Deadline.UTC()
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
+			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
+			// Normally, we would put the validation error in Validations, but this endpoint is
+			// not tied to a form or specific named user input on the FE.
 			code = http.StatusBadRequest
-			resp.Message = "Bad extend workspace request."
-			resp.Validations = append(resp.Validations, codersdk.ValidationError{Field: "deadline", Detail: err.Error()})
+			resp.Message = "Cannot extend workspace: " + err.Error()
 			return err
 		}
 
@@ -894,12 +914,12 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
-	if truncated < time.Minute {
-		return sql.NullInt64{}, xerrors.New("time until shutdown must be at least one minute")
+	if truncated < ttlMin {
+		return sql.NullInt64{}, errTTLMin
 	}
 
-	if truncated > 24*7*time.Hour {
-		return sql.NullInt64{}, xerrors.New("time until shutdown must be less than 7 days")
+	if truncated > ttlMax {
+		return sql.NullInt64{}, errTTLMax
 	}
 
 	if truncated > max {
@@ -915,17 +935,17 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration) error {
 	soon := time.Now().Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
-		return xerrors.New("new deadline must be at least 30 minutes in the future")
+		return errDeadlineTooSoon
 	}
 
 	// No idea how this could happen.
 	if newDeadline.Before(startedAt) {
-		return xerrors.Errorf("new deadline must be before workspace start time")
+		return errDeadlineBeforeStart
 	}
 
 	delta := newDeadline.Sub(startedAt)
 	if delta > max {
-		return xerrors.New("new deadline is greater than template allows")
+		return errDeadlineOverTemplateMax
 	}
 
 	return nil

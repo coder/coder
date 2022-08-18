@@ -129,6 +129,7 @@ func (a *agent) run(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		a.logger.Info(ctx, "connecting")
 		metadata, peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -255,6 +256,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 }
 
 func (a *agent) init(ctx context.Context) {
+	a.logger.Info(ctx, "generating host key")
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -402,7 +404,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// These should override all variables we manually specify.
 	for envKey, value := range metadata.EnvironmentVariables {
 		// Expanding environment variables allows for customization
-		// of the $PATH, among other variables. Customers can prepand
+		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
 	}
@@ -457,7 +459,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 			for win := range windowSize {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if resizeErr != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
+					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()

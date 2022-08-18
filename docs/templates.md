@@ -95,6 +95,41 @@ The `coder_agent` resource can be configured as described in the
 For example, you can use the `env` property to set environment variables that will be
 inherited by all child processes of the agent, including SSH sessions.
 
+#### startup_script
+
+Use the Coder agent's `startup_script` to run additional commands like
+installing IDEs, [cloning dotfiles](./dotfiles.md#templates), and cloning project repos.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install code-server
+curl -fsSL https://code-server.dev/install.sh | sh
+
+# The & prevents the startup_script from blocking so the
+# next commands can run.
+code-server --auth none --port &
+
+# var.repo and var.dotfiles_uri is specified
+# elsewhere in the Terraform code as input
+# variables.
+
+# clone repo
+ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+git clone --progress git@github.com:${var.repo}
+
+# use coder CLI to clone and install dotfiles
+coder dotfiles -y ${var.dotfiles_uri}
+
+  EOT
+}
+```
+
 ### Parameters
 
 Templates often contain _parameters_. These are defined by `variable` blocks in
@@ -203,7 +238,7 @@ resources associated with the workspace.
 ### Coder apps
 
 By default, all templates allow developers to connect over SSH and a web
-terminal. See [Configuring Web IDEs](./ides/configuring-web-ides.md) to
+terminal. See [Configuring Web IDEs](./ides/web-ides.md) to
 learn how to give users access to additional web applications.
 
 ### Data source
@@ -262,7 +297,7 @@ practices:
 
 We recommend source controlling your templates as you would other code.
 
-CI is as simple as running `coder templates update` with the appropriate
+CI is as simple as running `coder templates push` with the appropriate
 credentials.
 
 ---

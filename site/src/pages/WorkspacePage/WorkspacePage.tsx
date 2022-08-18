@@ -1,3 +1,4 @@
+import { makeStyles } from "@material-ui/core/styles"
 import { useMachine, useSelector } from "@xstate/react"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
@@ -7,7 +8,7 @@ import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { Workspace } from "../../components/Workspace/Workspace"
+import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { getFaviconByStatus } from "../../util/workspace"
@@ -31,12 +32,24 @@ export const WorkspacePage: React.FC = () => {
       userId: me?.id,
     },
   })
-  const { workspace, resources, getWorkspaceError, getResourcesError, builds, permissions } =
-    workspaceState.context
+  const {
+    workspace,
+    getWorkspaceError,
+    resources,
+    getResourcesError,
+    builds,
+    getBuildsError,
+    permissions,
+    checkPermissionsError,
+    buildError,
+    cancellationError,
+  } = workspaceState.context
 
   const canUpdateWorkspace = !!permissions?.updateWorkspace
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
+
+  const styles = useStyles()
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -47,7 +60,12 @@ export const WorkspacePage: React.FC = () => {
   }, [username, workspaceName, workspaceSend])
 
   if (workspaceState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError} />
+    return (
+      <div className={styles.error}>
+        {getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
+        {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
+      </div>
+    )
   } else if (!workspace) {
     return <FullScreenLoader />
   } else {
@@ -100,9 +118,14 @@ export const WorkspacePage: React.FC = () => {
           handleUpdate={() => workspaceSend("UPDATE")}
           handleCancel={() => workspaceSend("CANCEL")}
           resources={resources}
-          getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
+          workspaceErrors={{
+            [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
+            [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
+            [WorkspaceErrors.BUILD_ERROR]: buildError,
+            [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
+          }}
         />
         <DeleteWorkspaceDialog
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
@@ -121,3 +144,9 @@ export const boundedDeadline = (newDeadline: dayjs.Dayjs, now: dayjs.Dayjs): day
   const maxDeadline = now.add(24, "hours")
   return dayjs.min(dayjs.max(minDeadline, newDeadline), maxDeadline)
 }
+
+const useStyles = makeStyles((theme) => ({
+  error: {
+    margin: theme.spacing(2),
+  },
+}))

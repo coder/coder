@@ -65,7 +65,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       <Divider />
 
       <a
-        href={`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`}
+        href="https://coder.com/docs/coder-oss"
         target="_blank"
         rel="noreferrer"
         className={styles.link}

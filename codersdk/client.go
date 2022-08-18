@@ -15,8 +15,15 @@ import (
 	"nhooyr.io/websocket"
 )
 
-// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
-const SessionTokenKey = "session_token"
+// These cookies are Coder-specific. If a new one is added or changed, the name
+// shouldn't be likely to conflict with any user-application set cookies.
+// Be sure to strip additional cookies in httpapi.StripCoder Cookies!
+const (
+	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
+	SessionTokenKey   = "session_token"
+	OAuth2StateKey    = "oauth_state"
+	OAuth2RedirectKey = "oauth_redirect"
+)
 
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
@@ -186,7 +193,12 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Friendly() string {
-	return fmt.Sprintf("%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "%s. %s", strings.TrimSuffix(e.Message, "."), e.Helper)
+	for _, err := range e.Validations {
+		_, _ = fmt.Fprintf(&sb, "\n- %s: %s", err.Field, err.Detail)
+	}
+	return sb.String()
 }
 
 func (e *Error) Error() string {

@@ -17,10 +17,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestProvisionerJobLogs_Unit(t *testing.T) {
@@ -63,7 +64,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			{ID: uuid.New(), JobID: jobID, Stage: "Stage3"},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// wow there are a lot of DB rows we touch...
@@ -72,11 +73,12 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			HashedSecret: hashed[:],
 			UserID:       userID,
 			ExpiresAt:    time.Now().Add(5 * time.Hour),
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{
 			ID:        userID,
-			RBACRoles: []string{"admin"},
+			RBACRoles: []string{rbac.RoleOwner()},
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{

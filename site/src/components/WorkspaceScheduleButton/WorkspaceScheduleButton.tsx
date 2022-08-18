@@ -140,6 +140,10 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+    },
   },
   label: {
     borderRight: 0,
@@ -150,11 +154,15 @@ const useStyles = makeStyles((theme) => ({
       width: "100%",
       display: "flex",
       alignItems: "center",
+      padding: theme.spacing(1.5, 2),
     },
   },
   actions: {
     [theme.breakpoints.down("sm")]: {
       marginLeft: "auto",
+      display: "flex",
+      paddingLeft: theme.spacing(1),
+      marginRight: -theme.spacing(1),
     },
   },
   scheduleButton: {
@@ -162,9 +170,16 @@ const useStyles = makeStyles((theme) => ({
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     flexShrink: 0,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      borderLeft: 0,
+      borderTop: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+    },
   },
   iconButton: {
-    borderRadius: 2,
+    borderRadius: theme.shape.borderRadius,
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,

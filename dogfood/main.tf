@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -23,7 +23,7 @@ provider "coder" {
 data "coder_workspace" "me" {
 }
 
-resource "coder_agent" "main" {
+resource "coder_agent" "dev" {
   arch           = "amd64"
   os             = "linux"
   startup_script = <<EOF
@@ -38,7 +38,7 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.main.id
+  agent_id = coder_agent.dev.id
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
@@ -49,9 +49,21 @@ resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
 }
 
+resource "coder_metadata" "home_info" {
+  resource_id = docker_volume.home_volume.id
+  item {
+    key = "🤫🤫🤫<br/><br/>"
+    value = "❤️❤️❤️"
+    sensitive = true
+  }
+}
+
+
+
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "gcr.io/coder-dogfood/master/coder-dev-ubuntu:latest"
+  image = "docker.io/codercom/oss-dogfood:main"
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -77,5 +89,18 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count = data.coder_workspace.me.start_count
+  resource_id = docker_container.workspace[0].id
+  item {
+    key = "memory"
+    value = docker_container.workspace[0].memory
+  }
+  item {
+    key = "runtime"
+    value = docker_container.workspace[0].runtime
   }
 }

@@ -5,7 +5,6 @@ type Permission struct {
 	// Negate makes this a negative permission
 	Negate       bool   `json:"negate"`
 	ResourceType string `json:"resource_type"`
-	ResourceID   string `json:"resource_id"`
 	Action       Action `json:"action"`
 }
 

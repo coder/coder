@@ -77,10 +77,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), codersdk.CreateUserRequest{
-		Email:    createUser.Email,
-		Username: createUser.Username,
-		Password: createUser.Password,
+	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: codersdk.CreateUserRequest{
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Password: createUser.Password,
+		},
+		LoginType: database.LoginTypePassword,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -102,7 +105,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
 	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleAdmin()},
+		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -155,7 +158,15 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users = AuthorizeFilter(api, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api, r, rbac.ActionRead, users)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	userIDs := make([]uuid.UUID, 0, len(users))
 	for _, user := range users {
 		userIDs = append(userIDs, user.ID)
@@ -188,14 +199,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var createUser codersdk.CreateUserRequest
-	if !httpapi.Read(rw, r, &createUser) {
+	var req codersdk.CreateUserRequest
+	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
 	// Create the organization member in the org.
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
+		rbac.ResourceOrganizationMember.InOrg(req.OrganizationID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -203,8 +214,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Username: createUser.Username,
-		Email:    createUser.Email,
+		Username: req.Username,
+		Email:    req.Email,
 	})
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
@@ -220,10 +231,10 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
+	_, err = api.Database.GetOrganizationByID(r.Context(), req.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", createUser.OrganizationID),
+			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
 		})
 		return
 	}
@@ -235,7 +246,10 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), createUser)
+	user, _, err := api.createUser(r.Context(), createUserRequest{
+		CreateUserRequest: req,
+		LoginType:         database.LoginTypePassword,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -249,7 +263,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
 }
 
 // Returns the parameterized user requested. All validation
@@ -258,7 +272,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -277,7 +291,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -345,7 +359,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		user := httpmw.UserParam(r)
 		apiKey := httpmw.APIKey(r)
 
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -415,7 +429,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	// admins can change passwords without sending old_password
 	if params.OldPassword == "" {
-		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -489,7 +503,14 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only include ones we can read from RBAC.
-	memberships = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
+	memberships, err = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching memberships.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	for _, mem := range memberships {
 		// If we can read the org member, include the roles.
@@ -504,7 +525,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify.
 	user := httpmw.UserParam(r)
-	roles := httpmw.AuthorizationUserRoles(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 	apiKey := httpmw.APIKey(r)
 
 	if apiKey.UserID == user.ID {
@@ -519,24 +540,30 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser.WithID(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	// The member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleMember())
-	added, removed := rbac.ChangeRoleSet(roles.Roles, impliedTypes)
-	for _, roleName := range added {
-		// Assigning a role requires the create permission.
-		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
-			httpapi.Forbidden(rw)
-			return
-		}
+	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
+
+	// Assigning a role requires the create permission.
+	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceRoleAssignment) {
+		httpapi.Forbidden(rw)
+		return
 	}
-	for _, roleName := range removed {
-		// Removing a role requires the delete permission.
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
+
+	// Removing a role requires the delete permission.
+	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceRoleAssignment) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -604,7 +631,14 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
 	for _, organization := range organizations {
@@ -631,8 +665,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceOrganization.
-			InOrg(organization.ID).
-			WithID(organization.ID.String())) {
+			InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -674,6 +707,13 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
+		})
+		return
+	}
+
 	// If the user logged into a suspended account, reject the login request.
 	if user.Status != database.UserStatusActive {
 		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
@@ -682,7 +722,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 	})
@@ -705,7 +745,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lifeTime := time.Hour * 24 * 7
-	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 		// All api generated keys will last 1 week. Browser login tokens have
@@ -791,7 +831,16 @@ func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	return id, secret, nil
 }
 
-func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params database.InsertAPIKeyParams) (string, bool) {
+type createAPIKeyParams struct {
+	UserID    uuid.UUID
+	LoginType database.LoginType
+
+	// Optional.
+	ExpiresAt       time.Time
+	LifetimeSeconds int64
+}
+
+func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params createAPIKeyParams) (string, bool) {
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -829,15 +878,11 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 			Valid: true,
 		},
 		// Make sure in UTC time for common time zone
-		ExpiresAt:         params.ExpiresAt.UTC(),
-		CreatedAt:         database.Now(),
-		UpdatedAt:         database.Now(),
-		HashedSecret:      hashed[:],
-		LoginType:         params.LoginType,
-		OAuthAccessToken:  params.OAuthAccessToken,
-		OAuthRefreshToken: params.OAuthRefreshToken,
-		OAuthIDToken:      params.OAuthIDToken,
-		OAuthExpiry:       params.OAuthExpiry,
+		ExpiresAt:    params.ExpiresAt.UTC(),
+		CreatedAt:    database.Now(),
+		UpdatedAt:    database.Now(),
+		HashedSecret: hashed[:],
+		LoginType:    params.LoginType,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -864,7 +909,12 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	return sessionToken, true
 }
 
-func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
+type createUserRequest struct {
+	codersdk.CreateUserRequest
+	LoginType database.LoginType
+}
+
+func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
 		orgRoles := make([]string, 0)
@@ -891,6 +941,7 @@ func (api *API) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
+			LoginType: req.LoginType,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

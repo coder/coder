@@ -23,6 +23,7 @@ import (
 )
 
 type executor struct {
+	initMu     sync.Locker
 	binaryPath string
 	cachePath  string
 	workdir    string
@@ -40,7 +41,7 @@ func (e executor) basicEnv() []string {
 	return env
 }
 
-func (e executor) execWriteOutput(ctx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
+func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	defer func() {
 		closeErr := stdOutWriter.Close()
 		if err == nil && closeErr != nil {
@@ -51,8 +52,12 @@ func (e executor) execWriteOutput(ctx context.Context, args, env []string, stdOu
 			err = closeErr
 		}
 	}()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, args...)
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
 	cmd.Env = env
 
@@ -62,19 +67,36 @@ func (e executor) execWriteOutput(ctx context.Context, args, env []string, stdOu
 	cmd.Stdout = syncWriter{mut, stdOutWriter}
 	cmd.Stderr = syncWriter{mut, stdErrWriter}
 
-	return cmd.Run()
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+	interruptCommandOnCancel(ctx, killCtx, cmd)
+
+	return cmd.Wait()
 }
 
-func (e executor) execParseJSON(ctx context.Context, args, env []string, v interface{}) error {
+func (e executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, args...)
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
 	cmd.Stdout = out
 	cmd.Stderr = stdErr
-	err := cmd.Run()
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	interruptCommandOnCancel(ctx, killCtx, cmd)
+
+	err = cmd.Wait()
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
@@ -94,11 +116,11 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !v.GreaterThanOrEqual(minimumTerraformVersion) {
+	if !v.GreaterThanOrEqual(minTerraformVersion) {
 		return xerrors.Errorf(
 			"terraform version %q is too old. required >= %q",
 			v.String(),
-			minimumTerraformVersion.String())
+			minTerraformVersion.String())
 	}
 	return nil
 }
@@ -108,6 +130,10 @@ func (e executor) version(ctx context.Context) (*version.Version, error) {
 }
 
 func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	// #nosec
 	cmd := exec.CommandContext(ctx, binaryPath, "version", "-json")
 	out, err := cmd.Output()
@@ -129,7 +155,7 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	return version.NewVersion(vj.Version)
 }
 
-func (e executor) init(ctx context.Context, logr logger) error {
+func (e executor) init(ctx, killCtx context.Context, logr logger) error {
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -142,11 +168,24 @@ func (e executor) init(ctx context.Context, logr logger) error {
 		"-no-color",
 		"-input=false",
 	}
-	return e.execWriteOutput(ctx, args, e.basicEnv(), outWriter, errWriter)
+
+	// When cache path is set, we must protect against multiple calls
+	// to `terraform init`.
+	//
+	// From the Terraform documentation:
+	//     Note: The plugin cache directory is not guaranteed to be
+	//     concurrency safe. The provider installer's behavior in
+	//     environments with multiple terraform init calls is undefined.
+	if e.cachePath != "" {
+		e.initMu.Lock()
+		defer e.initMu.Unlock()
+	}
+
+	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errWriter)
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) plan(ctx context.Context, env, vars []string, logr logger, destroy bool) (*proto.Provision_Response, error) {
+func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr logger, destroy bool) (*proto.Provision_Response, error) {
 	planfilePath := filepath.Join(e.workdir, "terraform.tfplan")
 	args := []string{
 		"plan",
@@ -170,11 +209,11 @@ func (e executor) plan(ctx context.Context, env, vars []string, logr logger, des
 		<-doneErr
 	}()
 
-	err := e.execWriteOutput(ctx, args, env, outWriter, errWriter)
+	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
-	resources, err := e.planResources(ctx, planfilePath)
+	resources, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -187,40 +226,52 @@ func (e executor) plan(ctx context.Context, env, vars []string, logr logger, des
 	}, nil
 }
 
-func (e executor) planResources(ctx context.Context, planfilePath string) ([]*proto.Resource, error) {
-	plan, err := e.showPlan(ctx, planfilePath)
+func (e executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, error) {
+	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
-	rawGraph, err := e.graph(ctx)
+	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("graph: %w", err)
 	}
 	return ConvertResources(plan.PlannedValues.RootModule, rawGraph)
 }
 
-func (e executor) showPlan(ctx context.Context, planfilePath string) (*tfjson.Plan, error) {
+func (e executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
 	args := []string{"show", "-json", "-no-color", planfilePath}
 	p := new(tfjson.Plan)
-	err := e.execParseJSON(ctx, args, e.basicEnv(), p)
+	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), p)
 	return p, err
 }
 
-func (e executor) graph(ctx context.Context) (string, error) {
-	// #nosec
-	cmd := exec.CommandContext(ctx, e.binaryPath, "graph")
+func (e executor) graph(ctx, killCtx context.Context) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+
+	var out bytes.Buffer
+	cmd := exec.CommandContext(killCtx, e.binaryPath, "graph") // #nosec
+	cmd.Stdout = &out
 	cmd.Dir = e.workdir
 	cmd.Env = e.basicEnv()
-	out, err := cmd.Output()
+
+	err := cmd.Start()
+	if err != nil {
+		return "", err
+	}
+	interruptCommandOnCancel(ctx, killCtx, cmd)
+
+	err = cmd.Wait()
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}
-	return string(out), nil
+	return out.String(), nil
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) apply(ctx context.Context, env, vars []string, logr logger, destroy bool,
+func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr logger, destroy bool,
 ) (*proto.Provision_Response, error) {
 	args := []string{
 		"apply",
@@ -244,11 +295,11 @@ func (e executor) apply(ctx context.Context, env, vars []string, logr logger, de
 		<-doneErr
 	}()
 
-	err := e.execWriteOutput(ctx, args, env, outWriter, errWriter)
+	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
-	resources, err := e.stateResources(ctx)
+	resources, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -267,12 +318,12 @@ func (e executor) apply(ctx context.Context, env, vars []string, logr logger, de
 	}, nil
 }
 
-func (e executor) stateResources(ctx context.Context) ([]*proto.Resource, error) {
-	state, err := e.state(ctx)
+func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, error) {
+	state, err := e.state(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
-	rawGraph, err := e.graph(ctx)
+	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
@@ -286,14 +337,31 @@ func (e executor) stateResources(ctx context.Context) ([]*proto.Resource, error)
 	return resources, nil
 }
 
-func (e executor) state(ctx context.Context) (*tfjson.State, error) {
+func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	args := []string{"show", "-json"}
 	state := &tfjson.State{}
-	err := e.execParseJSON(ctx, args, e.basicEnv(), state)
+	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform show state: %w", err)
 	}
 	return state, nil
+}
+
+func interruptCommandOnCancel(ctx, killCtx context.Context, cmd *exec.Cmd) {
+	go func() {
+		select {
+		case <-ctx.Done():
+			switch runtime.GOOS {
+			case "windows":
+				// Interrupts aren't supported by Windows.
+				_ = cmd.Process.Kill()
+			default:
+				_ = cmd.Process.Signal(os.Interrupt)
+			}
+
+		case <-killCtx.Done():
+		}
+	}()
 }
 
 type logger interface {
@@ -367,9 +435,6 @@ func provisionReadAndLog(logr logger, reader io.Reader, done chan<- any) {
 
 		// If the diagnostic is provided, let's provide a bit more info!
 		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, logr)
-		if err != nil {
-			continue
-		}
 		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
 		if err != nil {
 			// Not much we can do.  We can't log because logging is itself breaking!

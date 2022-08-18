@@ -40,7 +40,7 @@ NoTTL.args = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      // a mannual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
+      // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
       // SEE: #1834
       deadline: "0001-01-01T00:00:00Z",
     },
@@ -86,4 +86,12 @@ CannotEdit.args = {
     ttl_ms: 2 * 60 * 60 * 1000, // 2 hours
   },
   canUpdateWorkspace: false,
+}
+
+export const SmallViewport = Template.bind({})
+SmallViewport.args = {
+  ...WorkspaceOffShort.args,
+}
+SmallViewport.parameters = {
+  chromatic: { viewports: [320] },
 }

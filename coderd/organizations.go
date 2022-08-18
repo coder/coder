@@ -20,8 +20,7 @@ func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceOrganization.
-		InOrg(organization.ID).
-		WithID(organization.ID.String())) {
+		InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

@@ -41,7 +41,7 @@ const dashboardHTMLPluginConfig = new HtmlWebpackPlugin({
 export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }): Configuration => ({
   // entry defines each "page" or "chunk". In v1, we have two "pages":
   // dashboard and terminal. This is desired because the terminal has the xterm
-  // vendor, and it is undesireable to load all of xterm on a dashboard
+  // vendor, and it is undesirable to load all of xterm on a dashboard
   // page load.
   //
   // The object key determines the chunk 'name'. This can be used in `output`

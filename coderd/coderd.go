@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -57,6 +58,8 @@ type Options struct {
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
+	OIDCConfig           *OIDCConfig
+	PrometheusRegistry   *prometheus.Registry
 	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
@@ -86,6 +89,9 @@ func New(options *Options) *API {
 			panic(xerrors.Errorf("rego authorize panic: %w", err))
 		}
 	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -105,6 +111,7 @@ func New(options *Options) *API {
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
+		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
@@ -114,7 +121,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
 			})
 		},
-		httpmw.Prometheus,
+		httpmw.Prometheus(options.PrometheusRegistry),
 		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
@@ -259,6 +266,10 @@ func New(options *Options) *API {
 					r.Get("/callback", api.userOAuth2Github)
 				})
 			})
+			r.Route("/oidc/callback", func(r chi.Router) {
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig))
+				r.Get("/", api.userOIDC)
+			})
 			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
@@ -329,7 +340,7 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceAgent)
 				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
-				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 				r.Get("/derp", api.derpMap)
@@ -379,6 +390,10 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
+		})
+		r.Route("/entitlements", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", entitlements)
 		})
 	})
 

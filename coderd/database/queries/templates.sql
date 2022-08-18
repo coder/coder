@@ -34,7 +34,7 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 ;
 
 -- name: GetTemplateByOrganizationAndName :one
@@ -51,7 +51,7 @@ LIMIT
 
 -- name: GetTemplates :many
 SELECT * FROM templates
-ORDER BY (created_at, id) ASC
+ORDER BY (name, id) ASC
 ;
 
 -- name: InsertTemplate :one
@@ -97,7 +97,8 @@ SET
 	updated_at = $2,
 	description = $3,
 	max_ttl = $4,
-	min_autostart_interval = $5
+	min_autostart_interval = $5,
+	name = $6
 WHERE
 	id = $1
 RETURNING

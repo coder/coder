@@ -3,40 +3,20 @@
 package terraform_test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestParse(t *testing.T) {
 	t.Parallel()
 
-	// Create an in-memory provisioner to communicate with.
-	client, server := provisionersdk.TransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-		cancelFunc()
-	})
-	go func() {
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: server,
-			},
-		})
-		assert.NoError(t, err)
-	}()
-	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	ctx, api := setupProvisioner(t, nil)
 
 	testCases := []struct {
 		Name     string
@@ -175,7 +155,8 @@ func TestParse(t *testing.T) {
 								DefaultDestination: &proto.ParameterDestination{
 									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 								},
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -190,7 +171,7 @@ func TestParse(t *testing.T) {
 			// Write all files to the temporary test directory.
 			directory := t.TempDir()
 			for path, content := range testCase.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
+				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0o600)
 				require.NoError(t, err)
 			}
 

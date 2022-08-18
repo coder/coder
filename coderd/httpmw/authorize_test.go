@@ -40,7 +40,7 @@ func TestExtractUserRoles(t *testing.T) {
 		{
 			Name: "Admin",
 			AddUser: func(db database.Store) (database.User, []string, string) {
-				roles := []string{rbac.RoleAdmin()}
+				roles := []string{rbac.RoleOwner()}
 				user, token := addUser(t, db, roles...)
 				return user, append(roles, rbac.RoleMember()), token
 			},
@@ -124,6 +124,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		HashedSecret: hashed[:],
 		LastUsed:     database.Now(),
 		ExpiresAt:    database.Now().Add(time.Minute),
+		LoginType:    database.LoginTypePassword,
 	})
 	require.NoError(t, err)
 

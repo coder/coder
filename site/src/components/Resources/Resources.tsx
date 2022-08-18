@@ -6,10 +6,10 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
+import { getDisplayAgentStatus, getWorkspaceStatus, WorkspaceStateEnum } from "util/workspace"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
-import { AvatarData } from "../../components/AvatarData/AvatarData"
-import { getDisplayAgentStatus } from "../../util/workspace"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
@@ -17,7 +17,7 @@ import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
-import { ResourceAvatar } from "./ResourceAvatar"
+import { ResourceAvatarData } from "./ResourceAvatarData"
 
 const Language = {
   resources: "Resources",
@@ -28,7 +28,7 @@ const Language = {
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
-  getResourcesError?: Error
+  getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
 }
@@ -42,10 +42,14 @@ export const Resources: FC<ResourcesProps> = ({
   const styles = useStyles()
   const theme: Theme = useTheme()
 
+  const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
+    workspace.latest_build,
+  )
+
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
       {getResourcesError ? (
-        { getResourcesError }
+        <ErrorSummary error={getResourcesError} />
       ) : (
         <TableContainer className={styles.tableContainer}>
           <Table>
@@ -72,14 +76,7 @@ export const Resources: FC<ResourcesProps> = ({
                   /* We need to initialize the agents to display the resource */
                 }
                 const agents = resource.agents ?? [null]
-                const resourceName = (
-                  <AvatarData
-                    avatar={<ResourceAvatar type={resource.type} />}
-                    title={resource.name}
-                    subtitle={resource.type}
-                    highlightTitle
-                  />
-                )
+                const resourceName = <ResourceAvatarData resource={resource} />
 
                 return agents.map((agent, agentIndex) => {
                   {
@@ -109,9 +106,12 @@ export const Resources: FC<ResourcesProps> = ({
                         {agent.name}
                         <div className={styles.agentInfo}>
                           <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          <span style={{ color: agentStatus.color }} className={styles.status}>
-                            {agentStatus.status}
-                          </span>
+                          {WorkspaceStateEnum[workspaceStatus] !==
+                            WorkspaceStateEnum["stopped"] && (
+                            <span style={{ color: agentStatus.color }} className={styles.status}>
+                              {agentStatus.status}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>

@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
@@ -77,7 +78,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
@@ -85,6 +86,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
+
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
@@ -96,9 +98,6 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		// Read output to prevent hang on macOS, see:
-		// https://github.com/coder/coder/issues/2122
-		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 	t.Run("Stdio", func(t *testing.T) {
@@ -124,7 +123,7 @@ func TestSSH(t *testing.T) {
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
@@ -172,17 +171,13 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForSSH(t)
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			agentClient := codersdk.New(client.URL)
-			agentClient.SessionToken = agentToken
-			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-			})
-			<-ctx.Done()
-			_ = agentCloser.Close()
+
+		agentClient := codersdk.New(client.URL)
+		agentClient.SessionToken = agentToken
+		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
+		defer agentCloser.Close()
 
 		// Generate private key.
 		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -203,19 +198,20 @@ func TestSSH(t *testing.T) {
 				fd, err := l.Accept()
 				if err != nil {
 					if !errors.Is(err, net.ErrClosed) {
-						t.Logf("accept error: %v", err)
+						assert.NoError(t, err, "listener accept failed")
 					}
 					return
 				}
 
 				err = gosshagent.ServeAgent(kr, fd)
 				if !errors.Is(err, io.EOF) {
-					assert.NoError(t, err)
+					assert.NoError(t, err, "serve agent failed")
 				}
+				_ = fd.Close()
 			}
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmd, root := clitest.New(t,
@@ -228,10 +224,10 @@ func TestSSH(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		cmd.SetErr(io.Discard)
+		cmd.SetErr(pty.Output())
 		cmdDone := tGo(t, func() {
 			err := cmd.ExecuteContext(ctx)
-			assert.NoError(t, err)
+			assert.NoError(t, err, "ssh command failed")
 		})
 
 		// Ensure that SSH_AUTH_SOCK is set.
@@ -242,14 +238,11 @@ func TestSSH(t *testing.T) {
 		// Ensure that ssh-add lists our key.
 		pty.WriteLine("ssh-add -L")
 		keys, err := kr.List()
-		require.NoError(t, err)
+		require.NoError(t, err, "list keys failed")
 		pty.ExpectMatch(keys[0].String())
 
 		// And we're done.
 		pty.WriteLine("exit")
-		// Read output to prevent hang on macOS, see:
-		// https://github.com/coder/coder/issues/2122
-		pty.ExpectMatch("exit")
 		<-cmdDone
 	})
 }

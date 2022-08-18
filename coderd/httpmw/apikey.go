@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
@@ -49,7 +50,13 @@ func AuthorizationUserRoles(r *http.Request) database.GetAuthorizationUserRolesR
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
 	Github OAuth2Config
+	OIDC   OAuth2Config
 }
+
+const (
+	signedOutErrorMessage string = "You are signed out or your session has expired. Please sign in again to continue."
+	internalErrorMessage  string = "An internal error occurred. Please try again or contact the system administrator."
+)
 
 // ExtractAPIKey requires authentication using a valid API key.
 // It handles extending an API key if it comes close to expiry,
@@ -83,7 +90,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 			if cookieValue == "" {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -91,7 +99,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key format.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key format.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -100,13 +109,15 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key id.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key id.", codersdk.SessionTokenKey),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Invalid %q cookie API key secret.", codersdk.SessionTokenKey),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("Invalid %q cookie API key secret.", codersdk.SessionTokenKey),
 				})
 				return
 			}
@@ -114,13 +125,14 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					write(http.StatusUnauthorized, codersdk.Response{
-						Message: "API key is invalid.",
+						Message: signedOutErrorMessage,
+						Detail:  "API key is invalid.",
 					})
 					return
 				}
 				write(http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching API key by id.",
-					Detail:  err.Error(),
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
 				})
 				return
 			}
@@ -129,7 +141,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Checking to see if the secret is valid.
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashed[:]) != 1 {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: "API key secret is invalid.",
+					Message: signedOutErrorMessage,
+					Detail:  "API key secret is invalid.",
 				})
 				return
 			}
@@ -137,24 +150,39 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Tracks if the API key has properties updated!
 			changed := false
 
+			var link database.UserLink
 			if key.LoginType != database.LoginTypePassword {
+				link, err = db.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
+					UserID:    key.UserID,
+					LoginType: key.LoginType,
+				})
+				if err != nil {
+					write(http.StatusInternalServerError, codersdk.Response{
+						Message: "A database error occurred",
+						Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
+					})
+					return
+				}
 				// Check if the OAuth token is expired!
-				if key.OAuthExpiry.Before(now) && !key.OAuthExpiry.IsZero() {
+				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() {
 					var oauthConfig OAuth2Config
 					switch key.LoginType {
 					case database.LoginTypeGithub:
 						oauthConfig = oauth.Github
+					case database.LoginTypeOIDC:
+						oauthConfig = oauth.OIDC
 					default:
 						write(http.StatusInternalServerError, codersdk.Response{
-							Message: fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
+							Message: internalErrorMessage,
+							Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
 						})
 						return
 					}
 					// If it is, let's refresh it from the provided config!
 					token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-						AccessToken:  key.OAuthAccessToken,
-						RefreshToken: key.OAuthRefreshToken,
-						Expiry:       key.OAuthExpiry,
+						AccessToken:  link.OAuthAccessToken,
+						RefreshToken: link.OAuthRefreshToken,
+						Expiry:       link.OAuthExpiry,
 					}).Token()
 					if err != nil {
 						write(http.StatusUnauthorized, codersdk.Response{
@@ -163,9 +191,9 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 						})
 						return
 					}
-					key.OAuthAccessToken = token.AccessToken
-					key.OAuthRefreshToken = token.RefreshToken
-					key.OAuthExpiry = token.Expiry
+					link.OAuthAccessToken = token.AccessToken
+					link.OAuthRefreshToken = token.RefreshToken
+					link.OAuthExpiry = token.Expiry
 					key.ExpiresAt = token.Expiry
 					changed = true
 				}
@@ -174,7 +202,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// Checking if the key is expired.
 			if key.ExpiresAt.Before(now) {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+					Message: signedOutErrorMessage,
+					Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
 				})
 				return
 			}
@@ -206,19 +235,35 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 			if changed {
 				err := db.UpdateAPIKeyByID(r.Context(), database.UpdateAPIKeyByIDParams{
-					ID:                key.ID,
-					LastUsed:          key.LastUsed,
-					ExpiresAt:         key.ExpiresAt,
-					IPAddress:         key.IPAddress,
-					OAuthAccessToken:  key.OAuthAccessToken,
-					OAuthRefreshToken: key.OAuthRefreshToken,
-					OAuthExpiry:       key.OAuthExpiry,
+					ID:        key.ID,
+					LastUsed:  key.LastUsed,
+					ExpiresAt: key.ExpiresAt,
+					IPAddress: key.IPAddress,
 				})
 				if err != nil {
 					write(http.StatusInternalServerError, codersdk.Response{
-						Message: fmt.Sprintf("API key couldn't update: %s.", err.Error()),
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
 					})
 					return
+				}
+				// If the API Key is associated with a user_link (e.g. Github/OIDC)
+				// then we want to update the relevant oauth fields.
+				if link.UserID != uuid.Nil {
+					link, err = db.UpdateUserLink(r.Context(), database.UpdateUserLinkParams{
+						UserID:            link.UserID,
+						LoginType:         link.LoginType,
+						OAuthAccessToken:  link.OAuthAccessToken,
+						OAuthRefreshToken: link.OAuthRefreshToken,
+						OAuthExpiry:       link.OAuthExpiry,
+					})
+					if err != nil {
+						write(http.StatusInternalServerError, codersdk.Response{
+							Message: internalErrorMessage,
+							Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+						})
+						return
+					}
 				}
 			}
 
@@ -228,8 +273,8 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			roles, err := db.GetAuthorizationUserRoles(r.Context(), key.UserID)
 			if err != nil {
 				write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Internal error fetching user's roles.",
-					Detail:  err.Error(),
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
 				})
 				return
 			}

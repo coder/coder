@@ -241,6 +241,14 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
@@ -266,7 +274,13 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			}
 			agents = append(agents, apiAgent)
 		}
-		apiResources = append(apiResources, convertWorkspaceResource(resource, agents))
+		metadata := make([]database.WorkspaceResourceMetadatum, 0)
+		for _, field := range resourceMetadata {
+			if field.WorkspaceResourceID == resource.ID {
+				metadata = append(metadata, field)
+			}
+		}
+		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiResources)
@@ -308,34 +322,34 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
-
-	switch {
-	case provisionerJob.CanceledAt.Valid:
-		if provisionerJob.CompletedAt.Valid {
-			if job.Error == "" {
-				job.Status = codersdk.ProvisionerJobCanceled
-			} else {
-				job.Status = codersdk.ProvisionerJobFailed
-			}
-		} else {
-			job.Status = codersdk.ProvisionerJobCanceling
-		}
-	case !provisionerJob.StartedAt.Valid:
-		job.Status = codersdk.ProvisionerJobPending
-	case provisionerJob.CompletedAt.Valid:
-		if job.Error == "" {
-			job.Status = codersdk.ProvisionerJobSucceeded
-		} else {
-			job.Status = codersdk.ProvisionerJobFailed
-		}
-	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		job.Status = codersdk.ProvisionerJobFailed
-		job.Error = "Worker failed to update job in time."
-	default:
-		job.Status = codersdk.ProvisionerJobRunning
-	}
+	job.Status = ConvertProvisionerJobStatus(provisionerJob)
 
 	return job
+}
+
+func ConvertProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
+	switch {
+	case provisionerJob.CanceledAt.Valid:
+		if !provisionerJob.CompletedAt.Valid {
+			return codersdk.ProvisionerJobCanceling
+		}
+		if provisionerJob.Error.String == "" {
+			return codersdk.ProvisionerJobCanceled
+		}
+		return codersdk.ProvisionerJobFailed
+	case !provisionerJob.StartedAt.Valid:
+		return codersdk.ProvisionerJobPending
+	case provisionerJob.CompletedAt.Valid:
+		if provisionerJob.Error.String == "" {
+			return codersdk.ProvisionerJobSucceeded
+		}
+		return codersdk.ProvisionerJobFailed
+	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
+		provisionerJob.Error.String = "Worker failed to update job in time."
+		return codersdk.ProvisionerJobFailed
+	default:
+		return codersdk.ProvisionerJobRunning
+	}
 }
 
 func provisionerJobLogsChannel(jobID uuid.UUID) string {

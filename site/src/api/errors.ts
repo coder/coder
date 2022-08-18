@@ -6,7 +6,7 @@ export const Language = {
   },
 }
 
-interface FieldError {
+export interface FieldError {
   field: string
   detail: string
 }
@@ -25,6 +25,9 @@ export type ApiError = AxiosError<ApiErrorResponse> & { response: AxiosResponse<
 export const isApiError = (err: any): err is ApiError => {
   if (axios.isAxiosError(err)) {
     const response = err.response?.data
+    if (!response) {
+      return false
+    }
 
     return (
       typeof response.message === "string" &&

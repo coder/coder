@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.3"
+      version = "0.4.5"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -132,4 +132,28 @@ resource "digitalocean_project_resources" "project" {
     ] : [
     digitalocean_volume.home_volume.urn
   ]
+}
+
+resource "coder_metadata" "workspace-info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = digitalocean_droplet.workspace[0].id
+
+  item {
+    key   = "region"
+    value = digitalocean_droplet.workspace[0].region
+  }
+  item {
+    key   = "image"
+    value = digitalocean_droplet.workspace[0].image
+  }
+}
+
+resource "coder_metadata" "volume-info" {
+  resource_id = digitalocean_volume.home_volume.id
+
+  item {
+    key   = "size"
+    value = "${digitalocean_volume.home_volume.size} GiB"
+  }
+
 }

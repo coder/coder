@@ -3,7 +3,7 @@
 # This script builds multiple "slim" Go binaries for Coder with the given OS and
 # architecture combinations. This wraps ./build_go_matrix.sh.
 #
-# Usage: ./build_go_slim.sh [--version 1.2.3-devel+abcdef] [--output dist/] [--compress 22] os1:arch1,arch2 os2:arch1 os1:arch3
+# Usage: ./build_go_slim.sh [--version 1.2.3-devel+abcdef] [--output dist/] [--compress 22] [--agpl] os1:arch1,arch2 os2:arch1 os1:arch3
 #
 # If no OS:arch combinations are provided, nothing will happen and no error will
 # be returned. If no version is specified, defaults to the version from
@@ -19,6 +19,9 @@
 # When the --compress <level> parameter is provided, the binaries in site/bin
 # will be compressed using zstd into site/bin/coder.tar.zst, this helps reduce
 # final binary size significantly.
+#
+# If the --agpl parameter is specified, builds only the AGPL-licensed code (no
+# Coder enterprise features).
 
 set -euo pipefail
 shopt -s nullglob
@@ -28,8 +31,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 version=""
 output_path=""
 compress=0
+agpl=0
 
-args="$(getopt -o "" -l version:,output:,compress: -- "$@")"
+args="$(getopt -o "" -l version:,output:,compress:,agpl -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -45,6 +49,10 @@ while true; do
 		compress="$2"
 		shift 2
 		;;
+	--agpl)
+		agpl=1
+		shift
+		;;
 	--)
 		shift
 		break
@@ -58,7 +66,7 @@ done
 # Check dependencies
 dependencies go
 if [[ $compress != 0 ]]; then
-	dependencies shasum tar zstd
+	dependencies openssl tar zstd
 
 	if [[ $compress != [0-9]* ]] || [[ $compress -gt 22 ]] || [[ $compress -lt 1 ]]; then
 		error "Invalid value for compress, must in in the range of [1, 22]"
@@ -85,10 +93,15 @@ else
 	output_path="$(realpath "${output_path}coder-slim_{version}_{os}_{arch}")"
 fi
 
+build_args=(--slim)
+if [[ "$agpl" == 1 ]]; then
+	build_args+=(--agpl)
+fi
+
 ./scripts/build_go_matrix.sh \
 	--version "$version" \
 	--output "$output_path" \
-	--slim \
+	"${build_args[@]}" \
 	"$@"
 
 cdroot
@@ -114,7 +127,7 @@ if [[ $compress != 0 ]]; then
 	sha_file=coder.sha1
 	sha_dest="$dest_dir/$sha_file"
 	log "--- Generating SHA1 for coder-slim binaries ($sha_dest)"
-	shasum -b -a 1 coder-* | tee $sha_file
+	openssl dgst -r -sha1 coder-* | tee $sha_file
 	echo "$sha_dest"
 	log
 	log

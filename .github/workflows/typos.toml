@@ -1,0 +1,18 @@
+[default.extend-identifiers]
+alog = "alog"
+Jetbrains = "JetBrains"
+IST = "IST"
+MacOS = "macOS"
+
+[default.extend-words]
+
+[files]
+extend-exclude = [
+    "**.svg",
+    "**.lock",
+    "go.sum",
+    "go.mod",
+    # These files contain base64 strings that confuse the detector
+    "**XService**.ts",
+    "**identity.go",
+]

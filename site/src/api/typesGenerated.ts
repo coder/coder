@@ -24,10 +24,16 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/roles.go
+export interface AssignableRoles extends Role {
+  readonly assignable: boolean
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
+  readonly oidc: boolean
 }
 
 // From codersdk/workspaceagents.go
@@ -126,6 +132,21 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/features.go
+export interface Entitlements {
+  readonly features: Record<string, Feature>
+  readonly warnings: string[]
+  readonly has_license: boolean
+}
+
+// From codersdk/features.go
+export interface Feature {
+  readonly entitlement: Entitlement
+  readonly enabled: boolean
+  readonly limit?: number
+  readonly actual?: number
 }
 
 // From codersdk/users.go
@@ -311,6 +332,7 @@ export interface UpdateRoles {
 
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
+  readonly name?: string
   readonly description?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
@@ -345,9 +367,9 @@ export interface UploadResponse {
 // From codersdk/users.go
 export interface User {
   readonly id: string
+  readonly username: string
   readonly email: string
   readonly created_at: string
-  readonly username: string
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
@@ -516,10 +538,21 @@ export interface WorkspaceResource {
   readonly type: string
   readonly name: string
   readonly agents?: WorkspaceAgent[]
+  readonly metadata?: WorkspaceResourceMetadata[]
+}
+
+// From codersdk/workspaceresources.go
+export interface WorkspaceResourceMetadata {
+  readonly key: string
+  readonly value: string
+  readonly sensitive: boolean
 }
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
+
+// From codersdk/features.go
+export type Entitlement = "entitled" | "grace_period" | "not_entitled"
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
@@ -528,7 +561,7 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go
-export type LoginType = "github" | "password"
+export type LoginType = "github" | "oidc" | "password"
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"

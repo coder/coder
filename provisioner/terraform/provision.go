@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -14,11 +15,7 @@ import (
 )
 
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
-func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
-	logr := streamLogger{stream: stream}
-	shutdown, shutdownFunc := context.WithCancel(stream.Context())
-	defer shutdownFunc()
-
+func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	request, err := stream.Recv()
 	if err != nil {
 		return err
@@ -30,6 +27,33 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	if request.GetStart() == nil {
 		return nil
 	}
+
+	// Create a context for graceful cancellation bound to the stream
+	// context. This ensures that we will perform graceful cancellation
+	// even on connection loss.
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+
+	// Create a separate context for forcefull cancellation not tied to
+	// the stream so that we can control when to terminate the process.
+	killCtx, kill := context.WithCancel(context.Background())
+	defer kill()
+
+	// Ensure processes are eventually cleaned up on graceful
+	// cancellation or disconnect.
+	go func() {
+		<-stream.Context().Done()
+
+		// TODO(mafredri): We should track this provision request as
+		// part of graceful server shutdown procedure. Waiting on a
+		// process here should delay provisioner/coder shutdown.
+		select {
+		case <-time.After(s.exitTimeout):
+			kill()
+		case <-killCtx.Done():
+		}
+	}()
+
 	go func() {
 		for {
 			request, err := stream.Recv()
@@ -37,29 +61,28 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 				return
 			}
 			if request.GetCancel() == nil {
-				// This is only to process cancels!
+				// We only process cancellation requests here.
 				continue
 			}
-			shutdownFunc()
+			cancel()
 			return
 		}
 	}()
+
+	logr := streamLogger{stream: stream}
 	start := request.GetStart()
 
-	if err != nil {
-		return xerrors.Errorf("create new terraform executor: %w", err)
-	}
-	e := t.executor(start.Directory)
-	if err := e.checkMinVersion(stream.Context()); err != nil {
+	e := s.executor(start.Directory)
+	if err = e.checkMinVersion(ctx); err != nil {
 		return err
 	}
-	if err := logTerraformEnvVars(logr); err != nil {
+	if err = logTerraformEnvVars(logr); err != nil {
 		return err
 	}
 
 	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
 	if len(start.State) > 0 {
-		err := os.WriteFile(statefilePath, start.State, 0600)
+		err = os.WriteFile(statefilePath, start.State, 0o600)
 		if err != nil {
 			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 		}
@@ -87,12 +110,21 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		})
 	}
 
-	t.logger.Debug(shutdown, "running initialization")
-	err = e.init(stream.Context(), logr)
+	s.logger.Debug(ctx, "running initialization")
+	err = e.init(ctx, killCtx, logr)
 	if err != nil {
+		if ctx.Err() != nil {
+			return stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Error: err.Error(),
+					},
+				},
+			})
+		}
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
-	t.logger.Debug(shutdown, "ran initialization")
+	s.logger.Debug(ctx, "ran initialization")
 
 	env, err := provisionEnv(start)
 	if err != nil {
@@ -104,15 +136,15 @@ func (t *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	var resp *proto.Provision_Response
 	if start.DryRun {
-		resp, err = e.plan(shutdown, env, vars, logr,
+		resp, err = e.plan(ctx, killCtx, env, vars, logr,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	} else {
-		resp, err = e.apply(shutdown, env, vars, logr,
+		resp, err = e.apply(ctx, killCtx, env, vars, logr,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	}
 	if err != nil {
 		if start.DryRun {
-			if shutdown.Err() != nil {
+			if ctx.Err() != nil {
 				return stream.Send(&proto.Provision_Response{
 					Type: &proto.Provision_Response_Complete{
 						Complete: &proto.Provision_Complete{

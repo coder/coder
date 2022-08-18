@@ -46,6 +46,9 @@ func TestAgentScript(t *testing.T) {
 		}
 		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 		script = strings.ReplaceAll(script, "${AUTH_TYPE}", "token")
+		// In certain distributions "echo" is a part of coreutils, and determines
+		// it's functionality based on the exec path name.
+		script = strings.ReplaceAll(script, "BINARY_NAME=coder", "BINARY_NAME=echo")
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec

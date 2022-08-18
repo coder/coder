@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
@@ -45,8 +46,11 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	client.HTTPClient = metadataClient
-	_, err := client.AuthWorkspaceAzureInstanceIdentity(context.Background())
+	_, err := client.AuthWorkspaceAzureInstanceIdentity(ctx)
 	require.NoError(t, err)
 }
 
@@ -84,8 +88,11 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		client.HTTPClient = metadataClient
-		_, err := client.AuthWorkspaceAWSInstanceIdentity(context.Background())
+		_, err := client.AuthWorkspaceAWSInstanceIdentity(ctx)
 		require.NoError(t, err)
 	})
 }
@@ -99,7 +106,11 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -112,7 +123,11 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -150,7 +165,10 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
 		require.NoError(t, err)
 	})
 }

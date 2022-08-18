@@ -2,8 +2,8 @@ import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC, useEffect, useMemo, useRef, useState } from "react"
+import { getWorkspaceStatus, WorkspaceStateEnum, WorkspaceStatus } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
-import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import {
   ActionLoadingButton,
@@ -15,12 +15,7 @@ import {
   StopButton,
   UpdateButton,
 } from "./ActionCtas"
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  WorkspaceStateActions,
-  WorkspaceStateEnum,
-} from "./constants"
+import { ButtonMapping, ButtonTypesEnum, WorkspaceStateActions } from "./constants"
 import { DropdownContent } from "./DropdownContent/DropdownContent"
 
 /**
@@ -68,7 +63,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     // if an update is available, we make the update button the primary CTA
     // and move the former primary CTA to the secondary actions list
     const updatedActions = { ...WorkspaceStateActions[workspaceState] }
-    updatedActions.secondary.unshift(updatedActions.primary)
+    updatedActions.secondary = [updatedActions.primary, ...updatedActions.secondary]
     updatedActions.primary = ButtonTypesEnum.update
 
     return updatedActions

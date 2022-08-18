@@ -13,9 +13,10 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const location = useLocation()
-  const navigateTo = location.pathname === "/" ? "/login" : embedRedirect(location.pathname)
+  const isHomePage = location.pathname === "/"
+  const navigateTo = isHomePage ? "/login" : embedRedirect(location.pathname)
   if (authState.matches("signedOut")) {
-    return <Navigate to={navigateTo} />
+    return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />
   } else if (authState.hasTag("loading")) {
     return <FullScreenLoader />
   } else {

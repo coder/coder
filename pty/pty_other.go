@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/creack/pty"
+	"golang.org/x/xerrors"
 )
 
 func newPty() (PTY, error) {
@@ -26,6 +27,8 @@ func newPty() (PTY, error) {
 
 type otherPty struct {
 	mutex    sync.Mutex
+	closed   bool
+	err      error
 	pty, tty *os.File
 }
 
@@ -55,6 +58,9 @@ func (p *otherPty) Output() ReadWriter {
 func (p *otherPty) Resize(height uint16, width uint16) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+	if p.closed {
+		return p.err
+	}
 	return pty.Setsize(p.pty, &pty.Winsize{
 		Rows: height,
 		Cols: width,
@@ -65,17 +71,24 @@ func (p *otherPty) Close() error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
+	if p.closed {
+		return p.err
+	}
+	p.closed = true
+
 	err := p.pty.Close()
-	if err != nil {
-		_ = p.tty.Close()
-		return err
+	err2 := p.tty.Close()
+	if err == nil {
+		err = err2
 	}
 
-	err = p.tty.Close()
 	if err != nil {
-		return err
+		p.err = err
+	} else {
+		p.err = xerrors.New("pty: closed")
 	}
-	return nil
+
+	return err
 }
 
 func (p *otherProcess) Wait() error {

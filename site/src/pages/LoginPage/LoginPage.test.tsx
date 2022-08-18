@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react"
+import { act, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Language } from "../../components/SignInForm/SignInForm"
@@ -30,7 +30,7 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: Language.authErrorMessage }))
+        return res(ctx.status(500), ctx.json({ message: Language.errorMessages.authError }))
       }),
     )
 
@@ -45,7 +45,7 @@ describe("LoginPage", () => {
     act(() => signInButton.click())
 
     // Then
-    const errorMessage = await screen.findByText(Language.authErrorMessage)
+    const errorMessage = await screen.findByText(Language.errorMessages.authError)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })
@@ -88,5 +88,20 @@ describe("LoginPage", () => {
     // Then
     await screen.findByText(Language.passwordSignIn)
     await screen.findByText(Language.githubSignIn)
+  })
+
+  it("redirects to the setup page if there is no first user", async () => {
+    // Given
+    server.use(
+      rest.get("/api/v2/users/first", async (req, res, ctx) => {
+        return res(ctx.status(404))
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    await waitFor(() => expect(history.location.pathname).toEqual("/setup"))
   })
 })

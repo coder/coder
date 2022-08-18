@@ -87,8 +87,6 @@ Coder](https://github.com/coder/coder/releases) installed.
 
 3. Follow the on-screen instructions to create your first template and workspace
 
----
-
 If the user is not in the Docker group, you will see the following error:
 
 ```sh
@@ -239,7 +237,7 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
 1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
    ```sh
-   # ex. MacOS and Linux
+   # ex. macOS and Linux
    mv coder /usr/local/bin
    ```
 
@@ -255,7 +253,7 @@ We publish self-contained .zip and .tar.gz archives in [GitHub releases](https:/
    coder server --postgres-url <url> --access-url <url>
    ```
 
-## Next steps
+## Up Next
 
-Once you've installed and started Coder, see the [quickstart](./quickstart.md)
-for instructions on creating your first template and workspace.
+- Learn how to [configure](./install/configure.md) Coder.
+- Learn about [upgrading](./install/upgrade.md) Coder.
