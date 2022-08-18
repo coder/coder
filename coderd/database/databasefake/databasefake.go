@@ -1361,6 +1361,26 @@ func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 	return resources, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, after time.Time) ([]database.WorkspaceResourceMetadatum, error) {
+	resources, err := q.GetWorkspaceResourcesCreatedAfter(ctx, after)
+	if err != nil {
+		return nil, err
+	}
+	resourceIDs := map[uuid.UUID]struct{}{}
+	for _, resource := range resources {
+		resourceIDs[resource.ID] = struct{}{}
+	}
+	metadata := make([]database.WorkspaceResourceMetadatum, 0)
+	for _, m := range q.provisionerJobResourceMetadata {
+		_, ok := resourceIDs[m.WorkspaceResourceID]
+		if !ok {
+			continue
+		}
+		metadata = append(metadata, m)
+	}
+	return metadata, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceID(_ context.Context, id uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
