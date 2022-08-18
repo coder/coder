@@ -22,4 +22,3 @@
 *.tmproj
 .vscode/
 Makefile
-README.md.gotmpl
