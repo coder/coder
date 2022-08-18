@@ -26,12 +26,14 @@ export interface TemplateSettingsForm {
   template: Template
   onSubmit: (data: UpdateTemplateMeta) => void
   onCancel: () => void
+  error?: unknown
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   template,
   onSubmit,
   onCancel,
+  error,
 }) => {
   const form: FormikContextType<UpdateTemplateMeta> = useFormik<UpdateTemplateMeta>({
     initialValues: {
@@ -45,7 +47,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       onSubmit(data)
     },
   })
-  const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form)
+  const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
 
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>

@@ -24,7 +24,7 @@ export const TemplateSettingsPage: FC = () => {
       },
     },
   })
-  const { templateSettings: template } = state.context
+  const { templateSettings: template, saveTemplateSettingsError, getTemplateError } = state.context
 
   return (
     <>
@@ -33,6 +33,10 @@ export const TemplateSettingsPage: FC = () => {
       </Helmet>
       <TemplateSettingsPageView
         template={template}
+        errors={{
+          getTemplateError,
+          saveTemplateSettingsError,
+        }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)
         }}

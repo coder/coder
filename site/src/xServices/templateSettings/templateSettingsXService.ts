@@ -13,6 +13,8 @@ export const templateSettingsMachine =
           organizationId: string
           templateName: string
           templateSettings?: Template
+          getTemplateError?: unknown
+          saveTemplateSettingsError?: unknown
         }
         services: {
           getTemplateSettings: {
@@ -35,6 +37,10 @@ export const templateSettingsMachine =
                 target: "editing",
               },
             ],
+            onError: {
+              target: "error",
+              actions: "assignGetTemplateError",
+            },
           },
         },
         editing: {
@@ -52,10 +58,14 @@ export const templateSettingsMachine =
                 target: "saved",
               },
             ],
+            onError: [{ target: "editing", actions: ["assignSaveTemplateSettingsError"] }],
           },
         },
         saved: {
           entry: "onSave",
+          type: "final",
+        },
+        error: {
           type: "final",
         },
       },
@@ -80,6 +90,12 @@ export const templateSettingsMachine =
       actions: {
         assignTemplateSettings: assign({
           templateSettings: (_, { data }) => data,
+        }),
+        assignGetTemplateError: assign({
+          getTemplateError: (_, { data }) => data,
+        }),
+        assignSaveTemplateSettingsError: assign({
+          saveTemplateSettingsError: (_, { data }) => data,
         }),
       },
     },
