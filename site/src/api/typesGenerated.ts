@@ -34,6 +34,33 @@ export interface AssignableRoles extends Role {
   readonly assignable: boolean
 }
 
+// From codersdk/audit.go
+export type AuditDiff = Record<string, any>
+
+// From codersdk/audit.go
+export interface AuditLog {
+  readonly id: string
+  readonly request_id: string
+  readonly time: string
+  readonly organization_id: string
+  // Named type "net/netip.Addr" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly ip: any
+  readonly user_agent: string
+  readonly resource_type: ResourceType
+  readonly resource_id: string
+  readonly resource_target: string
+  readonly action: AuditAction
+  readonly diff: AuditDiff
+  readonly status_code: number
+  // This is likely an enum in an external package ("encoding/json.RawMessage")
+  readonly additional_fields: string
+  readonly description: string
+  readonly user?: User
+  // This is likely an enum in an external package ("encoding/json.RawMessage")
+  readonly resource: string
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
@@ -570,6 +597,9 @@ export interface WorkspaceResourceMetadata {
   readonly sensitive: boolean
 }
 
+// From codersdk/audit.go
+export type AuditAction = "create" | "delete" | "write"
+
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
@@ -611,6 +641,9 @@ export type ProvisionerStorageMethod = "file"
 
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
+
+// From codersdk/audit.go
+export type ResourceType = "organization" | "template" | "template_version" | "user" | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

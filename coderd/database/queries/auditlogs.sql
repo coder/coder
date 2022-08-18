@@ -26,7 +26,9 @@ INSERT INTO
         resource_target,
         action,
         diff,
-        status_code
+        status_code,
+        additional_fields,
+        request_id
     )
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;

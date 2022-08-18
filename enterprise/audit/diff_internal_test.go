@@ -1,4 +1,4 @@
-package audit_test
+package audit
 
 import (
 	"database/sql"
@@ -7,16 +7,177 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/pointer"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 )
 
-func TestDiff(t *testing.T) {
+func Test_diffValues(t *testing.T) {
 	t.Parallel()
 
-	runDiffTests(t, []diffTest[database.GitSSHKey]{
+	t.Run("Normal", func(t *testing.T) {
+		t.Parallel()
+
+		type foo struct {
+			Bar string `json:"bar"`
+			Baz int64  `json:"baz"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"bar": ActionTrack,
+				"baz": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "LeftEmpty",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "bar", Baz: 10},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "bar"},
+					"baz": audit.OldNew{Old: 0, New: 10},
+				},
+			},
+			{
+				name: "RightEmpty",
+				left: foo{Bar: "Bar", Baz: 10}, right: foo{Bar: "", Baz: 0},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "Bar", New: ""},
+					"baz": audit.OldNew{Old: 10, New: 0},
+				},
+			},
+			{
+				name: "NoChange",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "", Baz: 0},
+				exp: audit.Map{},
+			},
+			{
+				name: "SingleFieldChange",
+				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "Bar", Baz: 0},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "Bar"},
+				},
+			},
+		})
+	})
+
+	t.Run("PointerField", func(t *testing.T) {
+		t.Parallel()
+
+		type foo struct {
+			Bar *string `json:"bar"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"bar": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "LeftNil",
+				left: foo{Bar: nil}, right: foo{Bar: pointer.StringPtr("baz")},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "", New: "baz"},
+				},
+			},
+			{
+				name: "RightNil",
+				left: foo{Bar: pointer.StringPtr("baz")}, right: foo{Bar: nil},
+				exp: audit.Map{
+					"bar": audit.OldNew{Old: "baz", New: ""},
+				},
+			},
+		})
+	})
+
+	t.Run("NestedStruct", func(t *testing.T) {
+		t.Parallel()
+
+		type bar struct {
+			Baz string `json:"baz"`
+		}
+
+		type foo struct {
+			Bar *bar `json:"bar"`
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"bar": ActionTrack,
+			},
+			&bar{}: {
+				"baz": ActionTrack,
+			},
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "LeftEmpty",
+				left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
+				exp: audit.Map{
+					"bar": audit.Map{
+						"baz": audit.OldNew{Old: "", New: "baz"},
+					},
+				},
+			},
+			{
+				name: "RightEmpty",
+				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
+				exp: audit.Map{
+					"bar": audit.Map{
+						"baz": audit.OldNew{Old: "baz", New: ""},
+					},
+				},
+			},
+			{
+				name: "LeftNil",
+				left: foo{Bar: nil}, right: foo{Bar: &bar{}},
+				exp: audit.Map{
+					"bar": audit.Map{},
+				},
+			},
+			{
+				name: "RightNil",
+				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
+				exp: audit.Map{
+					"bar": audit.Map{
+						"baz": audit.OldNew{Old: "baz", New: ""},
+					},
+				},
+			},
+		})
+	})
+}
+
+type diffTest struct {
+	name        string
+	left, right any
+	exp         any
+}
+
+func runDiffValuesTests(t *testing.T, table Table, tests []diffTest) {
+	t.Helper()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t,
+				test.exp,
+				diffValues(test.left, test.right, table),
+			)
+		})
+	}
+}
+
+func Test_diff(t *testing.T) {
+	t.Parallel()
+
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.GitSSHKey](),
@@ -35,7 +196,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.OrganizationMember]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.OrganizationMember](),
@@ -54,7 +215,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.Organization]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.Organization](),
@@ -73,7 +234,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.Template]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.Template](),
@@ -103,7 +264,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.TemplateVersion]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.TemplateVersion](),
@@ -145,7 +306,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.User]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.User](),
@@ -170,7 +331,7 @@ func TestDiff(t *testing.T) {
 		},
 	})
 
-	runDiffTests(t, []diffTest[database.Workspace]{
+	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
 			left: audit.Empty[database.Workspace](),
@@ -216,24 +377,17 @@ func TestDiff(t *testing.T) {
 	})
 }
 
-type diffTest[T audit.Auditable] struct {
-	name        string
-	left, right T
-	exp         audit.Map
-}
-
-func runDiffTests[T audit.Auditable](t *testing.T, tests []diffTest[T]) {
+func runDiffTests(t *testing.T, tests []diffTest) {
 	t.Helper()
 
-	var typ T
-	typName := reflect.TypeOf(typ).Name()
-
 	for _, test := range tests {
+		typName := reflect.TypeOf(test.left).Name()
+
 		t.Run(typName+"/"+test.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t,
 				test.exp,
-				audit.Diff(test.left, test.right),
+				(&auditor{}).diff(test.left, test.right),
 			)
 		})
 	}
