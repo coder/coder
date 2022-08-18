@@ -11,7 +11,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
-import { maxDeadline, minDeadline } from "../../util/schedule"
+import { canExtendDeadline, canReduceDeadline, maxDeadline, minDeadline } from "../../util/schedule"
 import { getFaviconByStatus } from "../../util/workspace"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -112,10 +112,10 @@ export const WorkspacePage: React.FC = () => {
               })
             },
             deadlineMinusEnabled: () => {
-              return deadline > minDeadline()
+              return canReduceDeadline(deadline)
             },
             deadlinePlusEnabled: () => {
-              return deadline < maxDeadline(workspace, template)
+              return canExtendDeadline(deadline, workspace, template)
             },
           }}
           workspace={workspace}
