@@ -229,8 +229,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	if link.LinkedID == "" {
 		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 			UserID:    user.ID,
-			LinkedID:  githubLinkedID(ghUser),
 			LoginType: database.LoginTypeGithub,
+			LinkedID:  githubLinkedID(ghUser),
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -437,8 +437,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if link.LinkedID == "" {
 		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
 			LinkedID:  oidcLinkedID(idToken),
-			LoginType: database.LoginTypeGithub,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -477,8 +477,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		// longer sign in until an administrator finds the offending built-in
 		// user and changes their username.
 		user, err = api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-			ID:        user.ID,
-			Email:     claims.Email,
+			ID:    user.ID,
+			Email: claims.Email,
 			// TODO: This should run in a transaction.
 			Username:  user.Username,
 			UpdatedAt: database.Now(),
