@@ -8,13 +8,13 @@ export const Language = {
   title: "Template settings",
 }
 
-export interface TemplateSettingsPageView {
+export interface TemplateSettingsPageViewProps {
   template?: Template
   onSubmit: (data: UpdateTemplateMeta) => void
   onCancel: () => void
 }
 
-export const TemplateSettingsPageView: FC<TemplateSettingsPageView> = ({
+export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   template,
   onCancel,
   onSubmit,
