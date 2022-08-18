@@ -66,6 +66,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	AutoImportTemplates  []AutoImportTemplate
 }
 
 // New constructs a Coder API handler.

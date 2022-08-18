@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -55,6 +56,79 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+	})
+
+	t.Run("AutoImportsTemplates", func(t *testing.T) {
+		t.Parallel()
+
+		// All available auto import templates should be added to this list, and
+		// also added to the switch statement below.
+		autoImportTemplates := []coderd.AutoImportTemplate{
+			coderd.AutoImportTemplateKubernetes,
+			coderd.AutoImportTemplateKubernetesMultiService,
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			AutoImportTemplates: autoImportTemplates,
+		})
+		u := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		templates, err := client.TemplatesByOrganization(ctx, u.OrganizationID)
+		require.NoError(t, err, "list templates")
+		require.Len(t, templates, 2, "should have two templates")
+		require.ElementsMatch(t, autoImportTemplates, []coderd.AutoImportTemplate{
+			coderd.AutoImportTemplate(templates[0].Name),
+			coderd.AutoImportTemplate(templates[1].Name),
+		}, "template names don't match")
+
+		for _, template := range templates {
+			// Check template parameters.
+			templateParams, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
+			require.NoErrorf(t, err, "get template parameters for %q", template.Name)
+
+			// Ensure all template parameters are present.
+			expectedParams := map[string]bool{}
+			switch template.Name {
+			case "kubernetes", "kubernetes-multi-service":
+				expectedParams["use_kubeconfig"] = false
+				expectedParams["workspaces_namespace"] = false
+			default:
+				t.Fatalf("unexpected template name %q", template.Name)
+			}
+			for _, v := range templateParams {
+				if _, ok := expectedParams[v.Name]; !ok {
+					t.Fatalf("unexpected template parameter %q in template %q", v.Name, template.Name)
+				}
+				expectedParams[v.Name] = true
+			}
+			for k, v := range expectedParams {
+				if !v {
+					t.Fatalf("missing template parameter %q in template %q", k, template.Name)
+				}
+			}
+
+			// Ensure template version is legit
+			templateVersion, err := client.TemplateVersion(ctx, template.ActiveVersionID)
+			require.NoErrorf(t, err, "get template version for %q", template.Name)
+
+			// Compare job parameters to template parameters.
+			jobParams, err := client.Parameters(ctx, codersdk.ParameterImportJob, templateVersion.Job.ID)
+			require.NoErrorf(t, err, "get template import job parameters for %q", template.Name)
+			for _, v := range jobParams {
+				if _, ok := expectedParams[v.Name]; !ok {
+					t.Fatalf("unexpected job parameter %q for template %q", v.Name, template.Name)
+				}
+				// Change it back to false so we can reuse the map
+				expectedParams[v.Name] = false
+			}
+			for k, v := range expectedParams {
+				if v {
+					t.Fatalf("missing job parameter %q for template %q", k, template.Name)
+				}
+			}
+		}
 	})
 }
 

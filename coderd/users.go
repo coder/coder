@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -27,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/examples"
 )
 
 // Returns whether the initial user has been created or not.
@@ -82,6 +87,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Email:    createUser.Email,
 			Username: createUser.Username,
 			Password: createUser.Password,
+			// Create an org for the first user.
+			OrganizationID: uuid.Nil,
 		},
 		LoginType: database.LoginTypePassword,
 	})
@@ -114,6 +121,60 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// Auto-import any designated templates into the new organization.
+	for _, template := range api.AutoImportTemplates {
+		archive, err := examples.Archive(string(template))
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  xerrors.Errorf("load template archive for %q: %w", template, err).Error(),
+			})
+			return
+		}
+
+		// Determine which parameter values to use.
+		parameters := map[string]string{}
+		switch template {
+		case AutoImportTemplateKubernetes, AutoImportTemplateKubernetesMultiService:
+
+			// Determine the current namespace we're in.
+			const namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+			namespace, err := os.ReadFile(namespaceFile)
+			if err != nil {
+				parameters["use_kubeconfig"] = "true" // use ~/.config/kubeconfig
+				parameters["workspaces_namespace"] = "coder-workspaces"
+			} else {
+				parameters["use_kubeconfig"] = "false" // use SA auth
+				parameters["workspaces_namespace"] = string(bytes.TrimSpace(namespace))
+			}
+
+		default:
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  fmt.Sprintf("cannot auto-import %q template", template),
+			})
+			return
+		}
+
+		tpl, err := api.autoImportTemplate(r.Context(), autoImportTemplateOpts{
+			name:    string(template),
+			archive: archive,
+			params:  parameters,
+			userID:  user.ID,
+			orgID:   organizationID,
+		})
+		if err != nil {
+			api.Logger.Warn(r.Context(), "failed to auto-import template", slog.F("template", template), slog.F("parameters", parameters), slog.Error(err))
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  xerrors.Errorf("failed to import template %q: %w", template, err).Error(),
+			})
+			return
+		}
+
+		api.Logger.Info(r.Context(), "auto-imported template", slog.F("id", tpl.ID), slog.F("template", template), slog.F("parameters", parameters))
 	}
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{

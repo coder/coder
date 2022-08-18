@@ -68,6 +68,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 
@@ -198,6 +199,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
+		AutoImportTemplates:  options.AutoImportTemplates,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()

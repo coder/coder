@@ -108,6 +108,7 @@ func server() *cobra.Command {
 		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
+		autoImportTemplates              []string
 		spooky                           bool
 		verbose                          bool
 	)
@@ -271,6 +272,30 @@ func server() *cobra.Command {
 					URLs: []string{stunServer},
 				})
 			}
+
+			// Validate provided auto-import templates.
+			var (
+				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(autoImportTemplates))
+				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(autoImportTemplates))
+			)
+			for i, autoImportTemplate := range autoImportTemplates {
+				var v coderd.AutoImportTemplate
+				switch autoImportTemplate {
+				case "kubernetes":
+					v = coderd.AutoImportTemplateKubernetes
+				case "kubernetes-multi-service":
+					v = coderd.AutoImportTemplateKubernetesMultiService
+				default:
+					return xerrors.Errorf("auto import template %q is not supported", autoImportTemplate)
+				}
+
+				if _, ok := seenValidatedAutoImportTemplates[v]; ok {
+					return xerrors.Errorf("auto import template %q is specified more than once", v)
+				}
+				seenValidatedAutoImportTemplates[v] = struct{}{}
+				validatedAutoImportTemplates[i] = v
+			}
+
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
 				ICEServers:           iceServers,
@@ -284,6 +309,7 @@ func server() *cobra.Command {
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
 				Telemetry:            telemetry.NewNoop(),
+				AutoImportTemplates:  validatedAutoImportTemplates,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -739,6 +765,7 @@ func server() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
+	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes, kubernetes-multi-service")
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
 	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 	_ = root.Flags().MarkHidden("spooky")
@@ -881,16 +908,16 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 // nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 ▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 ▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 ▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 ░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
   ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-░ ░          ░ ░     ░       ░  ░   ░     
-░                  ░                      		
+░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+░ ░          ░ ░     ░       ░  ░   ░
+░                  ░
 `)
 		return
 	}
