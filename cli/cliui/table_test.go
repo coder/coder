@@ -1,6 +1,7 @@
 package cliui_test
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -11,6 +12,16 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 )
+
+type stringWrapper struct {
+	str string
+}
+
+var _ fmt.Stringer = stringWrapper{}
+
+func (s stringWrapper) String() string {
+	return s.str
+}
 
 type tableTest1 struct {
 	Name        string      `table:"name"`
@@ -28,9 +39,9 @@ type tableTest1 struct {
 }
 
 type tableTest2 struct {
-	Name        string `table:"name"`
-	Age         int    `table:"age"`
-	NotIncluded string `table:"-"`
+	Name        stringWrapper `table:"name"`
+	Age         int           `table:"age"`
+	NotIncluded string        `table:"-"`
 }
 
 type tableTest3 struct {
@@ -48,21 +59,21 @@ func Test_DisplayTable(t *testing.T) {
 			Age:   10,
 			Roles: []string{"a", "b", "c"},
 			Sub1: tableTest2{
-				Name: "foo1",
+				Name: stringWrapper{str: "foo1"},
 				Age:  11,
 			},
 			Sub2: &tableTest2{
-				Name: "foo2",
+				Name: stringWrapper{str: "foo2"},
 				Age:  12,
 			},
 			Sub3: tableTest3{
 				Sub: tableTest2{
-					Name: "foo3",
+					Name: stringWrapper{str: "foo3"},
 					Age:  13,
 				},
 			},
 			Sub4: tableTest2{
-				Name: "foo4",
+				Name: stringWrapper{str: "foo4"},
 				Age:  14,
 			},
 			Time:    someTime,
@@ -73,18 +84,18 @@ func Test_DisplayTable(t *testing.T) {
 			Age:   20,
 			Roles: []string{"a"},
 			Sub1: tableTest2{
-				Name: "bar1",
+				Name: stringWrapper{str: "bar1"},
 				Age:  21,
 			},
 			Sub2: nil,
 			Sub3: tableTest3{
 				Sub: tableTest2{
-					Name: "bar3",
+					Name: stringWrapper{str: "bar3"},
 					Age:  23,
 				},
 			},
 			Sub4: tableTest2{
-				Name: "bar4",
+				Name: stringWrapper{str: "bar4"},
 				Age:  24,
 			},
 			Time:    someTime,
@@ -95,18 +106,18 @@ func Test_DisplayTable(t *testing.T) {
 			Age:   30,
 			Roles: nil,
 			Sub1: tableTest2{
-				Name: "baz1",
+				Name: stringWrapper{str: "baz1"},
 				Age:  31,
 			},
 			Sub2: nil,
 			Sub3: tableTest3{
 				Sub: tableTest2{
-					Name: "baz3",
+					Name: stringWrapper{str: "baz3"},
 					Age:  33,
 				},
 			},
 			Sub4: tableTest2{
-				Name: "baz4",
+				Name: stringWrapper{str: "baz4"},
 				Age:  34,
 			},
 			Time:    someTime,

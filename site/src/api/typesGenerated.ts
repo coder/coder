@@ -205,13 +205,13 @@ export interface Pagination {
 // From codersdk/parameters.go
 export interface Parameter {
   readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
   readonly scope: ParameterScope
   readonly scope_id: string
   readonly name: string
   readonly source_scheme: ParameterSourceScheme
   readonly destination_scheme: ParameterDestinationScheme
+  readonly created_at: string
+  readonly updated_at: string
 }
 
 // From codersdk/parameters.go

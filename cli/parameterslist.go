@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -70,11 +71,16 @@ func parameterList() *cobra.Command {
 				return xerrors.Errorf("fetch params: %w", err)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), displayParameters(columns, params...))
+			out, err := cliui.DisplayTable(params, "name", columns)
+			if err != nil {
+				return xerrors.Errorf("render table: %w", err)
+			}
+
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "scope", "destination_scheme"},
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "scope", "destination scheme"},
 		"Specify a column to filter in the table.")
 	return cmd
 }
