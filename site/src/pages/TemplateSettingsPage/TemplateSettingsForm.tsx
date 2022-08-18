@@ -2,7 +2,7 @@ import TextField from "@material-ui/core/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { Stack } from "components/Stack/Stack"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
@@ -28,6 +28,8 @@ export interface TemplateSettingsForm {
   onCancel: () => void
   isSubmitting: boolean
   error?: unknown
+  // Helpful to show field errors on Storybook
+  initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -36,6 +38,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   onCancel,
   error,
   isSubmitting,
+  initialTouched,
 }) => {
   const form: FormikContextType<UpdateTemplateMeta> = useFormik<UpdateTemplateMeta>({
     initialValues: {
@@ -47,6 +50,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     onSubmit: (data) => {
       onSubmit(data)
     },
+    initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
 

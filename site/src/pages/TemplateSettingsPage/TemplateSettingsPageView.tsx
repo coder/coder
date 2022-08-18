@@ -2,7 +2,7 @@ import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { Loader } from "components/Loader/Loader"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { TemplateSettingsForm } from "./TemplateSettingsForm"
 
 export const Language = {
@@ -18,6 +18,7 @@ export interface TemplateSettingsPageViewProps {
     getTemplateError?: unknown
     saveTemplateSettingsError?: unknown
   }
+  initialTouched?: ComponentProps<typeof TemplateSettingsForm>["initialTouched"]
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -26,6 +27,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   onSubmit,
   isSubmitting,
   errors = {},
+  initialTouched,
 }) => {
   const isLoading = !template && !errors.getTemplateError
 
@@ -35,6 +37,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
       {isLoading && <Loader />}
       {template && (
         <TemplateSettingsForm
+          initialTouched={initialTouched}
           isSubmitting={isSubmitting}
           template={template}
           onSubmit={onSubmit}

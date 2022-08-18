@@ -47,6 +47,9 @@ SaveTemplateSettingsError.args = {
       ],
     }),
   },
+  initialTouched: {
+    name: true,
+  },
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
 }
