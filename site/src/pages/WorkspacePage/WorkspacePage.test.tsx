@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
-import { Template, Workspace } from "../../api/typesGenerated"
+import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/ActionCtas"
 import {
   MockBuilds,
@@ -27,11 +27,13 @@ import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
+  const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
   await screen.findByText(MockWorkspace.name)
+  expect(getTemplateMock).toBeCalled()
 }
 
 /**
@@ -50,7 +52,7 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   expect(actionMock).toBeCalled()
 }
 
-const testStatus = async (ws: Workspace, tpl: Template, label: string) => {
+const testStatus = async (ws: Workspace, label: string) => {
   server.use(
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(ws))
@@ -139,31 +141,31 @@ describe("Workspace Page", () => {
     await testButton(Language.update, getTemplateMock)
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(MockStoppingWorkspace, MockTemplate, DisplayStatusLanguage.stopping)
+    await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
   })
   it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(MockStoppedWorkspace, MockTemplate, DisplayStatusLanguage.stopped)
+    await testStatus(MockStoppedWorkspace, DisplayStatusLanguage.stopped)
   })
   it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(MockStartingWorkspace, MockTemplate, DisplayStatusLanguage.starting)
+    await testStatus(MockStartingWorkspace, DisplayStatusLanguage.starting)
   })
   it("shows the Running status when the workspace is started", async () => {
-    await testStatus(MockWorkspace, MockTemplate, DisplayStatusLanguage.started)
+    await testStatus(MockWorkspace, DisplayStatusLanguage.started)
   })
   it("shows the Failed status when the workspace is failed or canceled", async () => {
-    await testStatus(MockFailedWorkspace, MockTemplate, DisplayStatusLanguage.failed)
+    await testStatus(MockFailedWorkspace, DisplayStatusLanguage.failed)
   })
   it("shows the Canceling status when the workspace is canceling", async () => {
-    await testStatus(MockCancelingWorkspace, MockTemplate, DisplayStatusLanguage.canceling)
+    await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
   })
   it("shows the Canceled status when the workspace is canceling", async () => {
-    await testStatus(MockCanceledWorkspace, MockTemplate, DisplayStatusLanguage.canceled)
+    await testStatus(MockCanceledWorkspace, DisplayStatusLanguage.canceled)
   })
   it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(MockDeletingWorkspace, MockTemplate, DisplayStatusLanguage.deleting)
+    await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, MockTemplate, DisplayStatusLanguage.deleted)
+    await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
   })
 
   describe("Timeline", () => {
@@ -181,6 +183,7 @@ describe("Workspace Page", () => {
 
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
+      const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
       renderWithAuth(<WorkspacePage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
         path: "/@:username/:workspace",
@@ -197,6 +200,7 @@ describe("Workspace Page", () => {
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
       expect(agent2Status.length).toEqual(2)
+      expect(getTemplateMock).toBeCalled()
     })
   })
 })
