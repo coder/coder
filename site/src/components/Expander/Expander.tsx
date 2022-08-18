@@ -42,6 +42,7 @@ const useStyles = makeStyles((theme) => ({
   expandLink: {
     cursor: "pointer",
     color: `${lighten(theme.palette.primary.light, 0.2)}`,
+    display: "flex",
   },
   text: {
     display: "flex",

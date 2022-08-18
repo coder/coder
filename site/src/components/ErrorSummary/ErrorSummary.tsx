@@ -83,7 +83,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     gap: 0,
   },
   flex: {
-    display: "flex"
+    display: "flex",
   },
   messageBox: {
     justifyContent: "space-between",
