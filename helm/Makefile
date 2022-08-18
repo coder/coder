@@ -7,7 +7,7 @@ SHELL := bash
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
 
-all: lint gen
+all: lint
 .PHONY: all
 
 lint: lint/helm
@@ -16,11 +16,3 @@ lint: lint/helm
 lint/helm:
 	helm lint --strict .
 .PHONY: lint/helm
-
-gen: README.md
-.PHONY: gen
-
-README.md: README.md.gotmpl values.yaml
-	helm-docs --template-files=$<
-	@printf "<!-- DO NOT EDIT. THIS IS GENERATED FROM README.md.gotmpl -->\n\n%s\n" "$$(cat README.md)" > README.md
-.PHONY: README.md

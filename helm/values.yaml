@@ -25,11 +25,7 @@ coder:
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  env:
-    - name: CODER_ACCESS_URL
-      value: "https://coder.example.com"
-    #- name: CODER_PG_CONNECTION_URL
-    #  value: "postgres://coder:password@postgres:5432/coder?sslmode=disable"
+  env: []
 
   # coder.tls -- The TLS configuration for Coder.
   tls:
