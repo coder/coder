@@ -47,15 +47,15 @@ func templates() *cobra.Command {
 }
 
 type templateTableRow struct {
-	Name                 string        `table:"name"`
-	CreatedAt            string        `table:"created at"`
-	LastUpdated          string        `table:"last updated"`
-	OrganizationID       uuid.UUID     `table:"organization id"`
-	Provisioner          string        `table:"provisioner"`
-	ActiveVersionID      uuid.UUID     `table:"active version id"`
-	UsedBy               string        `table:"used by"`
-	MaxTTL               time.Duration `table:"max ttl"`
-	MinAutostartInterval time.Duration `table:"min autostart"`
+	Name                 string                   `table:"name"`
+	CreatedAt            string                   `table:"created at"`
+	LastUpdated          string                   `table:"last updated"`
+	OrganizationID       uuid.UUID                `table:"organization id"`
+	Provisioner          codersdk.ProvisionerType `table:"provisioner"`
+	ActiveVersionID      uuid.UUID                `table:"active version id"`
+	UsedBy               string                   `table:"used by"`
+	MaxTTL               time.Duration            `table:"max ttl"`
+	MinAutostartInterval time.Duration            `table:"min autostart"`
 }
 
 // displayTemplates will return a table displaying all templates passed in.
@@ -74,7 +74,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 			CreatedAt:            template.CreatedAt.Format("January 2, 2006"),
 			LastUpdated:          template.UpdatedAt.Format("January 2, 2006"),
 			OrganizationID:       template.OrganizationID,
-			Provisioner:          string(template.Provisioner),
+			Provisioner:          template.Provisioner,
 			ActiveVersionID:      template.ActiveVersionID,
 			UsedBy:               cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
 			MaxTTL:               (time.Duration(template.MaxTTLMillis) * time.Millisecond),
