@@ -8,9 +8,9 @@ You'll need the following tools:
 - GNU Make
 - [`shfmt`](https://github.com/mvdan/sh#shfmt)
 - [`nfpm`](https://nfpm.goreleaser.com/install)
-- [`zstd`](https://github.com/horta/zstd.install)
 - [`pg_dump`]
   - on macOS, run `brew install libpq zstd`
+  - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
 
 > **Note**:
 > Use [Nix](https://nix.dev/) for a one-command setup: `nix-shell`
