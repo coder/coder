@@ -83,7 +83,7 @@ export const templateSettingsMachine =
           { templateSettings: newTemplateSettings },
         ) => {
           if (!templateSettings) {
-            throw new Error("templateSettins is not loaded yet.")
+            throw new Error("templateSettings is not loaded yet.")
           }
 
           return updateTemplateMeta(templateSettings.id, newTemplateSettings)
