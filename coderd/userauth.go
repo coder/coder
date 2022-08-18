@@ -235,7 +235,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred.",
-				Detail:  xerrors.Errorf("update user link: %w", err.Error).Error(),
+				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
 			})
 			return
 		}
@@ -443,7 +443,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred.",
-				Detail:  xerrors.Errorf("update user link: %w", err.Error).Error(),
+				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
 			})
 			return
 		}
@@ -479,7 +479,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		user, err = api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 			ID:        user.ID,
 			Email:     claims.Email,
-			Username:  claims.Username,
+			// TODO: This should run in a transaction.
+			Username:  user.Username,
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
