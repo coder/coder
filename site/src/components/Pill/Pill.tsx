@@ -9,10 +9,11 @@ export interface PillProps {
   icon?: React.ReactNode
   text: string
   type?: PaletteIndex
+  lightBorder?: boolean
 }
 
-export const Pill: React.FC<PillProps> = ({ className, icon, text, type }) => {
-  const styles = useStyles({ icon, type })
+export const Pill: React.FC<PillProps> = ({ className, icon, text, type, lightBorder=false }) => {
+  const styles = useStyles({ icon, type, lightBorder })
   return (
     <div className={combineClasses([styles.wrapper, styles.pillColor, className])} role="status">
       {icon && <div className={styles.iconWrapper}>{icon}</div>}
@@ -42,8 +43,8 @@ const useStyles = makeStyles((theme) => ({
   pillColor: {
     backgroundColor: ({ type }: { type?: PaletteIndex }) =>
       type ? theme.palette[type].dark : theme.palette.text.secondary,
-    borderColor: ({ type }: { type?: PaletteIndex }) =>
-      type ? theme.palette[type].main : theme.palette.text.secondary,
+    borderColor: ({ type, lightBorder }: { type?: PaletteIndex, lightBorder?: boolean }) =>
+      type ? ( lightBorder ? theme.palette[type].light : theme.palette[type].main) : theme.palette.text.secondary,
   },
 
   iconWrapper: {

@@ -24,7 +24,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
     if (warnings.length === 1) {
       return (
         <div className={styles.container}>
-          <Pill text={Language.licenseIssue} type="warning" />
+          <Pill text={Language.licenseIssue} type="warning" lightBorder />
           <span className={styles.text}>{warnings[0]}</span>
           &nbsp;
           <a href="mailto:sales@coder.com" className={styles.link}>
@@ -37,7 +37,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
         <div className={styles.container}>
           <div className={styles.flex}>
             <div className={styles.leftContent}>
-              <Pill text={Language.licenseIssues(warnings.length)} type="warning" />
+              <Pill text={Language.licenseIssues(warnings.length)} type="warning" lightBorder />
               <span className={styles.text}>{Language.exceeded}</span>
               &nbsp;
               <a href="mailto:sales@coder.com" className={styles.link}>

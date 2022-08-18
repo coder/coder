@@ -1,5 +1,4 @@
 import Link from "@material-ui/core/Link"
-import { lighten } from "@material-ui/core/styles"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 
@@ -41,7 +40,7 @@ export const Expander: React.FC<CollapseButtonProps> = ({ expanded, setExpanded 
 const useStyles = makeStyles((theme) => ({
   expandLink: {
     cursor: "pointer",
-    color: `${lighten(theme.palette.primary.light, 0.2)}`,
+    color: theme.palette.text.primary,
     display: "flex",
   },
   text: {
