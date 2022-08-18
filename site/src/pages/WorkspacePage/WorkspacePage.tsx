@@ -73,7 +73,7 @@ export const WorkspacePage: React.FC = () => {
   } else if (!workspace) {
     return <FullScreenLoader />
   } else if (!template) {
-    return <div className={styles.error}>Loading template</div>
+    return <FullScreenLoader />
   } else {
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     const favicon = getFaviconByStatus(workspace.latest_build)
