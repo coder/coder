@@ -241,6 +241,23 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if link.UserID != uuid.Nil {
+		link, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:            user.ID,
+			LoginType:         database.LoginTypeGithub,
+			OAuthAccessToken:  state.Token.AccessToken,
+			OAuthRefreshToken: state.Token.RefreshToken,
+			OAuthExpiry:       state.Token.Expiry,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "A database error occurred.",
+				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
+			})
+			return
+		}
+	}
+
 	_, created := api.createAPIKey(rw, r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypeGithub,
@@ -427,6 +444,23 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred.",
 				Detail:  xerrors.Errorf("update user link: %w", err.Error).Error(),
+			})
+			return
+		}
+	}
+
+	if link.UserID != uuid.Nil {
+		link, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:            user.ID,
+			LoginType:         database.LoginTypeOIDC,
+			OAuthAccessToken:  state.Token.AccessToken,
+			OAuthRefreshToken: state.Token.RefreshToken,
+			OAuthExpiry:       state.Token.Expiry,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "A database error occurred.",
+				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
 			})
 			return
 		}
