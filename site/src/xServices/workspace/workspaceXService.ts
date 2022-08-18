@@ -160,6 +160,7 @@ export const workspaceMachine = createMachine(
             actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
           },
         },
+        tags: "loading",
       },
       gettingPermissions: {
         entry: "clearGetPermissionsError",

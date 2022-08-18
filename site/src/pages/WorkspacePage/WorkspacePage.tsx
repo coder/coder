@@ -5,14 +5,13 @@ import minMax from "dayjs/plugin/minMax"
 import React, { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet"
 import { useParams } from "react-router-dom"
-import * as TypesGen from "../../api/typesGenerated"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
-import { getFaviconByStatus, minDeadline, maxDeadline } from "../../util/workspace"
+import { getFaviconByStatus, maxDeadline, minDeadline } from "../../util/workspace"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
@@ -35,8 +34,9 @@ export const WorkspacePage: React.FC = () => {
   })
   const {
     workspace,
-    template,
     getWorkspaceError,
+    template,
+    refreshTemplateError,
     resources,
     getResourcesError,
     builds,
@@ -65,19 +65,15 @@ export const WorkspacePage: React.FC = () => {
     return (
       <div className={styles.error}>
         {getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
+        {refreshTemplateError && <ErrorSummary error={refreshTemplateError} />}
         {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
   } else if (!workspace) {
     return <FullScreenLoader />
   } else if (!template) {
-    return (
-      <div className={styles.error}>
-        dude don't block the entier page lol just make the bumper load the template
-      </div>
-    )
+    return <div className={styles.error}>Loading template</div>
   } else {
-    const now = dayjs().utc()
     const deadline = dayjs(workspace.latest_build.deadline).utc()
     const favicon = getFaviconByStatus(workspace.latest_build)
     return (

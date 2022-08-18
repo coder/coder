@@ -1,10 +1,8 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
-import dayjs from "dayjs"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Template, Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceActions/ActionCtas"
-import * as Mocks from "../../testHelpers/entities"
 import {
   MockBuilds,
   MockCanceledWorkspace,
@@ -26,7 +24,6 @@ import {
 import { server } from "../../testHelpers/server"
 import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
-
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
@@ -57,9 +54,6 @@ const testStatus = async (ws: Workspace, tpl: Template, label: string) => {
   server.use(
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(ws))
-    }),
-    rest.get(`/api/v2/templates/:templateId`, (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json(tpl))
     }),
   )
   await renderWorkspacePage()
