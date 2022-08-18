@@ -14,7 +14,10 @@ describe("TemplatePage", () => {
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
-    renderWithAuth(<TemplatePage />, { route: `/templates/${MockTemplate.id}` })
+    renderWithAuth(<TemplatePage />, {
+      route: `/templates/${MockTemplate.id}`,
+      path: "/templates/:template",
+    })
     await screen.findByText(MockTemplate.name)
     screen.getByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)

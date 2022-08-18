@@ -2,7 +2,12 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
 import { FC, ReactElement } from "react"
-import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  unstable_HistoryRouter as HistoryRouter,
+} from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
 import { XServiceProvider } from "../xServices/StateContext"
@@ -20,15 +25,7 @@ export const WrapperComponent: FC = ({ children }) => {
   )
 }
 
-interface RenderOptions {
-  route?: string
-}
-
-export const render = (
-  component: ReactElement,
-  { route = "/" }: RenderOptions = {},
-): RenderResult => {
-  history.replace(route)
+export const render = (component: ReactElement): RenderResult => {
   return wrappedRender(<WrapperComponent>{component}</WrapperComponent>)
 }
 
@@ -42,9 +39,19 @@ type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
  */
 export function renderWithAuth(
   ui: JSX.Element,
-  renderOptions?: RenderOptions,
+  { route = "/", path }: { route?: string; path?: string } = {},
 ): RenderWithAuthResult {
-  const renderResult = render(<RequireAuth>{ui}</RequireAuth>, renderOptions)
+  const renderResult = wrappedRender(
+    <MemoryRouter initialEntries={[route]}>
+      <XServiceProvider>
+        <ThemeProvider theme={dark}>
+          <Routes>
+            <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+          </Routes>
+        </ThemeProvider>
+      </XServiceProvider>
+    </MemoryRouter>,
+  )
 
   return {
     user: MockUser,

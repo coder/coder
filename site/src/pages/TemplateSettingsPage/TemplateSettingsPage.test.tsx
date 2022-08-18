@@ -1,11 +1,10 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import * as API from "api/api"
 import { UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
-import { rest } from "msw"
-import { server } from "testHelpers/server"
 import { MockTemplate } from "../../testHelpers/entities"
-import { history, renderWithAuth } from "../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { Language as FormLanguage } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import { Language as ViewLanguage } from "./TemplateSettingsPageView"
@@ -13,6 +12,7 @@ import { Language as ViewLanguage } from "./TemplateSettingsPageView"
 const renderTemplateSettingsPage = async () => {
   const renderResult = renderWithAuth(<TemplateSettingsPage />, {
     route: `/templates/${MockTemplate.name}/settings`,
+    path: `/templates/:templateId/settings`,
   })
   // Wait the form to be rendered
   await screen.findAllByLabelText(FormLanguage.nameLabel)
@@ -55,16 +55,12 @@ describe("TemplateSettingsPage", () => {
       description: "Edited description",
       max_ttl_ms: 4000,
     }
-    // Return patch with new data
-    server.use(
-      rest.patch("/api/v2/templates/:templateId", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({ ...MockTemplate, ...newTemplateSettings }))
-      }),
-    )
+    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+      ...MockTemplate,
+      ...newTemplateSettings,
+    })
     await fillAndSubmitForm(newTemplateSettings)
 
-    await waitFor(() =>
-      expect(history.location.pathname).toEqual(`/templates/${newTemplateSettings.name}`),
-    )
+    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
   })
 })
