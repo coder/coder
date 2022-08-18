@@ -1,3 +1,4 @@
+import { MockEntitlements } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { Entitlements } from "../../api/types"
@@ -13,6 +14,12 @@ export type EntitlementsContext = {
 
 export type EntitlementsEvent = {
   type: "GET_ENTITLEMENTS"
+} | { type: "SHOW_MOCK_BANNER" } | { type: "HIDE_MOCK_BANNER" }
+
+const emptyEntitlements = {
+  warnings: [],
+  features: {},
+  has_license: false,
 }
 
 export const entitlementsMachine = createMachine(
@@ -30,16 +37,14 @@ export const entitlementsMachine = createMachine(
     },
     tsTypes: {} as import("./entitlementsXService.typegen").Typegen0,
     context: {
-      entitlements: {
-        warnings: [],
-        features: {},
-        has_license: false,
-      },
+      entitlements: emptyEntitlements
     },
     states: {
       idle: {
         on: {
           GET_ENTITLEMENTS: "gettingEntitlements",
+          SHOW_MOCK_BANNER: { actions: "assignMockEntitlements" },
+          HIDE_MOCK_BANNER: { actions: "clearMockEntitlements" }
         },
       },
       gettingEntitlements: {
@@ -70,6 +75,12 @@ export const entitlementsMachine = createMachine(
       clearGetEntitlementsError: assign({
         getEntitlementsError: (_) => undefined,
       }),
+      assignMockEntitlements: assign({
+        entitlements: (_) => MockEntitlements
+      }),
+      clearMockEntitlements: assign({
+        entitlements: (_) => emptyEntitlements
+      })
     },
     services: {
       getEntitlements: () => API.getEntitlements(),
