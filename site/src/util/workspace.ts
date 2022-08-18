@@ -269,19 +269,3 @@ export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType 
   }
   throw new Error("unknown status " + status)
 }
-
-export const deadlineExtensionMin = dayjs.duration(30, "minutes")
-export const deadlineExtensionMax = dayjs.duration(24, "hours")
-
-export function maxDeadline(ws: TypesGen.Workspace, tpl: TypesGen.Template): dayjs.Dayjs {
-  // note: we count runtime from updated_at as started_at counts from the start of
-  // the workspace build process, which can take a while.
-  const startedAt = dayjs(ws.latest_build.updated_at)
-  const maxTemplateDeadline = startedAt.add(dayjs.duration(tpl.max_ttl_ms, "milliseconds"))
-  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
-  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
-}
-
-export function minDeadline(): dayjs.Dayjs {
-  return dayjs().add(deadlineExtensionMin)
-}

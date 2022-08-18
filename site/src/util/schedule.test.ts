@@ -1,4 +1,18 @@
-import { extractTimezone, stripTimezone } from "./schedule"
+import dayjs from "dayjs"
+import duration from "dayjs/plugin/duration"
+import { Template, Workspace } from "../api/typesGenerated"
+import * as Mocks from "../testHelpers/entities"
+import {
+  deadlineExtensionMax,
+  deadlineExtensionMin,
+  extractTimezone,
+  maxDeadline,
+  minDeadline,
+  stripTimezone,
+} from "./schedule"
+
+dayjs.extend(duration)
+const now = dayjs()
 
 describe("util/schedule", () => {
   describe("stripTimezone", () => {
@@ -19,5 +33,48 @@ describe("util/schedule", () => {
     ])(`extractTimezone(%p) returns %p`, (input, expected) => {
       expect(extractTimezone(input)).toBe(expected)
     })
+  })
+})
+
+describe("maxDeadline", () => {
+  // Given: a workspace built from a template with a max deadline equal to 25 hours which isn't really possible
+  const workspace: Workspace = {
+    ...Mocks.MockWorkspace,
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      deadline: now.add(8, "hours").utc().format(),
+    },
+  }
+  describe("given a template with 25 hour max ttl", () => {
+    it("should be never be greater than global max deadline", () => {
+      const template: Template = {
+        ...Mocks.MockTemplate,
+        max_ttl_ms: 25 * 60 * 60 * 1000,
+      }
+
+      // Then: deadlineMinusDisabled should be falsy
+      const delta = maxDeadline(workspace, template).diff(now)
+      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+    })
+  })
+
+  describe("given a template with 4 hour max ttl", () => {
+    it("should be never be greater than global max deadline", () => {
+      const template: Template = {
+        ...Mocks.MockTemplate,
+        max_ttl_ms: 4 * 60 * 60 * 1000,
+      }
+
+      // Then: deadlineMinusDisabled should be falsy
+      const delta = maxDeadline(workspace, template).diff(now)
+      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+    })
+  })
+})
+
+describe("minDeadline", () => {
+  it("should never be less than 30 minutes", () => {
+    const delta = minDeadline().diff(now)
+    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
   })
 })
