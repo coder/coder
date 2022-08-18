@@ -58,7 +58,7 @@ func TestTemplateEdit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, name, updated.Name)
 		assert.Equal(t, desc, updated.Description)
-		assert.Equal(t, desc, updated.Icon)
+		assert.Equal(t, icon, updated.Icon)
 		assert.Equal(t, maxTTL.Milliseconds(), updated.MaxTTLMillis)
 		assert.Equal(t, minAutostartInterval.Milliseconds(), updated.MinAutostartIntervalMillis)
 	})
