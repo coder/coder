@@ -457,6 +457,13 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 		resp.Optional = true
 		return resp, nil
+	case *types.Interface:
+		// only handle the empty interface for now
+		intf := ty
+		if intf.Empty() {
+			return TypescriptType{ValueType: "any"}, nil
+		}
+		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	}
 
 	// These are all the other types we need to support.

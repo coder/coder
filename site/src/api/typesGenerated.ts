@@ -172,6 +172,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
+// From codersdk/licenses.go
+export interface License {
+  readonly id: number
+  readonly uploaded_at: string
+  readonly claims: Record<string, any>
+}
+
 // From codersdk/users.go
 export interface LoginWithPasswordRequest {
   readonly email: string
