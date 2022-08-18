@@ -16,6 +16,18 @@ coder:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
 
+  # coder.serviceAccount -- Configuration for the automatically created service
+  # account. Creation of the service account cannot be disabled.
+  serviceAccount:
+    # coder.serviceAccount.workspacePerms -- Whether or not to grant the coder
+    # service account permissions to manage workspaces. This includes
+    # permission to manage pods and persistent volume claims in the deployment
+    # namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
   # for information about what environment variables can be set.
@@ -27,10 +39,18 @@ coder:
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
   env:
+    # You'll likely want to set these variables to something other than the
+    # defaults.
     - name: CODER_ACCESS_URL
       value: "https://coder.example.com"
-    #- name: CODER_PG_CONNECTION_URL
-    #  value: "postgres://coder:password@postgres:5432/coder?sslmode=disable"
+    - name: CODER_PG_CONNECTION_URL
+      value: "postgres://coder:password@postgres:5432/coder?sslmode=disable"
+
+    # This env variable controls whether or not to auto-import the "kubernetes"
+    # template on first startup. This will not work unless
+    # coder.serviceAccount.workspacePerms is true.
+    - name: CODER_TEMPLATE_AUTOIMPORT
+      value: "kubernetes"
 
   # coder.tls -- The TLS configuration for Coder.
   tls:
@@ -43,7 +63,8 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources: {}
+  resources:
+    {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi

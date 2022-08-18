@@ -1,3 +1,10 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,6 +19,7 @@ spec:
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
+  serviceAccountName: coder
   template:
     metadata:
       labels:
