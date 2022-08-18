@@ -280,8 +280,8 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 		if workspace.LatestBuild.Transition != "start" {
 			schedNextStop = "-"
 		} else {
-			schedNextStop = workspace.LatestBuild.Deadline.In(loc).Format(timeFormat + " on " + dateFormat)
-			schedNextStop = fmt.Sprintf("%s (in %s)", schedNextStop, durationDisplay(time.Until(workspace.LatestBuild.Deadline)))
+			schedNextStop = workspace.LatestBuild.Deadline.Time.In(loc).Format(timeFormat + " on " + dateFormat)
+			schedNextStop = fmt.Sprintf("%s (in %s)", schedNextStop, durationDisplay(time.Until(workspace.LatestBuild.Deadline.Time)))
 		}
 	}
 

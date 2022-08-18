@@ -1169,7 +1169,7 @@ func TestWorkspaceExtend(t *testing.T) {
 
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "fetch provisioned workspace")
-	oldDeadline := workspace.LatestBuild.Deadline
+	oldDeadline := workspace.LatestBuild.Deadline.Time
 
 	// Updating the deadline should succeed
 	req := codersdk.PutExtendWorkspaceRequest{
@@ -1181,7 +1181,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	// Ensure deadline set correctly
 	updated, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline, time.Minute)
+	require.WithinDuration(t, newDeadline, updated.LatestBuild.Deadline.Time, time.Minute)
 
 	// Zero time should fail
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
@@ -1220,7 +1220,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	// Ensure deadline still set correctly
 	updated, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
-	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline, time.Minute)
+	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline.Time, time.Minute)
 }
 
 func TestWorkspaceWatcher(t *testing.T) {
