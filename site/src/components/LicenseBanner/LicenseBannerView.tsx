@@ -70,7 +70,6 @@ const useStyles = makeStyles((theme) => ({
   },
   flex: {
     display: "flex",
-    justifyContent: "space-between",
   },
   leftContent: {
     marginRight: theme.spacing(1),

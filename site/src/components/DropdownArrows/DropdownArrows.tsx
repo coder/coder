@@ -16,7 +16,7 @@ const useStyles = makeStyles((theme: Theme) => ({
 }))
 
 interface ArrowProps {
-  margin: boolean
+  margin?: boolean
 }
 
 export const OpenDropdown: FC<ArrowProps> = ({ margin = true }) => {

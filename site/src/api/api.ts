@@ -370,3 +370,20 @@ export const putWorkspaceExtension = async (
 ): Promise<void> => {
   await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
 }
+
+export const getEntitlements = async (): Promise<Types.Entitlements> => {
+  // return this to see the banner
+  const defaultEntitlements = {
+    warnings: ["You are over your active user limit.", "And another thing."],
+    has_license: true,
+    features: {
+      activeUsers: {
+        enabled: true,
+        entitled: "entitled" as Types.EntitlementLevel,
+        limit: 100,
+        actual: 102,
+      },
+    },
+  }
+  return defaultEntitlements
+}
