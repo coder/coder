@@ -44,3 +44,8 @@ INSERT INTO
 	workspace_resource_metadata (workspace_resource_id, key, value, sensitive)
 VALUES
 	($1, $2, $3, $4) RETURNING *;
+
+-- name: GetWorkspaceResourceMetadataCreatedAfter :many
+SELECT * FROM workspace_resource_metadata WHERE workspace_resource_id = ANY(
+	SELECT id FROM workspace_resources WHERE created_at > $1
+);

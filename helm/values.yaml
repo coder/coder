@@ -31,26 +31,13 @@ coder:
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
   # for information about what environment variables can be set.
-  #
   # Note: The following environment variables are set by default and cannot be
   # overridden:
   # - CODER_ADDRESS: set to 0.0.0.0:80 and cannot be changed.
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  env:
-    # You'll likely want to set these variables to something other than the
-    # defaults.
-    - name: CODER_ACCESS_URL
-      value: "https://coder.example.com"
-    - name: CODER_PG_CONNECTION_URL
-      value: "postgres://coder:password@postgres:5432/coder?sslmode=disable"
-
-    # This env variable controls whether or not to auto-import the "kubernetes"
-    # template on first startup. This will not work unless
-    # coder.serviceAccount.workspacePerms is true.
-    - name: CODER_TEMPLATE_AUTOIMPORT
-      value: "kubernetes"
+  env: []
 
   # coder.tls -- The TLS configuration for Coder.
   tls:
@@ -63,8 +50,7 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources:
-    {}
+  resources: {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi

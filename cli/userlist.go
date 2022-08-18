@@ -111,13 +111,13 @@ func userSingle() *cobra.Command {
 }
 
 func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client, user codersdk.User) string {
-	tableWriter := cliui.Table()
+	tw := cliui.Table()
 	addRow := func(name string, value interface{}) {
 		key := ""
 		if name != "" {
 			key = name + ":"
 		}
-		tableWriter.AppendRow(table.Row{
+		tw.AppendRow(table.Row{
 			key, value,
 		})
 	}
@@ -170,5 +170,5 @@ func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client,
 		addRow("Organizations", "(none)")
 	}
 
-	return tableWriter.Render()
+	return tw.Render()
 }
