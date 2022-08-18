@@ -219,15 +219,9 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install helm-docs
-        run: go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.11.0
 
       - name: make gen
         run: "make --output-sync -j -B gen"
-      - name: cd helm && make gen
-        run: |
-          cd helm
-          make --output-sync -j -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
