@@ -10,7 +10,6 @@ import { Language } from "./CreateWorkspacePageView"
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
     route: "/templates/" + MockTemplate.name + "/workspace",
-    path: "/templates/:template/workspace",
   })
 }
 

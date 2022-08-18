@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
@@ -20,6 +21,7 @@ import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
 
 const Language = {
+  settingsButton: "Settings",
   createButton: "Create workspace",
   noDescription: "",
   readmeTitle: "README",
@@ -51,13 +53,24 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          <Link
-            underline="none"
-            component={RouterLink}
-            to={`/templates/${template.name}/workspace`}
-          >
-            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-          </Link>
+          <Stack direction="row" spacing={1}>
+            <Link
+              underline="none"
+              component={RouterLink}
+              to={`/templates/${template.name}/settings`}
+            >
+              <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                {Language.settingsButton}
+              </Button>
+            </Link>
+            <Link
+              underline="none"
+              component={RouterLink}
+              to={`/templates/${template.name}/workspace`}
+            >
+              <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+            </Link>
+          </Stack>
         }
       >
         <PageHeaderTitle>{template.name}</PageHeaderTitle>

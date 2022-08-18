@@ -8,7 +8,6 @@ describe("WorkspaceBuildPage", () => {
     const server = new WS(`ws://localhost/api/v2/workspacebuilds/${MockWorkspaceBuild.id}/logs`)
     renderWithAuth(<WorkspaceBuildPage />, {
       route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
-      path: "/@:username/:workspace/builds/:buildNumber",
     })
     await server.connected
     const log = {

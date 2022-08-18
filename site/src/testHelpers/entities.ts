@@ -146,7 +146,7 @@ export const MockTemplate: TypesGen.Template = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
-  name: "Test Template",
+  name: "test-template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,

@@ -29,7 +29,6 @@ import { WorkspacePage } from "./WorkspacePage"
 const renderWorkspacePage = async () => {
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-    path: "/@:username/:workspace",
   })
   await screen.findByText(MockWorkspace.name)
 }
@@ -183,7 +182,6 @@ describe("Workspace Page", () => {
     it("shows the status of each agent in each resource", async () => {
       renderWithAuth(<WorkspacePage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-        path: "/@:username/:workspace",
       })
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(2)

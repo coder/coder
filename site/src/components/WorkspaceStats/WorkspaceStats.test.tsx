@@ -14,10 +14,7 @@ describe("WorkspaceStats", () => {
     const handleUpdateMock = jest.fn()
     renderWithAuth(
       <WorkspaceStats handleUpdate={handleUpdateMock} workspace={MockOutdatedWorkspace} />,
-      {
-        route: `/@${MockOutdatedWorkspace.owner_name}/${MockOutdatedWorkspace.name}`,
-        path: "/@:username/:workspace",
-      },
+      { route: `/@${MockOutdatedWorkspace.owner_name}/${MockOutdatedWorkspace.name}` },
     )
     const tooltipButton = await screen.findByRole("button")
     fireEvent.click(tooltipButton)
