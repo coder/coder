@@ -468,6 +468,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// TODO needs authorization
+		"GET:/api/v2/provisionerdaemons/me/listen": {NoAuthorize: true},
 	}
 
 	for k, v := range assertRoute {

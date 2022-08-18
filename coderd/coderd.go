@@ -182,6 +182,9 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.provisionerDaemons)
+			r.Route("/me", func(r chi.Router) {
+				r.Get("/listen", api.provisionerDaemonsListen)
+			})
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
