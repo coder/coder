@@ -3,14 +3,14 @@ import duration from "dayjs/plugin/duration"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
+  deadlineExtensionMax,
+  deadlineExtensionMin,
   defaultWorkspaceExtension,
   getDisplayWorkspaceBuildInitiatedBy,
   isWorkspaceDeleted,
   isWorkspaceOn,
   maxDeadline,
   minDeadline,
-  deadlineExtensionMax,
-  deadlineExtensionMin,
 } from "./workspace"
 
 dayjs.extend(duration)

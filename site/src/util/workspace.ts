@@ -1,8 +1,8 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
-import utc from "dayjs/plugin/utc"
 import minMax from "dayjs/plugin/minMax"
+import utc from "dayjs/plugin/utc"
 import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
