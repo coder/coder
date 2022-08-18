@@ -20,26 +20,38 @@ func TestNullTime_MarshalJSON(t *testing.T) {
 	bt1, err := json.Marshal(t1)
 	require.NoError(t, err)
 
-	type fields struct {
-		time  time.Time
-		valid bool
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   string
+		name  string
+		input sql.NullTime
+		want  string
 	}{
-		{"valid zero", fields{time: time.Time{}, valid: true}, `"0001-01-01T00:00:00Z"`},
-		{"invalid zero", fields{time: time.Time{}, valid: false}, "null"},
-		{"valid time", fields{time: t1, valid: true}, string(bt1)},
-		{"null time", fields{time: t1, valid: false}, "null"},
+		{
+			name:  "valid zero",
+			input: sql.NullTime{Valid: true},
+			want:  `"0001-01-01T00:00:00Z"`,
+		},
+		{
+			name:  "invalid zero",
+			input: sql.NullTime{Valid: false},
+			want:  "null",
+		},
+		{
+			name:  "valid time",
+			input: sql.NullTime{Time: t1, Valid: true},
+			want:  string(bt1),
+		},
+		{
+			name:  "null time",
+			input: sql.NullTime{Time: t1, Valid: false},
+			want:  "null",
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tr := codersdk.NewNullTime(tt.fields.time, tt.fields.valid)
+			tr := codersdk.NewNullTime(tt.input.Time, tt.input.Valid)
 			got, err := tr.MarshalJSON()
 			require.NoError(t, err)
 			require.Equal(t, tt.want, string(got))
@@ -78,7 +90,6 @@ func TestNullTime_UnmarshalJSON(t *testing.T) {
 		{
 			name:    "empty string",
 			data:    `{"time": ""}`,
-			want:    codersdk.NullTime{},
 			wantErr: true,
 		},
 		{
@@ -89,7 +100,6 @@ func TestNullTime_UnmarshalJSON(t *testing.T) {
 		{
 			name:    "invalid time",
 			data:    fmt.Sprintf(`{"time": %q}`, `2022-08-18T00:00:00`),
-			want:    codersdk.NullTime{},
 			wantErr: true,
 		},
 	}
