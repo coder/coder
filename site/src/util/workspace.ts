@@ -1,9 +1,11 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
+import duration from "dayjs/plugin/duration"
 import utc from "dayjs/plugin/utc"
 import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
+dayjs.extend(duration)
 dayjs.extend(utc)
 
 // all the possible states returned by the API
@@ -264,4 +266,21 @@ export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType 
       return "favicon"
   }
   throw new Error("unknown status " + status)
+}
+
+export const deadlineExtensionMin = dayjs.duration(30, "minutes")
+export const deadlineExtensionMax = dayjs.duration(24, "hours")
+
+export function maxDeadline(ws: TypesGen.Workspace, tpl: TypesGen.Template): dayjs.Dayjs {
+  // note: we count runtime from updated_at as started_at counts from the start of
+  // the workspace build process, which can take a while.
+  const startedAt = dayjs(ws.latest_build.updated_at)
+  const templateMaxTTL = dayjs.duration(tpl.max_ttl_ms, "milliseconds")
+  const maxTemplateDeadline = startedAt.add(templateMaxTTL)
+  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
+  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+}
+
+export function minDeadline(): dayjs.Dayjs {
+  return dayjs().add(deadlineExtensionMin)
 }

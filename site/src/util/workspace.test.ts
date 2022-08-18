@@ -1,4 +1,5 @@
 import dayjs from "dayjs"
+import duration from "dayjs/plugin/duration"
 import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
@@ -6,7 +7,14 @@ import {
   getDisplayWorkspaceBuildInitiatedBy,
   isWorkspaceDeleted,
   isWorkspaceOn,
+  maxDeadline,
+  minDeadline,
+  deadlineExtensionMax,
+  deadlineExtensionMin,
 } from "./workspace"
+
+dayjs.extend(duration)
+const now = dayjs()
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
@@ -127,5 +135,44 @@ describe("util > workspace", () => {
     ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
       expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
     })
+  })
+})
+
+describe("maxDeadline", () => {
+  // Given: a workspace built from a template with a max deadline equal to 25 hours which isn't really possible
+  const workspace: TypesGen.Workspace = {
+    ...Mocks.MockWorkspace,
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      deadline: now.add(8, "hours").utc().format(),
+    },
+  }
+  it("should be never be greater than global max deadline", () => {
+    const template: TypesGen.Template = {
+      ...Mocks.MockTemplate,
+      max_ttl_ms: 25 * 60 * 60 * 1000,
+    }
+
+    // Then: deadlineMinusDisabled should be falsy
+    const delta = maxDeadline(workspace, template).diff(now)
+    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+  })
+
+  it("should be never be greater than global max deadline", () => {
+    const template: TypesGen.Template = {
+      ...Mocks.MockTemplate,
+      max_ttl_ms: 4 * 60 * 60 * 1000,
+    }
+
+    // Then: deadlineMinusDisabled should be falsy
+    const delta = maxDeadline(workspace, template).diff(now)
+    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+  })
+})
+
+describe("minDeadline", () => {
+  it("should never be less than 30 minutes", () => {
+    const delta = minDeadline().diff(now)
+    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
   })
 })

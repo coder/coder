@@ -25,15 +25,8 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
-import {
-  deadlineExtensionMax,
-  deadlineExtensionMin,
-  maxDeadline,
-  minDeadline,
-  WorkspacePage,
-} from "./WorkspacePage"
+import { WorkspacePage } from "./WorkspacePage"
 
-const now = dayjs()
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
@@ -65,9 +58,9 @@ const testStatus = async (ws: Workspace, tpl: Template, label: string) => {
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(ws))
     }),
-    // rest.get(`/api/v2/templates/:templateId`, (req, res, ctx) => {
-    //   return res(ctx.status(200), ctx.json(tpl))
-    // }),
+    rest.get(`/api/v2/templates/:templateId`, (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(tpl))
+    }),
   )
   await renderWorkspacePage()
   const status = await screen.findByRole("status")
@@ -211,47 +204,5 @@ describe("Workspace Page", () => {
       )
       expect(agent2Status.length).toEqual(2)
     })
-  })
-})
-
-describe("maxDeadline", () => {
-  // Given: a workspace built from a template with a max deadline equal to 25 hours which isn't really possible
-  const workspace: Workspace = {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      deadline: now.add(8, "hours").utc().format(),
-    },
-  }
-  it("should be never be greater than global max deadline", () => {
-    const template: Template = {
-      ...Mocks.MockTemplate,
-      max_ttl_ms: 25 * 60 * 60 * 1000,
-    }
-
-    // Then: deadlineMinusDisabled should be falsy
-    const delta = maxDeadline(workspace, template).diff(now)
-    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-  })
-
-  it("should be never be greater than global max deadline", () => {
-    const template: Template = {
-      ...Mocks.MockTemplate,
-      max_ttl_ms: 4 * 60 * 60 * 1000,
-    }
-
-    // Then: deadlineMinusDisabled should be falsy
-    const delta = maxDeadline(workspace, template).diff(now)
-    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-  })
-})
-
-describe("minDeadline", () => {
-  it("should never be less than 30 minutes", () => {
-    // Given: some condition
-
-    // Then: what should it do?
-    const delta = minDeadline(now).diff(now)
-    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
   })
 })
