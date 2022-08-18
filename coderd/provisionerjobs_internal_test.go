@@ -73,6 +73,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			HashedSecret: hashed[:],
 			UserID:       userID,
 			ExpiresAt:    time.Now().Add(5 * time.Hour),
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{

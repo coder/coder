@@ -175,38 +175,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
-	t.Run("Signup", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			GithubOAuth2Config: &coderd.GithubOAuth2Config{
-				OAuth2Config:       &oauth2Config{},
-				AllowOrganizations: []string{"coder"},
-				AllowSignups:       true,
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-					return []*github.Membership{{
-						Organization: &github.Organization{
-							Login: github.String("coder"),
-						},
-					}}, nil
-				},
-				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{
-						Login: github.String("kyle"),
-					}, nil
-				},
-				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-					return []*github.UserEmail{{
-						Email:    github.String("kyle@coder.com"),
-						Verified: github.Bool(true),
-						Primary:  github.Bool(true),
-					}}, nil
-				},
-			},
-		})
-		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-	})
-	t.Run("Login", func(t *testing.T) {
+	t.Run("MultiLoginNotAllowed", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
@@ -230,9 +199,50 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
+		// Creates the first user with login_type 'password'.
 		_ = coderdtest.CreateFirstUser(t, client)
+		// Attempting to login should give us a 403 since the user
+		// already has a login_type of 'password'.
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+	t.Run("Signup", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &oauth2Config{},
+				AllowOrganizations: []string{"coder"},
+				AllowSignups:       true,
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("kyle"),
+						ID:    i64ptr(1234),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		client.SessionToken = resp.Cookies()[0].Value
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle@coder.com", user.Email)
+		require.Equal(t, "kyle", user.Username)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -415,11 +425,13 @@ func createOIDCConfig(t *testing.T, claims jwt.MapClaims) *coderd.OIDCConfig {
 
 	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
 	claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+	claims["iss"] = "https://coder.com"
+	claims["sub"] = "hello"
 
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
 	require.NoError(t, err)
 
-	verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
+	verifier := oidc.NewVerifier("https://coder.com", &oidc.StaticKeySet{
 		PublicKeys: []crypto.PublicKey{key.Public()},
 	}, &oidc.Config{
 		SkipClientIDCheck: true,
@@ -479,4 +491,8 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 	require.NoError(t, err)
 	t.Log(string(data))
 	return res
+}
+
+func i64ptr(i int64) *int64 {
+	return &i
 }

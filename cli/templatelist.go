@@ -30,12 +30,17 @@ func templateList() *cobra.Command {
 			}
 
 			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s No templates found in %s! Create one:\n\n", caret, color.HiWhiteString(organization.Name))
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), color.HiMagentaString("  $ coder templates create <directory>\n"))
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No templates found in %s! Create one:\n\n", caret, color.HiWhiteString(organization.Name))
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder templates create <directory>\n"))
 				return nil
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), displayTemplates(columns, templates...))
+			out, err := displayTemplates(columns, templates...)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
 		},
 	}

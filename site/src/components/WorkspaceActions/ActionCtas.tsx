@@ -8,8 +8,8 @@ import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
 import { combineClasses } from "util/combineClasses"
+import { WorkspaceStateEnum } from "util/workspace"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
-import { WorkspaceStateEnum } from "./constants"
 
 export const Language = {
   start: "Start",

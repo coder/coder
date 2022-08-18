@@ -53,6 +53,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 

@@ -5,11 +5,14 @@ package terraform_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +25,15 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClient) {
+type provisionerServeOptions struct {
+	binaryPath  string
+	exitTimeout time.Duration
+}
+
+func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Context, proto.DRPCProvisionerClient) {
+	if opts == nil {
+		opts = &provisionerServeOptions{}
+	}
 	cachePath := t.TempDir()
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -39,18 +50,125 @@ func setupProvisioner(t *testing.T) (context.Context, proto.DRPCProvisionerClien
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
-			CachePath: cachePath,
-			Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			BinaryPath:  opts.binaryPath,
+			CachePath:   cachePath,
+			Logger:      slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			ExitTimeout: opts.exitTimeout,
 		})
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 	return ctx, api
 }
 
+func TestProvision_Cancel(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("This test uses interrupts and is not supported on Windows")
+	}
+
+	t.Parallel()
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	fakeBin := filepath.Join(cwd, "testdata", "bin", "terraform_fake_cancel.sh")
+
+	tests := []struct {
+		name          string
+		mode          string
+		startSequence []string
+		wantLog       []string
+	}{
+		{
+			name:          "Cancel init",
+			mode:          "init",
+			startSequence: []string{"init_start"},
+			wantLog:       []string{"interrupt", "exit"},
+		},
+		{
+			name:          "Cancel apply",
+			mode:          "apply",
+			startSequence: []string{"init", "apply_start"},
+			wantLog:       []string{"interrupt", "exit"},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			binPath := filepath.Join(dir, "terraform")
+
+			// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
+			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
+			err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+			require.NoError(t, err)
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath:  binPath,
+				exitTimeout: time.Nanosecond,
+			})
+
+			response, err := api.Provision(ctx)
+			require.NoError(t, err)
+			err = response.Send(&proto.Provision_Request{
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						Directory: dir,
+						DryRun:    false,
+						ParameterValues: []*proto.ParameterValue{{
+							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							Name:              "A",
+							Value:             "example",
+						}},
+						Metadata: &proto.Provision_Metadata{},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			for _, line := range tt.startSequence {
+			LoopStart:
+				msg, err := response.Recv()
+				require.NoError(t, err)
+
+				t.Log(msg.Type)
+
+				log := msg.GetLog()
+				if log == nil {
+					goto LoopStart
+				}
+				require.Equal(t, line, log.Output)
+			}
+
+			err = response.Send(&proto.Provision_Request{
+				Type: &proto.Provision_Request_Cancel{
+					Cancel: &proto.Provision_Cancel{},
+				},
+			})
+			require.NoError(t, err)
+
+			var gotLog []string
+			for {
+				msg, err := response.Recv()
+				require.NoError(t, err)
+
+				if log := msg.GetLog(); log != nil {
+					gotLog = append(gotLog, log.Output)
+				}
+				if c := msg.GetComplete(); c != nil {
+					require.Contains(t, c.Error, "exit status 1")
+					break
+				}
+			}
+			require.Equal(t, tt.wantLog, gotLog)
+		})
+	}
+}
+
 func TestProvision(t *testing.T) {
 	t.Parallel()
 
-	ctx, api := setupProvisioner(t)
+	ctx, api := setupProvisioner(t, nil)
 
 	testCases := []struct {
 		Name    string
@@ -209,7 +327,7 @@ func TestProvision(t *testing.T) {
 
 			directory := t.TempDir()
 			for path, content := range testCase.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
+				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0o600)
 				require.NoError(t, err)
 			}
 
@@ -302,11 +420,11 @@ func TestProvision_ExtraEnv(t *testing.T) {
 	t.Setenv("TF_LOG", "INFO")
 	t.Setenv("TF_SUPERSECRET", secretValue)
 
-	ctx, api := setupProvisioner(t)
+	ctx, api := setupProvisioner(t, nil)
 
 	directory := t.TempDir()
 	path := filepath.Join(directory, "main.tf")
-	err := os.WriteFile(path, []byte(`resource "null_resource" "A" {}`), 0600)
+	err := os.WriteFile(path, []byte(`resource "null_resource" "A" {}`), 0o600)
 	require.NoError(t, err)
 
 	request := &proto.Provision_Request{

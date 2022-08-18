@@ -17,7 +17,7 @@ func entitlements(rw http.ResponseWriter, _ *http.Request) {
 	}
 	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
 		Features:   features,
-		Warnings:   nil,
+		Warnings:   []string{},
 		HasLicense: false,
 	})
 }
