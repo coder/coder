@@ -532,7 +532,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert job-scoped parameter %q with value %q: %w", key, value)
+				return xerrors.Errorf("insert job-scoped parameter %q with value %q: %w", key, value, err)
 			}
 		}
 
@@ -619,7 +619,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value)
+				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value, err)
 			}
 		}
 
