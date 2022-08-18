@@ -147,26 +147,30 @@ describe("maxDeadline", () => {
       deadline: now.add(8, "hours").utc().format(),
     },
   }
-  it("should be never be greater than global max deadline", () => {
-    const template: TypesGen.Template = {
-      ...Mocks.MockTemplate,
-      max_ttl_ms: 25 * 60 * 60 * 1000,
-    }
+  describe("given a template with 25 hour max ttl", () => {
+    it("should be never be greater than global max deadline", () => {
+      const template: TypesGen.Template = {
+        ...Mocks.MockTemplate,
+        max_ttl_ms: 25 * 60 * 60 * 1000,
+      }
 
-    // Then: deadlineMinusDisabled should be falsy
-    const delta = maxDeadline(workspace, template).diff(now)
-    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+      // Then: deadlineMinusDisabled should be falsy
+      const delta = maxDeadline(workspace, template).diff(now)
+      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+    })
   })
 
-  it("should be never be greater than global max deadline", () => {
-    const template: TypesGen.Template = {
-      ...Mocks.MockTemplate,
-      max_ttl_ms: 4 * 60 * 60 * 1000,
-    }
+  describe("given a template with 4 hour max ttl", () => {
+    it("should be never be greater than global max deadline", () => {
+      const template: TypesGen.Template = {
+        ...Mocks.MockTemplate,
+        max_ttl_ms: 4 * 60 * 60 * 1000,
+      }
 
-    // Then: deadlineMinusDisabled should be falsy
-    const delta = maxDeadline(workspace, template).diff(now)
-    expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+      // Then: deadlineMinusDisabled should be falsy
+      const delta = maxDeadline(workspace, template).diff(now)
+      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
+    })
   })
 })
 

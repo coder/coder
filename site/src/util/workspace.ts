@@ -274,11 +274,10 @@ export const deadlineExtensionMax = dayjs.duration(24, "hours")
 export function maxDeadline(ws: TypesGen.Workspace, tpl: TypesGen.Template): dayjs.Dayjs {
   // note: we count runtime from updated_at as started_at counts from the start of
   // the workspace build process, which can take a while.
-  const startedAt = dayjs(ws.latest_build.updated_at)
-  const templateMaxTTL = dayjs.duration(tpl.max_ttl_ms, "milliseconds")
-  const maxTemplateDeadline = startedAt.add(templateMaxTTL)
-  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
-  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+  const startedAtMillis = dayjs(ws.latest_build.updated_at).unix() * 1000
+  const maxTemplateDeadline = startedAtMillis + tpl.max_ttl_ms
+  const maxGlobalDeadline = startedAtMillis + deadlineExtensionMax.asMilliseconds()
+  return dayjs(Math.min(maxTemplateDeadline, maxGlobalDeadline))
 }
 
 export function minDeadline(): dayjs.Dayjs {
