@@ -1,6 +1,6 @@
 import Collapse from "@material-ui/core/Collapse"
-import Link from "@material-ui/core/Link"
-import { darken, lighten, makeStyles } from "@material-ui/core/styles"
+import { darken, makeStyles } from "@material-ui/core/styles"
+import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
 import { useState } from "react"
 
@@ -35,21 +35,17 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
     } else {
       return (
         <div className={styles.container}>
-          <Pill text={Language.licenseIssues(warnings.length)} type="warning" />
-          <span className={styles.text}>{Language.exceeded}</span>
-          &nbsp;
-          <a href="mailto:sales@coder.com" className={styles.link}>
-            {Language.upgrade}
-          </a>
-          &nbsp;
-          <Link
-            aria-expanded={showDetails}
-            onClick={() => setShowDetails((showDetails: boolean) => !showDetails)}
-            className={styles.detailLink}
-            tabIndex={0}
-          >
-            {showDetails ? Language.lessDetails : Language.moreDetails}
-          </Link>
+          <div className={styles.flex}>
+            <div className={styles.leftContent}>
+              <Pill text={Language.licenseIssues(warnings.length)} type="warning" />
+              <span className={styles.text}>{Language.exceeded}</span>
+              &nbsp;
+              <a href="mailto:sales@coder.com" className={styles.link}>
+                {Language.upgrade}
+              </a>
+            </div>
+            <Expander expanded={showDetails} setExpanded={setShowDetails} />
+          </div>
           <Collapse in={showDetails}>
             <ul className={styles.list}>
               {warnings.map((warning, i) => (
@@ -72,6 +68,13 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(1.5),
     backgroundColor: darken(theme.palette.warning.main, 0.2),
   },
+  flex: {
+    display: "flex",
+    justifyContent: "space-between",
+  },
+  leftContent: {
+    marginRight: theme.spacing(1),
+  },
   text: {
     marginLeft: theme.spacing(1),
   },
@@ -79,10 +82,6 @@ const useStyles = makeStyles((theme) => ({
     color: "inherit",
     textDecoration: "none",
     fontWeight: "bold",
-  },
-  detailLink: {
-    cursor: "pointer",
-    color: `${lighten(theme.palette.primary.light, 0.2)}`,
   },
   list: {
     margin: theme.spacing(1.5),
