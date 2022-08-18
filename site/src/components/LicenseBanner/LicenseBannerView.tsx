@@ -1,5 +1,5 @@
 import Collapse from "@material-ui/core/Collapse"
-import { darken, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
 import { useState } from "react"
@@ -66,7 +66,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
 const useStyles = makeStyles((theme) => ({
   container: {
     padding: theme.spacing(1.5),
-    backgroundColor: darken(theme.palette.warning.main, 0.2),
+    backgroundColor: theme.palette.warning.main,
   },
   flex: {
     display: "flex",

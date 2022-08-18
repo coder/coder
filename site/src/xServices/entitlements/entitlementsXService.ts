@@ -12,9 +12,12 @@ export type EntitlementsContext = {
   getEntitlementsError?: Error | unknown
 }
 
-export type EntitlementsEvent = {
-  type: "GET_ENTITLEMENTS"
-} | { type: "SHOW_MOCK_BANNER" } | { type: "HIDE_MOCK_BANNER" }
+export type EntitlementsEvent =
+  | {
+      type: "GET_ENTITLEMENTS"
+    }
+  | { type: "SHOW_MOCK_BANNER" }
+  | { type: "HIDE_MOCK_BANNER" }
 
 const emptyEntitlements = {
   warnings: [],
@@ -37,14 +40,14 @@ export const entitlementsMachine = createMachine(
     },
     tsTypes: {} as import("./entitlementsXService.typegen").Typegen0,
     context: {
-      entitlements: emptyEntitlements
+      entitlements: emptyEntitlements,
     },
     states: {
       idle: {
         on: {
           GET_ENTITLEMENTS: "gettingEntitlements",
           SHOW_MOCK_BANNER: { actions: "assignMockEntitlements" },
-          HIDE_MOCK_BANNER: { actions: "clearMockEntitlements" }
+          HIDE_MOCK_BANNER: { actions: "clearMockEntitlements" },
         },
       },
       gettingEntitlements: {
@@ -76,11 +79,11 @@ export const entitlementsMachine = createMachine(
         getEntitlementsError: (_) => undefined,
       }),
       assignMockEntitlements: assign({
-        entitlements: (_) => MockEntitlements
+        entitlements: (_) => MockEntitlements,
       }),
       clearMockEntitlements: assign({
-        entitlements: (_) => emptyEntitlements
-      })
+        entitlements: (_) => emptyEntitlements,
+      }),
     },
     services: {
       getEntitlements: () => API.getEntitlements(),
