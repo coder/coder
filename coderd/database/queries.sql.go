@@ -4165,6 +4165,40 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Conte
 	return items, nil
 }
 
+const getWorkspaceResourceMetadataCreatedAfter = `-- name: GetWorkspaceResourceMetadataCreatedAfter :many
+SELECT workspace_resource_id, key, value, sensitive FROM workspace_resource_metadata WHERE workspace_resource_id = ANY(
+	SELECT id FROM workspace_resources WHERE created_at > $1
+)
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourceMetadataCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResourceMetadatum
+	for rows.Next() {
+		var i WorkspaceResourceMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceResourceID,
+			&i.Key,
+			&i.Value,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
 	id, created_at, job_id, transition, type, name
