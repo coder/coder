@@ -187,6 +187,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -215,6 +216,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -253,6 +255,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -288,6 +291,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -323,6 +327,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -361,6 +366,13 @@ func TestAPIKey(t *testing.T) {
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
+
+		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
@@ -393,10 +405,16 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
-			OAuthExpiry:  database.Now().AddDate(0, 0, -1),
 			UserID:       user.ID,
 		})
 		require.NoError(t, err)
+		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
+			UserID:      user.ID,
+			LoginType:   database.LoginTypeGithub,
+			OAuthExpiry: database.Now().AddDate(0, 0, -1),
+		})
+		require.NoError(t, err)
+
 		token := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
@@ -418,7 +436,6 @@ func TestAPIKey(t *testing.T) {
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
-		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
 	})
 
 	t.Run("RemoteIPUpdates", func(t *testing.T) {
@@ -443,6 +460,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now().AddDate(0, 0, -1),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)

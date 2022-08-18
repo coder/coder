@@ -64,6 +64,8 @@ type querier interface {
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
+	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
+	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
@@ -87,6 +89,7 @@ type querier interface {
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceID(ctx context.Context, workspaceResourceID uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)
+	GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error)
@@ -107,6 +110,7 @@ type querier interface {
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error)
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
+	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
@@ -128,6 +132,8 @@ type querier interface {
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
+	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
+	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)

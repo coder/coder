@@ -57,7 +57,7 @@ func TestTemplateList(t *testing.T) {
 
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.SetErr(pty.Output())
 
 		errC := make(chan error)
 		go func() {

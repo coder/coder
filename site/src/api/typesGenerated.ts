@@ -217,13 +217,13 @@ export interface Pagination {
 // From codersdk/parameters.go
 export interface Parameter {
   readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
   readonly scope: ParameterScope
   readonly scope_id: string
   readonly name: string
   readonly source_scheme: ParameterSourceScheme
   readonly destination_scheme: ParameterDestinationScheme
+  readonly created_at: string
+  readonly updated_at: string
 }
 
 // From codersdk/parameters.go
@@ -344,6 +344,7 @@ export interface UpdateRoles {
 
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
+  readonly name?: string
   readonly description?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
@@ -572,7 +573,7 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go
-export type LoginType = "github" | "password"
+export type LoginType = "github" | "oidc" | "password"
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"

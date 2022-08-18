@@ -174,6 +174,9 @@ RUN apt-get update && \
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/11/bin/initdb 100 && \
     update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/11/bin/postgres 100
 
+# Ensure goboring is made the default Go
+RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/goboring/bin/gofmt 100
+
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \
     ln --symbolic /var/tmp/coder/code-server/bin/code-server /usr/local/bin/code-server

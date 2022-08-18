@@ -96,10 +96,6 @@ CREATE TABLE api_keys (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     login_type login_type NOT NULL,
-    oauth_access_token text DEFAULT ''::text NOT NULL,
-    oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_id_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL
 );
@@ -268,6 +264,15 @@ CREATE TABLE templates (
     created_by uuid NOT NULL
 );
 
+CREATE TABLE user_links (
+    user_id uuid NOT NULL,
+    login_type login_type NOT NULL,
+    linked_id text DEFAULT ''::text NOT NULL,
+    oauth_access_token text DEFAULT ''::text NOT NULL,
+    oauth_refresh_token text DEFAULT ''::text NOT NULL,
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+);
+
 CREATE TABLE users (
     id uuid NOT NULL,
     email text NOT NULL,
@@ -276,7 +281,8 @@ CREATE TABLE users (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::public.login_type NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -417,6 +423,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
+
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
@@ -513,6 +522,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

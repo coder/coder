@@ -37,6 +37,7 @@ func TestNestedInTx(t *testing.T) {
 				CreatedAt:      database.Now(),
 				UpdatedAt:      database.Now(),
 				RBACRoles:      []string{},
+				LoginType:      database.LoginTypeGithub,
 			})
 			return err
 		})
