@@ -381,8 +381,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
 		}
 
+		aboveTypeLine := keyType.AboveTypeLine
+		if aboveTypeLine != "" && valueType.AboveTypeLine != "" {
+			aboveTypeLine = aboveTypeLine + "\n"
+		}
+		aboveTypeLine = aboveTypeLine + valueType.AboveTypeLine
 		return TypescriptType{
-			ValueType: fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+			ValueType:     fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+			AboveTypeLine: aboveTypeLine,
 		}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
@@ -461,7 +467,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// only handle the empty interface for now
 		intf := ty
 		if intf.Empty() {
-			return TypescriptType{ValueType: "any"}, nil
+			return TypescriptType{ValueType: "any",
+				AboveTypeLine: indentedComment("eslint-disable-next-line")}, nil
 		}
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	}

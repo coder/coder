@@ -176,6 +176,7 @@ export interface GoogleInstanceIdentityToken {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
+  // eslint-disable-next-line
   readonly claims: Record<string, any>
 }
 
