@@ -60,10 +60,12 @@ export const templateSettingsMachine =
             ],
             onError: [{ target: "editing", actions: ["assignSaveTemplateSettingsError"] }],
           },
+          tags: ["submitting"],
         },
         saved: {
           entry: "onSave",
           type: "final",
+          tags: ["submitting"],
         },
         error: {
           type: "final",

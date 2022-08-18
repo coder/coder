@@ -32,6 +32,7 @@ export const TemplateSettingsPage: FC = () => {
         <title>{pageTitle(Language.title)}</title>
       </Helmet>
       <TemplateSettingsPageView
+        isSubmitting={state.hasTag("submitting")}
         template={template}
         errors={{
           getTemplateError,

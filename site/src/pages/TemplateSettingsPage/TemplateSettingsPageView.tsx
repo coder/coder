@@ -13,6 +13,7 @@ export interface TemplateSettingsPageViewProps {
   template?: Template
   onSubmit: (data: UpdateTemplateMeta) => void
   onCancel: () => void
+  isSubmitting: boolean
   errors?: {
     getTemplateError?: unknown
     saveTemplateSettingsError?: unknown
@@ -23,6 +24,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   template,
   onCancel,
   onSubmit,
+  isSubmitting,
   errors = {},
 }) => {
   const isLoading = !template && !errors.getTemplateError
@@ -33,6 +35,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
       {isLoading && <Loader />}
       {template && (
         <TemplateSettingsForm
+          isSubmitting={isSubmitting}
           template={template}
           onSubmit={onSubmit}
           onCancel={onCancel}

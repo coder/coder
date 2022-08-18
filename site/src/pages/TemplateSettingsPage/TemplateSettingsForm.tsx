@@ -26,6 +26,7 @@ export interface TemplateSettingsForm {
   template: Template
   onSubmit: (data: UpdateTemplateMeta) => void
   onCancel: () => void
+  isSubmitting: boolean
   error?: unknown
 }
 
@@ -34,6 +35,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   onSubmit,
   onCancel,
   error,
+  isSubmitting,
 }) => {
   const form: FormikContextType<UpdateTemplateMeta> = useFormik<UpdateTemplateMeta>({
     initialValues: {
@@ -43,7 +45,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     },
     validationSchema,
     onSubmit: (data) => {
-      form.setSubmitting(true)
       onSubmit(data)
     },
   })
@@ -54,7 +55,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       <Stack>
         <TextField
           {...getFieldHelpers("name")}
-          disabled={form.isSubmitting}
+          disabled={isSubmitting}
           onChange={onChangeTrimmed(form)}
           autoFocus
           fullWidth
@@ -65,7 +66,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers("description")}
           multiline
-          disabled={form.isSubmitting}
+          disabled={isSubmitting}
           fullWidth
           label={Language.descriptionLabel}
           variant="outlined"
@@ -75,7 +76,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers("max_ttl_ms")}
           helperText={Language.maxTtlHelperText}
-          disabled={form.isSubmitting}
+          disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
@@ -83,7 +84,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         />
       </Stack>
 
-      <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+      <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </form>
   )
 }
