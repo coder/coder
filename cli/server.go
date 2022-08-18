@@ -540,7 +540,7 @@ func server() *cobra.Command {
 			var exitErr error
 			select {
 			case <-notifyCtx.Done():
-				exitErr = ctx.Err()
+				exitErr = notifyCtx.Err()
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
