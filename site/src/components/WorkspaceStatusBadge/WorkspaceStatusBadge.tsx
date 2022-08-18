@@ -3,8 +3,9 @@ import ErrorIcon from "@material-ui/icons/ErrorOutline"
 import StopIcon from "@material-ui/icons/PauseOutlined"
 import PlayIcon from "@material-ui/icons/PlayArrowOutlined"
 import { WorkspaceBuild } from "api/typesGenerated"
-import { PaletteIndex, Pill } from "components/Pill/Pill"
+import { Pill } from "components/Pill/Pill"
 import React from "react"
+import { PaletteIndex } from "theme/palettes"
 import { getWorkspaceStatus } from "util/workspace"
 
 const StatusLanguage = {

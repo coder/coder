@@ -1,10 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { PaletteIndex } from "theme/palettes"
 import { combineClasses } from "util/combineClasses"
-
-// Couldn't find a type for this so I made one. We can extend the palette if needed with module augmentation.
-export type PaletteIndex = "primary" | "secondary" | "info" | "success" | "error" | "warning"
 
 export interface PillProps {
   className?: string
