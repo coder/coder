@@ -35,9 +35,9 @@ func provisionerCreate() *cobra.Command {
 
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `A new provisioner daemon has been registered.
 
-			Start the provisioner daemon with the following command:
+Start the provisioner daemon with the following command:
 
-			coder provisioners run --token `+tokenArg)
+coder provisioners run --token `+tokenArg)
 
 			return nil
 		},
