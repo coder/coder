@@ -70,6 +70,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"provisioner":            ActionTrack,
 		"active_version_id":      ActionTrack,
 		"description":            ActionTrack,
+		"icon":                   ActionTrack,
 		"max_ttl":                ActionTrack,
 		"min_autostart_interval": ActionTrack,
 		"created_by":             ActionTrack,
