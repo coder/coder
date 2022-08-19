@@ -101,7 +101,7 @@ func TestPostLicense(t *testing.T) {
 		if xerrors.As(err, &errResp) {
 			assert.Equal(t, 401, errResp.StatusCode())
 		} else {
-			t.Fail()
+			t.Error("expected to get error status 401")
 		}
 	})
 
@@ -137,7 +137,7 @@ func TestPostLicense(t *testing.T) {
 		if xerrors.As(err, &errResp) {
 			assert.Equal(t, 400, errResp.StatusCode())
 		} else {
-			t.Fail()
+			t.Error("expected to get error status 400")
 		}
 	})
 }

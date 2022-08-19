@@ -43,6 +43,11 @@ type Features struct {
 
 type Claims struct {
 	jwt.RegisteredClaims
+	// LicenseExpires is the end of the legit license term, and the start of the grace period, if
+	// there is one.  The standard JWT claim "exp" (ExpiresAt in jwt.RegisteredClaims, above) is
+	// the end of the grace period (identical to LicenseExpires if there is no grace period).
+	// The reason we use the standard claim for the end of the grace period is that we want JWT
+	// processing libraries to consider the token "valid" until then.
 	LicenseExpires *jwt.NumericDate `json:"license_expires,omitempty"`
 	AccountType    string           `json:"account_type,omitempty"`
 	AccountID      string           `json:"account_id,omitempty"`
@@ -63,6 +68,9 @@ func parseLicense(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, e
 		keyFunc(keys),
 		jwt.WithValidMethods(ValidMethods),
 	)
+	if err != nil {
+		return nil, err
+	}
 	if claims, ok := tok.Claims.(jwt.MapClaims); ok && tok.Valid {
 		version, ok := claims[VersionClaim].(float64)
 		if !ok {
@@ -72,9 +80,6 @@ func parseLicense(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, e
 			return nil, ErrInvalidVersion
 		}
 		return claims, nil
-	}
-	if err != nil {
-		return nil, err
 	}
 	return nil, xerrors.New("unable to parse Claims")
 }
@@ -105,7 +110,8 @@ func NewLicenseAPI(
 	l slog.Logger,
 	db database.Store,
 	ps database.Pubsub,
-	auth *coderd.HTTPAuthorizer) *LicenseAPI {
+	auth *coderd.HTTPAuthorizer,
+) *LicenseAPI {
 	r := chi.NewRouter()
 	a := &LicenseAPI{handler: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)

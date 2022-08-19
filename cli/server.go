@@ -299,7 +299,6 @@ func Server(builder CoderServerBuilder) *cobra.Command {
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
 				Telemetry:            telemetry.NewNoop(),
-				//LicenseHandler:       coderd.Licenses(),
 			}
 
 			if oauth2GithubClientSecret != "" {
