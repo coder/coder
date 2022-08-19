@@ -380,6 +380,9 @@ ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
 
 ALTER TABLE ONLY licenses
+    ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
+
+ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY organization_members
