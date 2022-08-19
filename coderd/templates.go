@@ -431,7 +431,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			desc = template.Description
 		}
 		if icon == "" {
-			name = template.Icon
+			icon = template.Icon
 		}
 		if maxTTL == 0 {
 			maxTTL = time.Duration(template.MaxTtl)
