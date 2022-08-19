@@ -173,7 +173,6 @@ func TestUserOAuth2Github(t *testing.T) {
 						Verified: github.Bool(true),
 						Primary:  github.Bool(true),
 					}}, nil
-
 				},
 			},
 		})
