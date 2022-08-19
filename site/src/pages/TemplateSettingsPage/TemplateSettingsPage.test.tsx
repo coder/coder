@@ -54,6 +54,7 @@ describe("TemplateSettingsPage", () => {
       name: "edited-template-name",
       description: "Edited description",
       max_ttl_ms: 4000,
+      icon: "/icons/new-icon.png",
     }
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,

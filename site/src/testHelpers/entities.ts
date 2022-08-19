@@ -155,6 +155,7 @@ export const MockTemplate: TypesGen.Template = {
   min_autostart_interval_ms: 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
+  icon: "/icon/code.svg",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {

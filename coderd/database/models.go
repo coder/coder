@@ -464,6 +464,7 @@ type Template struct {
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                 string          `db:"icon" json:"icon"`
 }
 
 type TemplateVersion struct {
