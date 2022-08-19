@@ -122,149 +122,37 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifiedEmails := make([]string, 0, len(emails))
+	var verifiedEmail *github.UserEmail
 	for _, email := range emails {
-		if !email.GetVerified() {
-			continue
+		if email.GetVerified() && email.GetPrimary() {
+			verifiedEmail = email
+			break
 		}
-		verifiedEmails = append(verifiedEmails, email.GetEmail())
 	}
 
-	if len(verifiedEmails) == 0 {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: "Verify an email address on Github to authenticate!",
+	if verifiedEmail == nil {
+		httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
+			Message: "Your primary email must be verified on GitHub!",
 		})
 		return
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmails...)
+	cookie, err := api.oauthLogin(r, oauthLoginParams{
+		State:        state,
+		LinkedID:     githubLinkedID(ghUser),
+		AllowSignups: api.GithubOAuth2Config.AllowSignups,
+		Email:        verifiedEmail.GetEmail(),
+		Username:     ghUser.GetLogin(),
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "An internal error occurred.",
+			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	if user.ID != uuid.Nil && user.LoginType != database.LoginTypeGithub {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeGithub, user.LoginType),
-		})
-		return
-	}
-
-	// If the user doesn't exist, create a new one!
-	if user.ID == uuid.Nil {
-		if !api.GithubOAuth2Config.AllowSignups {
-			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-				Message: "Signups are disabled for Github authentication!",
-			})
-			return
-		}
-
-		var organizationID uuid.UUID
-		organizations, _ := api.Database.GetOrganizations(r.Context())
-		if len(organizations) > 0 {
-			// Add the user to the first organization. Once multi-organization
-			// support is added, we should enable a configuration map of user
-			// email to organization.
-			organizationID = organizations[0].ID
-		}
-		var verifiedEmail *github.UserEmail
-		for _, email := range emails {
-			if !email.GetPrimary() || !email.GetVerified() {
-				continue
-			}
-			verifiedEmail = email
-			break
-		}
-		if verifiedEmail == nil {
-			httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
-				Message: "Your primary email must be verified on GitHub!",
-			})
-			return
-		}
-		user, _, err = api.createUser(ctx, createUserRequest{
-			CreateUserRequest: codersdk.CreateUserRequest{
-				Email:          *verifiedEmail.Email,
-				Username:       *ghUser.Login,
-				OrganizationID: organizationID,
-			},
-			LoginType: database.LoginTypeGithub,
-		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating user.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
-	// This can happen if a user is a built-in user but is signing in
-	// with Github for the first time.
-	if link.UserID == uuid.Nil {
-		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
-			UserID:            user.ID,
-			LoginType:         database.LoginTypeGithub,
-			LinkedID:          githubLinkedID(ghUser),
-			OAuthAccessToken:  state.Token.AccessToken,
-			OAuthRefreshToken: state.Token.RefreshToken,
-			OAuthExpiry:       state.Token.Expiry,
-		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("insert user link: %s", err.Error()),
-			})
-			return
-		}
-	}
-
-	// LEGACY: Remove 10/2022.
-	// We started tracking linked IDs later so it's possible for a user to be a
-	// pre-existing Github user and not have a linked ID. The migration
-	// to user_links did not populate this field as it requires calling out
-	// to Github to query the user's ID.
-	if link.LinkedID == "" {
-		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-			UserID:    user.ID,
-			LoginType: database.LoginTypeGithub,
-			LinkedID:  githubLinkedID(ghUser),
-		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
-			})
-			return
-		}
-	}
-
-	if link.UserID != uuid.Nil {
-		link, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-			UserID:            user.ID,
-			LoginType:         database.LoginTypeGithub,
-			OAuthAccessToken:  state.Token.AccessToken,
-			OAuthRefreshToken: state.Token.RefreshToken,
-			OAuthExpiry:       state.Token.Expiry,
-		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
-			})
-			return
-		}
-	}
-
-	_, created := api.createAPIKey(rw, r, createAPIKeyParams{
-		UserID:    user.ID,
-		LoginType: database.LoginTypeGithub,
-	})
-	if !created {
-		return
-	}
+	http.SetCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -352,27 +240,57 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), claims.Email)
+	cookie, err := api.oauthLogin(r, oauthLoginParams{
+		State:        state,
+		LinkedID:     oidcLinkedID(idToken),
+		AllowSignups: api.OIDCConfig.AllowSignups,
+		Email:        claims.Email,
+		Username:     claims.Username,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to find user.",
+			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	if user.ID == uuid.Nil && !api.OIDCConfig.AllowSignups {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: "Signups are disabled for OIDC authentication!",
-		})
-		return
+	http.SetCookie(rw, cookie)
+
+	redirect := state.Redirect
+	if redirect == "" {
+		redirect = "/"
+	}
+	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+type oauthLoginParams struct {
+	State     httpmw.OAuth2State
+	LinkedID  string
+	LoginType database.LoginType
+
+	// The following are necessary in order to
+	// create new users.
+	AllowSignups bool
+	Email        string
+	Username     string
+}
+
+func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
+	var (
+		ctx = r.Context()
+	)
+	user, link, err := findLinkedUser(ctx, api.Database, params.LinkedID, params.Email)
+	if err != nil {
+		return nil, xerrors.Errorf("find linked user: %w", err)
 	}
 
-	if user.ID != uuid.Nil && user.LoginType != database.LoginTypeOIDC {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypeOIDC, user.LoginType),
-		})
-		return
+	if user.ID == uuid.Nil && !params.AllowSignups {
+		return nil, xerrors.Errorf("signups are disabled for %q authentication", params.LoginType)
+	}
+
+	if user.ID != uuid.Nil && user.LoginType != params.LoginType {
+		return nil, xerrors.Errorf("Incorrect login type, attempting to use %q but user is of login type %q", params.LoginType, user.LoginType)
 	}
 
 	// This can happen if a user is a built-in user but is signing in
@@ -389,43 +307,28 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 		user, _, err = api.createUser(ctx, createUserRequest{
 			CreateUserRequest: codersdk.CreateUserRequest{
-				Email:          claims.Email,
-				Username:       claims.Username,
+				Email:          params.Email,
+				Username:       params.Username,
 				OrganizationID: organizationID,
 			},
 			LoginType: database.LoginTypeOIDC,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating user.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to insert user auth metadata.",
-				Detail:  err.Error(),
-			})
-			return
+			return nil, xerrors.Errorf("create user: %w", err)
 		}
 	}
 
 	if link.UserID == uuid.Nil {
 		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
 			UserID:            user.ID,
-			LoginType:         database.LoginTypeOIDC,
-			LinkedID:          oidcLinkedID(idToken),
-			OAuthAccessToken:  state.Token.AccessToken,
-			OAuthRefreshToken: state.Token.RefreshToken,
-			OAuthExpiry:       state.Token.Expiry,
+			LoginType:         params.LoginType,
+			LinkedID:          params.LinkedID,
+			OAuthAccessToken:  params.State.Token.AccessToken,
+			OAuthRefreshToken: params.State.Token.RefreshToken,
+			OAuthExpiry:       params.State.Token.Expiry,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("insert user link: %s", err.Error()),
-			})
-			return
+			return nil, xerrors.Errorf("insert user link: %w", err)
 		}
 	}
 
@@ -437,39 +340,34 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if link.LinkedID == "" {
 		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 			UserID:    user.ID,
-			LoginType: database.LoginTypeOIDC,
-			LinkedID:  oidcLinkedID(idToken),
+			LoginType: params.LoginType,
+			LinkedID:  params.LinkedID,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
-			})
-			return
+			return nil, xerrors.Errorf("update user linked ID: %w", err)
 		}
 	}
 
 	if link.UserID != uuid.Nil {
 		link, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			UserID:            user.ID,
-			LoginType:         database.LoginTypeOIDC,
-			OAuthAccessToken:  state.Token.AccessToken,
-			OAuthRefreshToken: state.Token.RefreshToken,
-			OAuthExpiry:       state.Token.Expiry,
+			LoginType:         params.LoginType,
+			OAuthAccessToken:  params.State.Token.AccessToken,
+			OAuthRefreshToken: params.State.Token.RefreshToken,
+			OAuthExpiry:       params.State.Token.Expiry,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "A database error occurred.",
-				Detail:  fmt.Sprintf("update user link: %s", err.Error()),
-			})
-			return
+			return nil, xerrors.Errorf("update user link: %w", err)
 		}
 	}
 
 	// If the upstream email or username has changed we should mirror
 	// that in Coder. Many enterprises use a user's email/username as
 	// security auditing fields so they need to stay synced.
-	if user.Email != claims.Email || user.Username != claims.Username {
+	// NOTE: username updating has been halted since it can have infrastructure
+	// provisioning consequences (updates to usernames may delete persistent
+	// resources such as user home volumes).
+	if user.Email != params.Email {
 		// TODO(JonA): Since we're processing updates to a user's upstream
 		// email/username, it's possible for a different built-in user to
 		// have already claimed the username.
@@ -477,34 +375,25 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		// longer sign in until an administrator finds the offending built-in
 		// user and changes their username.
 		user, err = api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-			ID:    user.ID,
-			Email: claims.Email,
-			// TODO: This should run in a transaction.
+			ID:        user.ID,
+			Email:     params.Email,
 			Username:  user.Username,
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update user profile.",
-				Detail:  fmt.Sprintf("update user profile: %s", err.Error()),
-			})
-			return
+			return nil, xerrors.Errorf("update user profile: %w", err)
 		}
 	}
 
-	_, created := api.createAPIKey(rw, r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:    user.ID,
-		LoginType: database.LoginTypeOIDC,
+		LoginType: params.LoginType,
 	})
-	if !created {
-		return
+	if err != nil {
+		return nil, xerrors.Errorf("create API key: %w", err)
 	}
 
-	redirect := state.Redirect
-	if redirect == "" {
-		redirect = "/"
-	}
-	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+	return cookie, nil
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.

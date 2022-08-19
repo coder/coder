@@ -722,16 +722,22 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 	})
-	if !created {
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
+	http.SetCookie(rw, cookie)
+
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
-		SessionToken: sessionToken,
+		SessionToken: cookie.Value,
 	})
 }
 
@@ -745,7 +751,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lifeTime := time.Hour * 24 * 7
-	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 		// All api generated keys will last 1 week. Browser login tokens have
@@ -753,11 +759,19 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       database.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
-	if !created {
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
+	// We intentionally do not set the cookie on the response here.
+	// Setting the cookie will couple the browser sesion to the API
+	// key we return here, meaning logging out of the website would
+	// invalid your CLI key.
+	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
@@ -840,14 +854,10 @@ type createAPIKeyParams struct {
 	LifetimeSeconds int64
 }
 
-func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params createAPIKeyParams) (string, bool) {
+func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.Cookie, error) {
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error generating API key.",
-			Detail:  err.Error(),
-		})
-		return "", false
+		return nil, xerrors.Errorf("generate API key: %w", err)
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
@@ -885,11 +895,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params cre
 		LoginType:    params.LoginType,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error inserting API key.",
-			Detail:  err.Error(),
-		})
-		return "", false
+		return nil, xerrors.Errorf("insert API key: %w", err)
 	}
 
 	api.Telemetry.Report(&telemetry.Snapshot{
@@ -898,15 +904,14 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params cre
 
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
-	http.SetCookie(rw, &http.Cookie{
+	return &http.Cookie{
 		Name:     codersdk.SessionTokenKey,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   api.SecureAuthCookie,
-	})
-	return sessionToken, true
+	}, nil
 }
 
 type createUserRequest struct {
