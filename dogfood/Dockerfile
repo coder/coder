@@ -67,6 +67,8 @@ RUN mkdir --parents "$GOPATH" && \
     # go-releaser for building 'fat binaries' that work cross-platform
     go install github.com/goreleaser/goreleaser@v1.6.1 && \
     go install mvdan.cc/sh/v3/cmd/shfmt@latest
+    # nfpm is used with `make build` to make release packages
+    go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
 # Ubuntu 20.04 LTS (Focal Fossa)
 FROM ubuntu:focal
@@ -92,6 +94,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       bind9-dnsutils \
       build-essential \
       ca-certificates \
+      cmake \
       crypto-policies \
       curl \
       fd-find \
