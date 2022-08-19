@@ -66,7 +66,7 @@ RUN mkdir --parents "$GOPATH" && \
     go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
     # go-releaser for building 'fat binaries' that work cross-platform
     go install github.com/goreleaser/goreleaser@v1.6.1 && \
-    go install mvdan.cc/sh/v3/cmd/shfmt@latest
+    go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
     # nfpm is used with `make build` to make release packages
     go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
