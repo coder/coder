@@ -14,8 +14,6 @@ find . -regex ".*\.go" | grep -v "./enterprise" | xargs grep -n "github.com/code
 status=$?
 set -e
 if [ $status -eq 0 ]; then
-	echo "AGPL code cannot import enterprise!"
-	exit 1
+	error "AGPL code cannot import enterprise!"
 fi
-echo "AGPL imports OK"
-exit 0
+log "AGPL imports OK"
