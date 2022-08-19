@@ -7,12 +7,12 @@ const Language = {
   collapse: "Less",
 }
 
-export interface CollapseButtonProps {
+export interface ExpanderProps {
   expanded: boolean
   setExpanded: (val: boolean) => void
 }
 
-export const Expander: React.FC<CollapseButtonProps> = ({ expanded, setExpanded }) => {
+export const Expander: React.FC<ExpanderProps> = ({ expanded, setExpanded }) => {
   const toggleExpanded = () => setExpanded(!expanded)
   const styles = useStyles()
   return (
