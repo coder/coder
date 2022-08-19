@@ -225,5 +225,9 @@ const useStyles = makeStyles((theme) => ({
     width: 36,
     height: 36,
     padding: 2,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))
