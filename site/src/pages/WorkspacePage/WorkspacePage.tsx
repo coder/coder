@@ -66,7 +66,7 @@ export const WorkspacePage: React.FC = () => {
         {checkPermissionsError ? <ErrorSummary error={checkPermissionsError} /> : <></>}
       </div>
     )
-  } else if (!workspace) {
+  } else if (!workspace || !permissions) {
     return <FullScreenLoader />
   } else {
     const favicon = getFaviconByStatus(workspace.latest_build)

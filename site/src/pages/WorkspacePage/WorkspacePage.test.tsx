@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -82,25 +82,27 @@ describe("WorkspacePage", () => {
       .mockResolvedValueOnce(MockWorkspaceBuild)
     testButton(Language.stop, stopWorkspaceMock)
   })
-  //   it("requests a delete job when the user presses Delete and confirms", async () => {
-  //     const deleteWorkspaceMock = jest
-  //       .spyOn(api, "deleteWorkspace")
-  //       .mockResolvedValueOnce(MockWorkspaceBuild)
-  //     await renderWorkspacePage()
-  //
-  //     // open the workspace action popover so we have access to all available ctas
-  //     const trigger = await screen.findByTestId("workspace-actions-button")
-  //     fireEvent.click(trigger)
-  //
-  //     const button = await screen.findByText(Language.delete)
-  //     fireEvent.click(button)
-  //
-  //     const confirmDialog = await screen.findByRole("dialog")
-  //     const confirmButton = within(confirmDialog).getByText("Delete")
-  //
-  //     fireEvent.click(confirmButton)
-  //     expect(deleteWorkspaceMock).toBeCalled()
-  //   })
+
+  it("requests a delete job when the user presses Delete and confirms", async () => {
+    const deleteWorkspaceMock = jest
+      .spyOn(api, "deleteWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+    await renderWorkspacePage()
+
+    // open the workspace action popover so we have access to all available ctas
+    const trigger = await screen.findByTestId("workspace-actions-button")
+    fireEvent.click(trigger)
+
+    const button = await screen.findByText(Language.delete)
+    fireEvent.click(button)
+
+    const confirmDialog = await screen.findByRole("dialog")
+    const confirmButton = within(confirmDialog).getByText("Delete")
+
+    fireEvent.click(confirmButton)
+    expect(deleteWorkspaceMock).toBeCalled()
+  })
+
   it("requests a start job when the user presses Start", async () => {
     server.use(
       rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
