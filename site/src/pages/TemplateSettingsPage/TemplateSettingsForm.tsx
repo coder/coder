@@ -116,7 +116,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           // Display seconds from ms
           value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : undefined}
           // Convert ms to seconds
-          onChange={(event) => Number(event.currentTarget.value) * 1000}
+          onChange={(event) =>
+            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 1000)
+          }
         />
       </Stack>
 
