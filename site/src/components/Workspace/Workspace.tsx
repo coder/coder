@@ -31,6 +31,8 @@ export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: () => void
     onDeadlineMinus: () => void
+    deadlinePlusEnabled: () => boolean
+    deadlineMinusEnabled: () => boolean
   }
   handleStart: () => void
   handleStop: () => void
@@ -81,6 +83,8 @@ export const Workspace: FC<WorkspaceProps> = ({
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
+              deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
