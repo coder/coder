@@ -102,6 +102,15 @@ jobs:
         with:
           version: v1.46.0
 
+  check-enterprise-imports:
+    name: check/enterprise-imports
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check imports of enterprise code
+        run: ./scripts/check_enterprise_imports.sh
+
   style-lint-shellcheck:
     name: style/lint/shellcheck
     timeout-minutes: 5

@@ -1,3 +1,5 @@
+import InputAdornment from "@material-ui/core/InputAdornment"
+import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -11,6 +13,7 @@ export const Language = {
   nameLabel: "Name",
   descriptionLabel: "Description",
   maxTtlLabel: "Auto-stop limit",
+  iconLabel: "Icon",
   // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
   maxTtlHelperText: "Edit the template maximum time before shutdown in seconds",
   formAriaLabel: "Template settings form",
@@ -21,11 +24,6 @@ export const validationSchema = Yup.object({
   description: Yup.string(),
   max_ttl_ms: Yup.number(),
 })
-export interface UpdateTemplateFormMeta {
-  readonly name?: string
-  readonly description?: string
-  readonly max_ttl?: number
-}
 
 export interface TemplateSettingsForm {
   template: Template
@@ -34,7 +32,7 @@ export interface TemplateSettingsForm {
   isSubmitting: boolean
   error?: unknown
   // Helpful to show field errors on Storybook
-  initialTouched?: FormikTouched<UpdateTemplateFormMeta>
+  initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -45,22 +43,21 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
-  const form: FormikContextType<UpdateTemplateFormMeta> = useFormik<UpdateTemplateFormMeta>({
+  const form: FormikContextType<UpdateTemplateMeta> = useFormik<UpdateTemplateMeta>({
     initialValues: {
       name: template.name,
       description: template.description,
-      max_ttl: template.max_ttl_ms / 1000,
+      max_ttl_ms: template.max_ttl_ms,
+      icon: template.icon,
     },
     validationSchema,
-    onSubmit: (data) => {
-      onSubmit({
-        ...data,
-        max_ttl_ms: data.max_ttl !== undefined ? data.max_ttl * 1000 : undefined,
-      })
-    },
+    onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<UpdateTemplateFormMeta>(form, error)
+  const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
+  const styles = useStyles()
+  const hasIcon = form.values.icon && form.values.icon !== ""
+  const maxTtlMsFieldHelpers = getFieldHelpers("max_ttl_ms")
 
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
@@ -86,13 +83,40 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         />
 
         <TextField
-          {...getFieldHelpers("max_ttl")}
+          {...getFieldHelpers("icon")}
+          disabled={isSubmitting}
+          fullWidth
+          label={Language.iconLabel}
+          variant="outlined"
+          InputProps={{
+            endAdornment: hasIcon ? (
+              <InputAdornment position="end">
+                <img
+                  alt=""
+                  src={form.values.icon}
+                  className={styles.adornment}
+                  // This prevent browser to display the ugly error icon if the
+                  // image path is wrong or user didn't finish typing the url
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                />
+              </InputAdornment>
+            ) : undefined,
+          }}
+        />
+
+        <TextField
+          {...maxTtlMsFieldHelpers}
           helperText={Language.maxTtlHelperText}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
+          // Display seconds from ms
+          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : undefined}
+          // Convert ms to seconds
+          onChange={(event) => Number(event.currentTarget.value) * 1000}
         />
       </Stack>
 
@@ -100,3 +124,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     </form>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  adornment: {
+    width: theme.spacing(3),
+    height: theme.spacing(3),
+  },
+}))

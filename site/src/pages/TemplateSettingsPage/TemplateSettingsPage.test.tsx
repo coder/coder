@@ -23,6 +23,7 @@ const fillAndSubmitForm = async ({
   name,
   description,
   max_ttl_ms,
+  icon,
 }: Omit<Required<UpdateTemplateMeta>, "min_autostart_interval_ms">) => {
   const nameField = await screen.findByLabelText(FormLanguage.nameLabel)
   await userEvent.clear(nameField)
@@ -31,6 +32,10 @@ const fillAndSubmitForm = async ({
   const descriptionField = await screen.findByLabelText(FormLanguage.descriptionLabel)
   await userEvent.clear(descriptionField)
   await userEvent.type(descriptionField, description)
+
+  const iconField = await screen.findByLabelText(FormLanguage.iconLabel)
+  await userEvent.clear(iconField)
+  await userEvent.type(iconField, icon)
 
   const maxTtlField = await screen.findByLabelText(FormLanguage.maxTtlLabel)
   await userEvent.clear(maxTtlField)
@@ -54,6 +59,7 @@ describe("TemplateSettingsPage", () => {
       name: "edited-template-name",
       description: "Edited description",
       max_ttl_ms: 4000,
+      icon: "/icon/code.svg",
     }
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,

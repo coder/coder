@@ -1,3 +1,4 @@
+import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
@@ -7,6 +8,7 @@ import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
+import { firstLetter } from "util/firstLetter"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import {
@@ -44,6 +46,7 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
+  const hasIcon = template.icon && template.icon !== ""
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
@@ -73,13 +76,26 @@ export const TemplatePageView: FC<TemplatePageViewProps> = ({
           </Stack>
         }
       >
-        <PageHeaderTitle>{template.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>
-          {template.description === "" ? Language.noDescription : template.description}
-        </PageHeaderSubtitle>
+        <Stack direction="row" spacing={3} className={styles.pageTitle}>
+          <div>
+            {hasIcon ? (
+              <div className={styles.iconWrapper}>
+                <img src={template.icon} alt="" />
+              </div>
+            ) : (
+              <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
+            )}
+          </div>
+          <div>
+            <PageHeaderTitle>{template.name}</PageHeaderTitle>
+            <PageHeaderSubtitle>
+              {template.description === "" ? Language.noDescription : template.description}
+            </PageHeaderSubtitle>
+          </div>
+        </Stack>
       </PageHeader>
 
-      <Stack spacing={3}>
+      <Stack spacing={2.5}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
         <WorkspaceSection
           title={Language.resourcesTitle}
@@ -136,6 +152,21 @@ export const useStyles = makeStyles((theme) => {
     },
     versionsTableContents: {
       margin: 0,
+    },
+    pageTitle: {
+      alignItems: "center",
+    },
+    avatar: {
+      width: theme.spacing(6),
+      height: theme.spacing(6),
+      fontSize: theme.spacing(3),
+    },
+    iconWrapper: {
+      width: theme.spacing(6),
+      height: theme.spacing(6),
+      "& img": {
+        width: "100%",
+      },
     },
   }
 })

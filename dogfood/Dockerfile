@@ -66,7 +66,9 @@ RUN mkdir --parents "$GOPATH" && \
     go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
     # go-releaser for building 'fat binaries' that work cross-platform
     go install github.com/goreleaser/goreleaser@v1.6.1 && \
-    go install mvdan.cc/sh/v3/cmd/shfmt@latest
+    go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
+    # nfpm is used with `make build` to make release packages
+    go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
 # Ubuntu 20.04 LTS (Focal Fossa)
 FROM ubuntu:focal
@@ -92,6 +94,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       bind9-dnsutils \
       build-essential \
       ca-certificates \
+      cmake \
       crypto-policies \
       curl \
       fd-find \
@@ -173,9 +176,6 @@ RUN apt-get update && \
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/11/bin/initdb 100 && \
     update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/11/bin/postgres 100
-
-# Ensure goboring is made the default Go
-RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/goboring/bin/gofmt 100
 
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \
@@ -295,6 +295,9 @@ RUN mkdir /usr/local/goboring && \
     tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1
 
 ENV PATH=$PATH:/usr/local/goboring/bin
+
+# Ensure goboring is made the default Go
+RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/goboring/bin/gofmt 100
 
 COPY --from=go /tmp/bin /usr/local/bin
 
