@@ -5,7 +5,7 @@ import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import { Workspace } from "../api/typesGenerated"
+import { Template, Workspace } from "../api/typesGenerated"
 import { isWorkspaceOn } from "./workspace"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -109,4 +109,32 @@ export const autoStopDisplay = (workspace: Workspace): string => {
     const duration = dayjs.duration(ttl, "milliseconds")
     return `${duration.humanize()} ${Language.afterStart}`
   }
+}
+
+export const deadlineExtensionMin = dayjs.duration(30, "minutes")
+export const deadlineExtensionMax = dayjs.duration(24, "hours")
+
+export function maxDeadline(ws: Workspace, tpl: Template): dayjs.Dayjs {
+  // note: we count runtime from updated_at as started_at counts from the start of
+  // the workspace build process, which can take a while.
+  const startedAt = dayjs(ws.latest_build.updated_at)
+  const maxTemplateDeadline = startedAt.add(dayjs.duration(tpl.max_ttl_ms, "milliseconds"))
+  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
+  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+}
+
+export function minDeadline(): dayjs.Dayjs {
+  return dayjs().add(deadlineExtensionMin)
+}
+
+export function canExtendDeadline(
+  deadline: dayjs.Dayjs,
+  workspace: Workspace,
+  template: Template,
+): boolean {
+  return deadline < maxDeadline(workspace, template)
+}
+
+export function canReduceDeadline(deadline: dayjs.Dayjs): boolean {
+  return deadline > minDeadline()
 }

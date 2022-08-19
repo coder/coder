@@ -1,3 +1,5 @@
+import InputAdornment from "@material-ui/core/InputAdornment"
+import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -10,6 +12,7 @@ import * as Yup from "yup"
 export const Language = {
   nameLabel: "Name",
   descriptionLabel: "Description",
+  iconLabel: "Icon",
   maxTtlLabel: "Max TTL",
   // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
   maxTtlHelperText: "Edit the template maximum time before shutdown in milliseconds",
@@ -45,6 +48,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       name: template.name,
       description: template.description,
       max_ttl_ms: template.max_ttl_ms,
+      icon: template.icon,
     },
     validationSchema,
     onSubmit: (data) => {
@@ -53,6 +57,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
+  const styles = useStyles()
+  const hasIcon = form.values.icon && form.values.icon !== ""
 
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
@@ -78,6 +84,29 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         />
 
         <TextField
+          {...getFieldHelpers("icon")}
+          disabled={isSubmitting}
+          fullWidth
+          label={Language.iconLabel}
+          variant="outlined"
+          InputProps={{
+            endAdornment: hasIcon ? (
+              <InputAdornment position="end">
+                <img
+                  alt=""
+                  src={form.values.icon}
+                  className={styles.adornment}
+                  // This prevent browser to display the ugly error icon if the
+                  // image path is wrong or user didn't finish typing the url
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                />
+              </InputAdornment>
+            ) : undefined,
+          }}
+        />
+
+        <TextField
           {...getFieldHelpers("max_ttl_ms")}
           helperText={Language.maxTtlHelperText}
           disabled={isSubmitting}
@@ -92,3 +121,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     </form>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  adornment: {
+    width: theme.spacing(3),
+    height: theme.spacing(3),
+  },
+}))

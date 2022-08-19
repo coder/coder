@@ -92,6 +92,7 @@ export interface CreateParameterRequest {
 export interface CreateTemplateRequest {
   readonly name: string
   readonly description?: string
+  readonly icon?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly max_ttl_ms?: number
@@ -308,6 +309,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly icon: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
@@ -347,6 +349,7 @@ export interface UpdateRoles {
 export interface UpdateTemplateMeta {
   readonly name?: string
   readonly description?: string
+  readonly icon?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
 }

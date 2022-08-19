@@ -886,6 +886,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.UpdatedAt = database.Now()
 		tpl.Name = arg.Name
 		tpl.Description = arg.Description
+		tpl.Icon = arg.Icon
 		tpl.MaxTtl = arg.MaxTtl
 		tpl.MinAutostartInterval = arg.MinAutostartInterval
 		q.templates[idx] = tpl
