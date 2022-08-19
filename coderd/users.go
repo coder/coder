@@ -77,7 +77,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
+	user, organizationID, err := api.createUser(r.Context(), api.Database, createUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -246,7 +246,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), createUserRequest{
+	user, _, err := api.createUser(r.Context(), api.Database, createUserRequest{
 		CreateUserRequest: req,
 		LoginType:         database.LoginTypePassword,
 	})
@@ -919,13 +919,13 @@ type createUserRequest struct {
 	LoginType database.LoginType
 }
 
-func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) createUser(ctx context.Context, store database.Store, req createUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
-	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
+	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
-			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:        uuid.New(),
 				Name:      req.Username,
 				CreatedAt: database.Now(),
@@ -958,7 +958,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		}
 
 		var err error
-		user, err = db.InsertUser(ctx, params)
+		user, err = tx.InsertUser(ctx, params)
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
@@ -967,7 +967,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		if err != nil {
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}
-		_, err = db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
 			CreatedAt:  database.Now(),
 			UpdatedAt:  database.Now(),
@@ -977,7 +977,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		if err != nil {
 			return xerrors.Errorf("insert user gitsshkey: %w", err)
 		}
-		_, err = db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
 			UserID:         user.ID,
 			CreatedAt:      database.Now(),

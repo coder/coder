@@ -149,7 +149,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
@@ -168,7 +168,12 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-					return []*github.UserEmail{}, nil
+					return []*github.UserEmail{{
+						Email:    github.String("testuser@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+
 				},
 			},
 		})
@@ -195,6 +200,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.UserEmail{{
 						Email:    github.String("testuser@coder.com"),
 						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
 					}}, nil
 				},
 			},

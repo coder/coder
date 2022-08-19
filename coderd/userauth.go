@@ -145,6 +145,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Email:        verifiedEmail.GetEmail(),
 		Username:     ghUser.GetLogin(),
 	})
+	var httpErr httpError
+	if xerrors.As(err, &httpErr) {
+		httpapi.Write(rw, httpErr.code, codersdk.Response{
+			Message: httpErr.msg,
+			Detail:  httpErr.detail,
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
@@ -249,6 +257,14 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        claims.Email,
 		Username:     claims.Username,
 	})
+	var httpErr httpError
+	if xerrors.As(err, &httpErr) {
+		httpapi.Write(rw, httpErr.code, codersdk.Response{
+			Message: httpErr.msg,
+			Detail:  httpErr.detail,
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
@@ -278,36 +294,55 @@ type oauthLoginParams struct {
 	Username     string
 }
 
+type httpError struct {
+	code   int
+	msg    string
+	detail string
+}
+
+func (e httpError) Error() string {
+	return e.detail
+}
+
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
 	var (
 		ctx  = r.Context()
 		user database.User
 	)
 
-	err := api.Database.InTx(func(store database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		var (
 			link database.UserLink
 			err  error
 		)
 
-		user, link, err = findLinkedUser(ctx, store, params.LinkedID, params.Email)
+		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
 		if err != nil {
 			return xerrors.Errorf("find linked user: %w", err)
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
-			return xerrors.Errorf("signups are disabled for %q authentication", params.LoginType)
+			return httpError{
+				code: http.StatusForbidden,
+				msg:  fmt.Sprintf("Signups are not allowed for login type %q", params.LoginType),
+			}
 		}
 
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-			return xerrors.Errorf("Incorrect login type, attempting to use %q but user is of login type %q", params.LoginType, user.LoginType)
+			return httpError{
+				code: http.StatusForbidden,
+				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
+					params.LoginType,
+					user.LoginType,
+				),
+			}
 		}
 
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
-			organizations, _ := store.GetOrganizations(ctx)
+			organizations, _ := tx.GetOrganizations(ctx)
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
 				// support is added, we should enable a configuration map of user
@@ -315,7 +350,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			user, _, err = api.createUser(ctx, createUserRequest{
+			user, _, err = api.createUser(ctx, tx, createUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
@@ -329,7 +364,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
-			link, err = store.InsertUserLink(ctx, database.InsertUserLinkParams{
+			link, err = tx.InsertUserLink(ctx, database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				LinkedID:          params.LinkedID,
@@ -348,7 +383,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// The migration that added the user_links table could not populate
 		// the 'linked_id' field since it requires fields off the access token.
 		if link.LinkedID == "" {
-			link, err = store.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
+			link, err = tx.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
 				UserID:    user.ID,
 				LoginType: params.LoginType,
 				LinkedID:  params.LinkedID,
@@ -359,7 +394,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
-			link, err = store.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				OAuthAccessToken:  params.State.Token.AccessToken,
@@ -384,7 +419,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			user, err = store.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+			user, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     params.Email,
 				Username:  user.Username,
