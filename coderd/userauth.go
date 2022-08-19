@@ -301,7 +301,11 @@ type httpError struct {
 }
 
 func (e httpError) Error() string {
-	return e.detail
+	if e.detail != "" {
+		return e.detail
+	}
+
+	return e.msg
 }
 
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
