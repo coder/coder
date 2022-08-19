@@ -23,6 +23,7 @@ export const Language = {
   // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
   maxTtlHelperText: "Edit the template maximum time before shutdown in milliseconds",
   formAriaLabel: "Template settings form",
+  selectEmoji: "Select emoji",
 }
 
 export const validationSchema = Yup.object({
@@ -125,7 +126,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               setIsEmojiPickerOpen((v) => !v)
             }}
           >
-            Select emoji
+            {Language.selectEmoji}
           </Button>
 
           <Popover
