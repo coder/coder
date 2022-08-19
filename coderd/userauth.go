@@ -278,111 +278,125 @@ type oauthLoginParams struct {
 
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
 	var (
-		ctx = r.Context()
+		ctx  = r.Context()
+		user database.User
 	)
-	user, link, err := findLinkedUser(ctx, api.Database, params.LinkedID, params.Email)
+
+	err := api.Database.InTx(func(store database.Store) error {
+		var (
+			link database.UserLink
+			err  error
+		)
+
+		user, link, err = findLinkedUser(ctx, store, params.LinkedID, params.Email)
+		if err != nil {
+			return xerrors.Errorf("find linked user: %w", err)
+		}
+
+		if user.ID == uuid.Nil && !params.AllowSignups {
+			return xerrors.Errorf("signups are disabled for %q authentication", params.LoginType)
+		}
+
+		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
+			return xerrors.Errorf("Incorrect login type, attempting to use %q but user is of login type %q", params.LoginType, user.LoginType)
+		}
+
+		// This can happen if a user is a built-in user but is signing in
+		// with OIDC for the first time.
+		if user.ID == uuid.Nil {
+			var organizationID uuid.UUID
+			organizations, _ := store.GetOrganizations(ctx)
+			if len(organizations) > 0 {
+				// Add the user to the first organization. Once multi-organization
+				// support is added, we should enable a configuration map of user
+				// email to organization.
+				organizationID = organizations[0].ID
+			}
+
+			user, _, err = api.createUser(ctx, createUserRequest{
+				CreateUserRequest: codersdk.CreateUserRequest{
+					Email:          params.Email,
+					Username:       params.Username,
+					OrganizationID: organizationID,
+				},
+				LoginType: database.LoginTypeOIDC,
+			})
+			if err != nil {
+				return xerrors.Errorf("create user: %w", err)
+			}
+		}
+
+		if link.UserID == uuid.Nil {
+			link, err = store.InsertUserLink(ctx, database.InsertUserLinkParams{
+				UserID:            user.ID,
+				LoginType:         params.LoginType,
+				LinkedID:          params.LinkedID,
+				OAuthAccessToken:  params.State.Token.AccessToken,
+				OAuthRefreshToken: params.State.Token.RefreshToken,
+				OAuthExpiry:       params.State.Token.Expiry,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert user link: %w", err)
+			}
+		}
+
+		// LEGACY: Remove 10/2022.
+		// We started tracking linked IDs later so it's possible for a user to be a
+		// pre-existing OAuth user and not have a linked ID.
+		// The migration that added the user_links table could not populate
+		// the 'linked_id' field since it requires fields off the access token.
+		if link.LinkedID == "" {
+			link, err = store.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
+				UserID:    user.ID,
+				LoginType: params.LoginType,
+				LinkedID:  params.LinkedID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user linked ID: %w", err)
+			}
+		}
+
+		if link.UserID != uuid.Nil {
+			link, err = store.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+				UserID:            user.ID,
+				LoginType:         params.LoginType,
+				OAuthAccessToken:  params.State.Token.AccessToken,
+				OAuthRefreshToken: params.State.Token.RefreshToken,
+				OAuthExpiry:       params.State.Token.Expiry,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user link: %w", err)
+			}
+		}
+
+		// If the upstream email or username has changed we should mirror
+		// that in Coder. Many enterprises use a user's email/username as
+		// security auditing fields so they need to stay synced.
+		// NOTE: username updating has been halted since it can have infrastructure
+		// provisioning consequences (updates to usernames may delete persistent
+		// resources such as user home volumes).
+		if user.Email != params.Email {
+			// TODO(JonA): Since we're processing updates to a user's upstream
+			// email/username, it's possible for a different built-in user to
+			// have already claimed the username.
+			// In such cases in the current implementation this user can now no
+			// longer sign in until an administrator finds the offending built-in
+			// user and changes their username.
+			user, err = store.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+				ID:        user.ID,
+				Email:     params.Email,
+				Username:  user.Username,
+				UpdatedAt: database.Now(),
+			})
+			if err != nil {
+				return xerrors.Errorf("update user profile: %w", err)
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("find linked user: %w", err)
-	}
-
-	if user.ID == uuid.Nil && !params.AllowSignups {
-		return nil, xerrors.Errorf("signups are disabled for %q authentication", params.LoginType)
-	}
-
-	if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-		return nil, xerrors.Errorf("Incorrect login type, attempting to use %q but user is of login type %q", params.LoginType, user.LoginType)
-	}
-
-	// This can happen if a user is a built-in user but is signing in
-	// with OIDC for the first time.
-	if user.ID == uuid.Nil {
-		var organizationID uuid.UUID
-		organizations, _ := api.Database.GetOrganizations(ctx)
-		if len(organizations) > 0 {
-			// Add the user to the first organization. Once multi-organization
-			// support is added, we should enable a configuration map of user
-			// email to organization.
-			organizationID = organizations[0].ID
-		}
-
-		user, _, err = api.createUser(ctx, createUserRequest{
-			CreateUserRequest: codersdk.CreateUserRequest{
-				Email:          params.Email,
-				Username:       params.Username,
-				OrganizationID: organizationID,
-			},
-			LoginType: database.LoginTypeOIDC,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("create user: %w", err)
-		}
-	}
-
-	if link.UserID == uuid.Nil {
-		link, err = api.Database.InsertUserLink(ctx, database.InsertUserLinkParams{
-			UserID:            user.ID,
-			LoginType:         params.LoginType,
-			LinkedID:          params.LinkedID,
-			OAuthAccessToken:  params.State.Token.AccessToken,
-			OAuthRefreshToken: params.State.Token.RefreshToken,
-			OAuthExpiry:       params.State.Token.Expiry,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("insert user link: %w", err)
-		}
-	}
-
-	// LEGACY: Remove 10/2022.
-	// We started tracking linked IDs later so it's possible for a user to be a
-	// pre-existing OIDC user and not have a linked ID.
-	// The migration that added the user_links table could not populate
-	// the 'linked_id' field since it requires fields off the access token.
-	if link.LinkedID == "" {
-		link, err = api.Database.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-			UserID:    user.ID,
-			LoginType: params.LoginType,
-			LinkedID:  params.LinkedID,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("update user linked ID: %w", err)
-		}
-	}
-
-	if link.UserID != uuid.Nil {
-		link, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-			UserID:            user.ID,
-			LoginType:         params.LoginType,
-			OAuthAccessToken:  params.State.Token.AccessToken,
-			OAuthRefreshToken: params.State.Token.RefreshToken,
-			OAuthExpiry:       params.State.Token.Expiry,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("update user link: %w", err)
-		}
-	}
-
-	// If the upstream email or username has changed we should mirror
-	// that in Coder. Many enterprises use a user's email/username as
-	// security auditing fields so they need to stay synced.
-	// NOTE: username updating has been halted since it can have infrastructure
-	// provisioning consequences (updates to usernames may delete persistent
-	// resources such as user home volumes).
-	if user.Email != params.Email {
-		// TODO(JonA): Since we're processing updates to a user's upstream
-		// email/username, it's possible for a different built-in user to
-		// have already claimed the username.
-		// In such cases in the current implementation this user can now no
-		// longer sign in until an administrator finds the offending built-in
-		// user and changes their username.
-		user, err = api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-			ID:        user.ID,
-			Email:     params.Email,
-			Username:  user.Username,
-			UpdatedAt: database.Now(),
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("update user profile: %w", err)
-		}
+		return nil, xerrors.Errorf("in tx: %w", err)
 	}
 
 	cookie, err := api.createAPIKey(r, createAPIKeyParams{
