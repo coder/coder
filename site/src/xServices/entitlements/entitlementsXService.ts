@@ -1,4 +1,4 @@
-import { MockEntitlements } from "testHelpers/entities"
+import { MockEntitlementsWithWarnings } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { Entitlements } from "../../api/typesGenerated"
@@ -79,7 +79,7 @@ export const entitlementsMachine = createMachine(
         getEntitlementsError: (_) => undefined,
       }),
       assignMockEntitlements: assign({
-        entitlements: (_) => MockEntitlements,
+        entitlements: (_) => MockEntitlementsWithWarnings,
       }),
       clearMockEntitlements: assign({
         entitlements: (_) => emptyEntitlements,

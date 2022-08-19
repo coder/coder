@@ -4,9 +4,9 @@ import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
 import { useState } from "react"
 
-const Language = {
+export const Language = {
   licenseIssue: "License Issue",
-  licenseIssues: (num: number) => `${num} License Issues`,
+  licenseIssues: (num: number): string => `${num} License Issues`,
   upgrade: "Contact us to upgrade your license.",
   exceeded: "It looks like you've exceeded some limits of your license.",
   lessDetails: "Less",

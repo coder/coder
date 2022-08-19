@@ -13,10 +13,10 @@ const Template: Story<ExpanderProps> = (args) => <Expander {...args} />
 
 export const Expanded = Template.bind({})
 Expanded.args = {
-  expanded: true
+  expanded: true,
 }
 
 export const Collapsed = Template.bind({})
 Collapsed.args = {
-  expanded: false
+  expanded: false,
 }
