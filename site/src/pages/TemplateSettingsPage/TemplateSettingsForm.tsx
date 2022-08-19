@@ -5,8 +5,8 @@ import InputAdornment from "@material-ui/core/InputAdornment"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import ExpandMore from "@material-ui/icons/ExpandMore"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
+import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
@@ -120,7 +120,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             ref={emojiButtonRef}
             variant="outlined"
             size="small"
-            endIcon={<ExpandMore />}
+            endIcon={<OpenDropdown />}
             onClick={() => {
               setIsEmojiPickerOpen((v) => !v)
             }}
