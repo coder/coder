@@ -57,6 +57,12 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         marginLeft: "0 !important",
         marginRight: 12,
       },
+      outlined: {
+        border: `1px solid ${palette.divider}`,
+        "&:hover": {
+          backgroundColor: colors.gray[15],
+        },
+      },
     },
     MuiIconButton: {
       sizeSmall: {
