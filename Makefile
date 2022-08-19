@@ -116,6 +116,7 @@ lint: lint/shellcheck lint/go
 .PHONY: lint
 
 lint/go:
+	./scripts/check_enterprise_imports.sh
 	golangci-lint run
 .PHONY: lint/go
 
