@@ -17,6 +17,14 @@ Example.args = {
   templateVersions: [Mocks.MockTemplateVersion],
 }
 
+export const NoIcon = Template.bind({})
+NoIcon.args = {
+  template: { ...Mocks.MockTemplate, icon: "" },
+  activeTemplateVersion: Mocks.MockTemplateVersion,
+  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateVersions: [Mocks.MockTemplateVersion],
+}
+
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
   template: Mocks.MockTemplate,
