@@ -114,27 +114,26 @@ describe("WorkspacePage", () => {
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
     testButton(Language.start, startWorkspaceMock)
   })
-  //   it("requests cancellation when the user presses Cancel", async () => {
-  //     server.use(
-  //       rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
-  //         return res(ctx.status(200), ctx.json(MockStartingWorkspace))
-  //       }),
-  //     )
-  //     const cancelWorkspaceMock = jest
-  //       .spyOn(api, "cancelWorkspaceBuild")
-  //       .mockImplementation(() => Promise.resolve({ message: "job canceled" }))
-  //
-  //     await renderWorkspacePage()
-  //
-  //     const cancelButton = await screen.findByRole("button", {
-  //       name: "cancel action",
-  //     })
-  //
-  //     fireEvent.click(cancelButton)
-  //     // await waitFor(() => fireEvent.click(cancelButton))
-  //
-  //     expect(cancelWorkspaceMock).toBeCalled()
-  //   })
+  it("requests cancellation when the user presses Cancel", async () => {
+    server.use(
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockStartingWorkspace))
+      }),
+    )
+    const cancelWorkspaceMock = jest
+      .spyOn(api, "cancelWorkspaceBuild")
+      .mockImplementation(() => Promise.resolve({ message: "job canceled" }))
+
+    await renderWorkspacePage()
+
+    const cancelButton = await screen.findByRole("button", {
+      name: "cancel action",
+    })
+
+    fireEvent.click(cancelButton)
+
+    expect(cancelWorkspaceMock).toBeCalled()
+  })
   it("requests a template when the user presses Update", async () => {
     const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
     server.use(
