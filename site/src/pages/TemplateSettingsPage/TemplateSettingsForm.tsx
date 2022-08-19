@@ -57,7 +57,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
   const styles = useStyles()
   const hasIcon = form.values.icon && form.values.icon !== ""
-  const maxTtlMsFieldHelpers = getFieldHelpers("max_ttl_ms")
 
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
@@ -106,7 +105,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         />
 
         <TextField
-          {...maxTtlMsFieldHelpers}
+          {...getFieldHelpers("max_ttl_ms")}
           helperText={Language.maxTtlHelperText}
           disabled={isSubmitting}
           fullWidth
