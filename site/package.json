@@ -57,7 +57,10 @@
     "xterm-addon-web-links": "0.6.0",
     "xterm-addon-webgl": "0.11.4",
     "xterm-for-react": "1.0.4",
-    "yup": "0.32.11"
+    "yup": "0.32.11",
+    "@emoji-mart/data": "^1.0.5",
+    "@emoji-mart/react": "^1.0.1",
+    "emoji-mart": "^5.2.1"
   },
   "devDependencies": {
     "@playwright/test": "1.24.1",
