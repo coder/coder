@@ -140,6 +140,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	cookie, err := api.oauthLogin(r, oauthLoginParams{
 		State:        state,
 		LinkedID:     githubLinkedID(ghUser),
+		LoginType:    database.LoginTypeGithub,
 		AllowSignups: api.GithubOAuth2Config.AllowSignups,
 		Email:        verifiedEmail.GetEmail(),
 		Username:     ghUser.GetLogin(),
@@ -243,6 +244,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	cookie, err := api.oauthLogin(r, oauthLoginParams{
 		State:        state,
 		LinkedID:     oidcLinkedID(idToken),
+		LoginType:    database.LoginTypeOIDC,
 		AllowSignups: api.OIDCConfig.AllowSignups,
 		Email:        claims.Email,
 		Username:     claims.Username,
