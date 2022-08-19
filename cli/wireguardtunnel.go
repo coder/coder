@@ -67,7 +67,7 @@ func wireguardPortForward() *cobra.Command {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

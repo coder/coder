@@ -65,7 +65,7 @@ func list() *cobra.Command {
 		Aliases:     []string{"ls"},
 		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
