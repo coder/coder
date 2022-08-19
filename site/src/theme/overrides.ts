@@ -9,7 +9,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     MuiCssBaseline: {
       "@global": {
         body: {
-          backgroundImage: `linear-gradient(to right bottom, ${colors.gray[15]}, ${colors.gray[17]})`,
+          backgroundImage: `linear-gradient(to right bottom, ${palette.background.default}, ${colors.gray[17]})`,
           backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
@@ -60,7 +60,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
       outlined: {
         border: `1px solid ${palette.divider}`,
         "&:hover": {
-          backgroundColor: colors.gray[15],
+          backgroundColor: palette.background.default,
         },
       },
     },
@@ -88,8 +88,8 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
       root: {
         borderCollapse: "collapse",
         border: "none",
-        background: colors.gray[15],
-        boxShadow: `0 0 0 1px ${colors.gray[15]} inset`,
+        background: palette.background.default,
+        boxShadow: `0 0 0 1px ${palette.background.default} inset`,
         overflow: "hidden",
 
         "& td": {
