@@ -24,6 +24,7 @@ type Workspace struct {
 	OwnerName         string         `json:"owner_name"`
 	TemplateID        uuid.UUID      `json:"template_id"`
 	TemplateName      string         `json:"template_name"`
+	TemplateIcon      string         `json:"template_icon"`
 	LatestBuild       WorkspaceBuild `json:"latest_build"`
 	Outdated          bool           `json:"outdated"`
 	Name              string         `json:"name"`
