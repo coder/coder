@@ -28,6 +28,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 	t.Parallel()
 
 	t.Run("QueryPubSubDupes", func(t *testing.T) {
+		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		// mDB := mocks.NewStore(t)
 		fDB := databasefake.New()

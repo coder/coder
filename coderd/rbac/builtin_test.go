@@ -13,6 +13,7 @@ import (
 )
 
 // BenchmarkRBACFilter benchmarks the rbac.Filter method.
+//
 //	go test -bench BenchmarkRBACFilter -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACFilter(b *testing.B) {
 	orgs := []uuid.UUID{
@@ -392,6 +393,7 @@ func TestIsOrgRole(t *testing.T) {
 	// nolint:paralleltest
 	for _, c := range testCases {
 		t.Run(c.RoleName, func(t *testing.T) {
+			t.Parallel()
 			orgID, ok := rbac.IsOrgRole(c.RoleName)
 			require.Equal(t, c.OrgRole, ok, "match expected org role")
 			require.Equal(t, c.OrgID, orgID, "match expected org id")

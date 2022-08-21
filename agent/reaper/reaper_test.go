@@ -29,6 +29,7 @@ func TestReap(t *testing.T) {
 	// exited processes and passing the PIDs through the shared
 	// channel.
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 		pids := make(reap.PidCh, 1)
 		err := reaper.ForkReap(
 			reaper.WithPIDCallback(pids),

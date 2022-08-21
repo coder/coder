@@ -26,7 +26,9 @@ func TestRateLimit(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			rec := httptest.NewRecorder()
 			rtr.ServeHTTP(rec, req)
-			return rec.Result().StatusCode == http.StatusTooManyRequests
+			resp := rec.Result()
+			defer resp.Body.Close()
+			return resp.StatusCode == http.StatusTooManyRequests
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }

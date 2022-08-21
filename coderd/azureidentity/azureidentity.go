@@ -52,8 +52,10 @@ func Validate(ctx context.Context, signature string, options x509.VerifyOptions)
 			}
 			data, err := io.ReadAll(res.Body)
 			if err != nil {
+				_ = res.Body.Close()
 				return "", xerrors.Errorf("read body %q: %w", certURL, err)
 			}
+			_ = res.Body.Close()
 			cert, err := x509.ParseCertificate(data)
 			if err != nil {
 				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)

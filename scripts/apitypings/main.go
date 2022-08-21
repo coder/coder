@@ -337,6 +337,7 @@ type TypescriptType struct {
 // typescriptType this function returns a typescript type for a given
 // golang type.
 // Eg:
+//
 //	[]byte returns "string"
 func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	switch ty := ty.(type) {
