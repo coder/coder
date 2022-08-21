@@ -154,7 +154,26 @@ type reconnectingPTYInit struct {
 }
 
 func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
-	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetReconnectingPTYPort)))
+	conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetReconnectingPTYPort)))
+	if err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(reconnectingPTYInit{
+		ID:      id,
+		Height:  height,
+		Width:   width,
+		Command: command,
+	})
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_, err = conn.Write(data)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (c *TailnetConn) SSH() (net.Conn, error) {
