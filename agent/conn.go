@@ -138,10 +138,6 @@ type TailnetConn struct {
 	*tailnet.Conn
 }
 
-func (c *TailnetConn) Closed() <-chan struct{} {
-	return nil
-}
-
 func (c *TailnetConn) Ping() (time.Duration, error) {
 	return 0, nil
 }

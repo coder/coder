@@ -221,6 +221,7 @@ func IP() netip.Addr {
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
 	mutex  sync.Mutex
+	closed chan struct{}
 	logger slog.Logger
 
 	dialer           *tsdial.Dialer
@@ -332,6 +333,12 @@ func (c *Conn) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.
 	c.wireguardEngine.Ping(ip, pingType, cb)
 }
 
+// Closed is a channel that ends when the connection has
+// been closed.
+func (c *Conn) Closed() chan<- struct{} {
+	return c.closed
+}
+
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	for _, l := range c.listeners {
@@ -339,6 +346,12 @@ func (c *Conn) Close() error {
 	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	select {
+	case <-c.closed:
+		return nil
+	default:
+	}
+	close(c.closed)
 	_ = c.dialer.Close()
 	_ = c.magicConn.Close()
 	_ = c.netStack.Close()
