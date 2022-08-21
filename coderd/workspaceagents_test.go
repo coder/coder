@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -306,7 +305,6 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
-		EnableTailnet:     true,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
@@ -327,7 +325,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = session.Close()
 	_ = sshClient.Close()
 	_ = conn.Close()
-	fmt.Printf("\n\n\n\nOutput: %s\n\n\n\n", output)
+	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
 func TestWorkspaceAgentPTY(t *testing.T) {
