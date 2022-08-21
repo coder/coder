@@ -187,6 +187,7 @@ func NewConn(options *Options) (*Conn, error) {
 	logIPs, _ := logIPSet.IPSet()
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
 	server := &Conn{
+		closed:           make(chan struct{}),
 		logger:           options.Logger,
 		magicConn:        magicConn,
 		dialer:           dialer,
@@ -335,21 +336,21 @@ func (c *Conn) Ping(ip netip.Addr, pingType tailcfg.PingType, cb func(*ipnstate.
 
 // Closed is a channel that ends when the connection has
 // been closed.
-func (c *Conn) Closed() chan<- struct{} {
+func (c *Conn) Closed() <-chan struct{} {
 	return c.closed
 }
 
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
-	for _, l := range c.listeners {
-		_ = l.Close()
-	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	select {
 	case <-c.closed:
 		return nil
 	default:
+	}
+	for _, l := range c.listeners {
+		_ = l.closeNoLock()
 	}
 	close(c.closed)
 	_ = c.dialer.Close()
@@ -454,6 +455,10 @@ func (ln *listener) Addr() net.Addr { return addr{ln} }
 func (ln *listener) Close() error {
 	ln.s.mutex.Lock()
 	defer ln.s.mutex.Unlock()
+	return ln.closeNoLock()
+}
+
+func (ln *listener) closeNoLock() error {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
 		close(ln.conn)
