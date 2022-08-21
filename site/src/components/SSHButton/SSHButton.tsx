@@ -81,7 +81,7 @@ export const SSHButton: React.FC<SSHButtonProps> = ({
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
             Install Coder CLI
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/configuring-web-ides">
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/web-ides">
             Configuring Web IDEs
           </HelpTooltipLink>
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
