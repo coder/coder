@@ -110,6 +110,7 @@ func Int31n(max int32) (int32, error) {
 // set, regenerating v if necessary. n must be > 0. All input bits in v must be
 // fully random, you cannot cast a random uint8/uint16 for input into this
 // function.
+//
 //nolint:varnamelen
 func UnbiasedModulo32(v uint32, n int32) (int32, error) {
 	prod := uint64(v) * uint64(n)

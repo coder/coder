@@ -15,6 +15,7 @@ import (
 )
 
 func TestDelete(t *testing.T) {
+	t.Parallel()
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})

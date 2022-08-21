@@ -99,7 +99,9 @@ func TestExtractUserRoles(t *testing.T) {
 			})
 
 			rtr.ServeHTTP(rw, req)
-			require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+			resp := rw.Result()
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }

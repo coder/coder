@@ -32,6 +32,7 @@ func (*testOAuth2Provider) TokenSource(_ context.Context, _ *oauth2.Token) oauth
 	return nil
 }
 
+// nolint:bodyclose
 func TestOAuth2(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSetup", func(t *testing.T) {

@@ -61,11 +61,10 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 }
 
 func TestProvision_Cancel(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("This test uses interrupts and is not supported on Windows")
 	}
-
-	t.Parallel()
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)

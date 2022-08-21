@@ -477,7 +477,7 @@ func TestGrantSiteRoles(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 	var err error
 
 	admin := coderdtest.New(t, nil)
@@ -734,7 +734,7 @@ func TestUsersFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
@@ -1075,7 +1075,7 @@ func TestSuspendedPagination(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -1121,7 +1121,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	// This test takes longer than a long time.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)

@@ -226,6 +226,7 @@ func TestConn(t *testing.T) {
 		}()
 		go func() {
 			server := http.Server{
+				ReadHeaderTimeout: time.Minute,
 				Handler: http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 					rw.WriteHeader(200)
 				}),
