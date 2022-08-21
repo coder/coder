@@ -15,6 +15,7 @@ import (
 // the rand.Reader.
 //
 // This test replaces the global rand.Reader, so cannot be parallelized
+//
 //nolint:paralleltest
 func TestRandError(t *testing.T) {
 	var origReader = rand.Reader

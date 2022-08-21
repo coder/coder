@@ -8,17 +8,17 @@ FROM ubuntu AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GOBORING_VERSION=1.18b7
-RUN mkdir --parents /usr/local/go /usr/local/goboring
+ARG GO_VERSION=1.19
+RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN curl --silent --show-error --location \
-  "https://storage.googleapis.com/go-boringcrypto/go${GOBORING_VERSION}.linux-amd64.tar.gz" \
-  -o /usr/local/goboring.tar.gz
+  "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+  -o /usr/local/go.tar.gz
 
-RUN tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1
+RUN tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1
 
-ENV PATH=$PATH:/usr/local/goboring/bin
+ENV PATH=$PATH:/usr/local/go/bin
 
 # Install Go utilities.
 ARG GOPATH="/tmp/"
@@ -196,7 +196,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
     DIVE_VERSION=0.10.0 \
     DOCKER_GCR_VERSION=2.1.0 \
-    GOLANGCI_LINT_VERSION=1.44.2 \
+    GOLANGCI_LINT_VERSION=1.48.0 \
     GRYPE_VERSION=0.24.0 \
     HELM_VERSION=3.8.0 \
     KUBE_LINTER_VERSION=0.2.5 \
@@ -290,14 +290,13 @@ RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
 
 # We avoid copying the extracted directory since COPY slows to minutes when there
 # are a lot of small files.
-COPY --from=go /usr/local/goboring.tar.gz /usr/local/goboring.tar.gz
-RUN mkdir /usr/local/goboring && \
-    tar --extract --gzip --directory=/usr/local/goboring --file=/usr/local/goboring.tar.gz --strip-components=1
+COPY --from=go /usr/local/go.tar.gz /usr/local/go.tar.gz
+RUN mkdir /usr/local/go && \
+    tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1
 
-ENV PATH=$PATH:/usr/local/goboring/bin
+ENV PATH=$PATH:/usr/local/go/bin
 
-# Ensure goboring is made the default Go
-RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/goboring/bin/gofmt 100
+RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/gofmt 100
 
 COPY --from=go /tmp/bin /usr/local/bin
 

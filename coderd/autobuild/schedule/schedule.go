@@ -28,13 +28,14 @@ var defaultParser = cron.NewParser(parserFormat)
 // - day of week e.g. 1 (required)
 //
 // Example Usage:
-//  local_sched, _ := schedule.Weekly("59 23 *")
-//  fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
-//  // Output: 2022-04-04T23:59:00Z
 //
-//  us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
-//  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
-//  // Output: 2022-04-04T14:30:00Z
+//	local_sched, _ := schedule.Weekly("59 23 *")
+//	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
+//	// Output: 2022-04-04T23:59:00Z
+//
+//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
+//	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
+//	// Output: 2022-04-04T14:30:00Z
 func Weekly(raw string) (*Schedule, error) {
 	if err := validateWeeklySpec(raw); err != nil {
 		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
@@ -115,12 +116,12 @@ var tMax = t0.Add(168 * time.Hour)
 
 // Min returns the minimum duration of the schedule.
 // This is calculated as follows:
-//  - Let t(0) be a given point in time (1970-01-01T01:01:01Z00:00)
-//  - Let t(max) be 168 hours after t(0).
-//  - Let t(1) be the next scheduled time after t(0).
-//  - Let t(n) be the next scheduled time after t(n-1).
-//  - Then, the minimum duration of s d(min)
-//    = min( t(n) - t(n-1) ∀ n ∈ N, t(n) < t(max) )
+//   - Let t(0) be a given point in time (1970-01-01T01:01:01Z00:00)
+//   - Let t(max) be 168 hours after t(0).
+//   - Let t(1) be the next scheduled time after t(0).
+//   - Let t(n) be the next scheduled time after t(n-1).
+//   - Then, the minimum duration of s d(min)
+//     = min( t(n) - t(n-1) ∀ n ∈ N, t(n) < t(max) )
 func (s Schedule) Min() time.Duration {
 	durMin := tMax.Sub(t0)
 	tPrev := s.Next(t0)

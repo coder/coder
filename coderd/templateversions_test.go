@@ -818,7 +818,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 
 	// This test takes longer than a long time.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	// Populate database with template versions.
 	total := 9

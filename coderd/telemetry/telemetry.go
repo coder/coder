@@ -133,6 +133,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
 		return
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
 		return
@@ -261,6 +262,7 @@ func (r *remoteReporter) deployment() error {
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		return xerrors.Errorf("update deployment: %w", err)
 	}

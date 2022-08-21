@@ -112,7 +112,7 @@ func TestListRoles(t *testing.T) {
 	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 		Name: "other",

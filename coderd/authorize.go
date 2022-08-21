@@ -31,6 +31,7 @@ func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Act
 // This function will log appropriately, but the caller must return an
 // error to the api client.
 // Eg:
+//
 //	if !api.Authorize(...) {
 //		httpapi.Forbidden(rw)
 //		return

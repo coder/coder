@@ -20,14 +20,14 @@ type Notifier struct {
 }
 
 // Condition is a function that gets executed with a certain time.
-// - It should return the deadline for the notification, as well as a
-//   callback function to execute once the time to the deadline is
-//   less than one of the notify attempts. If deadline is the zero
-//   time, callback will not be executed.
-// - Callback is executed once for every time the difference between deadline
-//   and the current time is less than an element of countdown.
-// - To enforce a minimum interval between consecutive callbacks, truncate
-//   the returned deadline to the minimum interval.
+//   - It should return the deadline for the notification, as well as a
+//     callback function to execute once the time to the deadline is
+//     less than one of the notify attempts. If deadline is the zero
+//     time, callback will not be executed.
+//   - Callback is executed once for every time the difference between deadline
+//     and the current time is less than an element of countdown.
+//   - To enforce a minimum interval between consecutive callbacks, truncate
+//     the returned deadline to the minimum interval.
 type Condition func(now time.Time) (deadline time.Time, callback func())
 
 // Notify is a convenience function that initializes a new Notifier
@@ -44,8 +44,8 @@ func Notify(cond Condition, interval time.Duration, countdown ...time.Duration) 
 }
 
 // New returns a Notifier that calls cond once every time it polls.
-// - Duplicate values are removed from countdown, and it is sorted in
-//   descending order.
+//   - Duplicate values are removed from countdown, and it is sorted in
+//     descending order.
 func New(cond Condition, countdown ...time.Duration) *Notifier {
 	// Ensure countdown is sorted in descending order and contains no duplicates.
 	ct := unique(countdown)

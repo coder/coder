@@ -1,6 +1,6 @@
 module github.com/coder/coder
 
-go 1.18
+go 1.19
 
 // Required until https://github.com/manifoldco/promptui/pull/169 is merged.
 replace github.com/manifoldco/promptui => github.com/kylecarbs/promptui v0.8.1-0.20201231190244-d8f2159af2b2
