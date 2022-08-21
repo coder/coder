@@ -28,7 +28,6 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -82,7 +81,7 @@ type WebRTCDialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Lis
 
 // CoordinatorDialer is a function that constructs a new broker.
 // A dialer must be passed in to allow for reconnects.
-type CoordinatorDialer func(ctx context.Context) (*websocket.Conn, error)
+type CoordinatorDialer func(ctx context.Context) (net.Conn, error)
 
 // FetchMetadata is a function to obtain metadata for the agent.
 type FetchMetadata func(ctx context.Context) (Metadata, error)
@@ -220,7 +219,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 
 // runCoordinator listens for nodes and updates the self-node as it changes.
 func (a *agent) runCoordinator(ctx context.Context) {
-	var coordinator *websocket.Conn
+	var coordinator net.Conn
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
@@ -239,7 +238,7 @@ func (a *agent) runCoordinator(ctx context.Context) {
 		a.logger.Info(context.Background(), "connected to coordination server")
 		break
 	}
-	sendNodes, errChan := tailnet.ServeCoordinator(ctx, coordinator, a.network.UpdateNodes)
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
 	a.network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
@@ -885,9 +884,7 @@ func (a *agent) Close() error {
 	}
 	close(a.closed)
 	a.closeCancel()
-	fmt.Printf("CLOSING NETWORK!!!!\n")
 	if a.network != nil {
-		fmt.Printf("ACTUALLY CLOSING NETWORK!!!!\n")
 		_ = a.network.Close()
 	}
 	_ = a.sshServer.Close()

@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
@@ -91,7 +90,7 @@ func ssh() *cobra.Command {
 			if !wireguard {
 				conn, err = client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			} else {
-				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Make(sloghuman.Sink(cmd.ErrOrStderr())).Leveled(slog.LevelDebug), workspaceAgent.ID)
+				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
 			}
 			if err != nil {
 				return err

@@ -530,7 +530,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.ConnCoordinator.ServeAgent(r.Context(), conn, workspaceAgent.ID)
+	err = api.ConnCoordinator.ServeAgent(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -556,7 +556,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.ConnCoordinator.ServeClient(r.Context(), conn, uuid.New(), workspaceAgent.ID)
+	err = api.ConnCoordinator.ServeClient(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return

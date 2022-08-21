@@ -281,7 +281,7 @@ func (c *Client) UpdateWorkspaceAgentNode(ctx context.Context, agentID uuid.UUID
 	return nil
 }
 
-func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (*websocket.Conn, error) {
+func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
 	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -300,7 +300,10 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (*websocket.Co
 	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 	})
-	return conn, err
+	if err != nil {
+		return nil, err
+	}
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
 func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (agent.Conn, error) {
@@ -370,7 +373,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			sendNode, errChan := tailnet.ServeCoordinator(ctx, ws, func(node []*tailnet.Node) error {
+			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
 			})
 			conn.SetNodeCallback(sendNode)

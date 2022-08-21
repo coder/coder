@@ -3,10 +3,14 @@ package agent_test
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +21,11 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/derp"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
+	tslogger "tailscale.com/types/logger"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -38,6 +47,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
 
@@ -423,7 +433,14 @@ func TestAgent(t *testing.T) {
 
 	t.Run("Tailscale", func(t *testing.T) {
 		t.Parallel()
-
+		derpMap := runDERPAndStun(t, tailnet.Logger(slogtest.Make(t, nil)))
+		conn := setupSSHSession(t, agent.Metadata{
+			DERPMap: derpMap,
+		})
+		defer conn.Close()
+		output, err := conn.CombinedOutput("echo test")
+		require.NoError(t, err)
+		t.Log(string(output))
 	})
 }
 
@@ -469,6 +486,9 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
 	client, server := provisionersdk.TransportPipe()
+	tailscale := metadata.DERPMap != nil
+	coordinator := tailnet.NewCoordinator()
+	agentID := uuid.New()
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
 			return metadata, nil
@@ -477,6 +497,12 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 			listener, err := peerbroker.Listen(server, nil)
 			return listener, err
 		},
+		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
+			clientConn, serverConn := net.Pipe()
+			go coordinator.ServeAgent(serverConn, agentID)
+			return clientConn, nil
+		},
+		EnableTailnet:          tailscale,
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
@@ -488,6 +514,24 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := api.NegotiateConnection(context.Background())
 	assert.NoError(t, err)
+	if tailscale {
+		conn, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			DERPMap:   metadata.DERPMap,
+			Logger:    slogtest.Make(t, nil).Named("tailnet"),
+		})
+		require.NoError(t, err)
+
+		clientConn, serverConn := net.Pipe()
+		go coordinator.ServeClient(serverConn, uuid.New(), agentID)
+		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
+			return conn.UpdateNodes(node)
+		})
+		conn.SetNodeCallback(sendNode)
+		return &agent.TailnetConn{
+			Conn: conn,
+		}
+	}
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil),
 	})
@@ -531,4 +575,54 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
+}
+
+func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap) {
+	d := derp.NewServer(key.NewNode(), logf)
+	server := httptest.NewUnstartedServer(derphttp.Handler(d))
+	server.Config.ErrorLog = tslogger.StdLogger(logf)
+	server.Config.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+	server.StartTLS()
+
+	// stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	t.Cleanup(func() {
+		server.CloseClientConnections()
+		server.Close()
+		d.Close()
+		// stunCleanup()
+	})
+
+	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.FailNow()
+	}
+
+	return &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID:   1,
+				RegionCode: "test",
+				RegionName: "Testlandia",
+				Nodes: []*tailcfg.DERPNode{
+					{
+						Name:     "t1",
+						RegionID: 1,
+						HostName: "stun.l.google.com",
+						DERPPort: -1,
+						STUNPort: 19302,
+						STUNOnly: true,
+					},
+					{
+						Name:             "t2",
+						RegionID:         1,
+						IPv4:             "127.0.0.1",
+						IPv6:             "none",
+						STUNPort:         -1,
+						DERPPort:         tcpAddr.Port,
+						InsecureForTests: true,
+					},
+				},
+			},
+		},
+	}
 }
