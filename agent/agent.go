@@ -212,7 +212,12 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				return
 			}
-			go a.handleReconnectingPTY(ctx, "tailnet", conn)
+			var msg reconnectingPTYInit
+			err = json.NewDecoder(conn).Decode(&msg)
+			if err != nil {
+				continue
+			}
+			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}()
 }
@@ -354,7 +359,38 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 		case ProtocolSSH:
 			go a.sshServer.HandleConn(channel.NetConn())
 		case ProtocolReconnectingPTY:
-			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
+			rawID := channel.Label()
+			// The ID format is referenced in conn.go.
+			// <uuid>:<height>:<width>
+			idParts := strings.SplitN(rawID, ":", 4)
+			if len(idParts) != 4 {
+				a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
+				continue
+			}
+			id := idParts[0]
+			// Enforce a consistent format for IDs.
+			_, err := uuid.Parse(id)
+			if err != nil {
+				a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
+				continue
+			}
+			// Parse the initial terminal dimensions.
+			height, err := strconv.Atoi(idParts[1])
+			if err != nil {
+				a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
+				continue
+			}
+			width, err := strconv.Atoi(idParts[2])
+			if err != nil {
+				a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
+				continue
+			}
+			go a.handleReconnectingPTY(ctx, reconnectingPTYInit{
+				ID:      id,
+				Height:  uint16(height),
+				Width:   uint16(width),
+				Command: idParts[3],
+			}, channel.NetConn())
 		case ProtocolDial:
 			go a.handleDial(ctx, channel.Label(), channel.NetConn())
 		default:
@@ -610,45 +646,19 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn net.Conn) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
-	// The ID format is referenced in conn.go.
-	// <uuid>:<height>:<width>
-	idParts := strings.SplitN(rawID, ":", 4)
-	if len(idParts) != 4 {
-		a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-		return
-	}
-	id := idParts[0]
-	// Enforce a consistent format for IDs.
-	_, err := uuid.Parse(id)
-	if err != nil {
-		a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-		return
-	}
-	// Parse the initial terminal dimensions.
-	height, err := strconv.Atoi(idParts[1])
-	if err != nil {
-		a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-		return
-	}
-	width, err := strconv.Atoi(idParts[2])
-	if err != nil {
-		a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-		return
-	}
-
 	var rpty *reconnectingPTY
-	rawRPTY, ok := a.reconnectingPTYs.Load(id)
+	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
 		rpty, ok = rawRPTY.(*reconnectingPTY)
 		if !ok {
-			a.logger.Warn(ctx, "found invalid type in reconnecting pty map", slog.F("id", id))
+			a.logger.Warn(ctx, "found invalid type in reconnecting pty map", slog.F("id", msg.ID))
 		}
 	} else {
 		// Empty command will default to the users shell!
-		cmd, err := a.createCommand(ctx, idParts[3], nil)
+		cmd, err := a.createCommand(ctx, msg.Command, nil)
 		if err != nil {
 			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
 			return
@@ -657,7 +667,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", id))
+			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
 		}
 
 		// Default to buffer 64KiB.
@@ -678,7 +688,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
 			circularBuffer: circularBuffer,
 		}
-		a.reconnectingPTYs.Store(id, rpty)
+		a.reconnectingPTYs.Store(msg.ID, rpty)
 		go func() {
 			// CommandContext isn't respected for Windows PTYs right now,
 			// so we need to manually track the lifecycle.
@@ -707,7 +717,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 				_, err = rpty.circularBuffer.Write(part)
 				rpty.circularBufferMutex.Unlock()
 				if err != nil {
-					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
+					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", msg.ID))
 					break
 				}
 				rpty.activeConnsMutex.Lock()
@@ -721,22 +731,22 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			// ID from memory.
 			_ = process.Kill()
 			rpty.Close()
-			a.reconnectingPTYs.Delete(id)
+			a.reconnectingPTYs.Delete(msg.ID)
 			a.connCloseWait.Done()
 		}()
 	}
 	// Resize the PTY to initial height + width.
-	err = rpty.ptty.Resize(uint16(height), uint16(width))
+	err := rpty.ptty.Resize(uint16(msg.Height), uint16(msg.Width))
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
 	_, err = conn.Write(rpty.circularBuffer.Bytes())
 	rpty.circularBufferMutex.RUnlock()
 	if err != nil {
-		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
+		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
 		return
 	}
 	connectionID := uuid.NewString()
@@ -782,12 +792,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			return
 		}
 		if err != nil {
-			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", id), slog.Error(err))
+			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 		_, err = rpty.ptty.Input().Write([]byte(req.Data))
 		if err != nil {
-			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", id), slog.Error(err))
+			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 		// Check if a resize needs to happen!
@@ -797,7 +807,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 		}
 	}
 }

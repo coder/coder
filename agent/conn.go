@@ -146,6 +146,13 @@ func (c *TailnetConn) CloseWithError(err error) error {
 	return c.Close()
 }
 
+type reconnectingPTYInit struct {
+	ID      string
+	Height  uint16
+	Width   uint16
+	Command string
+}
+
 func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
 	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetReconnectingPTYPort)))
 }

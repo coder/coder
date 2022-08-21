@@ -119,7 +119,7 @@ func New(options *Options) *API {
 		Handler:     r,
 		siteHandler: site.Handler(site.FS(), binFS),
 	}
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,

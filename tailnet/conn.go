@@ -3,8 +3,10 @@ package tailnet
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -418,7 +420,7 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
 	c.mutex.Unlock()
 	if !ok {
-		_ = conn.Close()
+		c.forwardTCPToLocal(conn, port)
 		return
 	}
 	t := time.NewTimer(time.Second)
@@ -428,6 +430,36 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	case <-t.C:
 		_ = conn.Close()
 	}
+}
+
+func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer conn.Close()
+
+	dialAddrStr := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
+	var stdDialer net.Dialer
+	server, err := stdDialer.DialContext(ctx, "tcp", dialAddrStr)
+	if err != nil {
+		c.logger.Debug(ctx, "dial local port", slog.F("port", port), slog.Error(err))
+		return
+	}
+	defer server.Close()
+
+	connClosed := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(server, conn)
+		connClosed <- err
+	}()
+	go func() {
+		_, err := io.Copy(conn, server)
+		connClosed <- err
+	}()
+	err = <-connClosed
+	if err != nil {
+		c.logger.Debug(ctx, "proxy connection closed with error", slog.Error(err))
+	}
+	c.logger.Debug(ctx, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
 }
 
 type listenKey struct {

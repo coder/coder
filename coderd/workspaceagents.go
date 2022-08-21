@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -433,6 +434,38 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wsNetConn, ptNetConn)
 	}()
 	_, _ = io.Copy(ptNetConn, wsNetConn)
+}
+
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
+	clientConn, serverConn := net.Pipe()
+	go func() {
+		<-r.Context().Done()
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+	}()
+
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   api.DERPMap,
+		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create tailnet conn: %w", err)
+	}
+
+	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
+		return conn.UpdateNodes(node)
+	})
+	conn.SetNodeCallback(sendNodes)
+	go func() {
+		err := api.ConnCoordinator.ServeClient(serverConn, uuid.New(), agentID)
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+	return &agent.TailnetConn{
+		Conn: conn,
+	}, nil
 }
 
 // dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
