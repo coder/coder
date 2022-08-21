@@ -38,7 +38,10 @@ func userList() *cobra.Command {
 			out := ""
 			switch outputFormat {
 			case "table", "":
-				out = displayUsers(columns, users...)
+				out, err = cliui.DisplayTable(users, "Username", columns)
+				if err != nil {
+					return xerrors.Errorf("render table: %w", err)
+				}
 			case "json":
 				outBytes, err := json.Marshal(users)
 				if err != nil {
@@ -108,13 +111,13 @@ func userSingle() *cobra.Command {
 }
 
 func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client, user codersdk.User) string {
-	tableWriter := cliui.Table()
+	tw := cliui.Table()
 	addRow := func(name string, value interface{}) {
 		key := ""
 		if name != "" {
 			key = name + ":"
 		}
-		tableWriter.AppendRow(table.Row{
+		tw.AppendRow(table.Row{
 			key, value,
 		})
 	}
@@ -167,5 +170,5 @@ func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client,
 		addRow("Organizations", "(none)")
 	}
 
-	return tableWriter.Render()
+	return tw.Render()
 }

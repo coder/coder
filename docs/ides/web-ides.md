@@ -80,28 +80,6 @@ resource "coder_app" "code-server" {
 If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
 </blockquote>
 
-## VNC Desktop
-
-![VNC Desktop in Coder](../images/vnc-desktop.png)
-
-You may want a full desktop environment to develop with/preview specialized software.
-
-Workspace requirements:
-
-- VNC server (e.g. [tigervnc](https://tigervnc.org/))
-- VNC client (e.g. [novnc](https://novnc.com/info.html))
-
-Installation instructions will vary depending on your workspace's operating system, platform, and build system.
-
-> Coder-provided VNC clients are on the roadmap ([#2106](https://github.com/coder/coder/issues/2106)).
-
-As a starting point, see the [desktop-container](https://github.com/bpmct/coder-templates/tree/main/desktop-container) community template. It builds & provisions a Dockerized workspace with the following software:
-
-- Ubuntu 20.04
-- TigerVNC server
-- noVNC client
-- XFCE Desktop
-
 ## JetBrains Projector
 
 [JetBrains Projector](https://jetbrains.github.io/projector-client/mkdocs/latest/) is a JetBrains Incubator project which renders JetBrains IDEs in the web browser.

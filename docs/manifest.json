@@ -102,6 +102,11 @@
           "title": "Emacs",
           "description": "Learn how to configure Emacs with TRAMP in Coder",
           "path": "./ides/emacs-tramp.md"
+        },
+        {
+          "title": "Remote Desktops",
+          "description": "Learn how to use Remote Desktops with Coder",
+          "path": "./ides/remote-desktops.md"
         }
       ]
     },

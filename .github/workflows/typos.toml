@@ -9,6 +9,7 @@ MacOS = "macOS"
 [files]
 extend-exclude = [
     "**.svg",
+    "**.png",
     "**.lock",
     "go.sum",
     "go.mod",

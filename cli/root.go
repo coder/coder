@@ -134,6 +134,7 @@ func Root() *cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
+		features(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())

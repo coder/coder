@@ -13,11 +13,6 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-const (
-	oauth2StateCookieName    = "oauth_state"
-	oauth2RedirectCookieName = "oauth_redirect"
-)
-
 type oauth2StateKey struct{}
 
 type OAuth2State struct {
@@ -71,7 +66,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 				}
 
 				http.SetCookie(rw, &http.Cookie{
-					Name:     oauth2StateCookieName,
+					Name:     codersdk.OAuth2StateKey,
 					Value:    state,
 					Path:     "/",
 					HttpOnly: true,
@@ -80,7 +75,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 				// Redirect must always be specified, otherwise
 				// an old redirect could apply!
 				http.SetCookie(rw, &http.Cookie{
-					Name:     oauth2RedirectCookieName,
+					Name:     codersdk.OAuth2RedirectKey,
 					Value:    r.URL.Query().Get("redirect"),
 					Path:     "/",
 					HttpOnly: true,
@@ -98,10 +93,10 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			stateCookie, err := r.Cookie(oauth2StateCookieName)
+			stateCookie, err := r.Cookie(codersdk.OAuth2StateKey)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q must be provided.", oauth2StateCookieName),
+					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.OAuth2StateKey),
 				})
 				return
 			}
@@ -113,7 +108,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 			}
 
 			var redirect string
-			stateRedirect, err := r.Cookie(oauth2RedirectCookieName)
+			stateRedirect, err := r.Cookie(codersdk.OAuth2RedirectKey)
 			if err == nil {
 				redirect = stateRedirect.Value
 			}

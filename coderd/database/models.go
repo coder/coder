@@ -312,20 +312,16 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID                string      `db:"id" json:"id"`
-	HashedSecret      []byte      `db:"hashed_secret" json:"hashed_secret"`
-	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed          time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt         time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt         time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType         LoginType   `db:"login_type" json:"login_type"`
-	OAuthAccessToken  string      `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string      `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthIDToken      string      `db:"oauth_id_token" json:"oauth_id_token"`
-	OAuthExpiry       time.Time   `db:"oauth_expiry" json:"oauth_expiry"`
-	LifetimeSeconds   int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	IPAddress         pqtype.Inet `db:"ip_address" json:"ip_address"`
+	ID              string      `db:"id" json:"id"`
+	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
+	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
+	LastUsed        time.Time   `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType   `db:"login_type" json:"login_type"`
+	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
+	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
 }
 
 type AuditLog struct {
@@ -467,6 +463,7 @@ type Template struct {
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                 string          `db:"icon" json:"icon"`
 }
 
 type TemplateVersion struct {
@@ -490,6 +487,16 @@ type User struct {
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 	Status         UserStatus `db:"status" json:"status"`
 	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType  `db:"login_type" json:"login_type"`
+}
+
+type UserLink struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType         LoginType `db:"login_type" json:"login_type"`
+	LinkedID          string    `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 type Workspace struct {

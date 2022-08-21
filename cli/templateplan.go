@@ -8,7 +8,7 @@ func templatePlan() *cobra.Command {
 	return &cobra.Command{
 		Use:   "plan <directory>",
 		Args:  cobra.MinimumNArgs(1),
-		Short: "Plan a template update from the current directory",
+		Short: "Plan a template push from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},

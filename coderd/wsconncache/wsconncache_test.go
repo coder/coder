@@ -94,6 +94,7 @@ func TestCache(t *testing.T) {
 		require.True(t, valid)
 
 		server := &http.Server{
+			ReadHeaderTimeout: time.Minute,
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}),
@@ -131,8 +132,9 @@ func TestCache(t *testing.T) {
 				proxy.Transport = conn.HTTPTransport()
 				res := httptest.NewRecorder()
 				proxy.ServeHTTP(res, req)
-				res.Result().Body.Close()
-				assert.Equal(t, http.StatusOK, res.Result().StatusCode)
+				resp := res.Result()
+				defer resp.Body.Close()
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
 			}()
 		}
 		wg.Wait()

@@ -297,7 +297,7 @@ practices:
 
 We recommend source controlling your templates as you would other code.
 
-CI is as simple as running `coder templates update` with the appropriate
+CI is as simple as running `coder templates push` with the appropriate
 credentials.
 
 ---

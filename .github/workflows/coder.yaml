@@ -52,6 +52,7 @@ jobs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       sh: ${{ steps.filter.outputs.sh }}
       ts: ${{ steps.filter.outputs.ts }}
+      k8s: ${{ steps.filter.outputs.k8s }}
     steps:
       - uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
@@ -69,6 +70,10 @@ jobs:
               - "**.sh"
             ts:
               - 'site/**'
+            k8s:
+              - 'helm/**'
+              - Dockerfile
+              - scripts/helm.sh
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
@@ -95,7 +100,16 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3.2.0
         with:
-          version: v1.46.0
+          version: v1.48.0
+
+  check-enterprise-imports:
+    name: check/enterprise-imports
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check imports of enterprise code
+        run: ./scripts/check_enterprise_imports.sh
 
   style-lint-shellcheck:
     name: style/lint/shellcheck
@@ -135,6 +149,26 @@ jobs:
       - name: "yarn lint"
         run: yarn lint
         working-directory: site
+
+  style-lint-k8s:
+    name: "style/lint/k8s"
+    timeout-minutes: 5
+    needs: changes
+    if: needs.changes.outputs.k8s == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.9.2
+
+      - name: cd helm && make lint
+        run: |
+          cd helm
+          make lint
 
   gen:
     name: "style/gen"
@@ -185,14 +219,21 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - run: |
+      - name: Install sqlc
+        run: |
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+      - name: Install protoc-gen-go-drpc
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
 
-      - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
-      - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
-      - run: go install golang.org/x/tools/cmd/goimports@latest
-      - run: "make --output-sync -j -B gen"
-      - run: ./scripts/check_unstaged.sh
+      - name: make gen
+        run: "make --output-sync -j -B gen"
+
+      - name: Check for unstaged files
+        run: ./scripts/check_unstaged.sh
 
   style-fmt:
     name: "style/fmt"
@@ -222,7 +263,8 @@ jobs:
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
 
-      - run: |
+      - name: make fmt
+        run: |
           export PATH=${PATH}:$(go env GOPATH)/bin
           make --output-sync -j -B fmt
 

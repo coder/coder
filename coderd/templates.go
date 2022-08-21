@@ -409,19 +409,29 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			count = uint32(workspaceCounts[0].Count)
 		}
 
-		if req.Description == template.Description &&
+		if req.Name == template.Name &&
+			req.Description == template.Description &&
+			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
 			return nil
 		}
 
 		// Update template metadata -- empty fields are not overwritten.
+		name := req.Name
 		desc := req.Description
+		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
 
+		if name == "" {
+			name = template.Name
+		}
 		if desc == "" {
 			desc = template.Description
+		}
+		if icon == "" {
+			icon = template.Icon
 		}
 		if maxTTL == 0 {
 			maxTTL = time.Duration(template.MaxTtl)
@@ -433,7 +443,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if err := s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
+			Name:                 name,
 			Description:          desc,
+			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
 		}); err != nil {
@@ -513,6 +525,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32, cre
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,
 		Description:                template.Description,
+		Icon:                       template.Icon,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
 		CreatedByID:                template.CreatedBy,

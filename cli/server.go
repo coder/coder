@@ -135,6 +135,19 @@ func server() *cobra.Command {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
+			// Register signals early on so that graceful shutdown can't
+			// be interrupted by additional signals. Note that we avoid
+			// shadowing cancel() (from above) here because notifyStop()
+			// restores default behavior for the signals. This protects
+			// the shutdown sequence from abrubtly terminating things
+			// like: database migrations, provisioner work, workspace
+			// cleanup in dev-mode, etc.
+			//
+			// To get out of a graceful shutdown, the user can send
+			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
+			notifyCtx, notifyStop := signal.NotifyContext(ctx, interruptSignals...)
+			defer notifyStop()
+
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
 			// which is caught by goleaks.
@@ -532,8 +545,9 @@ func server() *cobra.Command {
 			server := &http.Server{
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.Handler,
+				ErrorLog:          log.New(io.Discard, "", 0),
+				Handler:           coderAPI.Handler,
+				ReadHeaderTimeout: time.Minute,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -591,22 +605,13 @@ func server() *cobra.Command {
 			// such as via the systemd service.
 			_ = config.URL().Write(client.URL.String())
 
-			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
-			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
-			// two or more times.  So the stopChan is unlimited in size and we don't call
-			// signal.Stop() until graceful shutdown finished--this means we swallow additional
-			// SIGINT after the first.  To get out of a graceful shutdown, the user can send SIGQUIT
-			// with ctrl+\ or SIGTERM with `kill`.
-			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-			defer stop()
-
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-ctx.Done():
-				exitErr = ctx.Err()
+			case <-notifyCtx.Done():
+				exitErr = notifyCtx.Err()
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
@@ -1157,7 +1162,11 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
-	srv := &http.Server{Addr: addr, Handler: handler}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Minute,
+	}
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {

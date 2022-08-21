@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -132,6 +133,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		r.options.Logger.Debug(r.ctx, "submit", slog.Error(err))
 		return
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
 		return
@@ -230,6 +232,7 @@ func (r *remoteReporter) deployment() error {
 		Architecture:    sysInfo.Architecture,
 		BuiltinPostgres: r.options.BuiltinPostgres,
 		Containerized:   containerized,
+		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
 		GitHubOAuth:     r.options.GitHubOAuth,
 		OIDCAuth:        r.options.OIDCAuth,
 		OIDCIssuerURL:   r.options.OIDCIssuerURL,
@@ -259,6 +262,7 @@ func (r *remoteReporter) deployment() error {
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		return xerrors.Errorf("update deployment: %w", err)
 	}
@@ -423,6 +427,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		workspaceMetadata, err := r.options.Database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get workspace resource metadata: %w", err)
+		}
+		snapshot.WorkspaceResourceMetadata = make([]WorkspaceResourceMetadata, 0, len(workspaceMetadata))
+		for _, metadata := range workspaceMetadata {
+			snapshot.WorkspaceResourceMetadata = append(snapshot.WorkspaceResourceMetadata, ConvertWorkspaceResourceMetadata(metadata))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -531,6 +546,15 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 	}
 }
 
+// ConvertWorkspaceResourceMetadata anonymizes workspace metadata.
+func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadatum) WorkspaceResourceMetadata {
+	return WorkspaceResourceMetadata{
+		ResourceID: metadata.WorkspaceResourceID,
+		Key:        metadata.Key,
+		Sensitive:  metadata.Sensitive,
+	}
+}
+
 // ConvertUser anonymizes a user.
 func ConvertUser(dbUser database.User) User {
 	emailHashed := ""
@@ -584,17 +608,18 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
-	APIKeys            []APIKey            `json:"api_keys"`
-	ParameterSchemas   []ParameterSchema   `json:"parameter_schemas"`
-	ProvisionerJobs    []ProvisionerJob    `json:"provisioner_jobs"`
-	Templates          []Template          `json:"templates"`
-	TemplateVersions   []TemplateVersion   `json:"template_versions"`
-	Users              []User              `json:"users"`
-	Workspaces         []Workspace         `json:"workspaces"`
-	WorkspaceApps      []WorkspaceApp      `json:"workspace_apps"`
-	WorkspaceAgents    []WorkspaceAgent    `json:"workspace_agents"`
-	WorkspaceBuilds    []WorkspaceBuild    `json:"workspace_build"`
-	WorkspaceResources []WorkspaceResource `json:"workspace_resources"`
+	APIKeys                   []APIKey                    `json:"api_keys"`
+	ParameterSchemas          []ParameterSchema           `json:"parameter_schemas"`
+	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
+	Templates                 []Template                  `json:"templates"`
+	TemplateVersions          []TemplateVersion           `json:"template_versions"`
+	Users                     []User                      `json:"users"`
+	Workspaces                []Workspace                 `json:"workspaces"`
+	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
+	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
+	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
+	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
+	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -603,6 +628,7 @@ type Deployment struct {
 	Architecture    string     `json:"architecture"`
 	BuiltinPostgres bool       `json:"builtin_postgres"`
 	Containerized   bool       `json:"containerized"`
+	Kubernetes      bool       `json:"kubernetes"`
 	Tunnel          bool       `json:"tunnel"`
 	GitHubOAuth     bool       `json:"github_oauth"`
 	OIDCAuth        bool       `json:"oidc_auth"`
@@ -645,6 +671,12 @@ type WorkspaceResource struct {
 	JobID      uuid.UUID                    `json:"job_id"`
 	Transition database.WorkspaceTransition `json:"transition"`
 	Type       string                       `json:"type"`
+}
+
+type WorkspaceResourceMetadata struct {
+	ResourceID uuid.UUID `json:"resource_id"`
+	Key        string    `json:"key"`
+	Sensitive  bool      `json:"sensitive"`
 }
 
 type WorkspaceAgent struct {

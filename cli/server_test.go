@@ -39,7 +39,7 @@ import (
 )
 
 // This cannot be ran in parallel because it uses a signal.
-// nolint:paralleltest
+// nolint:tparallel,paralleltest
 func TestServer(t *testing.T) {
 	t.Run("Production", func(t *testing.T) {
 		if runtime.GOOS != "linux" || testing.Short() {
@@ -410,6 +410,7 @@ func TestServer(t *testing.T) {
 		require.Eventually(t, func() bool {
 			req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randomPort), nil)
 			assert.NoError(t, err)
+			// nolint:bodyclose
 			res, err = http.DefaultClient.Do(req)
 			return err == nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -461,7 +462,9 @@ func TestServer(t *testing.T) {
 		}
 		githubURL, err := accessURL.Parse("/api/v2/users/oauth2/github")
 		require.NoError(t, err)
-		res, err := client.HTTPClient.Get(githubURL.String())
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubURL.String(), nil)
+		require.NoError(t, err)
+		res, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		fakeURL, err := res.Location()

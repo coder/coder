@@ -1,11 +1,7 @@
 import { Story } from "@storybook/react"
+import { WorkspaceStateEnum } from "util/workspace"
 import { DeleteButton, StartButton, StopButton } from "../ActionCtas"
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  WorkspaceStateActions,
-  WorkspaceStateEnum,
-} from "../constants"
+import { ButtonMapping, ButtonTypesEnum, WorkspaceStateActions } from "../constants"
 import { DropdownContent, DropdownContentProps } from "./DropdownContent"
 
 // These are the stories for the secondary actions (housed in the dropdown)

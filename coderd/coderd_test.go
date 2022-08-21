@@ -246,6 +246,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
+		"GET:/api/v2/entitlements":      {NoAuthorize: true},
 
 		"GET:/%40{user}/{workspacename}/apps/{application}/*": {
 			AssertAction: rbac.ActionRead,

@@ -53,11 +53,11 @@ func TestSearchUsers(t *testing.T) {
 		},
 		{
 			Name:  "OnlyParams",
-			Query: "status:acTIve sEArch:User-Name role:Admin",
+			Query: "status:acTIve sEArch:User-Name role:Owner",
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleAdmin()},
+				RbacRole: []string{rbac.RoleOwner()},
 			},
 		},
 		{
@@ -71,11 +71,11 @@ func TestSearchUsers(t *testing.T) {
 		},
 		{
 			Name:  "QuotedKey",
-			Query: `"status":acTIve "sEArch":User-Name "role":Admin`,
+			Query: `"status":acTIve "sEArch":User-Name "role":Owner`,
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleAdmin()},
+				RbacRole: []string{rbac.RoleOwner()},
 			},
 		},
 		{

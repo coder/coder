@@ -1,10 +1,29 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
+import duration from "dayjs/plugin/duration"
+import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
+dayjs.extend(duration)
 dayjs.extend(utc)
+dayjs.extend(minMax)
+
+// all the possible states returned by the API
+export enum WorkspaceStateEnum {
+  starting = "Starting",
+  started = "Started",
+  stopping = "Stopping",
+  stopped = "Stopped",
+  canceling = "Canceling",
+  canceled = "Canceled",
+  deleting = "Deleting",
+  deleted = "Deleted",
+  queued = "Queued",
+  error = "Error",
+  loading = "Loading",
+}
 
 export type WorkspaceStatus =
   | "queued"

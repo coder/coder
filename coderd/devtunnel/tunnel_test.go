@@ -52,6 +52,7 @@ func TestTunnel(t *testing.T) {
 	defer cancelTun()
 
 	server := http.Server{
+		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Log("got request for", r.URL)
 			// Going to use something _slightly_ exotic so that we can't accidentally get some
@@ -229,5 +230,9 @@ func (f *fakeTunnelServer) requestHTTP() (*http.Response, error) {
 		Transport: transport,
 		Timeout:   testutil.WaitLong,
 	}
-	return client.Get(fmt.Sprintf("http://[%s]:8090", clientIP))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, fmt.Sprintf("http://[%s]:8090", clientIP), nil)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(req)
 }

@@ -136,12 +136,28 @@ export const workspaceMachine = createMachine(
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
-            target: "gettingPermissions",
+            target: "refreshingTemplate",
             actions: ["assignWorkspace"],
           },
           onError: {
             target: "error",
             actions: "assignGetWorkspaceError",
+          },
+        },
+        tags: "loading",
+      },
+      refreshingTemplate: {
+        entry: ["clearRefreshTemplateError"],
+        invoke: {
+          id: "refreshTemplate",
+          src: "getTemplate",
+          onDone: {
+            target: "gettingPermissions",
+            actions: ["assignTemplate"],
+          },
+          onError: {
+            target: "error",
+            actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
           },
         },
         tags: "loading",

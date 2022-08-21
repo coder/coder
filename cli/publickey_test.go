@@ -13,6 +13,7 @@ import (
 func TestPublicKey(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		cmd, root := clitest.New(t, "publickey")

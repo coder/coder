@@ -24,6 +24,11 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/roles.go
+export interface AssignableRoles extends Role {
+  readonly assignable: boolean
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
@@ -82,6 +87,7 @@ export interface CreateParameterRequest {
 export interface CreateTemplateRequest {
   readonly name: string
   readonly description?: string
+  readonly icon?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly max_ttl_ms?: number
@@ -127,6 +133,21 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/features.go
+export interface Entitlements {
+  readonly features: Record<string, Feature>
+  readonly warnings: string[]
+  readonly has_license: boolean
+}
+
+// From codersdk/features.go
+export interface Feature {
+  readonly entitlement: Entitlement
+  readonly enabled: boolean
+  readonly limit?: number
+  readonly actual?: number
 }
 
 // From codersdk/users.go
@@ -185,13 +206,13 @@ export interface Pagination {
 // From codersdk/parameters.go
 export interface Parameter {
   readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
   readonly scope: ParameterScope
   readonly scope_id: string
   readonly name: string
   readonly source_scheme: ParameterSourceScheme
   readonly destination_scheme: ParameterDestinationScheme
+  readonly created_at: string
+  readonly updated_at: string
 }
 
 // From codersdk/parameters.go
@@ -275,6 +296,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly icon: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
@@ -312,7 +334,9 @@ export interface UpdateRoles {
 
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
+  readonly name?: string
   readonly description?: string
+  readonly icon?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
 }
@@ -346,9 +370,9 @@ export interface UploadResponse {
 // From codersdk/users.go
 export interface User {
   readonly id: string
+  readonly username: string
   readonly email: string
   readonly created_at: string
-  readonly username: string
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
@@ -530,6 +554,9 @@ export interface WorkspaceResourceMetadata {
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
+// From codersdk/features.go
+export type Entitlement = "entitled" | "grace_period" | "not_entitled"
+
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 
@@ -537,7 +564,7 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go
-export type LoginType = "github" | "password"
+export type LoginType = "github" | "oidc" | "password"
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
