@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -23,10 +23,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
-	"github.com/coder/coder/peerbroker/proto"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/tailnet/tailnettest"
 )
 
 func TestMain(m *testing.M) {
@@ -41,7 +39,9 @@ func TestCache(t *testing.T) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, 0)
 		defer func() {
+			fmt.Printf("Closing cache...\n")
 			_ = cache.Close()
+			fmt.Printf("Closed cache...\n")
 		}()
 		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
@@ -140,39 +140,47 @@ func TestCache(t *testing.T) {
 }
 
 func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
-	client, server := provisionersdk.TransportPipe()
+	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
+
+	coordinator := tailnet.NewCoordinator()
+	agentID := uuid.New()
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
 			return metadata, nil
 		},
-		WebRTCDialer: func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
-			return peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
-				return nil, &peer.ConnOptions{
-					Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
-				}, nil
+		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
+			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() {
+				_ = serverConn.Close()
+				_ = clientConn.Close()
 			})
+			go coordinator.ServeAgent(serverConn, agentID)
+			return clientConn, nil
 		},
-		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
 		_ = closer.Close()
 	})
-	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := api.NegotiateConnection(context.Background())
-	assert.NoError(t, err)
-	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   metadata.DERPMap,
+		Logger:    slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
+	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
 		_ = conn.Close()
 	})
-
-	return &agent.WebRTCConn{
-		Negotiator: api,
-		Conn:       conn,
+	go coordinator.ServeClient(serverConn, uuid.New(), agentID)
+	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
+		return conn.UpdateNodes(node)
+	})
+	conn.SetNodeCallback(sendNode)
+	return &agent.TailnetConn{
+		Conn: conn,
 	}
 }

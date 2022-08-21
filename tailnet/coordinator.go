@@ -13,7 +13,7 @@ import (
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
 func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
-	errChan := make(chan error, 1)
+	errChan := make(chan error, 3)
 	go func() {
 		decoder := json.NewDecoder(conn)
 		for {

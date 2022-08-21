@@ -237,6 +237,7 @@ type Conn struct {
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
 
+	lastMutex sync.Mutex
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
 	lastEndpoints     []string
@@ -261,10 +262,10 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		}
 	}
 	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
+		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
+		c.lastMutex.Unlock()
 		callback(makeNode())
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
@@ -272,9 +273,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		for _, addr := range s.LocalAddrs {
 			endpoints = append(endpoints, addr.Addr.String())
 		}
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
+		c.lastMutex.Lock()
 		c.lastEndpoints = endpoints
+		c.lastMutex.Unlock()
 		callback(makeNode())
 	})
 }

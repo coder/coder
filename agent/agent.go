@@ -165,13 +165,20 @@ func (a *agent) run(ctx context.Context) {
 		}
 	}()
 
-	go a.runWebRTCNetworking(ctx)
+	if a.webrtcDialer != nil {
+		go a.runWebRTCNetworking(ctx)
+	}
 	if metadata.DERPMap != nil {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 }
 
 func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
+		return
+	}
 	if a.network != nil {
 		return
 	}

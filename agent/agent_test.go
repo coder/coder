@@ -3,13 +3,10 @@ package agent_test
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -21,13 +18,6 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-	"tailscale.com/derp"
-	"tailscale.com/derp/derphttp"
-	"tailscale.com/net/stun/stuntest"
-	"tailscale.com/tailcfg"
-	"tailscale.com/types/key"
-	tslogger "tailscale.com/types/logger"
-	"tailscale.com/types/nettype"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -50,6 +40,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/tailnet/tailnettest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -435,7 +426,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("Tailnet", func(t *testing.T) {
 		t.Parallel()
-		derpMap := runDERPAndStun(t, tailnet.Logger(slogtest.Make(t, nil)))
+		derpMap := tailnettest.RunDERPAndSTUN(t)
 		conn := setupSSHSession(t, agent.Metadata{
 			DERPMap: derpMap,
 		})
@@ -587,46 +578,4 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
-}
-
-func runDERPAndStun(t *testing.T, logf tslogger.Logf) (derpMap *tailcfg.DERPMap) {
-	d := derp.NewServer(key.NewNode(), logf)
-	server := httptest.NewUnstartedServer(derphttp.Handler(d))
-	server.Config.ErrorLog = tslogger.StdLogger(logf)
-	server.Config.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
-	server.StartTLS()
-
-	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	t.Cleanup(func() {
-		server.CloseClientConnections()
-		server.Close()
-		d.Close()
-		stunCleanup()
-	})
-
-	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)
-	if !ok {
-		t.FailNow()
-	}
-
-	return &tailcfg.DERPMap{
-		Regions: map[int]*tailcfg.DERPRegion{
-			1: {
-				RegionID:   1,
-				RegionCode: "test",
-				RegionName: "Testlandia",
-				Nodes: []*tailcfg.DERPNode{
-					{
-						Name:             "t2",
-						RegionID:         1,
-						IPv4:             "127.0.0.1",
-						IPv6:             "none",
-						STUNPort:         stunAddr.Port,
-						DERPPort:         tcpAddr.Port,
-						InsecureForTests: true,
-					},
-				},
-			},
-		},
-	}
 }

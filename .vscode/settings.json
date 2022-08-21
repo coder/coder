@@ -90,6 +90,7 @@
     "tailcfg",
     "tailexchange",
     "tailnet",
+    "tailnettest",
     "Tailscale",
     "TCGETS",
     "tcpip",
