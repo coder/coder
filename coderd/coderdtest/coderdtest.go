@@ -217,12 +217,6 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 						STUNPort:         -1,
 						InsecureForTests: true,
 						HTTPForTests:     true,
-					}, {
-						Name:     "1b",
-						RegionID: 1,
-						STUNOnly: true,
-						HostName: "stun.l.google.com",
-						STUNPort: 19302,
 					}},
 				},
 			},
