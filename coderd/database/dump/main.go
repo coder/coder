@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
@@ -17,6 +19,16 @@ func main() {
 		panic(err)
 	}
 	defer closeFn()
+
+	db, err := sql.Open("postgres", connection)
+	if err != nil {
+		panic(err)
+	}
+
+	err = database.MigrateUp(db)
+	if err != nil {
+		panic(err)
+	}
 
 	cmd := exec.Command(
 		"docker",
