@@ -433,7 +433,7 @@ func TestAgent(t *testing.T) {
 		require.Nil(t, netConn)
 	})
 
-	t.Run("Tailscale", func(t *testing.T) {
+	t.Run("Tailnet", func(t *testing.T) {
 		t.Parallel()
 		derpMap := runDERPAndStun(t, tailnet.Logger(slogtest.Make(t, nil)))
 		conn := setupSSHSession(t, agent.Metadata{
@@ -481,6 +481,9 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 	sshClient, err := setupAgent(t, options, 0).SSHClient()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sshClient.Close()
+	})
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	return session
@@ -501,10 +504,13 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		},
 		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
 			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() {
+				_ = serverConn.Close()
+				_ = clientConn.Close()
+			})
 			go coordinator.ServeAgent(serverConn, agentID)
 			return clientConn, nil
 		},
-		EnableTailnet:          tailscale,
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
@@ -523,8 +529,12 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 			Logger:    slogtest.Make(t, nil).Named("tailnet"),
 		})
 		require.NoError(t, err)
-
 		clientConn, serverConn := net.Pipe()
+		t.Cleanup(func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+			_ = conn.Close()
+		})
 		go coordinator.ServeClient(serverConn, uuid.New(), agentID)
 		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 			return conn.UpdateNodes(node)

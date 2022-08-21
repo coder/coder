@@ -37,10 +37,6 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 			return
 		}
 		_, err = conn.Write(data)
-		if errors.Is(err, io.EOF) {
-			errChan <- nil
-			return
-		}
 		if err != nil {
 			errChan <- xerrors.Errorf("write: %w", err)
 		}

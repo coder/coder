@@ -60,7 +60,6 @@ var (
 )
 
 type Options struct {
-	EnableTailnet     bool
 	CoordinatorDialer CoordinatorDialer
 	WebRTCDialer      WebRTCDialer
 	FetchMetadata     FetchMetadata
@@ -98,7 +97,6 @@ func New(options Options) io.Closer {
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
 		envVars:                options.EnvironmentVariables,
-		enableTailnet:          options.EnableTailnet,
 		coordinatorDialer:      options.CoordinatorDialer,
 		fetchMetadata:          options.FetchMetadata,
 	}
@@ -124,7 +122,6 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	enableTailnet     bool
 	network           *tailnet.Conn
 	coordinatorDialer CoordinatorDialer
 }
@@ -169,12 +166,15 @@ func (a *agent) run(ctx context.Context) {
 	}()
 
 	go a.runWebRTCNetworking(ctx)
-	if a.enableTailnet {
+	if metadata.DERPMap != nil {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 }
 
 func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
+	if a.network != nil {
+		return
+	}
 	var err error
 	a.network, err = tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnetIP, 128)},
@@ -243,6 +243,12 @@ func (a *agent) runCoordinator(ctx context.Context) {
 		a.logger.Info(context.Background(), "connected to coordination server")
 		break
 	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+	defer coordinator.Close()
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
 	a.network.SetNodeCallback(sendNodes)
 	select {
@@ -736,7 +742,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 		}()
 	}
 	// Resize the PTY to initial height + width.
-	err := rpty.ptty.Resize(uint16(msg.Height), uint16(msg.Width))
+	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
