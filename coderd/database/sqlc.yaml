@@ -16,10 +16,6 @@ packages:
     # deleted after generation.
     output_db_file_name: db_tmp.go
 
-overrides:
-  - column: workspace_agents.derp_latency
-    go_type: github.com/coder/coder/coderd/database/dbtypes.DERPLatency
-
 rename:
   api_key: APIKey
   login_type_oidc: LoginTypeOIDC
@@ -33,5 +29,4 @@ rename:
   rbac_roles: RBACRoles
   ip_address: IPAddress
   ip_addresses: IPAddresses
-  preferred_derp: PreferredDERP
-  derp_latency: DERPLatency
+

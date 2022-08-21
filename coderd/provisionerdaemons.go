@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -32,7 +31,6 @@ import (
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/tailnet"
 )
 
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
@@ -788,7 +786,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		agentID := uuid.New()
-		ip := tailnet.IP().As16()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   agentID,
 			CreatedAt:            database.Now(),
@@ -805,14 +802,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			// Generate a new random IP!
-			IPAddresses: []pqtype.Inet{{
-				Valid: true,
-				IPNet: net.IPNet{
-					IP:   ip[:],
-					Mask: net.CIDRMask(128, 128),
-				},
-			}},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

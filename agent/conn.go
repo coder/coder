@@ -135,7 +135,6 @@ func (c *WebRTCConn) Close() error {
 }
 
 type TailnetConn struct {
-	Target netip.Addr
 	*tailnet.Conn
 }
 
@@ -152,11 +151,11 @@ func (c *TailnetConn) CloseWithError(err error) error {
 }
 
 func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
-	return nil, xerrors.New("not implemented")
+	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetReconnectingPTYPort)))
 }
 
 func (c *TailnetConn) SSH() (net.Conn, error) {
-	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(c.Target, 12212))
+	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetSSHPort)))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -181,5 +180,5 @@ func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
 func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(rawPort)
-	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.Target, uint16(port)))
+	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(tailnetIP, uint16(port)))
 }

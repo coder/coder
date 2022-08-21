@@ -264,7 +264,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
-			apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.ConnCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error reading job agent.",

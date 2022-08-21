@@ -295,12 +295,7 @@ CREATE TABLE workspace_agents (
     startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
-    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    ip_addresses inet[] DEFAULT ARRAY[]::inet[] NOT NULL,
-    node_public_key character varying(128),
-    disco_public_key character varying(128),
-    preferred_derp integer DEFAULT 0 NOT NULL,
-    derp_latency jsonb DEFAULT '{}'::jsonb NOT NULL
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE workspace_apps (

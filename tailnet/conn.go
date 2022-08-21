@@ -232,23 +232,46 @@ type Conn struct {
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
+
+	// It's only possible to store these values via status functions,
+	// so the values must be stored for retrieval later on.
+	lastEndpoints     []string
+	lastPreferredDERP int
+	lastDERPLatency   map[string]float64
 }
 
 // SetNodeCallback is triggered when a network change occurs and peer
 // renegotiation may be required. Clients should constantly be emitting
 // node changes.
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
-	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-		c.logger.Info(context.Background(), "latency", slog.F("latency", ni.DERPLatency))
-		callback(&Node{
+	makeNode := func() *Node {
+		return &Node{
 			ID:            c.netMap.SelfNode.ID,
 			Key:           c.netMap.SelfNode.Key,
 			Addresses:     c.netMap.SelfNode.Addresses,
 			AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
 			DiscoKey:      c.magicConn.DiscoPublicKey(),
-			PreferredDERP: ni.PreferredDERP,
-			DERPLatency:   ni.DERPLatency,
-		})
+			Endpoints:     c.lastEndpoints,
+			PreferredDERP: c.lastPreferredDERP,
+			DERPLatency:   c.lastDERPLatency,
+		}
+	}
+	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		c.lastPreferredDERP = ni.PreferredDERP
+		c.lastDERPLatency = ni.DERPLatency
+		callback(makeNode())
+	})
+	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
+		endpoints := make([]string, 0, len(s.LocalAddrs))
+		for _, addr := range s.LocalAddrs {
+			endpoints = append(endpoints, addr.Addr.String())
+		}
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		c.lastEndpoints = endpoints
+		callback(makeNode())
 	})
 }
 
@@ -258,7 +281,14 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	peerMap := map[tailcfg.NodeID]*tailcfg.Node{}
+	status := c.Status()
 	for _, peer := range c.netMap.Peers {
+		if peerStatus, ok := status.Peer[peer.Key]; ok {
+			// Clear out inactive connections!
+			if !peerStatus.Active {
+				continue
+			}
+		}
 		peerMap[peer.ID] = peer
 	}
 	for _, node := range nodes {
@@ -268,6 +298,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			DiscoKey:   node.DiscoKey,
 			Addresses:  node.Addresses,
 			AllowedIPs: node.AllowedIPs,
+			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
 		}
@@ -287,6 +318,13 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	netMapCopy := *c.netMap
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	return nil
+}
+
+// Status returns the current ipnstate of a connection.
+func (c *Conn) Status() *ipnstate.Status {
+	sb := &ipnstate.StatusBuilder{}
+	c.magicConn.UpdateStatus(sb)
+	return sb.Status()
 }
 
 // Ping sends a ping to the Wireguard engine.
@@ -319,6 +357,7 @@ type Node struct {
 	DERPLatency   map[string]float64 `json:"derp_latency"`
 	Addresses     []netip.Prefix     `json:"addresses"`
 	AllowedIPs    []netip.Prefix     `json:"allowed_ips"`
+	Endpoints     []string           `json:"endpoints"`
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:

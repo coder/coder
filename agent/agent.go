@@ -51,6 +51,15 @@ const (
 	MagicSessionErrorCode = 229
 )
 
+var (
+	// tailnetIP is a static IPv6 address with the Tailscale prefix that is used to route
+	// connections from clients to this node. A dynamic address is not required because a Tailnet
+	// client only dials a single agent at a time.
+	tailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+	tailnetSSHPort             = 1
+	tailnetReconnectingPTYPort = 2
+)
+
 type Options struct {
 	EnableTailnet     bool
 	CoordinatorDialer CoordinatorDialer
@@ -63,7 +72,6 @@ type Options struct {
 }
 
 type Metadata struct {
-	IPAddresses          []netip.Addr      `json:"ip_addresses"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
@@ -163,18 +171,14 @@ func (a *agent) run(ctx context.Context) {
 
 	go a.runWebRTCNetworking(ctx)
 	if a.enableTailnet {
-		go a.runTailnet(ctx, metadata.IPAddresses, metadata.DERPMap)
+		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 }
 
-func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap *tailcfg.DERPMap) {
-	ipRanges := make([]netip.Prefix, 0, len(addresses))
-	for _, address := range addresses {
-		ipRanges = append(ipRanges, netip.PrefixFrom(address, 128))
-	}
+func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	var err error
 	a.network, err = tailnet.NewConn(&tailnet.Options{
-		Addresses: ipRanges,
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
@@ -184,7 +188,7 @@ func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap 
 	}
 	go a.runCoordinator(ctx)
 
-	sshListener, err := a.network.Listen("tcp", ":12212")
+	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSSHPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
 		return
@@ -196,6 +200,20 @@ func (a *agent) runTailnet(ctx context.Context, addresses []netip.Addr, derpMap 
 				return
 			}
 			go a.sshServer.HandleConn(conn)
+		}
+	}()
+	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := reconnectingPTYListener.Accept()
+			if err != nil {
+				return
+			}
+			go a.handleReconnectingPTY(ctx, "tailnet", conn)
 		}
 	}()
 }

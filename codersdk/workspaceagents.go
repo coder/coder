@@ -57,8 +57,7 @@ type WorkspaceAgentAuthenticateResponse struct {
 // WorkspaceAgentConnectionInfo returns required information for establishing
 // a connection with a workspace.
 type WorkspaceAgentConnectionInfo struct {
-	DERPMap     *tailcfg.DERPMap `json:"derp_map"`
-	IPAddresses []netip.Addr     `json:"ip_address"`
+	DERPMap *tailcfg.DERPMap `json:"derp_map"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
@@ -328,6 +327,18 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			logger.Info(ctx, "ipn", slog.F("status", conn.Status()))
+		}
+	}()
 
 	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
 	if err != nil {
@@ -375,8 +386,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 		}
 	}()
 	return &agent.TailnetConn{
-		Target: connInfo.IPAddresses[0],
-		Conn:   conn,
+		Conn: conn,
 	}, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"strconv"
 	"time"
 
@@ -47,7 +46,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.ConnCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -71,7 +70,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.ConnCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -118,13 +117,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	ips := make([]netip.Addr, 0)
-	for _, ip := range workspaceAgent.IPAddresses {
-		var ipData [16]byte
-		copy(ipData[:], []byte(ip.IPNet.IP))
-		ips = append(ips, netip.AddrFrom16(ipData))
-	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.ConnCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -134,7 +127,6 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		IPAddresses:          ips,
 		DERPMap:              api.DERPMap,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
@@ -376,7 +368,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.ConnCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -512,21 +504,13 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Co
 }
 
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	ips := make([]netip.Addr, 0)
-	for _, ip := range workspaceAgent.IPAddresses {
-		var ipData [16]byte
-		copy(ipData[:], []byte(ip.IPNet.IP))
-		ips = append(ips, netip.AddrFrom16(ipData))
-	}
 	httpapi.Write(rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
-		DERPMap:     api.DERPMap,
-		IPAddresses: ips,
+		DERPMap: api.DERPMap,
 	})
 }
 
@@ -628,19 +612,13 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(coordinator *tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
 		}
-	}
-	ips := make([]netip.Addr, 0)
-	for _, ip := range dbAgent.IPAddresses {
-		var ipData [16]byte
-		copy(ipData[:], []byte(ip.IPNet.IP))
-		ips = append(ips, netip.AddrFrom16(ipData))
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                   dbAgent.ID,
@@ -655,8 +633,11 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
-		PreferredDERP:        int(dbAgent.PreferredDERP),
-		DERPLatency:          dbAgent.DERPLatency,
+	}
+	node := coordinator.Node(dbAgent.ID)
+	if node != nil {
+		workspaceAgent.PreferredDERP = node.PreferredDERP
+		workspaceAgent.DERPLatency = node.DERPLatency
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

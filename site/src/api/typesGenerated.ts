@@ -427,15 +427,6 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly directory?: string
   readonly apps: WorkspaceApp[]
-  // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ip_addresses: any[]
-  // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly node_public_key: any
-  // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly disco_public_key: any
   readonly preferred_derp: number
   readonly latency: Record<string, number>
 }
@@ -443,6 +434,13 @@ export interface WorkspaceAgent {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentConnectionInfo {
+  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go

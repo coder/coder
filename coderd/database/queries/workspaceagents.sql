@@ -53,11 +53,10 @@ INSERT INTO
 		startup_script,
 		directory,
 		instance_metadata,
-		resource_metadata,
-		ip_addresses
+		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -67,17 +66,5 @@ SET
 	last_connected_at = $3,
 	disconnected_at = $4,
 	updated_at = $5
-WHERE
-	id = $1;
-
--- name: UpdateWorkspaceAgentNetworkByID :exec
-UPDATE
-	workspace_agents
-SET
-	updated_at = $2,
-	node_public_key = $3,
-	disco_public_key = $4,
-	preferred_derp = $5,
-	derp_latency = $6
 WHERE
 	id = $1;

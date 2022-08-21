@@ -133,7 +133,6 @@ func Root() *cobra.Command {
 		update(),
 		users(),
 		versionCmd(),
-		wireguardPortForward(),
 		workspaceAgent(),
 	)
 

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -94,6 +95,7 @@ func server() *cobra.Command {
 		oidcEmailDomain                  string
 		oidcIssuerURL                    string
 		oidcScopes                       []string
+		tailscaleEnable                  bool
 		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
@@ -231,6 +233,17 @@ func server() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse URL: %w", err)
 			}
+			accessURLPortRaw := accessURLParsed.Port()
+			if accessURLPortRaw == "" {
+				accessURLPortRaw = "80"
+				if accessURLParsed.Scheme == "https" {
+					accessURLPortRaw = "443"
+				}
+			}
+			accessURLPort, err := strconv.Atoi(accessURLPortRaw)
+			if err != nil {
+				return xerrors.Errorf("parse access URL port: %w", err)
+			}
 
 			// Warn the user if the access URL appears to be a loopback address.
 			isLocal, err := isLocalURL(ctx, accessURLParsed)
@@ -272,10 +285,61 @@ func server() *cobra.Command {
 				})
 			}
 			options := &coderd.Options{
-				AccessURL:            accessURLParsed,
-				ICEServers:           iceServers,
-				Logger:               logger.Named("coderd"),
-				Database:             databasefake.New(),
+				AccessURL:  accessURLParsed,
+				ICEServers: iceServers,
+				Logger:     logger.Named("coderd"),
+				Database:   databasefake.New(),
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {
+							RegionID:   1,
+							RegionCode: "coder",
+							RegionName: "Coder",
+							Nodes: []*tailcfg.DERPNode{{
+								Name:     "1a",
+								RegionID: 1,
+								STUNOnly: true,
+								HostName: "stun.l.google.com",
+								STUNPort: 19302,
+							}, {
+								Name:         "1b",
+								RegionID:     1,
+								HostName:     accessURLParsed.Hostname(),
+								DERPPort:     accessURLPort,
+								STUNPort:     -1,
+								HTTPForTests: accessURLParsed.Scheme == "http",
+							}},
+						},
+						2: {
+							RegionID:   2,
+							RegionCode: "nyc",
+							RegionName: "New York City",
+							Nodes: []*tailcfg.DERPNode{
+								{
+									Name:     "2c",
+									RegionID: 2,
+									HostName: "derp1c.tailscale.com",
+									IPv4:     "104.248.8.210",
+									IPv6:     "2604:a880:800:10::7a0:e001",
+								},
+							},
+						},
+						3: {
+							RegionID:   3,
+							RegionCode: "sin",
+							RegionName: "Singapore",
+							Nodes: []*tailcfg.DERPNode{
+								{
+									Name:     "3a",
+									RegionID: 3,
+									HostName: "derp3.tailscale.com",
+									IPv4:     "68.183.179.66",
+									IPv6:     "2400:6180:0:d1::67d:8001",
+								},
+							},
+						},
+					},
+				},
 				Pubsub:               database.NewPubsubInMemory(),
 				CacheDir:             cacheDir,
 				GoogleTokenValidator: googleTokenValidator,
@@ -710,6 +774,9 @@ func server() *cobra.Command {
 		"Specifies an issuer URL to use for OIDC.")
 	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
 		"Specifies scopes to grant when authenticating with OIDC.")
+	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", false,
+		"Specifies whether Tailscale networking is used for web applications and terminals.")
+	_ = root.Flags().MarkHidden("tailscale")
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")

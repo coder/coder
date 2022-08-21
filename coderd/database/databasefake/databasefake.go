@@ -1689,7 +1689,6 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		StartupScript:        arg.StartupScript,
 		InstanceMetadata:     arg.InstanceMetadata,
 		ResourceMetadata:     arg.ResourceMetadata,
-		IPAddresses:          arg.IPAddresses,
 	}
 
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
@@ -1997,26 +1996,6 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		agent.LastConnectedAt = arg.LastConnectedAt
 		agent.DisconnectedAt = arg.DisconnectedAt
 		agent.UpdatedAt = arg.UpdatedAt
-		q.provisionerJobAgents[index] = agent
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
-func (q *fakeQuerier) UpdateWorkspaceAgentNetworkByID(_ context.Context, arg database.UpdateWorkspaceAgentNetworkByIDParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, agent := range q.provisionerJobAgents {
-		if agent.ID != arg.ID {
-			continue
-		}
-
-		agent.DiscoPublicKey = arg.DiscoPublicKey
-		agent.NodePublicKey = arg.NodePublicKey
-		agent.PreferredDERP = arg.PreferredDERP
-		agent.DERPLatency = arg.DERPLatency
-		agent.UpdatedAt = database.Now()
 		q.provisionerJobAgents[index] = agent
 		return nil
 	}
