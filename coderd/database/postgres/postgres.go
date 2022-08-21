@@ -155,6 +155,7 @@ func Open() (string, func(), error) {
 	if err != nil {
 		return "", nil, retryErr
 	}
+
 	return dbURL, func() {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)

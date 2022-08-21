@@ -14,7 +14,6 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // Required until https://github.com/briandowns/spinner/pull/136 is merged.
 replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e
 
-// Required until is merged.
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220802200410-cba8e836c5f1
 
 // Required until https://github.com/fergusstrange/embedded-postgres/pull/75 is merged.

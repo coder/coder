@@ -19,7 +19,6 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -263,22 +262,6 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 			Logger:        logger,
 		}, nil
 	})
-}
-
-// UpdateWorkspaceAgentNode publishes a node update for the provided agent.
-// This should be used to negotiate a connection.
-func (c *Client) UpdateWorkspaceAgentNode(ctx context.Context, agentID uuid.UUID, node *tailnet.Node) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/node",
-		agentID,
-	), node)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
-	}
-	return nil
 }
 
 func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
@@ -529,24 +512,4 @@ func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, p
 		}
 		return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 	})
-}
-
-// workspaceAgentNodeBroker is used to listen for node updates
-// and write them.
-type workspaceAgentNodeBroker struct {
-	conn *websocket.Conn
-}
-
-func (w *workspaceAgentNodeBroker) Read(ctx context.Context) (*tailnet.Node, error) {
-	var node tailnet.Node
-	err := wsjson.Read(ctx, w.conn, &node)
-	return &node, err
-}
-
-func (w *workspaceAgentNodeBroker) Write(ctx context.Context, node *tailnet.Node) error {
-	return wsjson.Write(ctx, w.conn, node)
-}
-
-func (w *workspaceAgentNodeBroker) Close() error {
-	return w.conn.Close(websocket.StatusGoingAway, "")
 }

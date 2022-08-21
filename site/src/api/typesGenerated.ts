@@ -527,13 +527,6 @@ export interface WorkspaceResourceMetadata {
   readonly sensitive: boolean
 }
 
-// From codersdk/workspaceagents.go
-export interface workspaceAgentNodeBroker {
-  // Named type "nhooyr.io/websocket.Conn" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly conn?: any
-}
-
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
