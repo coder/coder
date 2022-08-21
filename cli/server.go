@@ -74,6 +74,12 @@ func server() *cobra.Command {
 		accessURL             string
 		address               string
 		autobuildPollInterval time.Duration
+		derpServerEnabled     bool
+		derpServerRegionID    int
+		derpServerRegionCode  string
+		derpServerRegionName  string
+		derpServerSTUNURLs    []string
+		derpConfigURL         string
 		promEnabled           bool
 		promAddress           string
 		pprofEnabled          bool
@@ -291,8 +297,8 @@ func server() *cobra.Command {
 				Database:   databasefake.New(),
 				DERPMap: &tailcfg.DERPMap{
 					Regions: map[int]*tailcfg.DERPRegion{
-						1: {
-							RegionID:   1,
+						derpServerRegionID: {
+							RegionID:   derpServerRegionID,
 							RegionCode: "coder",
 							RegionName: "Coder",
 							Nodes: []*tailcfg.DERPNode{{
@@ -735,6 +741,14 @@ func server() *cobra.Command {
 	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
+	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "", "Specifies a URL to periodically fetch a DERP map. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true, "Specifies whether to enable or disable the embedded DERP server.")
+	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999, "Specifies the region ID to use for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder", "Specifies the region code that is displayed in the Coder UI for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionName, "derp-server-region-name", "", "CODER_DERP_SERVER_REGION_NAME", "Coder Embedded DERP", "Specifies the region name that is displayed in the Coder UI for the embedded DERP server.")
+	cliflag.StringArrayVarP(root.Flags(), &derpServerSTUNURLs, "derp-server-stun-urls", "", "CODER_DERP_SERVER_STUN_URLS", []string{
+		"stun.l.google.com:19302",
+	}, "Specify URLs for STUN servers to establish P2P connections. Set empty to disable P2P connections entirely.")
 	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
 	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
 	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
