@@ -72,8 +72,8 @@ type Options struct {
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 
-	ConnCoordinator *tailnet.Coordinator
-	DERPMap         *tailcfg.DERPMap
+	TailnetCoordinator *tailnet.Coordinator
+	DERPMap            *tailcfg.DERPMap
 }
 
 // New constructs a Coder API handler.
@@ -100,8 +100,8 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.ConnCoordinator == nil {
-		options.ConnCoordinator = tailnet.NewCoordinator()
+	if options.TailnetCoordinator == nil {
+		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
 
 	siteCacheDir := options.CacheDir
