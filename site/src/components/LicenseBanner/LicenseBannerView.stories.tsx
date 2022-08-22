@@ -20,8 +20,3 @@ TwoWarnings.args = {
     "You are flying too close to the sun.",
   ],
 }
-
-export const NoWarnings = Template.bind({})
-NoWarnings.args = {
-  warnings: [],
-}

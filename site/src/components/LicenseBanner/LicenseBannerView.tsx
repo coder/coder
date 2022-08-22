@@ -14,52 +14,48 @@ export const Language = {
 }
 
 export interface LicenseBannerViewProps {
-  warnings?: string[]
+  warnings: string[]
 }
 
 export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }) => {
   const styles = useStyles()
   const [showDetails, setShowDetails] = useState(false)
-  if (warnings && warnings.length) {
-    if (warnings.length === 1) {
-      return (
-        <div className={styles.container}>
-          <Pill text={Language.licenseIssue} type="warning" lightBorder />
-          <span className={styles.text}>{warnings[0]}</span>
-          &nbsp;
-          <a href="mailto:sales@coder.com" className={styles.link}>
-            {Language.upgrade}
-          </a>
-        </div>
-      )
-    } else {
-      return (
-        <div className={styles.container}>
-          <div className={styles.flex}>
-            <div className={styles.leftContent}>
-              <Pill text={Language.licenseIssues(warnings.length)} type="warning" lightBorder />
-              <span className={styles.text}>{Language.exceeded}</span>
-              &nbsp;
-              <a href="mailto:sales@coder.com" className={styles.link}>
-                {Language.upgrade}
-              </a>
-            </div>
-            <Expander expanded={showDetails} setExpanded={setShowDetails} />
-          </div>
-          <Collapse in={showDetails}>
-            <ul className={styles.list}>
-              {warnings.map((warning) => (
-                <li className={styles.listItem} key={`${warning}`}>
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          </Collapse>
-        </div>
-      )
-    }
+  if (warnings.length === 1) {
+    return (
+      <div className={styles.container}>
+        <Pill text={Language.licenseIssue} type="warning" lightBorder />
+        <span className={styles.text}>{warnings[0]}</span>
+        &nbsp;
+        <a href="mailto:sales@coder.com" className={styles.link}>
+          {Language.upgrade}
+        </a>
+      </div>
+    )
   } else {
-    return null
+    return (
+      <div className={styles.container}>
+        <div className={styles.flex}>
+          <div className={styles.leftContent}>
+            <Pill text={Language.licenseIssues(warnings.length)} type="warning" lightBorder />
+            <span className={styles.text}>{Language.exceeded}</span>
+            &nbsp;
+            <a href="mailto:sales@coder.com" className={styles.link}>
+              {Language.upgrade}
+            </a>
+          </div>
+          <Expander expanded={showDetails} setExpanded={setShowDetails} />
+        </div>
+        <Collapse in={showDetails}>
+          <ul className={styles.list}>
+            {warnings.map((warning) => (
+              <li className={styles.listItem} key={`${warning}`}>
+                {warning}
+              </li>
+            ))}
+          </ul>
+        </Collapse>
+      </div>
+    )
   }
 }
 
