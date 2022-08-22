@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -58,7 +59,42 @@ func init() {
 	cobra.AddTemplateFuncs(templateFunctions)
 }
 
-func Root() *cobra.Command {
+func Core() []*cobra.Command {
+	return []*cobra.Command{
+		configSSH(),
+		create(),
+		deleteWorkspace(),
+		dotfiles(),
+		gitssh(),
+		list(),
+		login(),
+		logout(),
+		parameters(),
+		portForward(),
+		publickey(),
+		resetPassword(),
+		schedules(),
+		show(),
+		ssh(),
+		start(),
+		state(),
+		stop(),
+		templates(),
+		update(),
+		users(),
+		versionCmd(),
+		wireguardPortForward(),
+		workspaceAgent(),
+		features(),
+	}
+}
+
+func AGPL() []*cobra.Command {
+	all := append(Core(), Server(coderd.New))
+	return all
+}
+
+func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
@@ -109,34 +145,7 @@ func Root() *cobra.Command {
 		),
 	}
 
-	cmd.AddCommand(
-		configSSH(),
-		create(),
-		deleteWorkspace(),
-		dotfiles(),
-		gitssh(),
-		list(),
-		login(),
-		logout(),
-		parameters(),
-		portForward(),
-		publickey(),
-		resetPassword(),
-		schedules(),
-		server(),
-		show(),
-		ssh(),
-		start(),
-		state(),
-		stop(),
-		templates(),
-		update(),
-		users(),
-		versionCmd(),
-		wireguardPortForward(),
-		workspaceAgent(),
-		features(),
-	)
+	cmd.AddCommand(subcommands...)
 
 	cmd.SetUsageTemplate(usageTemplate())
 

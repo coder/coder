@@ -15,7 +15,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixMicro())
 
-	cmd, err := cli.Root().ExecuteC()
+	cmd, err := cli.Root(cli.AGPL()).ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)

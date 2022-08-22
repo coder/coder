@@ -144,6 +144,7 @@ require (
 )
 
 require (
+	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )

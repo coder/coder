@@ -18,6 +18,11 @@ export interface AWSInstanceIdentityToken {
   readonly document: string
 }
 
+// From codersdk/licenses.go
+export interface AddLicenseRequest {
+  readonly license: string
+}
+
 // From codersdk/gitsshkey.go
 export interface AgentGitSSHKey {
   readonly public_key: string
@@ -166,6 +171,14 @@ export interface GitSSHKey {
 // From codersdk/workspaceagents.go
 export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
+}
+
+// From codersdk/licenses.go
+export interface License {
+  readonly id: number
+  readonly uploaded_at: string
+  // eslint-disable-next-line
+  readonly claims: Record<string, any>
 }
 
 // From codersdk/users.go
