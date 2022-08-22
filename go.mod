@@ -1,6 +1,6 @@
 module github.com/coder/coder
 
-go 1.18
+go 1.19
 
 // Required until https://github.com/manifoldco/promptui/pull/169 is merged.
 replace github.com/manifoldco/promptui => github.com/kylecarbs/promptui v0.8.1-0.20201231190244-d8f2159af2b2
@@ -64,6 +64,7 @@ require (
 	github.com/elastic/go-sysinfo v1.8.1
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
+	github.com/fatih/structtag v1.2.0
 	github.com/fergusstrange/embedded-postgres v1.16.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
@@ -162,7 +163,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v0.14.0 // indirect
 	github.com/bep/golibsass v1.1.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/bubbles v0.10.3 // indirect
 	github.com/charmbracelet/bubbletea v0.20.0 // indirect

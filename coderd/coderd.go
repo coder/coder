@@ -391,6 +391,10 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
+		r.Route("/entitlements", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", entitlements)
+		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)

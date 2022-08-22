@@ -135,6 +135,7 @@ func Root() *cobra.Command {
 		versionCmd(),
 		wireguardPortForward(),
 		workspaceAgent(),
+		features(),
 	)
 
 	cmd.SetUsageTemplate(usageTemplate())

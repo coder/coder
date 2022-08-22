@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	admin         string = "admin"
+	owner         string = "owner"
 	member        string = "member"
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
@@ -24,8 +24,8 @@ const (
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
-func RoleAdmin() string {
-	return roleName(admin, "")
+func RoleOwner() string {
+	return roleName(owner, "")
 }
 
 func RoleTemplateAdmin() string {
@@ -59,10 +59,10 @@ var (
 	// https://github.com/coder/coder/issues/1194
 	builtInRoles = map[string]func(orgID string) Role{
 		// admin grants all actions to all resources.
-		admin: func(_ string) Role {
+		owner: func(_ string) Role {
 			return Role{
-				Name:        admin,
-				DisplayName: "Admin",
+				Name:        owner,
+				DisplayName: "Owner",
 				Site: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),
@@ -123,7 +123,10 @@ var (
 				Name:        userAdmin,
 				DisplayName: "User Admin",
 				Site: permissions(map[Object][]Action{
-					ResourceUser: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceRoleAssignment: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceUser:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// Full perms to manage org members
+					ResourceOrganizationMember: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
@@ -187,14 +190,18 @@ var (
 	// The first key is the actor role, the second is the roles they can assign.
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
-		admin: {
-			admin:         true,
+		owner: {
+			owner:         true,
 			auditor:       true,
 			member:        true,
 			orgAdmin:      true,
 			orgMember:     true,
 			templateAdmin: true,
 			userAdmin:     true,
+		},
+		userAdmin: {
+			member:    true,
+			orgMember: true,
 		},
 		orgAdmin: {
 			orgAdmin:  true,
@@ -354,7 +361,9 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 }
 
 // roleName is a quick helper function to return
-// 	role_name:scopeID
+//
+//	role_name:scopeID
+//
 // If no scopeID is required, only 'role_name' is returned
 func roleName(name string, orgID string) string {
 	if orgID == "" {

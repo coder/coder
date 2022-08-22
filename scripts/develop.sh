@@ -1,8 +1,32 @@
 #!/usr/bin/env bash
 
+# Usage: ./develop.sh [--agpl]
+#
+# If the --agpl parameter is specified, builds only the AGPL-licensed code (no
+# Coder enterprise features).
+
 # Allow toggling verbose output
 [[ -n ${VERBOSE:-""} ]] && set -x
 set -euo pipefail
+
+agpl="${CODER_BUILD_AGPL:-0}"
+args="$(getopt -o "" -l agpl -- "$@")"
+eval set -- "$args"
+while true; do
+	case "$1" in
+	--agpl)
+		agpl=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
+done
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
@@ -28,8 +52,13 @@ if [[ ! -e ./site/out/bin/coder.sha1 && ! -e ./site/out/bin/coder.tar.zst ]]; th
 	exit 1
 fi
 
+cmd_path="enterprise/cmd/coder"
+if [[ "$agpl" == 1 ]]; then
+	cmd_path="cmd/coder"
+fi
+
 # Compile the CLI binary once just so we don't waste time compiling things multiple times
-go build -tags embed -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/cmd/coder"
+go build -tags embed -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/${cmd_path}"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 

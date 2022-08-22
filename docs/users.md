@@ -6,13 +6,13 @@ This article walks you through the user roles available in Coder and creating an
 
 Coder offers these user roles in the community edition:
 
-|                                            | User Admin | Template Admin | Admin |
-| ------------------------------------------ | ---------- | -------------- | ----- |
-| Add and remove Users                       | ✅         |                | ✅    |
-| Change User roles                          |            |                | ✅    |
-| Manage Templates                           |            | ✅             | ✅    |
-| View, update and delete **ALL** Workspaces |            | ✅             | ✅    |
-| Execute and use **ALL** Workspaces         |            |                | ✅    |
+|                                            | User Admin | Template Admin | Owner |
+| ------------------------------------------ | ---------- | -------------- |-------|
+| Add and remove Users                       | ✅         |                | ✅     |
+| Change User roles                          |            |                | ✅     |
+| Manage Templates                           |            | ✅             | ✅     |
+| View, update and delete **ALL** Workspaces |            | ✅             | ✅     |
+| Execute and use **ALL** Workspaces         |            |                | ✅     |
 
 A user may have one or more roles. All users have an implicit Member role
 that may use personal workspaces.
@@ -21,7 +21,7 @@ that may use personal workspaces.
 
 To create a user with the web UI:
 
-1. Log in as an admin.
+1. Log in as a user admin.
 2. Go to **Users** > **New user**.
 3. In the window that opens, provide the **username**, **email**, and
    **password** for the user (they can opt to change their password after their
@@ -56,7 +56,7 @@ Create a workspace   coder create !
 
 ## Suspend a user
 
-Admins can suspend a user, removing the user's access to Coder.
+User admins can suspend a user, removing the user's access to Coder.
 
 To suspend a user via the web UI:
 
@@ -75,7 +75,7 @@ Confirm the user suspension by typing **yes** and pressing **enter**.
 
 ## Activate a suspended user
 
-Admins can activate a suspended user, restoring their access to Coder.
+User admins can activate a suspended user, restoring their access to Coder.
 
 To activate a user via the web UI:
 

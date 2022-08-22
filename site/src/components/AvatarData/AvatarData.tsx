@@ -12,7 +12,7 @@ import {
 
 export interface AvatarDataProps {
   title: string
-  subtitle: string
+  subtitle?: string
   highlightTitle?: boolean
   link?: string
   avatar?: React.ReactNode
@@ -39,13 +39,13 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
         <Link to={link} underline="none" component={RouterLink}>
           <TableCellData>
             <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-            <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+            {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
           </TableCellData>
         </Link>
       ) : (
         <TableCellData>
           <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-          <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+          {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
         </TableCellData>
       )}
     </div>

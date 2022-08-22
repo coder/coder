@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 )
 
 type testOAuth2Provider struct {
@@ -31,6 +32,7 @@ func (*testOAuth2Provider) TokenSource(_ context.Context, _ *oauth2.Token) oauth
 	return nil
 }
 
+// nolint:bodyclose
 func TestOAuth2(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSetup", func(t *testing.T) {
@@ -71,7 +73,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "oauth_state",
+			Name:  codersdk.OAuth2StateKey,
 			Value: "mismatch",
 		})
 		res := httptest.NewRecorder()
@@ -82,7 +84,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=test&state=something", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  "oauth_state",
+			Name:  codersdk.OAuth2StateKey,
 			Value: "something",
 		})
 		req.AddCookie(&http.Cookie{

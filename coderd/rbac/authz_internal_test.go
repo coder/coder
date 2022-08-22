@@ -87,7 +87,7 @@ func TestFilter(t *testing.T) {
 		{
 			Name:       "Admin",
 			SubjectID:  userIDs[0].String(),
-			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleAdmin(), RoleMember()},
+			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     ActionRead,
 		},
@@ -292,7 +292,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = subject{
 		UserID: "me",
 		Roles: []Role{
-			must(RoleByName(RoleAdmin())),
+			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -491,15 +491,15 @@ func TestAuthorizeDomain(t *testing.T) {
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
-//nolint:paralleltest
 func TestAuthorizeLevels(t *testing.T) {
+	t.Parallel()
 	defOrg := uuid.New()
 	unusedID := uuid.New()
 
 	user := subject{
 		UserID: "me",
 		Roles: []Role{
-			must(RoleByName(RoleAdmin())),
+			must(RoleByName(RoleOwner())),
 			{
 				Name: "org-deny:" + defOrg.String(),
 				Org: map[string][]Permission{
@@ -638,6 +638,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	for _, cases := range sets {
 		for _, c := range cases {
 			t.Run(name, func(t *testing.T) {
+				t.Parallel()
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)

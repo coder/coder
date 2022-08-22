@@ -1,5 +1,6 @@
 import { useSelector } from "@xstate/react"
 import { SetupPage } from "pages/SetupPage/SetupPage"
+import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
@@ -93,6 +94,14 @@ export const AppRouter: FC = () => {
               element={
                 <RequireAuth>
                   <CreateWorkspacePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <RequireAuth>
+                  <TemplateSettingsPage />
                 </RequireAuth>
               }
             />

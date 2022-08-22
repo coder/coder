@@ -38,8 +38,8 @@ func TestTemplate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAdmin())
-		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAdmin())
+		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -233,11 +233,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
+			ctr.Icon = "/icons/original-icon.png"
 			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
 		})
 		req := codersdk.UpdateTemplateMeta{
+			Name:                       "new-template-name",
 			Description:                "lorem ipsum dolor sit amet et cetera",
+			Icon:                       "/icons/new-icon.png",
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
 		}
@@ -251,7 +254,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, req.Name, updated.Name)
 		assert.Equal(t, req.Description, updated.Description)
+		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 
@@ -259,7 +264,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, req.Name, updated.Name)
 		assert.Equal(t, req.Description, updated.Description)
+		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
@@ -272,6 +279,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
+			ctr.Icon = "/icons/original-icon.png"
 			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
 		})
@@ -280,7 +288,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
+			Name:                       template.Name,
 			Description:                template.Description,
+			Icon:                       template.Icon,
 			MaxTTLMillis:               template.MaxTTLMillis,
 			MinAutostartIntervalMillis: template.MinAutostartIntervalMillis,
 		}
@@ -289,7 +299,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
@@ -324,7 +336,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.WithinDuration(t, template.UpdatedAt, updated.UpdatedAt, time.Minute)
+		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})

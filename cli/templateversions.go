@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -58,31 +58,44 @@ func templateVersionsList() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("get template versions by template: %w", err)
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), displayTemplateVersions(template.ActiveVersionID, versions...))
+
+			out, err := displayTemplateVersions(template.ActiveVersionID, versions...)
+			if err != nil {
+				return xerrors.Errorf("render table: %w", err)
+			}
+
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
 }
 
+type templateVersionRow struct {
+	Name      string    `table:"name"`
+	CreatedAt time.Time `table:"created at"`
+	CreatedBy string    `table:"created by"`
+	Status    string    `table:"status"`
+	Active    string    `table:"active"`
+}
+
 // displayTemplateVersions will return a table displaying existing
 // template versions for the specified template.
-func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) string {
-	tableWriter := cliui.Table()
-	header := table.Row{
-		"Name", "Created At", "Created By", "Status", ""}
-	tableWriter.AppendHeader(header)
-	for _, templateVersion := range templateVersions {
+func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) (string, error) {
+	rows := make([]templateVersionRow, len(templateVersions))
+	for i, templateVersion := range templateVersions {
 		var activeStatus = ""
 		if templateVersion.ID == activeVersionID {
 			activeStatus = cliui.Styles.Code.Render(cliui.Styles.Keyword.Render("Active"))
 		}
-		tableWriter.AppendRow(table.Row{
-			templateVersion.Name,
-			templateVersion.CreatedAt.Format("03:04:05 PM MST on Jan 2, 2006"),
-			templateVersion.CreatedByName,
-			strings.Title(string(templateVersion.Job.Status)),
-			activeStatus,
-		})
+
+		rows[i] = templateVersionRow{
+			Name:      templateVersion.Name,
+			CreatedAt: templateVersion.CreatedAt,
+			CreatedBy: templateVersion.CreatedByName,
+			Status:    strings.Title(string(templateVersion.Job.Status)),
+			Active:    activeStatus,
+		}
 	}
-	return tableWriter.Render()
+
+	return cliui.DisplayTable(rows, "name", nil)
 }

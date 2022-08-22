@@ -102,7 +102,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin())
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
 	otherWorkspaces, err := other.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 
@@ -137,7 +137,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -402,11 +402,11 @@ func TestWorkspaceFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	users := make([]coderUser, 0)
 	for i := 0; i < 10; i++ {
-		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin())
+		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
 		user, err := userClient.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch me")
 

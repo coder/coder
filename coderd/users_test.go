@@ -279,7 +279,7 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -477,7 +477,7 @@ func TestGrantSiteRoles(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 	var err error
 
 	admin := coderdtest.New(t, nil)
@@ -513,7 +513,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Name:         "UserNotExists",
 			Client:       admin,
 			AssignToUser: uuid.NewString(),
-			Roles:        []string{rbac.RoleAdmin()},
+			Roles:        []string{rbac.RoleOwner()},
 			Error:        true,
 			StatusCode:   http.StatusBadRequest,
 		},
@@ -539,7 +539,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Client:       admin,
 			OrgID:        first.OrganizationID,
 			AssignToUser: codersdk.Me,
-			Roles:        []string{rbac.RoleAdmin()},
+			Roles:        []string{rbac.RoleOwner()},
 			Error:        true,
 			StatusCode:   http.StatusBadRequest,
 		},
@@ -629,7 +629,7 @@ func TestInitialRoles(t *testing.T) {
 	roles, err := client.GetUserRoles(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.ElementsMatch(t, roles.Roles, []string{
-		rbac.RoleAdmin(),
+		rbac.RoleOwner(),
 	}, "should be a member and admin")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
@@ -734,7 +734,7 @@ func TestUsersFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
@@ -744,7 +744,7 @@ func TestUsersFilter(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		roles := []string{}
 		if i%2 == 0 {
-			roles = append(roles, rbac.RoleAdmin())
+			roles = append(roles, rbac.RoleOwner())
 		}
 		if i%3 == 0 {
 			roles = append(roles, "auditor")
@@ -823,12 +823,12 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "Admins",
 			Filter: codersdk.UsersRequest{
-				Role:   rbac.RoleAdmin(),
+				Role:   rbac.RoleOwner(),
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleAdmin() {
+					if r.Name == rbac.RoleOwner() {
 						return true
 					}
 				}
@@ -838,12 +838,12 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "AdminsUppercase",
 			Filter: codersdk.UsersRequest{
-				Role:   "ADMIN",
+				Role:   "OWNER",
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleAdmin() {
+					if r.Name == rbac.RoleOwner() {
 						return true
 					}
 				}
@@ -863,11 +863,11 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "SearchQuery",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: "i role:admin status:active",
+				SearchQuery: "i role:owner status:active",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleAdmin() {
+					if r.Name == rbac.RoleOwner() {
 						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
@@ -878,11 +878,11 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "SearchQueryInsensitive",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: "i Role:Admin STATUS:Active",
+				SearchQuery: "i Role:Owner STATUS:Active",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleAdmin() {
+					if r.Name == rbac.RoleOwner() {
 						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
@@ -1075,7 +1075,7 @@ func TestSuspendedPagination(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -1121,7 +1121,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	// This test takes longer than a long time.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)

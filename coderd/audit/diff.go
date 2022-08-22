@@ -99,6 +99,7 @@ func diffValues[T any](left, right T, table Table) Map {
 }
 
 // convertDiffType converts external struct types to primitive types.
+//
 //nolint:forcetypeassert
 func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 	switch typed := left.(type) {

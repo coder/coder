@@ -28,11 +28,13 @@ import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
+  const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
   await screen.findByText(MockWorkspace.name)
+  expect(getTemplateMock).toBeCalled()
 }
 
 /**
@@ -51,10 +53,10 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   expect(actionMock).toBeCalled()
 }
 
-const testStatus = async (mock: Workspace, label: string) => {
+const testStatus = async (ws: Workspace, label: string) => {
   server.use(
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json(mock))
+      return res(ctx.status(200), ctx.json(ws))
     }),
   )
   await renderWorkspacePage()
@@ -187,6 +189,7 @@ describe("WorkspacePage", () => {
 
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
+      const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
       renderWithAuth(<WorkspacePage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
         path: "/@:username/:workspace",
@@ -203,6 +206,7 @@ describe("WorkspacePage", () => {
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
       expect(agent2Status.length).toEqual(2)
+      expect(getTemplateMock).toBeCalled()
     })
   })
 })

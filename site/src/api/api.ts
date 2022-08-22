@@ -145,6 +145,14 @@ export const getTemplateVersions = async (
   return response.data
 }
 
+export const updateTemplateMeta = async (
+  templateId: string,
+  data: TypesGen.UpdateTemplateMeta,
+): Promise<TypesGen.Template> => {
+  const response = await axios.patch<TypesGen.Template>(`/api/v2/templates/${templateId}`, data)
+  return response.data
+}
+
 export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
@@ -311,8 +319,8 @@ export const updateUserPassword = async (
   updatePassword: TypesGen.UpdateUserPasswordRequest,
 ): Promise<undefined> => axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
-export const getSiteRoles = async (): Promise<Array<TypesGen.Role>> => {
-  const response = await axios.get<Array<TypesGen.Role>>(`/api/v2/users/roles`)
+export const getSiteRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
+  const response = await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`)
   return response.data
 }
 

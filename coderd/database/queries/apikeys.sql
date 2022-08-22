@@ -23,11 +23,7 @@ INSERT INTO
 		expires_at,
 		created_at,
 		updated_at,
-		login_type,
-		oauth_access_token,
-		oauth_refresh_token,
-		oauth_id_token,
-		oauth_expiry
+		login_type
 	)
 VALUES
 	(@id,
@@ -36,7 +32,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @oauth_access_token, @oauth_refresh_token, @oauth_id_token, @oauth_expiry) RETURNING *;
+	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE
@@ -44,10 +40,7 @@ UPDATE
 SET
 	last_used = $2,
 	expires_at = $3,
-	ip_address = $4,
-	oauth_access_token = $5,
-	oauth_refresh_token = $6,
-	oauth_expiry = $7
+	ip_address = $4
 WHERE
 	id = $1;
 

@@ -1,11 +1,14 @@
+import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
+import { firstLetter } from "util/firstLetter"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import {
@@ -20,6 +23,7 @@ import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
 
 const Language = {
+  settingsButton: "Settings",
   createButton: "Create workspace",
   noDescription: "",
   readmeTitle: "README",
@@ -42,6 +46,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
+  const hasIcon = template.icon && template.icon !== ""
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
@@ -51,22 +56,46 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
     <Margins>
       <PageHeader
         actions={
-          <Link
-            underline="none"
-            component={RouterLink}
-            to={`/templates/${template.name}/workspace`}
-          >
-            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-          </Link>
+          <Stack direction="row" spacing={1}>
+            <Link
+              underline="none"
+              component={RouterLink}
+              to={`/templates/${template.name}/settings`}
+            >
+              <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                {Language.settingsButton}
+              </Button>
+            </Link>
+            <Link
+              underline="none"
+              component={RouterLink}
+              to={`/templates/${template.name}/workspace`}
+            >
+              <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+            </Link>
+          </Stack>
         }
       >
-        <PageHeaderTitle>{template.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>
-          {template.description === "" ? Language.noDescription : template.description}
-        </PageHeaderSubtitle>
+        <Stack direction="row" spacing={3} className={styles.pageTitle}>
+          <div>
+            {hasIcon ? (
+              <div className={styles.iconWrapper}>
+                <img src={template.icon} alt="" />
+              </div>
+            ) : (
+              <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
+            )}
+          </div>
+          <div>
+            <PageHeaderTitle>{template.name}</PageHeaderTitle>
+            <PageHeaderSubtitle>
+              {template.description === "" ? Language.noDescription : template.description}
+            </PageHeaderSubtitle>
+          </div>
+        </Stack>
       </PageHeader>
 
-      <Stack spacing={3}>
+      <Stack spacing={2.5}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
         <WorkspaceSection
           title={Language.resourcesTitle}
@@ -123,6 +152,21 @@ export const useStyles = makeStyles((theme) => {
     },
     versionsTableContents: {
       margin: 0,
+    },
+    pageTitle: {
+      alignItems: "center",
+    },
+    avatar: {
+      width: theme.spacing(6),
+      height: theme.spacing(6),
+      fontSize: theme.spacing(3),
+    },
+    iconWrapper: {
+      width: theme.spacing(6),
+      height: theme.spacing(6),
+      "& img": {
+        width: "100%",
+      },
     },
   }
 })

@@ -142,6 +142,8 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
             )}
             {props.templates?.map((template) => {
               const templatePageLink = `/templates/${template.name}`
+              const hasIcon = template.icon && template.icon !== ""
+
               return (
                 <TableRow
                   key={template.id}
@@ -160,6 +162,13 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                       title={template.name}
                       subtitle={template.description}
                       highlightTitle
+                      avatar={
+                        hasIcon ? (
+                          <div className={styles.templateIconWrapper}>
+                            <img alt="" src={template.icon} />
+                          </div>
+                        ) : undefined
+                      }
                     />
                   </TableCellLink>
 
@@ -210,5 +219,15 @@ const useStyles = makeStyles((theme) => ({
   },
   arrowCell: {
     display: "flex",
+  },
+  templateIconWrapper: {
+    // Same size then the avatar component
+    width: 36,
+    height: 36,
+    padding: 2,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))
