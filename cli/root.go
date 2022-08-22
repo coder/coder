@@ -59,7 +59,7 @@ func init() {
 	cobra.AddTemplateFuncs(templateFunctions)
 }
 
-func CoreSubcommands() []*cobra.Command {
+func Core() []*cobra.Command {
 	return []*cobra.Command{
 		configSSH(),
 		create(),
@@ -89,8 +89,8 @@ func CoreSubcommands() []*cobra.Command {
 	}
 }
 
-func AGPLSubcommands() []*cobra.Command {
-	all := append(CoreSubcommands(), Server(coderd.New))
+func AGPL() []*cobra.Command {
+	all := append(Core(), Server(coderd.New))
 	return all
 }
 

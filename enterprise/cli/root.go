@@ -8,6 +8,6 @@ import (
 )
 
 func EnterpriseSubcommands() []*cobra.Command {
-	all := append(agpl.CoreSubcommands(), agpl.Server(coderd.NewEnterprise))
+	all := append(agpl.Core(), agpl.Server(coderd.NewEnterprise))
 	return all
 }

@@ -67,10 +67,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-type CoderServerBuilder func(*coderd.Options) *coderd.API
-
 // nolint:gocyclo
-func Server(builder CoderServerBuilder) *cobra.Command {
+func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -436,7 +434,7 @@ func Server(builder CoderServerBuilder) *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := builder(options)
+			coderAPI := newAPI(options)
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
