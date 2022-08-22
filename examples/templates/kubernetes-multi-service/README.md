@@ -74,5 +74,5 @@ Then start the Coder host with `serviceAccountName: coder` in the pod spec.
 
 ## Persistence
 
-Each container in this Kubernetes pod example will have their `/home/coder` directory
-persisted via the attached PersistentVolumeClaim.
+The `/home/coder` directory in this example is persisted via the attached PersistentVolumeClaim.
+Any data saved outside of this directory will be wiped when the workspace stops.
