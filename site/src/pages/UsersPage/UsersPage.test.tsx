@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
