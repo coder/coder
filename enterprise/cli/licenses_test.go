@@ -29,8 +29,9 @@ import (
 const fakeLicenseJWT = "test.jwt.sig"
 
 func TestLicensesAddSuccess(t *testing.T) {
+	t.Parallel()
 	// We can't check a real license into the git repo, and can't patch out the keys from here,
-	// so instead we have to fake the HTTP interaction.	t.Parallel()
+	// so instead we have to fake the HTTP interaction.
 	t.Run("LFlag", func(t *testing.T) {
 		t.Parallel()
 		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
