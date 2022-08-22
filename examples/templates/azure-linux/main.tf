@@ -228,12 +228,3 @@ resource "coder_metadata" "home_info" {
     value = "${var.home_size} GiB"
   }
 }
-
-resource "coder_metadata" "private_key" {
-  resource_id = tls_private_key.dummy
-  item {
-    key       = "key"
-    value     = tls_private_key.dummy.private_key_pem
-    sensitive = true
-  }
-}
