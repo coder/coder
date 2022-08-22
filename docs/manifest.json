@@ -15,7 +15,7 @@
           "title": "Architecture",
           "description": "Learn how Coder works",
           "icon_path": "./images/icons/protractor.svg",
-          "path": "./architecture.md"
+          "path": "./about/architecture.md"
         }
       ]
     },

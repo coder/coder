@@ -1,9 +1,5 @@
 # Architecture
 
-<p align="center">
-  <img src="./images/architecture.png" width="700px">
-</p>
-
 ## Agents
 
 An agent is the Coder service that runs within a user's remote workspace.
