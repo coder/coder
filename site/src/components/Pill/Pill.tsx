@@ -12,7 +12,7 @@ export interface PillProps {
   lightBorder?: boolean
 }
 
-export const Pill: React.FC<PillProps> = ({ className, icon, text, type, lightBorder = false }) => {
+export const Pill: FC<PillProps> = ({ className, icon, text, type, lightBorder = false }) => {
   const styles = useStyles({ icon, type, lightBorder })
   return (
     <div className={combineClasses([styles.wrapper, styles.pillColor, className])} role="status">
