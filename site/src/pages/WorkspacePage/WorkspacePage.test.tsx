@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
 import * as api from "../../api/api"
@@ -27,11 +28,13 @@ import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
+  const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
   await screen.findByText(MockWorkspace.name)
+  expect(getTemplateMock).toBeCalled()
 }
 
 /**
@@ -46,14 +49,14 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   // REMARK: exact here because the "Start" button and "START" label for
   //         workspace schedule could otherwise conflict.
   const button = await screen.findByText(label, { exact: true })
-  await waitFor(() => fireEvent.click(button))
+  fireEvent.click(button)
   expect(actionMock).toBeCalled()
 }
 
-const testStatus = async (mock: Workspace, label: string) => {
+const testStatus = async (ws: Workspace, label: string) => {
   server.use(
     rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json(mock))
+      return res(ctx.status(200), ctx.json(ws))
     }),
   )
   await renderWorkspacePage()
@@ -65,7 +68,7 @@ beforeEach(() => {
   jest.resetAllMocks()
 })
 
-describe("Workspace Page", () => {
+describe("WorkspacePage", () => {
   it("shows a workspace", async () => {
     await renderWorkspacePage()
     const workspaceName = screen.getByText(MockWorkspace.name)
@@ -80,8 +83,9 @@ describe("Workspace Page", () => {
     const stopWorkspaceMock = jest
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
-    await testButton(Language.stop, stopWorkspaceMock)
+    testButton(Language.stop, stopWorkspaceMock)
   })
+
   it("requests a delete job when the user presses Delete and confirms", async () => {
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
@@ -90,15 +94,18 @@ describe("Workspace Page", () => {
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = await screen.findByTestId("workspace-actions-button")
-    trigger.click()
+    fireEvent.click(trigger)
 
     const button = await screen.findByText(Language.delete)
-    await waitFor(() => fireEvent.click(button))
+    fireEvent.click(button)
+
     const confirmDialog = await screen.findByRole("dialog")
     const confirmButton = within(confirmDialog).getByText("Delete")
-    await waitFor(() => fireEvent.click(confirmButton))
+
+    fireEvent.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
   })
+
   it("requests a start job when the user presses Start", async () => {
     server.use(
       rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
@@ -108,7 +115,7 @@ describe("Workspace Page", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    await testButton(Language.start, startWorkspaceMock)
+    testButton(Language.start, startWorkspaceMock)
   })
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
@@ -125,7 +132,8 @@ describe("Workspace Page", () => {
     const cancelButton = await screen.findByRole("button", {
       name: "cancel action",
     })
-    await waitFor(() => fireEvent.click(cancelButton))
+
+    fireEvent.click(cancelButton)
 
     expect(cancelWorkspaceMock).toBeCalled()
   })
@@ -136,7 +144,7 @@ describe("Workspace Page", () => {
         return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
       }),
     )
-    await testButton(Language.update, getTemplateMock)
+    testButton(Language.update, getTemplateMock)
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
     await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
@@ -181,6 +189,7 @@ describe("Workspace Page", () => {
 
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
+      const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
       renderWithAuth(<WorkspacePage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
         path: "/@:username/:workspace",
@@ -197,6 +206,7 @@ describe("Workspace Page", () => {
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
       expect(agent2Status.length).toEqual(2)
+      expect(getTemplateMock).toBeCalled()
     })
   })
 })

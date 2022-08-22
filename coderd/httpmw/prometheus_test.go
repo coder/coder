@@ -17,6 +17,7 @@ import (
 func TestPrometheus(t *testing.T) {
 	t.Parallel()
 	t.Run("All", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("GET", "/", nil)
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
 		res := chimw.NewWrapResponseWriter(httptest.NewRecorder(), 0)

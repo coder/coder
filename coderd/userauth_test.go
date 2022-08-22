@@ -76,6 +76,7 @@ func TestUserAuthMethods(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
@@ -281,6 +282,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestUserOIDC(t *testing.T) {
 	t.Parallel()
 
@@ -456,7 +458,7 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	state := "somestate"
 	oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback?code=asd&state=" + state)
 	require.NoError(t, err)
-	req, err := http.NewRequest("GET", oauthURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateKey,
@@ -478,7 +480,7 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 	state := "somestate"
 	oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback?code=asd&state=" + state)
 	require.NoError(t, err)
-	req, err := http.NewRequest("GET", oauthURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateKey,

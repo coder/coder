@@ -66,6 +66,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	LicenseHandler       http.Handler
 }
 
 // New constructs a Coder API handler.
@@ -92,6 +93,9 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
+	if options.LicenseHandler == nil {
+		options.LicenseHandler = licenses()
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -107,6 +111,10 @@ func New(options *Options) *API {
 		Options:     options,
 		Handler:     r,
 		siteHandler: site.Handler(site.FS(), binFS),
+		httpAuth: &HTTPAuthorizer{
+			Authorizer: options.Authorizer,
+			Logger:     options.Logger,
+		},
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -400,6 +408,10 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", entitlements)
 		})
+		r.Route("/licenses", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Mount("/", options.LicenseHandler)
+		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -414,6 +426,7 @@ type API struct {
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
+	httpAuth            *HTTPAuthorizer
 }
 
 // Close waits for all WebSocket connections to drain before returning.

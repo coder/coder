@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { FC, useEffect } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "util/filters"
 import { pageTitle } from "util/page"

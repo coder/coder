@@ -491,8 +491,8 @@ func TestAuthorizeDomain(t *testing.T) {
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
-//nolint:paralleltest
 func TestAuthorizeLevels(t *testing.T) {
+	t.Parallel()
 	defOrg := uuid.New()
 	unusedID := uuid.New()
 
@@ -638,6 +638,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	for _, cases := range sets {
 		for _, c := range cases {
 			t.Run(name, func(t *testing.T) {
+				t.Parallel()
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)

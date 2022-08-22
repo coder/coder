@@ -1,6 +1,6 @@
 module github.com/coder/coder
 
-go 1.18
+go 1.19
 
 // Required until https://github.com/manifoldco/promptui/pull/169 is merged.
 replace github.com/manifoldco/promptui => github.com/kylecarbs/promptui v0.8.1-0.20201231190244-d8f2159af2b2
@@ -144,6 +144,7 @@ require (
 )
 
 require (
+	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )

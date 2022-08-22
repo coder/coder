@@ -1,5 +1,5 @@
 import { useInterpret } from "@xstate/react"
-import React, { createContext } from "react"
+import { createContext, FC, ReactNode } from "react"
 import { useNavigate } from "react-router"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
@@ -24,7 +24,7 @@ interface XServiceContextType {
  */
 export const XServiceContext = createContext({} as XServiceContextType)
 
-export const XServiceProvider: React.FC = ({ children }) => {
+export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const navigate = useNavigate()
   const redirectToUsersPage = () => {
     navigate("users")

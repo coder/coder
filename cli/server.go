@@ -68,7 +68,7 @@ import (
 )
 
 // nolint:gocyclo
-func server() *cobra.Command {
+func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -434,7 +434,7 @@ func server() *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := coderd.New(options)
+			coderAPI := newAPI(options)
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
@@ -475,8 +475,9 @@ func server() *cobra.Command {
 			server := &http.Server{
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.Handler,
+				ErrorLog:          log.New(io.Discard, "", 0),
+				Handler:           coderAPI.Handler,
+				ReadHeaderTimeout: time.Minute,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -885,16 +886,16 @@ func newProvisionerDaemon(ctx context.Context, dialer provisionerd.Dialer,
 // nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 ▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 ▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 ▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 ░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
   ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-░ ░          ░ ░     ░       ░  ░   ░     
-░                  ░                      		
+░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+░ ░          ░ ░     ░       ░  ░   ░
+░                  ░
 `)
 		return
 	}
@@ -1080,7 +1081,11 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
-	srv := &http.Server{Addr: addr, Handler: handler}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Minute,
+	}
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {

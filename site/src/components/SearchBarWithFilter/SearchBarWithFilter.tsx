@@ -36,7 +36,7 @@ interface FilterFormValues {
 
 export type FilterFormErrors = FormikErrors<FilterFormValues>
 
-export const SearchBarWithFilter: React.FC<SearchBarWithFilterProps> = ({
+export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWithFilterProps>> = ({
   filter,
   onFilter,
   presetFilters,

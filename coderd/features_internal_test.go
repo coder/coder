@@ -20,6 +20,7 @@ func TestEntitlements(t *testing.T) {
 		rw := httptest.NewRecorder()
 		entitlements(rw, r)
 		resp := rw.Result()
+		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		dec := json.NewDecoder(resp.Body)
 		var result codersdk.Entitlements

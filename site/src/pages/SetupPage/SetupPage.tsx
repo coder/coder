@@ -1,6 +1,6 @@
 import { useActor, useMachine } from "@xstate/react"
 import { FC, useContext, useEffect } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { setupMachine } from "xServices/setup/setupXService"

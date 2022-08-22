@@ -357,9 +357,10 @@ type GitSSHKey struct {
 }
 
 type License struct {
-	ID        int32           `db:"id" json:"id"`
-	License   json.RawMessage `db:"license" json:"license"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID         int32     `db:"id" json:"id"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
 }
 
 type Organization struct {
@@ -465,6 +466,7 @@ type Template struct {
 	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                 string          `db:"icon" json:"icon"`
 }
 
 type TemplateVersion struct {

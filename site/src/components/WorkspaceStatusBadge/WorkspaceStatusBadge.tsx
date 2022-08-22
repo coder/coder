@@ -124,7 +124,10 @@ export type WorkspaceStatusBadgeProps = {
   className?: string
 }
 
-export const WorkspaceStatusBadge: React.FC<WorkspaceStatusBadgeProps> = ({ build, className }) => {
+export const WorkspaceStatusBadge: React.FC<React.PropsWithChildren<WorkspaceStatusBadgeProps>> = ({
+  build,
+  className,
+}) => {
   const styles = useStyles()
   const theme = useTheme()
   const { text, icon, ...colorStyles } = getStatus(theme, build)

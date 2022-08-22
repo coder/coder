@@ -2,6 +2,7 @@
   "cSpell.words": [
     "apps",
     "awsidentity",
+    "bodyclose",
     "buildinfo",
     "buildname",
     "circbuf",
@@ -52,6 +53,7 @@
     "ntqry",
     "OIDC",
     "oneof",
+    "paralleltest",
     "parameterscopeid",
     "pqtype",
     "prometheusmetrics",
@@ -80,6 +82,7 @@
     "tfjson",
     "tfplan",
     "tfstate",
+    "tparallel",
     "trimprefix",
     "turnconn",
     "typegen",

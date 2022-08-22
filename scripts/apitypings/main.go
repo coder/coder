@@ -337,6 +337,7 @@ type TypescriptType struct {
 // typescriptType this function returns a typescript type for a given
 // golang type.
 // Eg:
+//
 //	[]byte returns "string"
 func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	switch ty := ty.(type) {
@@ -381,8 +382,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
 		}
 
+		aboveTypeLine := keyType.AboveTypeLine
+		if aboveTypeLine != "" && valueType.AboveTypeLine != "" {
+			aboveTypeLine = aboveTypeLine + "\n"
+		}
+		aboveTypeLine = aboveTypeLine + valueType.AboveTypeLine
 		return TypescriptType{
-			ValueType: fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+			ValueType:     fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+			AboveTypeLine: aboveTypeLine,
 		}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
@@ -457,6 +464,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 		resp.Optional = true
 		return resp, nil
+	case *types.Interface:
+		// only handle the empty interface for now
+		intf := ty
+		if intf.Empty() {
+			return TypescriptType{ValueType: "any",
+				AboveTypeLine: indentedComment("eslint-disable-next-line")}, nil
+		}
+		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	}
 
 	// These are all the other types we need to support.

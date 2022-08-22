@@ -23,7 +23,7 @@ export interface ErrorSummaryProps {
   defaultMessage?: string
 }
 
-export const ErrorSummary: FC<ErrorSummaryProps> = ({
+export const ErrorSummary: FC<React.PropsWithChildren<ErrorSummaryProps>> = ({
   error,
   retry,
   dismissible,
@@ -75,7 +75,13 @@ export const ErrorSummary: FC<ErrorSummaryProps> = ({
       </Collapse>
       {retry && (
         <div className={styles.retry}>
-          <Button size="small" onClick={retry} startIcon={<RefreshIcon />} variant="outlined">
+          <Button
+            size="small"
+            onClick={retry}
+            startIcon={<RefreshIcon />}
+            variant="outlined"
+            className={styles.retryButton}
+          >
             {Language.retryMessage}
           </Button>
         </div>
@@ -121,5 +127,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   retry: {
     marginTop: `${theme.spacing(2)}px`,
+  },
+  retryButton: {
+    color: theme.palette.error.contrastText,
+    borderColor: theme.palette.error.contrastText,
+
+    "&:hover": {
+      backgroundColor: theme.palette.error.dark,
+    },
   },
 }))

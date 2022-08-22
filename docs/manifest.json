@@ -15,7 +15,7 @@
           "title": "Architecture",
           "description": "Learn how Coder works",
           "icon_path": "./images/icons/protractor.svg",
-          "path": "./architecture.md"
+          "path": "./about/architecture.md"
         }
       ]
     },
@@ -102,6 +102,11 @@
           "title": "Emacs",
           "description": "Learn how to configure Emacs with TRAMP in Coder",
           "path": "./ides/emacs-tramp.md"
+        },
+        {
+          "title": "Remote Desktops",
+          "description": "Learn how to use Remote Desktops with Coder",
+          "path": "./ides/remote-desktops.md"
         }
       ]
     },

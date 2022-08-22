@@ -90,7 +90,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			sort = strings.ToLower(strings.ReplaceAll(sort, "_", " "))
 			h, ok := headersMap[sort]
 			if !ok {
-				return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
+				return "", xerrors.Errorf(`specified sort column %q not found in table headers, available columns are "%v"`, sort, strings.Join(headersRaw, `", "`))
 			}
 
 			// Autocorrect
@@ -101,7 +101,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			column := strings.ToLower(strings.ReplaceAll(column, "_", " "))
 			h, ok := headersMap[column]
 			if !ok {
-				return "", xerrors.Errorf("specified filter column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
+				return "", xerrors.Errorf(`specified filter column %q not found in table headers, available columns are "%v"`, sort, strings.Join(headersRaw, `", "`))
 			}
 
 			// Autocorrect
@@ -157,6 +157,10 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			case *time.Time:
 				if val != nil {
 					v = val.Format(time.Stamp)
+				}
+			case fmt.Stringer:
+				if val != nil {
+					v = val.String()
 				}
 			}
 
@@ -300,20 +304,4 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 	}
 
 	return row, nil
-}
-
-func ValidateColumns(all, given []string) error {
-	for _, col := range given {
-		found := false
-		for _, c := range all {
-			if strings.EqualFold(strings.ReplaceAll(col, "_", " "), c) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("unknown column: %s", col)
-		}
-	}
-	return nil
 }
