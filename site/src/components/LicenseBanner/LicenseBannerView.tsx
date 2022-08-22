@@ -48,8 +48,8 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
           </div>
           <Collapse in={showDetails}>
             <ul className={styles.list}>
-              {warnings.map((warning, i) => (
-                <li className={styles.listItem} key={`${i}-${warning}`}>
+              {warnings.map((warning) => (
+                <li className={styles.listItem} key={`${warning}`}>
                   {warning}
                 </li>
               ))}

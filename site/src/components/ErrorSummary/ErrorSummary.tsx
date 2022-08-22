@@ -47,10 +47,10 @@ export const ErrorSummary: FC<ErrorSummaryProps> = ({
   return (
     <Stack className={styles.root}>
       <Stack direction="row" alignItems="center" className={styles.messageBox}>
-        <div className={styles.flex}>
+        <Stack direction="row" spacing={0}>
           <span className={styles.errorMessage}>{message}</span>
           {!!detail && <Expander expanded={showDetails} setExpanded={setShowDetails} />}
-        </div>
+        </Stack>
         {dismissible && (
           <IconButton onClick={closeError} className={styles.iconButton}>
             <CloseIcon className={styles.closeIcon} />

@@ -16,12 +16,7 @@ export const Expander: React.FC<ExpanderProps> = ({ expanded, setExpanded }) => 
   const toggleExpanded = () => setExpanded(!expanded)
   const styles = useStyles()
   return (
-    <Link
-      aria-expanded={expanded}
-      onClick={toggleExpanded}
-      className={styles.expandLink}
-      tabIndex={0}
-    >
+    <Link aria-expanded={expanded} onClick={toggleExpanded} className={styles.expandLink}>
       {expanded ? (
         <span className={styles.text}>
           {Language.collapse}
