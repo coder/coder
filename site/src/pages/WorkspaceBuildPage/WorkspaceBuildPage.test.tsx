@@ -21,7 +21,7 @@ describe("WorkspaceBuildPage", () => {
     await expect(server).toReceiveMessage(log)
     expect(server).toHaveReceivedMessages([log])
 
-    client.onmessage = async (e) => {
+    client.onmessage = async () => {
       renderWithAuth(<WorkspaceBuildPage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
         path: "/@:username/:workspace/builds/:buildNumber",

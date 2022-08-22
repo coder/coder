@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
