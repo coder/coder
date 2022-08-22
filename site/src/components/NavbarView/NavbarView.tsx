@@ -25,10 +25,9 @@ export const Language = {
   audit: "Audit",
 }
 
-const NavItems: React.FC<{ className?: string; canViewAuditLog: boolean }> = ({
-  className,
-  canViewAuditLog,
-}) => {
+const NavItems: React.FC<
+  React.PropsWithChildren<{ className?: string; canViewAuditLog: boolean }>
+> = ({ className, canViewAuditLog }) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -63,8 +62,11 @@ const NavItems: React.FC<{ className?: string; canViewAuditLog: boolean }> = ({
     </List>
   )
 }
-
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, canViewAuditLog }) => {
+export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
+  user,
+  onSignOut,
+  canViewAuditLog,
+}) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 

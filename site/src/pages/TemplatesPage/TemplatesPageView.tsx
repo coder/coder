@@ -77,7 +77,7 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
 

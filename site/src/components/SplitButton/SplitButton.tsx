@@ -1,7 +1,6 @@
 import Button, { ButtonProps } from "@material-ui/core/Button"
 import ButtonGroup from "@material-ui/core/ButtonGroup"
 import ClickAwayListener from "@material-ui/core/ClickAwayListener"
-import Grow from "@material-ui/core/Grow"
 import MenuItem from "@material-ui/core/MenuItem"
 import MenuList from "@material-ui/core/MenuList"
 import Paper from "@material-ui/core/Paper"
@@ -30,7 +29,7 @@ export interface SplitButtonProps<T> extends Pick<ButtonProps, "color" | "disabl
    */
   options: SplitButtonOptions<T>[]
   /**
-   * textTransform is applied to the primary button text. Defaults to
+   * textTransform is applied to the primary button text. Defaults PropsWithto
    * uppercase
    */
   textTransform?: React.CSSProperties["textTransform"]
@@ -104,25 +103,18 @@ export const SplitButton = <T,>({
         style={{ zIndex: 1 }}
         transition
       >
-        {({ TransitionProps, placement }) => (
-          <Grow
-            {...TransitionProps}
-            style={{
-              transformOrigin: placement === "bottom" ? "center top" : "center bottom",
-            }}
-          >
-            <Paper>
-              <ClickAwayListener onClickAway={handleClose}>
-                <MenuList id="split-button-menu">
-                  {options.map((opt, idx) => (
-                    <MenuItem key={opt.label} onClick={(e) => handleSelectOpt(e, idx)}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </ClickAwayListener>
-            </Paper>
-          </Grow>
+        {() => (
+          <Paper>
+            <ClickAwayListener onClickAway={handleClose}>
+              <MenuList id="split-button-menu">
+                {options.map((opt, idx) => (
+                  <MenuItem key={opt.label} onClick={(e) => handleSelectOpt(e, idx)}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </MenuList>
+            </ClickAwayListener>
+          </Paper>
         )}
       </Popper>
     </>

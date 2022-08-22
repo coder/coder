@@ -9,7 +9,7 @@ export interface RequireAuthProps {
   children: JSX.Element
 }
 
-export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
+export const RequireAuth: React.FC<React.PropsWithChildren<RequireAuthProps>> = ({ children }) => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const location = useLocation()

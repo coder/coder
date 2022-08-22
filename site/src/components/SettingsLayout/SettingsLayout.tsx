@@ -1,6 +1,6 @@
 import Box from "@material-ui/core/Box"
 import { FC } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { Outlet } from "react-router-dom"
 import { pageTitle } from "../../util/page"
 import { AuthAndFrame } from "../AuthAndFrame/AuthAndFrame"

@@ -170,7 +170,7 @@ export const validationSchema = Yup.object({
     }),
 })
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceScheduleFormProps>> = ({
   submitScheduleError,
   initialValues,
   isLoading,
@@ -221,7 +221,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
-          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
+          {submitScheduleError ? <ErrorSummary error={submitScheduleError} /> : <></>}
           <Section title={Language.startSection}>
             <FormControlLabel
               control={
