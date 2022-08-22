@@ -427,6 +427,11 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	if err != nil {
 		return err
 	}
+	// Set SSH connection environment variables, from the clients perspective.
+	srcAddr, srcPort := addrToSSHEnvAddr(session.RemoteAddr())
+	dstAddr, dstPort := addrToSSHEnvAddr(session.LocalAddr())
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
@@ -441,6 +446,8 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
+
+		// The pty package sets `SSH_TTY` on supported platforms.
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
@@ -693,6 +700,19 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 		}
 	}
+}
+
+// addrToSSHEnvAddr turns the address and port into space-separated values,
+// works with IPv4, IPv6 and invalid addresses (such as [peer/unknown-addr]).
+func addrToSSHEnvAddr(a net.Addr) (addr string, port string) {
+	addr = a.String()
+	port = "0"
+	li := strings.LastIndex(addr, ":")
+	if li != -1 {
+		port = addr[li+1:]
+		addr = addr[:li]
+	}
+	return addr, port
 }
 
 // dialResponse is written to datachannels with protocol "dial" by the agent as
