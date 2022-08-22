@@ -32,7 +32,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-const workspaceDefaultTTL = 2 * time.Hour
+const workspaceDefaultTTL = 12 * time.Hour
 
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
