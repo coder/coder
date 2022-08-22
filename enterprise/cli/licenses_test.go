@@ -33,7 +33,8 @@ func TestLicensesAddSuccess(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.	t.Parallel()
 	t.Run("LFlag", func(t *testing.T) {
 		t.Parallel()
-		cmd, pty := setupFakeLicenseServerTest(t, true, "licenses", "add", "-l", fakeLicenseJWT)
+		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
+		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.Execute()
@@ -43,7 +44,8 @@ func TestLicensesAddSuccess(t *testing.T) {
 	})
 	t.Run("Prompt", func(t *testing.T) {
 		t.Parallel()
-		cmd, pty := setupFakeLicenseServerTest(t, true, "license", "add")
+		cmd := setupFakeLicenseServerTest(t, "license", "add")
+		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.Execute()
@@ -57,9 +59,10 @@ func TestLicensesAddSuccess(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		filename := filepath.Join(dir, "license.jwt")
-		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0666)
+		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0600)
 		require.NoError(t, err)
-		cmd, pty := setupFakeLicenseServerTest(t, true, "license", "add", "-f", filename)
+		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", filename)
+		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.Execute()
@@ -69,7 +72,7 @@ func TestLicensesAddSuccess(t *testing.T) {
 	})
 	t.Run("StdIn", func(t *testing.T) {
 		t.Parallel()
-		cmd, _ := setupFakeLicenseServerTest(t, false, "license", "add", "-f", "-")
+		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", "-")
 		r, w := io.Pipe()
 		cmd.SetIn(r)
 		stdout := new(bytes.Buffer)
@@ -94,7 +97,8 @@ func TestLicensesAddSuccess(t *testing.T) {
 	})
 	t.Run("DebugOutput", func(t *testing.T) {
 		t.Parallel()
-		cmd, pty := setupFakeLicenseServerTest(t, true, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
+		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
+		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.Execute()
@@ -126,7 +130,7 @@ func TestLicensesAddFail(t *testing.T) {
 	})
 }
 
-func setupFakeLicenseServerTest(t *testing.T, withPty bool, args ...string) (*cobra.Command, *ptytest.PTY) {
+func setupFakeLicenseServerTest(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
 	s := httptest.NewServer(&fakeAddLicenseServer{t})
 	t.Cleanup(s.Close)
@@ -135,13 +139,14 @@ func setupFakeLicenseServerTest(t *testing.T, withPty bool, args ...string) (*co
 	require.NoError(t, err)
 	err = root.Session().Write("sessiontoken")
 	require.NoError(t, err)
-	var pty *ptytest.PTY
-	if withPty {
-		pty = ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-	}
-	return cmd, pty
+	return cmd
+}
+
+func attachPty(t *testing.T, cmd *cobra.Command) *ptytest.PTY {
+	pty := ptytest.New(t)
+	cmd.SetIn(pty.Input())
+	cmd.SetOut(pty.Output())
+	return pty
 }
 
 type fakeAddLicenseServer struct {

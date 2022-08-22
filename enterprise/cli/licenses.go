@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var jwtRegexp = regexp.MustCompile("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
+var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$`)
 
 func licenses() *cobra.Command {
 	cmd := &cobra.Command{
@@ -65,11 +65,11 @@ func licenseAdd() *cobra.Command {
 					r = cmd.InOrStdin()
 				} else {
 					f, err := os.Open(filename)
-					defer f.Close()
-					r = f
 					if err != nil {
 						return err
 					}
+					defer f.Close()
+					r = f
 				}
 				lb, err := io.ReadAll(r)
 				if err != nil {
@@ -93,10 +93,7 @@ func licenseAdd() *cobra.Command {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				return enc.Encode(licResp)
 			}
-			_, _ = fmt.Fprintln(
-				cmd.OutOrStdout(),
-				fmt.Sprintf("License with ID %d added", licResp.ID),
-			)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "License with ID %d added\n", licResp.ID)
 			return nil
 		},
 	}
