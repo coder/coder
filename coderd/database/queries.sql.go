@@ -488,17 +488,17 @@ VALUES
 
 type InsertLicenseParams struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
-	Jwt        string    `db:"jwt" json:"jwt"`
+	JWT        string    `db:"jwt" json:"jwt"`
 	Exp        time.Time `db:"exp" json:"exp"`
 }
 
 func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
-	row := q.db.QueryRowContext(ctx, insertLicense, arg.UploadedAt, arg.Jwt, arg.Exp)
+	row := q.db.QueryRowContext(ctx, insertLicense, arg.UploadedAt, arg.JWT, arg.Exp)
 	var i License
 	err := row.Scan(
 		&i.ID,
 		&i.UploadedAt,
-		&i.Jwt,
+		&i.JWT,
 		&i.Exp,
 	)
 	return i, err

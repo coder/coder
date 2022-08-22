@@ -359,7 +359,7 @@ type GitSSHKey struct {
 type License struct {
 	ID         int32     `db:"id" json:"id"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
-	Jwt        string    `db:"jwt" json:"jwt"`
+	JWT        string    `db:"jwt" json:"jwt"`
 	Exp        time.Time `db:"exp" json:"exp"`
 }
 

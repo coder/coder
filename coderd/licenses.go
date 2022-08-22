@@ -9,13 +9,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func Licenses() http.Handler {
+func licenses() http.Handler {
 	r := chi.NewRouter()
-	r.NotFound(licensesUnsupported)
+	r.NotFound(unsupported)
 	return r
 }
 
-func licensesUnsupported(rw http.ResponseWriter, _ *http.Request) {
+func unsupported(rw http.ResponseWriter, _ *http.Request) {
 	httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 		Message:     "Unsupported",
 		Detail:      "These endpoints are not supported in AGPL-licensed Coder",

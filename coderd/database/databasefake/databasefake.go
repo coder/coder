@@ -2288,7 +2288,7 @@ func (q *fakeQuerier) InsertLicense(
 	l := database.License{
 		ID:         q.lastLicenseID + 1,
 		UploadedAt: arg.UploadedAt,
-		Jwt:        arg.Jwt,
+		JWT:        arg.JWT,
 		Exp:        arg.Exp,
 	}
 	q.lastLicenseID = l.ID

@@ -94,7 +94,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.LicenseHandler == nil {
-		options.LicenseHandler = Licenses()
+		options.LicenseHandler = licenses()
 	}
 
 	siteCacheDir := options.CacheDir

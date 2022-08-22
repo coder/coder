@@ -31,6 +31,8 @@ const (
 
 var ValidMethods = []string{"EdDSA"}
 
+// key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
+// by our signing infrastructure
 //go:embed keys/2022-08-12
 var key20220812 []byte
 
@@ -98,31 +100,42 @@ func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, e
 	}
 }
 
-type LicenseAPI struct {
-	handler  chi.Router
+// licenseAPI handles enterprise licenses, and attaches to the main coderd.API via the
+// LicenseHandler option, so that it serves all routes under /api/v2/licenses
+type licenseAPI struct {
+	router   chi.Router
 	logger   slog.Logger
 	database database.Store
 	pubsub   database.Pubsub
 	auth     *coderd.HTTPAuthorizer
 }
 
-func NewLicenseAPI(
+func newLicenseAPI(
 	l slog.Logger,
 	db database.Store,
 	ps database.Pubsub,
 	auth *coderd.HTTPAuthorizer,
-) *LicenseAPI {
+) *licenseAPI {
 	r := chi.NewRouter()
-	a := &LicenseAPI{handler: r, logger: l, database: db, pubsub: ps, auth: auth}
+	a := &licenseAPI{router: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)
 	return a
 }
 
-func (a *LicenseAPI) Handler() http.Handler {
-	return a.handler
+func (a *licenseAPI) handler() http.Handler {
+	return a.router
 }
 
-func (a *LicenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
+// postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
+// in the cluster at one time for several reasons:
+//
+// 1. Upgrades --- if the license format changes from one version of Coder to the next, during a
+//    rolling update you will have different Coder servers that need different licenses to function.
+// 2. Avoid abrupt feature breakage --- when an admin uploads a new license with different features
+//    we generally don't want the old features to immediately break without warning.  With a grace
+//    period on the license, features will continue to work from the old license until its grace
+//    period, then the users will get a warning allowing them to gracefully stop using the feature.
+func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 	if !a.auth.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
@@ -153,7 +166,7 @@ func (a *LicenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 
 	dl, err := a.database.InsertLicense(r.Context(), database.InsertLicenseParams{
 		UploadedAt: database.Now(),
-		Jwt:        addLicense.License,
+		JWT:        addLicense.License,
 		Exp:        expTime,
 	})
 	if err != nil {

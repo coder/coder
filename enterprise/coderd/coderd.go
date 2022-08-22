@@ -18,13 +18,13 @@ func NewEnterprise(options *coderd.Options) *coderd.API {
 			panic(xerrors.Errorf("rego authorize panic: %w", err))
 		}
 	}
-	eOpts.LicenseHandler = NewLicenseAPI(
+	eOpts.LicenseHandler = newLicenseAPI(
 		eOpts.Logger,
 		eOpts.Database,
 		eOpts.Pubsub,
 		&coderd.HTTPAuthorizer{
 			Authorizer: eOpts.Authorizer,
 			Logger:     eOpts.Logger,
-		}).Handler()
+		}).handler()
 	return coderd.New(&eOpts)
 }
