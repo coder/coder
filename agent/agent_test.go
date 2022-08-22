@@ -274,7 +274,9 @@ func TestAgent(t *testing.T) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		conn := setupAgent(t, agent.Metadata{}, 0)
+		conn := setupAgent(t, agent.Metadata{
+			DERPMap: tailnettest.RunDERPAndSTUN(t),
+		}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
 		require.NoError(t, err)

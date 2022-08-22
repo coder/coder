@@ -280,12 +280,14 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 	httpClient := &http.Client{
 		Jar: jar,
 	}
+	// nolint:bodyclose
 	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
@@ -344,6 +346,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	go func() {
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "connecting")
+			// nolint:bodyclose
 			ws, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 				HTTPClient: httpClient,
 				// Need to disable compression to avoid a data-race.

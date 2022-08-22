@@ -274,34 +274,34 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	if len(agents) == 0 {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
-	var agent codersdk.WorkspaceAgent
+	var workspaceAgent codersdk.WorkspaceAgent
 	if len(workspaceParts) >= 2 {
 		for _, otherAgent := range agents {
 			if otherAgent.Name != workspaceParts[1] {
 				continue
 			}
-			agent = otherAgent
+			workspaceAgent = otherAgent
 			break
 		}
-		if agent.ID == uuid.Nil {
+		if workspaceAgent.ID == uuid.Nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 		}
 	}
-	if agent.ID == uuid.Nil {
+	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
 			if !shuffle {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
 			}
-			agent, err = cryptorand.Element(agents)
+			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 			}
 		} else {
-			agent = agents[0]
+			workspaceAgent = agents[0]
 		}
 	}
 
-	return workspace, agent, nil
+	return workspace, workspaceAgent, nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to

@@ -596,42 +596,6 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 }
 
-// postWorkspaceAgentNode sends networking information to a workspace agent node.
-func (api *API) postWorkspaceAgentNode(rw http.ResponseWriter, r *http.Request) {
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	var node tailnet.Node
-	if !httpapi.Read(rw, r, &node) {
-		return
-	}
-	data, err := json.Marshal(node)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal node data.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
-	data = append(agentIDBytes, data...)
-	err = api.Pubsub.Publish("tailnet", data)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Publish node data.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, codersdk.Response{
-		Message: "Published!",
-	})
-}
-
 func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {

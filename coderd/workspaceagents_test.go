@@ -110,9 +110,10 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata: agentClient.WorkspaceAgentMetadata,
-			WebRTCDialer:  agentClient.ListenWorkspaceAgent,
-			Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -243,9 +244,10 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata: agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
-		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()
@@ -369,9 +371,10 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata: agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
-		Logger:        slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()

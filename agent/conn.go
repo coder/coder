@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -138,11 +139,11 @@ type TailnetConn struct {
 	*tailnet.Conn
 }
 
-func (c *TailnetConn) Ping() (time.Duration, error) {
+func (*TailnetConn) Ping() (time.Duration, error) {
 	return 0, nil
 }
 
-func (c *TailnetConn) CloseWithError(err error) error {
+func (c *TailnetConn) CloseWithError(_ error) error {
 	return c.Close()
 }
 
@@ -168,6 +169,9 @@ func (c *TailnetConn) ReconnectingPTY(id string, height, width uint16, command s
 		_ = conn.Close()
 		return nil, err
 	}
+	data = append(make([]byte, 2), data...)
+	binary.LittleEndian.PutUint16(data, uint16(len(data)-2))
+
 	_, err = conn.Write(data)
 	if err != nil {
 		_ = conn.Close()
@@ -202,5 +206,9 @@ func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
 func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(rawPort)
-	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(tailnetIP, uint16(port)))
+	ipp := netip.AddrPortFrom(tailnetIP, uint16(port))
+	if network == "udp" {
+		return c.Conn.DialContextUDP(ctx, ipp)
+	}
+	return c.Conn.DialContextTCP(ctx, ipp)
 }

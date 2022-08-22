@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -219,8 +220,21 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				return
 			}
+			// This cannot use a JSON decoder, since that can
+			// buffer additional data that is required for the PTY.
+			rawLen := make([]byte, 2)
+			_, err = conn.Read(rawLen)
+			if err != nil {
+				continue
+			}
+			length := binary.LittleEndian.Uint16(rawLen)
+			data := make([]byte, length)
+			_, err = conn.Read(data)
+			if err != nil {
+				continue
+			}
 			var msg reconnectingPTYInit
-			err = json.NewDecoder(conn).Decode(&msg)
+			err = json.Unmarshal(data, &msg)
 			if err != nil {
 				continue
 			}

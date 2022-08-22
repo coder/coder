@@ -266,13 +266,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/workspaceagents/azure-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity":   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":                {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/iceservers":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/node":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/coordinate": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/derpmap":    {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -335,6 +336,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/turn": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
