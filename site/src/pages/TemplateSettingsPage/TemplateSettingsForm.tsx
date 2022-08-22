@@ -113,7 +113,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           label={Language.maxTtlLabel}
           variant="outlined"
           // Display seconds from ms
-          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : undefined}
+          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : ""}
           // Convert ms to seconds
           onChange={(event) =>
             form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 1000)
