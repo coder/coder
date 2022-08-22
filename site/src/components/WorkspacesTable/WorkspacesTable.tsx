@@ -29,10 +29,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({ isLoading, workspace
         <TableHead>
           <TableRow>
             <TableCell width="25%">{Language.name}</TableCell>
-            <TableCell width="20%">{Language.template}</TableCell>
-            <TableCell width="25%">{Language.lastBuiltBy}</TableCell>
-            <TableCell width="15%">{Language.version}</TableCell>
-            <TableCell width="15%">{Language.status}</TableCell>
+            <TableCell width="35%">{Language.template}</TableCell>
+            <TableCell width="20%">{Language.version}</TableCell>
+            <TableCell width="20%">{Language.status}</TableCell>
             <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>

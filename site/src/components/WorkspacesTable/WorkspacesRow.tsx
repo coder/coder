@@ -6,8 +6,6 @@ import { useActor } from "@xstate/react"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
@@ -29,8 +27,8 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
   const theme: Theme = useTheme()
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
+  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
   return (
     <TableRow
@@ -51,11 +49,17 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
         </TableCellData>
       </TableCellLink>
 
-      <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <AvatarData
-          title={initiatedBy}
-          subtitle={createDayString(workspace.latest_build.created_at)}
+          title={workspace.template_name}
+          highlightTitle={false}
+          avatar={
+            hasTemplateIcon ? (
+              <div className={styles.templateIconWrapper}>
+                <img alt="" src={workspace.template_icon} />
+              </div>
+            ) : undefined
+          }
         />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
@@ -116,5 +120,15 @@ const useStyles = makeStyles((theme) => ({
   buildTime: {
     color: theme.palette.text.secondary,
     fontSize: 12,
+  },
+  templateIconWrapper: {
+    // Same size then the avatar component
+    width: 36,
+    height: 36,
+    padding: 2,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))
