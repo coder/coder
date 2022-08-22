@@ -72,7 +72,18 @@ roleRef:
 
 Then start the Coder host with `serviceAccountName: coder` in the pod spec.
 
+## Namespace
+
+The target namespace in which the pod will be deployed is defined via the `coder_workspace`
+variable. The namespace must exist prior to creating workspaces.
+
 ## Persistence
 
 The `/home/coder` directory in this example is persisted via the attached PersistentVolumeClaim.
 Any data saved outside of this directory will be wiped when the workspace stops.
+
+## code-server
+
+`code-server` is installed via the `startup_script` argument in the `coder_agent`
+resource block. The `coder_app` resource is defined to access `code-server` through
+the dashboard UI over `localhost:13337`.

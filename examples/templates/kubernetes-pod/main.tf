@@ -25,11 +25,11 @@ variable "use_kubeconfig" {
   EOF
 }
 
-variable "workspaces_namespace" {
+variable "coder_namespace" {
   type        = string
   sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
-  default     = "coder-workspace"
+  default     = "coder-namespace"
 }
 
 variable "disk_size" {
@@ -70,7 +70,7 @@ resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
-    namespace = var.workspaces_namespace
+    namespace = var.coder_namespace
   }
   spec {
     security_context {
@@ -105,7 +105,7 @@ resource "kubernetes_pod" "main" {
 resource "kubernetes_persistent_volume_claim" "home-directory" {
   metadata {
     name      = "home-coder-java-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
-    namespace = var.workspaces_namespace
+    namespace = var.coder_namespace
   }
   spec {
     access_modes = ["ReadWriteOnce"]
