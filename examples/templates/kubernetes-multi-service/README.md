@@ -72,3 +72,7 @@ roleRef:
 
 Then start the Coder host with `serviceAccountName: coder` in the pod spec.
 
+## Persistence
+
+Each container in this Kubernetes pod example will have their `/home/coder` directory
+persisted via the attached PersistentVolumeClaim.
