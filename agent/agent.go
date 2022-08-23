@@ -706,19 +706,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 	}
 }
 
-// addrToSSHEnvAddr turns the address and port into space-separated values,
-// works with IPv4, IPv6 and invalid addresses (such as [peer/unknown-addr]).
-func addrToSSHEnvAddr(a net.Addr) (addr string, port string) {
-	addr = a.String()
-	port = "0"
-	li := strings.LastIndex(addr, ":")
-	if li != -1 {
-		port = addr[li+1:]
-		addr = addr[:li]
-	}
-	return addr, port
-}
-
 // dialResponse is written to datachannels with protocol "dial" by the agent as
 // the first packet to signify whether the dial succeeded or failed.
 type dialResponse struct {
