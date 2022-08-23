@@ -64,6 +64,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
+            aria-disabled={!editable}
             autoComplete="username"
             disabled={!editable}
             fullWidth
@@ -72,7 +73,13 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
           />
 
           <div>
-            <LoadingButton loading={isLoading} type="submit" variant="contained">
+            <LoadingButton
+              loading={isLoading}
+              aria-disabled={!editable}
+              disabled={!editable}
+              type="submit"
+              variant="contained"
+            >
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>
