@@ -43,3 +43,7 @@ func (f File) RBACObject() rbac.Object {
 func (User) RBACObject() rbac.Object {
 	return rbac.ResourceUser
 }
+
+func (License) RBACObject() rbac.Object {
+	return rbac.ResourceLicense
+}

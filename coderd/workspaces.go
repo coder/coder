@@ -145,7 +145,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+	workspaces, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
