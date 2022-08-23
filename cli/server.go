@@ -322,7 +322,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 								STUNPort: 19302,
 							}, {
 								Name:         "1b",
-								RegionID:     1,
+								RegionID:     derpServerRegionID,
 								HostName:     accessURLParsed.Hostname(),
 								DERPPort:     accessURLPort,
 								STUNPort:     -1,
