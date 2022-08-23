@@ -40,7 +40,7 @@ export const permissionsToCheck = {
     object: {
       resource_type: "template",
     },
-    action: "write",
+    action: "update",
   },
   [checks.viewAuditLog]: {
     object: {
