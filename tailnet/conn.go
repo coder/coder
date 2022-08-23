@@ -269,6 +269,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		callback(makeNode())
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
+		if err != nil {
+			return
+		}
 		endpoints := make([]string, 0, len(s.LocalAddrs))
 		for _, addr := range s.LocalAddrs {
 			endpoints = append(endpoints, addr.Addr.String())
