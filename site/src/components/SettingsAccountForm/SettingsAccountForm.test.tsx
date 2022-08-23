@@ -7,7 +7,7 @@ import { AccountForm, AccountFormValues } from "./SettingsAccountForm"
 //       only that editable is set to true or false. This is passed from
 //       the call to /authorization done by authXService
 describe("AccountForm", () => {
-  describe("for owners", () => {
+  describe("when editable is set to true", () => {
     it("allows updating username", async () => {
       // Given
       const mockInitialValues: AccountFormValues = {
@@ -33,34 +33,8 @@ describe("AccountForm", () => {
     })
   })
 
-  describe("for user admins", () => {
-    it("allows updating username", async () => {
-      // Given
-      const mockInitialValues: AccountFormValues = {
-        username: MockUser2.username,
-        editable: true,
-      }
-
-      // When
-      render(
-        <AccountForm
-          email={MockUser2.email}
-          initialValues={mockInitialValues}
-          isLoading={false}
-          onSubmit={() => {
-            return
-          }}
-        />,
-      )
-
-      // Then
-      const el = await screen.findByLabelText("Username")
-      expect(el).toBeEnabled()
-    })
-  })
-
-  describe("for members", () => {
-    it("allows updating username", async () => {
+  describe("when editable is set to false", () => {
+    it("does not allow updating username", async () => {
       // Given
       const mockInitialValues: AccountFormValues = {
         username: MockUser2.username,
