@@ -21,7 +21,7 @@ export const AccountPage: React.FC = () => {
   return (
     <Section title={Language.title}>
       <AccountForm
-        editable={!!canEditUsers}
+        editable={Boolean(canEditUsers)}
         email={me.email}
         updateProfileError={updateProfileError}
         isLoading={authState.matches("signedIn.profile.updatingProfile")}
