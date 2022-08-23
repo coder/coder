@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package pty_test
 
@@ -39,5 +38,13 @@ func TestStart(t *testing.T) {
 		var exitErr *exec.ExitError
 		require.True(t, xerrors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
+	})
+
+	t.Run("SSH_PTY", func(t *testing.T) {
+		t.Parallel()
+		pty, ps := ptytest.Start(t, exec.Command("env"))
+		pty.ExpectMatch("SSH_PTY=/dev/pts/")
+		err := ps.Wait()
+		require.NoError(t, err)
 	})
 }
