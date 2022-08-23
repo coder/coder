@@ -8,7 +8,6 @@ import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
 export interface AccountFormValues {
-  editable: boolean
   username: string
 }
 

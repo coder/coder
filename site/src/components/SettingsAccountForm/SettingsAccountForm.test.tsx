@@ -12,12 +12,12 @@ describe("AccountForm", () => {
       // Given
       const mockInitialValues: AccountFormValues = {
         username: MockUser2.username,
-        editable: true,
       }
 
       // When
       render(
         <AccountForm
+          editable
           email={MockUser2.email}
           initialValues={mockInitialValues}
           isLoading={false}
@@ -38,12 +38,12 @@ describe("AccountForm", () => {
       // Given
       const mockInitialValues: AccountFormValues = {
         username: MockUser2.username,
-        editable: false,
       }
 
       // When
       render(
         <AccountForm
+          editable={false}
           email={MockUser2.email}
           initialValues={mockInitialValues}
           isLoading={false}

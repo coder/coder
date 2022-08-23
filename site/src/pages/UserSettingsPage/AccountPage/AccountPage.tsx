@@ -21,13 +21,12 @@ export const AccountPage: React.FC = () => {
   return (
     <Section title={Language.title}>
       <AccountForm
+        editable={!!canEditUsers}
         email={me.email}
         updateProfileError={updateProfileError}
         isLoading={authState.matches("signedIn.profile.updatingProfile")}
         initialValues={{
           username: me.username,
-          // Fail-open, as the API endpoint will check again on submit
-          editable: canEditUsers || false,
         }}
         onSubmit={(data) => {
           authSend({
