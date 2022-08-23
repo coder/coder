@@ -1,13 +1,13 @@
 import TextField from "@material-ui/core/TextField"
+import { useActor } from "@xstate/react"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import {FC, useContext} from "react"
+import { FC, useContext } from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { XServiceContext } from "../../xServices/StateContext"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
-import {XServiceContext} from "../../xServices/StateContext";
-import {useActor} from "@xstate/react";
 
 interface AccountFormValues {
   username: string
