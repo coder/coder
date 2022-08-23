@@ -7,7 +7,7 @@ import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../u
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
-interface AccountFormValues {
+export interface AccountFormValues {
   username: string
 }
 
