@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/testutil"
 )

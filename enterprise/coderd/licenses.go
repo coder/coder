@@ -7,18 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/coderd/rbac"
-
-	"golang.org/x/xerrors"
-
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
-
-	"cdr.dev/slog"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
