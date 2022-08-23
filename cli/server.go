@@ -316,7 +316,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 							RegionName: "Coder",
 							Nodes: []*tailcfg.DERPNode{{
 								Name:     "1a",
-								RegionID: 1,
+								RegionID: derpServerRegionID,
 								STUNOnly: true,
 								HostName: "stun.l.google.com",
 								STUNPort: 19302,
