@@ -43,7 +43,7 @@ func TestStart(t *testing.T) {
 	t.Run("SSH_PTY", func(t *testing.T) {
 		t.Parallel()
 		pty, ps := ptytest.Start(t, exec.Command("env"))
-		pty.ExpectMatch("SSH_PTY=/dev/pts/")
+		pty.ExpectMatch("SSH_PTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)
 	})
