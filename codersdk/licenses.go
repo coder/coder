@@ -36,7 +36,7 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 	return l, d.Decode(&l)
 }
 
-func (c *Client) GetLicenses(ctx context.Context) ([]License, error) {
+func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/licenses", nil)
 	if err != nil {
 		return nil, err

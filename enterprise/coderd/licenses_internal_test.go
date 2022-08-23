@@ -194,7 +194,7 @@ func TestGetLicense(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		licenses, err := client.GetLicenses(ctx)
+		licenses, err := client.Licenses(ctx)
 		require.NoError(t, err)
 		require.Len(t, licenses, 2)
 		assert.Equal(t, int32(1), licenses[0].ID)
