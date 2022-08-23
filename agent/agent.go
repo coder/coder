@@ -568,6 +568,10 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if err != nil {
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
+	// Set environment variables reliable detection of being inside a
+	// Coder workspace.
+	cmd.Env = append(cmd.Env, "CODER=true")
+
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
@@ -948,7 +952,9 @@ func (r *reconnectingPTY) Close() {
 		_ = conn.Close()
 	}
 	_ = r.ptty.Close()
+	r.circularBufferMutex.Lock()
 	r.circularBuffer.Reset()
+	r.circularBufferMutex.Unlock()
 	r.timeout.Stop()
 }
 

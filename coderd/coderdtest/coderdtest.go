@@ -75,6 +75,7 @@ type Options struct {
 
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD bool
+	APIBuilder          func(*coderd.Options) *coderd.API
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -123,6 +124,9 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		t.Cleanup(func() {
 			close(options.AutobuildStats)
 		})
+	}
+	if options.APIBuilder == nil {
+		options.APIBuilder = coderd.New
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -182,7 +186,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	})
 
 	// We set the handler after server creation for the access URL.
-	coderAPI := coderd.New(&coderd.Options{
+	coderAPI := options.APIBuilder(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.

@@ -14,7 +14,7 @@ export interface UserDropdownProps {
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<UserDropdownProps> = ({
+export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> = ({
   user,
   onSignOut,
 }: UserDropdownProps) => {

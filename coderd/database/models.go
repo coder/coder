@@ -356,9 +356,10 @@ type GitSSHKey struct {
 }
 
 type License struct {
-	ID        int32           `db:"id" json:"id"`
-	License   json.RawMessage `db:"license" json:"license"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID         int32     `db:"id" json:"id"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
 }
 
 type Organization struct {

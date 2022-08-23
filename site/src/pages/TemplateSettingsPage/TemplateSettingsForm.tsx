@@ -18,10 +18,10 @@ import * as Yup from "yup"
 export const Language = {
   nameLabel: "Name",
   descriptionLabel: "Description",
+  maxTtlLabel: "Auto-stop limit",
   iconLabel: "Icon",
-  maxTtlLabel: "Max TTL",
   // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
-  maxTtlHelperText: "Edit the template maximum time before shutdown in milliseconds",
+  maxTtlHelperText: "Edit the template maximum time before shutdown in seconds",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
 }
@@ -59,9 +59,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       icon: template.icon,
     },
     validationSchema,
-    onSubmit: (data) => {
-      onSubmit(data)
-    },
+    onSubmit,
     initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
@@ -156,6 +154,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
+          // Display seconds from ms
+          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : ""}
+          // Convert ms to seconds
+          onChange={(event) =>
+            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 1000)
+          }
         />
       </Stack>
 

@@ -110,6 +110,7 @@ docker rm "$temp_container_id" 1>&2
 
 echo "coder:x:1000:coder" >>./group
 echo "coder:x:1000:1000::/:/bin/sh" >>./passwd
+mkdir ./empty-dir
 
 docker buildx build \
 	--platform "$arch" \

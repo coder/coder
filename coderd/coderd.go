@@ -71,6 +71,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	LicenseHandler       http.Handler
 
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
@@ -103,6 +104,9 @@ func New(options *Options) *API {
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
+	if options.LicenseHandler == nil {
+		options.LicenseHandler = licenses()
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -118,6 +122,10 @@ func New(options *Options) *API {
 		Options:     options,
 		Handler:     r,
 		siteHandler: site.Handler(site.FS(), binFS),
+		httpAuth: &HTTPAuthorizer{
+			Authorizer: options.Authorizer,
+			Logger:     options.Logger,
+		},
 	}
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
@@ -408,6 +416,10 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", entitlements)
 		})
+		r.Route("/licenses", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Mount("/", options.LicenseHandler)
+		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -424,6 +436,7 @@ type API struct {
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
+	httpAuth            *HTTPAuthorizer
 }
 
 // Close waits for all WebSocket connections to drain before returning.

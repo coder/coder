@@ -80,6 +80,7 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gohugoio/hugo v0.101.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
@@ -100,6 +101,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v20.10.17+incompatible
+	github.com/nhatthm/otelsql v0.4.0
 	github.com/open-policy-agent/opa v0.41.0
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/pion/datachannel v1.5.2
@@ -234,7 +236,6 @@ require (
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
-	github.com/nhatthm/otelsql v0.4.0
 	github.com/niklasfasching/go-org v1.6.5 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

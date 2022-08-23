@@ -16,7 +16,7 @@ export interface TabSidebarProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabSidebar: FC<TabSidebarProps> = ({ menuItems }) => {
+export const TabSidebar: FC<React.PropsWithChildren<TabSidebarProps>> = ({ menuItems }) => {
   const styles = useStyles()
 
   return (

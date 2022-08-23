@@ -10,12 +10,13 @@ import (
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"
+	entcli "github.com/coder/coder/enterprise/cli"
 )
 
 func main() {
 	rand.Seed(time.Now().UnixMicro())
 
-	cmd, err := cli.Root().ExecuteC()
+	cmd, err := cli.Root(entcli.EnterpriseSubcommands()).ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)

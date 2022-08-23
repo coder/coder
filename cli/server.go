@@ -69,7 +69,7 @@ import (
 )
 
 // nolint:gocyclo
-func server() *cobra.Command {
+func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -504,7 +504,7 @@ func server() *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := coderd.New(options)
+			coderAPI := newAPI(options)
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
@@ -967,16 +967,16 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 // nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 ▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 ▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 ▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 ░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
   ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-░ ░          ░ ░     ░       ░  ░   ░     
-░                  ░                      		
+░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+░ ░          ░ ░     ░       ░  ░   ░
+░                  ░
 `)
 		return
 	}

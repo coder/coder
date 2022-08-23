@@ -474,6 +474,35 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const insertLicense = `-- name: InsertLicense :one
+INSERT INTO
+	licenses (
+	uploaded_at,
+	jwt,
+	exp
+)
+VALUES
+	($1, $2, $3) RETURNING id, uploaded_at, jwt, exp
+`
+
+type InsertLicenseParams struct {
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
+}
+
+func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
+	row := q.db.QueryRowContext(ctx, insertLicense, arg.UploadedAt, arg.JWT, arg.Exp)
+	var i License
+	err := row.Scan(
+		&i.ID,
+		&i.UploadedAt,
+		&i.JWT,
+		&i.Exp,
+	)
+	return i, err
+}
+
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
 SELECT
     user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"

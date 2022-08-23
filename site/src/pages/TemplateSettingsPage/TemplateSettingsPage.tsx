@@ -1,7 +1,7 @@
 import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { templateSettingsMachine } from "xServices/templateSettings/templateSettingsXService"

@@ -29,4 +29,4 @@ rename:
   rbac_roles: RBACRoles
   ip_address: IPAddress
   ip_addresses: IPAddresses
-
+  jwt: JWT

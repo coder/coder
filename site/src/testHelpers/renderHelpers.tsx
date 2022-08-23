@@ -2,6 +2,7 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
 import { FC, ReactElement } from "react"
+import { HelmetProvider } from "react-helmet-async"
 import {
   MemoryRouter,
   Route,
@@ -15,13 +16,15 @@ import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
 
-export const WrapperComponent: FC = ({ children }) => {
+export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   return (
-    <HistoryRouter history={history}>
-      <XServiceProvider>
-        <ThemeProvider theme={dark}>{children}</ThemeProvider>
-      </XServiceProvider>
-    </HistoryRouter>
+    <HelmetProvider>
+      <HistoryRouter history={history}>
+        <XServiceProvider>
+          <ThemeProvider theme={dark}>{children}</ThemeProvider>
+        </XServiceProvider>
+      </HistoryRouter>
+    </HelmetProvider>
   )
 }
 
@@ -42,15 +45,17 @@ export function renderWithAuth(
   { route = "/", path }: { route?: string; path?: string } = {},
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
-    <MemoryRouter initialEntries={[route]}>
-      <XServiceProvider>
-        <ThemeProvider theme={dark}>
-          <Routes>
-            <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
-          </Routes>
-        </ThemeProvider>
-      </XServiceProvider>
-    </MemoryRouter>,
+    <HelmetProvider>
+      <MemoryRouter initialEntries={[route]}>
+        <XServiceProvider>
+          <ThemeProvider theme={dark}>
+            <Routes>
+              <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+            </Routes>
+          </ThemeProvider>
+        </XServiceProvider>
+      </MemoryRouter>
+    </HelmetProvider>,
   )
 
   return {

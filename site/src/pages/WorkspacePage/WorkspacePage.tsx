@@ -2,8 +2,8 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine, useSelector } from "@xstate/react"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
-import React, { useContext, useEffect } from "react"
-import { Helmet } from "react-helmet"
+import { FC, useContext, useEffect } from "react"
+import { Helmet } from "react-helmet-async"
 import { useParams } from "react-router-dom"
 import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -20,7 +20,7 @@ import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedul
 
 dayjs.extend(minMax)
 
-export const WorkspacePage: React.FC = () => {
+export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
@@ -65,12 +65,12 @@ export const WorkspacePage: React.FC = () => {
   if (workspaceState.matches("error")) {
     return (
       <div className={styles.error}>
-        {getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
-        {refreshTemplateError && <ErrorSummary error={refreshTemplateError} />}
-        {checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
+        {!!getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
+        {!!refreshTemplateError && <ErrorSummary error={refreshTemplateError} />}
+        {!!checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
-  } else if (!workspace) {
+  } else if (!workspace || !permissions) {
     return <FullScreenLoader />
   } else if (!template) {
     return <FullScreenLoader />

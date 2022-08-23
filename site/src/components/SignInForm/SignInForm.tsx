@@ -89,7 +89,7 @@ export interface SignInFormProps {
   initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
 
-export const SignInForm: FC<SignInFormProps> = ({
+export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   authMethods,
   redirectTo,
   isLoading,

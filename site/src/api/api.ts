@@ -378,3 +378,8 @@ export const putWorkspaceExtension = async (
 ): Promise<void> => {
   await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
 }
+
+export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
+  const response = await axios.get("/api/v2/entitlements")
+  return response.data
+}

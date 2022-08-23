@@ -22,17 +22,20 @@ export interface WorkspacesTableProps {
   filter?: string
 }
 
-export const WorkspacesTable: FC<WorkspacesTableProps> = ({ isLoading, workspaceRefs, filter }) => {
+export const WorkspacesTable: FC<React.PropsWithChildren<WorkspacesTableProps>> = ({
+  isLoading,
+  workspaceRefs,
+  filter,
+}) => {
   return (
     <TableContainer>
       <Table>
         <TableHead>
           <TableRow>
             <TableCell width="25%">{Language.name}</TableCell>
-            <TableCell width="20%">{Language.template}</TableCell>
-            <TableCell width="25%">{Language.lastBuiltBy}</TableCell>
-            <TableCell width="15%">{Language.version}</TableCell>
-            <TableCell width="15%">{Language.status}</TableCell>
+            <TableCell width="35%">{Language.template}</TableCell>
+            <TableCell width="20%">{Language.version}</TableCell>
+            <TableCell width="20%">{Language.status}</TableCell>
             <TableCell width="1%"></TableCell>
           </TableRow>
         </TableHead>

@@ -15,12 +15,16 @@ LABEL \
 	org.opencontainers.image.version="$CODER_VERSION" \
 	org.opencontainers.image.licenses="AGPL-3.0"
 
-# Create coder group and user. We cannot use `addgroup` and `adduser` because
-# they won't work if we're building the image for a different architecture.
-COPY --chown=root:root --chmod=644 group passwd /etc/
-
 # The coder binary is injected by scripts/build_docker.sh.
 COPY --chown=coder:coder --chmod=755 coder /opt/coder
 
+# Create coder group and user. We cannot use `addgroup` and `adduser` because
+# they won't work if we're building the image for a different architecture.
+COPY --chown=root:root --chmod=644 group passwd /etc/
+COPY --chown=coder:coder --chmod=700 empty-dir /home/coder
+
 USER coder:coder
+ENV HOME=/home/coder
+WORKDIR /home/coder
+
 ENTRYPOINT [ "/opt/coder", "server" ]
