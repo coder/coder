@@ -801,7 +801,9 @@ func (r *reconnectingPTY) Close() {
 		_ = conn.Close()
 	}
 	_ = r.ptty.Close()
+	r.circularBufferMutex.Lock()
 	r.circularBuffer.Reset()
+	r.circularBufferMutex.Unlock()
 	r.timeout.Stop()
 }
 
