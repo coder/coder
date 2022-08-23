@@ -252,6 +252,29 @@ func TestAgent(t *testing.T) {
 		}
 	})
 
+	t.Run("SSH connection env vars", func(t *testing.T) {
+		t.Parallel()
+
+		// Note: the SSH_TTY environment variable should only be set for TTYs.
+		// For some reason this test produces a TTY locally and a non-TTY in CI
+		// so we don't test for the absence of SSH_TTY.
+		for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT"} {
+			key := key
+			t.Run(key, func(t *testing.T) {
+				t.Parallel()
+
+				session := setupSSHSession(t, agent.Metadata{})
+				command := "sh -c 'echo $" + key + "'"
+				if runtime.GOOS == "windows" {
+					command = "cmd.exe /c echo %" + key + "%"
+				}
+				output, err := session.Output(command)
+				require.NoError(t, err)
+				require.NotEmpty(t, strings.TrimSpace(string(output)))
+			})
+		}
+	})
+
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
 		tempPath := filepath.Join(t.TempDir(), "content.txt")
