@@ -428,8 +428,12 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		return err
 	}
 	// Set SSH connection environment variables, from the clients perspective.
-	srcAddr, srcPort := addrToSSHEnvAddr(session.RemoteAddr())
-	dstAddr, dstPort := addrToSSHEnvAddr(session.LocalAddr())
+	// Set SSH connection environment variables (these are also set by OpenSSH
+	// and thus expected to be present by SSH clients). Since the agent does
+	// networking in-memory, trying to provide accurate values here would be
+	// nonsensical. For now, we hard code these values so that they're present.
+	srcAddr, srcPort := "0.0.0.0", "0"
+	dstAddr, dstPort := "0.0.0.0", "0"
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
