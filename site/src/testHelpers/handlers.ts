@@ -144,4 +144,7 @@ export const handlers = [
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))
   }),
+  rest.get("/api/v2/entitlements", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockEntitlements))
+  }),
 ]

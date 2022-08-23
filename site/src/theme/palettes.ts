@@ -1,6 +1,9 @@
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 import { colors } from "./colors"
 
+// Couldn't find a type for this so I made one. We can extend the palette if needed with module augmentation.
+export type PaletteIndex = "primary" | "secondary" | "info" | "success" | "error" | "warning"
+
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
@@ -24,6 +27,7 @@ export const darkPalette: PaletteOptions = {
   },
   divider: colors.gray[13],
   warning: {
+    light: colors.orange[7],
     main: colors.orange[11],
     dark: colors.orange[15],
   },

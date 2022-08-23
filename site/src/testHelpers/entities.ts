@@ -636,3 +636,22 @@ export const makeMockApiError = ({
   },
   isAxiosError: true,
 })
+
+export const MockEntitlements: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: false,
+  features: {},
+}
+
+export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  warnings: ["You are over your active user limit.", "And another thing."],
+  has_license: true,
+  features: {
+    activeUsers: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 100,
+      actual: 102,
+    },
+  },
+}
