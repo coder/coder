@@ -25,7 +25,7 @@ func templateEdit() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Short: "Edit the metadata of a template by name.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
