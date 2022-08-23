@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"golang.org/x/xerrors"
 
 	"github.com/go-chi/chi/v5"
@@ -17,7 +19,6 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
