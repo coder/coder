@@ -34,22 +34,26 @@ func TestLicensesAddSuccess(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.
 	t.Run("LFlag", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("License with ID 1 added")
 	})
 	t.Run("Prompt", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		cmd := setupFakeLicenseServerTest(t, "license", "add")
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		pty.ExpectMatch("Paste license:")
 		pty.WriteLine(fakeLicenseJWT)
@@ -58,6 +62,8 @@ func TestLicensesAddSuccess(t *testing.T) {
 	})
 	t.Run("File", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		dir := t.TempDir()
 		filename := filepath.Join(dir, "license.jwt")
 		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0600)
@@ -66,7 +72,7 @@ func TestLicensesAddSuccess(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("License with ID 1 added")
@@ -82,7 +88,7 @@ func TestLicensesAddSuccess(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		_, err := w.Write([]byte(fakeLicenseJWT))
 		require.NoError(t, err)
@@ -98,14 +104,16 @@ func TestLicensesAddSuccess(t *testing.T) {
 	})
 	t.Run("DebugOutput", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("\"f2\":2")
+		pty.ExpectMatch("\"f2\": 2")
 	})
 }
 
@@ -119,9 +127,11 @@ func TestLicensesAddFail(t *testing.T) {
 			"licenses", "add", "-l", fakeLicenseJWT)
 		clitest.SetupConfig(t, client, root)
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		err := <-errC
 		var coderError *codersdk.Error
