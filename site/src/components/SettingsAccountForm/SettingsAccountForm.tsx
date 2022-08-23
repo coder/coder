@@ -8,6 +8,7 @@ import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
 export interface AccountFormValues {
+  editable: boolean
   username: string
 }
 
@@ -22,6 +23,7 @@ const validationSchema = Yup.object({
 })
 
 export interface AccountFormProps {
+  editable: boolean
   email: string
   isLoading: boolean
   initialValues: AccountFormValues
@@ -32,6 +34,7 @@ export interface AccountFormProps {
 }
 
 export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
+  editable,
   email,
   isLoading,
   onSubmit,
@@ -63,6 +66,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
             autoComplete="username"
+            disabled={!editable}
             fullWidth
             label={Language.usernameLabel}
             variant="outlined"
