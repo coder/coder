@@ -232,6 +232,26 @@ func TestAgent(t *testing.T) {
 		require.Equal(t, expect, strings.TrimSpace(string(output)))
 	})
 
+	t.Run("Coder env vars", func(t *testing.T) {
+		t.Parallel()
+
+		for _, key := range []string{"CODER"} {
+			key := key
+			t.Run(key, func(t *testing.T) {
+				t.Parallel()
+
+				session := setupSSHSession(t, agent.Metadata{})
+				command := "sh -c 'echo $" + key + "'"
+				if runtime.GOOS == "windows" {
+					command = "cmd.exe /c echo %" + key + "%"
+				}
+				output, err := session.Output(command)
+				require.NoError(t, err)
+				require.NotEmpty(t, strings.TrimSpace(string(output)))
+			})
+		}
+	})
+
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
 		tempPath := filepath.Join(t.TempDir(), "content.txt")

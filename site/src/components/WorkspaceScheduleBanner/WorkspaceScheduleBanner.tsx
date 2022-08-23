@@ -35,7 +35,7 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   }
 }
 
-export const WorkspaceScheduleBanner: FC<WorkspaceScheduleBannerProps> = ({
+export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceScheduleBannerProps>> = ({
   isLoading,
   onExtend,
   workspace,

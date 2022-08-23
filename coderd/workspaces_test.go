@@ -402,7 +402,7 @@ func TestWorkspaceFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	users := make([]coderUser, 0)
 	for i := 0; i < 10; i++ {

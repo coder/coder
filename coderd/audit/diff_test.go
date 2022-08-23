@@ -230,6 +230,7 @@ func runDiffTests[T audit.Auditable](t *testing.T, tests []diffTest[T]) {
 
 	for _, test := range tests {
 		t.Run(typName+"/"+test.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t,
 				test.exp,
 				audit.Diff(test.left, test.right),

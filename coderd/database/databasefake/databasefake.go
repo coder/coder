@@ -42,6 +42,7 @@ func New() database.Store {
 			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
 			workspaceApps:                  make([]database.WorkspaceApp, 0),
 			workspaces:                     make([]database.Workspace, 0),
+			licenses:                       make([]database.License, 0),
 		},
 	}
 }
@@ -92,8 +93,10 @@ type data struct {
 	workspaceBuilds                []database.WorkspaceBuild
 	workspaceApps                  []database.WorkspaceApp
 	workspaces                     []database.Workspace
+	licenses                       []database.License
 
-	deploymentID string
+	deploymentID  string
+	lastLicenseID int32
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -883,6 +886,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.UpdatedAt = database.Now()
 		tpl.Name = arg.Name
 		tpl.Description = arg.Description
+		tpl.Icon = arg.Icon
 		tpl.MaxTtl = arg.MaxTtl
 		tpl.MinAutostartInterval = arg.MinAutostartInterval
 		q.templates[idx] = tpl
@@ -2274,6 +2278,22 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
+}
+
+func (q *fakeQuerier) InsertLicense(
+	_ context.Context, arg database.InsertLicenseParams) (database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	l := database.License{
+		ID:         q.lastLicenseID + 1,
+		UploadedAt: arg.UploadedAt,
+		JWT:        arg.JWT,
+		Exp:        arg.Exp,
+	}
+	q.lastLicenseID = l.ID
+	q.licenses = append(q.licenses, l)
+	return l, nil
 }
 
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {

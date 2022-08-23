@@ -32,7 +32,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-const workspaceDefaultTTL = 2 * time.Hour
+const workspaceDefaultTTL = 12 * time.Hour
 
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
@@ -891,6 +891,7 @@ func convertWorkspace(
 		TemplateID:        workspace.TemplateID,
 		LatestBuild:       convertWorkspaceBuild(owner, initiator, workspace, workspaceBuild, job),
 		TemplateName:      template.Name,
+		TemplateIcon:      template.Icon,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
 		AutostartSchedule: autostartSchedule,

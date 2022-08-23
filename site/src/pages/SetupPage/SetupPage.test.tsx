@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { rest } from "msw"
@@ -28,7 +28,7 @@ const fillForm = async ({
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
   const submitButton = screen.getByRole("button", { name: PageViewLanguage.create })
-  submitButton.click()
+  fireEvent.click(submitButton)
 }
 
 describe("Setup Page", () => {

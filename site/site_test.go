@@ -466,6 +466,7 @@ func TestServeAPIResponse(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	var body struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`

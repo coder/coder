@@ -76,6 +76,7 @@ func TestUserAuthMethods(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
@@ -149,7 +150,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
@@ -168,7 +169,11 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-					return []*github.UserEmail{}, nil
+					return []*github.UserEmail{{
+						Email:    github.String("testuser@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
 				},
 			},
 		})
@@ -195,6 +200,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.UserEmail{{
 						Email:    github.String("testuser@coder.com"),
 						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
 					}}, nil
 				},
 			},
@@ -281,6 +287,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestUserOIDC(t *testing.T) {
 	t.Parallel()
 
@@ -456,7 +463,7 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	state := "somestate"
 	oauthURL, err := client.URL.Parse("/api/v2/users/oauth2/github/callback?code=asd&state=" + state)
 	require.NoError(t, err)
-	req, err := http.NewRequest("GET", oauthURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateKey,
@@ -478,7 +485,7 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 	state := "somestate"
 	oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback?code=asd&state=" + state)
 	require.NoError(t, err)
-	req, err := http.NewRequest("GET", oauthURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateKey,

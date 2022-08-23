@@ -31,6 +31,8 @@ export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: () => void
     onDeadlineMinus: () => void
+    deadlinePlusEnabled: () => boolean
+    deadlineMinusEnabled: () => boolean
   }
   handleStart: () => void
   handleStop: () => void
@@ -47,7 +49,7 @@ export interface WorkspaceProps {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<WorkspaceProps> = ({
+export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   bannerProps,
   scheduleProps,
   handleStart,
@@ -67,11 +69,15 @@ export const Workspace: FC<WorkspaceProps> = ({
   return (
     <Margins>
       <Stack spacing={1}>
-        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] && (
+        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
           <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+        ) : (
+          <></>
         )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] && (
+        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
           <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+        ) : (
+          <></>
         )}
       </Stack>
       <PageHeader
@@ -81,6 +87,8 @@ export const Workspace: FC<WorkspaceProps> = ({
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
+              deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions

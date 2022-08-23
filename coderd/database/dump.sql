@@ -133,8 +133,9 @@ CREATE TABLE gitsshkeys (
 
 CREATE TABLE licenses (
     id integer NOT NULL,
-    license jsonb NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    uploaded_at timestamp with time zone NOT NULL,
+    jwt text NOT NULL,
+    exp timestamp with time zone NOT NULL
 );
 
 CREATE SEQUENCE licenses_id_seq
@@ -260,7 +261,8 @@ CREATE TABLE templates (
     description character varying(128) DEFAULT ''::character varying NOT NULL,
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
     min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE user_links (
@@ -376,6 +378,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY licenses
+    ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);

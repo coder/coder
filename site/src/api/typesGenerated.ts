@@ -18,6 +18,11 @@ export interface AWSInstanceIdentityToken {
   readonly document: string
 }
 
+// From codersdk/licenses.go
+export interface AddLicenseRequest {
+  readonly license: string
+}
+
 // From codersdk/gitsshkey.go
 export interface AgentGitSSHKey {
   readonly public_key: string
@@ -87,6 +92,7 @@ export interface CreateParameterRequest {
 export interface CreateTemplateRequest {
   readonly name: string
   readonly description?: string
+  readonly icon?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly max_ttl_ms?: number
@@ -165,6 +171,14 @@ export interface GitSSHKey {
 // From codersdk/workspaceagents.go
 export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
+}
+
+// From codersdk/licenses.go
+export interface License {
+  readonly id: number
+  readonly uploaded_at: string
+  // eslint-disable-next-line
+  readonly claims: Record<string, any>
 }
 
 // From codersdk/users.go
@@ -295,6 +309,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
+  readonly icon: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
@@ -334,6 +349,7 @@ export interface UpdateRoles {
 export interface UpdateTemplateMeta {
   readonly name?: string
   readonly description?: string
+  readonly icon?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
 }
@@ -423,6 +439,7 @@ export interface Workspace {
   readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
+  readonly template_icon: string
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string

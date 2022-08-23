@@ -14,7 +14,7 @@ export interface LogsProps {
   className?: string
 }
 
-export const Logs: FC<LogsProps> = ({ lines, className = "" }) => {
+export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({ lines, className = "" }) => {
   const styles = useStyles()
 
   return (

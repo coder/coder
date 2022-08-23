@@ -35,7 +35,6 @@ const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-
   return (
     <Suspense fallback={<></>}>
       <Routes>

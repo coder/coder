@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Language } from "../../components/SignInForm/SignInForm"
@@ -42,7 +42,7 @@ describe("LoginPage", () => {
     await userEvent.type(password, "password")
     // Click sign-in
     const signInButton = await screen.findByText(Language.passwordSignIn)
-    act(() => signInButton.click())
+    fireEvent.click(signInButton)
 
     // Then
     const errorMessage = await screen.findByText(Language.errorMessages.authError)

@@ -5,7 +5,7 @@ export interface AutoStop {
 
 export const emptyTTL = 0
 
-export const defaultTTL = 8
+export const defaultTTL = 12
 
 const msToHours = (ms: number) => Math.round(ms / (1000 * 60 * 60))
 
