@@ -47,7 +47,6 @@ func licenseAdd() *cobra.Command {
 			}
 
 			switch {
-
 			case filename != "" && license != "":
 				return xerrors.New("only one of (--file, --license) may be specified")
 
@@ -78,7 +77,6 @@ func licenseAdd() *cobra.Command {
 					return err
 				}
 				license = string(lb)
-
 			}
 			license = strings.Trim(license, " \n")
 			err = validJWT(license)
