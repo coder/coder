@@ -1,11 +1,13 @@
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC } from "react"
+import {FC, useContext} from "react"
 import * as Yup from "yup"
 import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
+import {XServiceContext} from "../../xServices/StateContext";
+import {useActor} from "@xstate/react";
 
 interface AccountFormValues {
   username: string
@@ -47,6 +49,13 @@ export const AccountForm: FC<AccountFormProps> = ({
   })
   const getFieldHelpers = getFormHelpersWithError<AccountFormValues>(form, updateProfileError)
 
+  const xServices = useContext(XServiceContext)
+  const [authState, _] = useActor(xServices.authXService)
+  const { permissions } = authState.context
+  // Editing user's emails is considered editing the "user" object.
+  // So we can only update the user's username if we have updateUser permission.
+  const canEditUsers = permissions && permissions.updateUsers
+
   return (
     <>
       <form onSubmit={form.handleSubmit}>
@@ -66,6 +75,7 @@ export const AccountForm: FC<AccountFormProps> = ({
             fullWidth
             label={Language.usernameLabel}
             variant="outlined"
+            disabled={!canEditUsers}
           />
 
           <div>
