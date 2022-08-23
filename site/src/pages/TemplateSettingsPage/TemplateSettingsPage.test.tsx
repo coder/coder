@@ -69,4 +69,34 @@ describe("TemplateSettingsPage", () => {
 
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
   })
+
+  test("ttl is converted to and from hours", async () => {
+    await renderTemplateSettingsPage()
+
+    const newTemplateSettings = {
+      name: "edited-template-name",
+      description: "Edited description",
+      max_ttl_ms: 1,
+      icon: "/icon/code.svg",
+    }
+
+    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+      ...MockTemplate,
+      ...newTemplateSettings,
+    })
+
+    await fillAndSubmitForm(newTemplateSettings)
+    expect(screen.getByDisplayValue(1)).toBeInTheDocument()
+    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
+
+    await waitFor(() =>
+      expect(API.updateTemplateMeta).toBeCalledWith(
+        "test-template",
+        expect.objectContaining({
+          ...newTemplateSettings,
+          max_ttl_ms: 3600000,
+        }),
+      ),
+    )
+  })
 })

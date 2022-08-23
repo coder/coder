@@ -21,7 +21,7 @@ export const Language = {
   maxTtlLabel: "Auto-stop limit",
   iconLabel: "Icon",
   // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
-  maxTtlHelperText: "Edit the template maximum time before shutdown in seconds",
+  maxTtlHelperText: "Edit the template maximum time before shutdown in hours",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
 }
@@ -154,11 +154,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
-          // Display seconds from ms
-          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : ""}
-          // Convert ms to seconds
+          // Display hours from ms
+          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 3600000 : ""}
+          // Convert hours to ms
           onChange={(event) =>
-            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 1000)
+            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 3600000)
           }
         />
       </Stack>
