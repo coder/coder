@@ -149,8 +149,9 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 				agent = agents[0]
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceParamContextKey{}, workspace)
-			ctx = context.WithValue(r.Context(), workspaceAgentContextKey{}, agent)
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, workspaceParamContextKey{}, workspace)
+			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agent)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

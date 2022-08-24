@@ -138,6 +138,7 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
+			// Extracts the <workspace.agent> from the url
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
