@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -14,6 +16,10 @@ func rename() *cobra.Command {
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Args:        cobra.ExactArgs(2),
+		// Keep hidden until renaming is safe, see:
+		// * https://github.com/coder/coder/issues/3000
+		// * https://github.com/coder/coder/issues/3386
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -24,9 +30,17 @@ func rename() *cobra.Command {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n",
+				cliui.Styles.Wrap.Render("WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes)."),
+			)
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "WARNING: A rename can result in loss of home volume if the template references the workspace name. Continue?",
-				IsConfirm: true,
+				Text: fmt.Sprintf("Type %q to confirm rename:", workspace.Name),
+				Validate: func(s string) error {
+					if s == workspace.Name {
+						return nil
+					}
+					return xerrors.Errorf("Input %q does not match %q", s, workspace.Name)
+				},
 			})
 			if err != nil {
 				return err
