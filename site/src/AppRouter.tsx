@@ -1,9 +1,12 @@
 import { useSelector } from "@xstate/react"
+import { FeatureNames } from "api/types"
+import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
+import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
@@ -35,6 +38,8 @@ const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
+  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+
   return (
     <Suspense fallback={<></>}>
       <Routes>
@@ -134,11 +139,13 @@ export const AppRouter: FC = () => {
           <Route
             index
             element={
-              process.env.NODE_ENV === "production" || !permissions?.viewAuditLog ? (
+              process.env.NODE_ENV === "production" ? (
                 <Navigate to="/workspaces" />
               ) : (
                 <AuthAndFrame>
-                  <AuditPage />
+                  <RequirePermission isFeatureVisible={featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog}>
+                    <AuditPage />
+                  </RequirePermission>
                 </AuthAndFrame>
               )
             }
