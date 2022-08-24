@@ -85,14 +85,31 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	agent := agents[0]
-	if len(workspaceParts) > 1 {
+	// If we have more than 1 workspace agent, we need to specify which one to use.
+	if len(agents) > 1 && len(workspaceParts) <= 1 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "More than one agent exists, but no agent specified.",
+		})
+		return
+	}
+
+	// If we have more than 1 workspace agent, we need to specify which one to use.
+	var agent *database.WorkspaceAgent
+	if len(agents) > 1 {
 		for _, otherAgent := range agents {
 			if otherAgent.Name == workspaceParts[1] {
-				agent = otherAgent
+				agent = &otherAgent
 				break
 			}
 		}
+		if agent == nil {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("No agent exists with the name %s", workspaceParts[1]),
+			})
+			return
+		}
+	} else {
+		agent = &agents[0]
 	}
 
 	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
