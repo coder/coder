@@ -138,6 +138,8 @@ CREATE TABLE licenses (
     exp timestamp with time zone NOT NULL
 );
 
+COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';
+
 CREATE SEQUENCE licenses_id_seq
     AS integer
     START WITH 1

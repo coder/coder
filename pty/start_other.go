@@ -4,6 +4,7 @@
 package pty
 
 import (
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -18,6 +19,8 @@ func startPty(cmd *exec.Cmd) (PTY, Process, error) {
 	if err != nil {
 		return nil, nil, xerrors.Errorf("open: %w", err)
 	}
+
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_PTY=%s", tty.Name()))
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,
 		Setctty: true,

@@ -54,13 +54,10 @@ const useStyles = makeStyles((theme) => ({
       ${theme.spacing(0.5)}px
       ${theme.spacing(2)}px
     `,
-    whiteSpace: "nowrap",
     width: "100%",
-    overflowX: "auto",
-    // Have a better area to display the scrollbar
-    height: 42,
     display: "flex",
     alignItems: "center",
+    wordBreak: "break-all",
   },
   button: {
     border: 0,
