@@ -1564,10 +1564,6 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	// default values
-	if arg.MaxTtl == 0 {
-		arg.MaxTtl = int64(168 * time.Hour)
-	}
 	if arg.MinAutostartInterval == 0 {
 		arg.MinAutostartInterval = int64(time.Hour)
 	}
