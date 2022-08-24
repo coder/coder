@@ -27,8 +27,7 @@ export const Language = {
   descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
   ttlHelperText: (
     ttl: number,
-  ): string => `Workspaces created from this template will, by default, shut down ${ttl}
-  hours after starting.`,
+  ): string => `Workspaces created from this template may not remain running longer than ${ttl}.`,
 }
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
