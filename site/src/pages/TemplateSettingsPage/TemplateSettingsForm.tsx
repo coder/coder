@@ -26,7 +26,7 @@ export const Language = {
   ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
   descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
   ttlHelperText: (ttl: number): string =>
-    `Workspaces created from this template may not remain running longer than ${ttl}.`,
+    `Workspaces created from this template may not remain running longer than ${ttl} hours.`,
 }
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
