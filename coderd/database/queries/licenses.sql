@@ -7,3 +7,9 @@ INSERT INTO
 )
 VALUES
 	($1, $2, $3) RETURNING *;
+
+
+-- name: GetLicenses :many
+SELECT *
+FROM licenses
+ORDER BY (id);

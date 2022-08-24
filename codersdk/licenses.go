@@ -35,3 +35,18 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 	d.UseNumber()
 	return l, d.Decode(&l)
 }
+
+func (c *Client) Licenses(ctx context.Context) ([]License, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/licenses", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var licenses []License
+	d := json.NewDecoder(res.Body)
+	d.UseNumber()
+	return licenses, d.Decode(&licenses)
+}

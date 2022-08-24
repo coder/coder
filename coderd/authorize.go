@@ -10,12 +10,12 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func AuthorizeFilter[O rbac.Objecter](api *API, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
+func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.AuthorizationUserRoles(r)
-	objects, err := rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
-		api.Logger.Error(r.Context(), "filter failed",
+		h.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),

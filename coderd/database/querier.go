@@ -36,6 +36,7 @@ type querier interface {
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
+	GetLicenses(ctx context.Context) ([]License, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
