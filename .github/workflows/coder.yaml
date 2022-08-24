@@ -661,6 +661,14 @@ jobs:
           DEBUG: pw:api
         working-directory: site
 
+      - name: Upload Playwright Failed Tests
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@v3
+        with:
+          name: failed-test-videos
+          path: ./site/test-results/**/*.webm
+          retention:days: 7
+
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         env:
