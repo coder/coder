@@ -113,7 +113,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 					return nil
 				}
 
-				client, err := createClient(cmd)
+				client, err := CreateClient(cmd)
 				// If the client is unauthenticated we can ignore the check.
 				// The child commands should handle an unauthenticated client.
 				if xerrors.Is(err, errUnauthenticated) {
@@ -189,9 +189,9 @@ func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-// createClient returns a new client from the command context.
+// CreateClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
-func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
+func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	root := createConfig(cmd)
 	rawURL, err := cmd.Flags().GetString(varURL)
 	if err != nil || rawURL == "" {
@@ -225,7 +225,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 }
 
 // createAgentClient returns a new client from the command context.
-// It works just like createClient, but uses the agent token and URL instead.
+// It works just like CreateClient, but uses the agent token and URL instead.
 func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	rawURL, err := cmd.Flags().GetString(varAgentURL)
 	if err != nil {

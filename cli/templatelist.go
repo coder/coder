@@ -16,7 +16,7 @@ func templateList() *cobra.Command {
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

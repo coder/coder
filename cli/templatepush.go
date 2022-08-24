@@ -29,7 +29,7 @@ func templatePush() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Push a new template version from the current directory or as specified by flag",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

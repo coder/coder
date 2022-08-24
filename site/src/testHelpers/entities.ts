@@ -61,6 +61,16 @@ export const MockUser: TypesGen.User = {
   roles: [MockOwnerRole],
 }
 
+export const MockUserAdmin: TypesGen.User = {
+  id: "test-user",
+  username: "TestUser",
+  email: "test@coder.com",
+  created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [MockUserAdminRole],
+}
+
 export const MockUser2: TypesGen.User = {
   id: "test-user-2",
   username: "TestUser2",

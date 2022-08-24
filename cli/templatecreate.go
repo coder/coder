@@ -32,7 +32,7 @@ func templateCreate() *cobra.Command {
 		Short: "Create a template from the current directory or as specified by flag",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
