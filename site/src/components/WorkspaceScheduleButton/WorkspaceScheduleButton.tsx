@@ -84,7 +84,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
               disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
-              <Tooltip title={t("WorkspaceScheduleButton.editDeadlinePlus")}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
                 <AddIcon />
               </Tooltip>
             </IconButton>
