@@ -26,7 +26,7 @@ export const getStatus = (
   switch (status) {
     case undefined:
       return {
-        text: t("common:workspace_status.loading", { ns: "common" }),
+        text: t("workspace_status.loading", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "started":
