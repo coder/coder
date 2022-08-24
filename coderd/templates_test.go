@@ -342,6 +342,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			MaxTTLMillis: 0,
 		}
 
+		// We're too fast! Sleep so we can be sure that updatedAt is greater
+		time.Sleep(time.Millisecond * 5)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
