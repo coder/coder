@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -55,10 +56,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	}
 	lic, err := makeLicense(claims, privKey, keyID)
 	require.NoError(t, err)
-	_, err = a.Client.AddLicense(ctx, codersdk.AddLicenseRequest{
+	license, err := a.Client.AddLicense(ctx, codersdk.AddLicenseRequest{
 		License: lic,
 	})
 	require.NoError(t, err)
+	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", license.ID)
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
 	assertRoute["POST:/api/v2/licenses"] = coderdtest.RouteCheck{
@@ -68,6 +70,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	assertRoute["GET:/api/v2/licenses"] = coderdtest.RouteCheck{
 		StatusCode:   http.StatusOK,
 		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceLicense,
+	}
+	assertRoute["DELETE:/api/v2/licenses/{id}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionDelete,
 		AssertObject: rbac.ResourceLicense,
 	}
 	a.Test(ctx, assertRoute, skipRoutes)

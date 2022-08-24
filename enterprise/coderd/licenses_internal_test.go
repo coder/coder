@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -209,6 +210,97 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureUserLimit: json.Number("200"),
 			codersdk.FeatureAuditLog:  json.Number("1"),
 		}, licenses[1].Claims["features"])
+	})
+}
+
+// these tests patch the map of license keys, so cannot be run in parallel
+// nolint:paralleltest
+func TestDeleteLicense(t *testing.T) {
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	keyID := "testing"
+	oldKeys := keys
+	defer func() {
+		t.Log("restoring keys")
+		keys = oldKeys
+	}()
+	keys = map[string]ed25519.PublicKey{keyID: pubKey}
+
+	t.Run("DELETE_empty", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{APIBuilder: NewEnterprise})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.DeleteLicense(ctx, 1)
+		errResp := &codersdk.Error{}
+		if xerrors.As(err, &errResp) {
+			assert.Equal(t, 404, errResp.StatusCode())
+		} else {
+			t.Error("expected to get error status 404")
+		}
+	})
+
+	t.Run("DELETE_bad_id", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{APIBuilder: NewEnterprise})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodDelete, "/api/v2/licenses/drivers", nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("DELETE", func(t *testing.T) {
+		client := coderdtest.New(t, &coderdtest.Options{APIBuilder: NewEnterprise})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		claims := &Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "test@coder.test",
+				IssuedAt:  jwt.NewNumericDate(time.Now()),
+				NotBefore: jwt.NewNumericDate(time.Now()),
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(2 * time.Hour)),
+			},
+			LicenseExpires: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			AccountType:    AccountTypeSalesforce,
+			AccountID:      "testing",
+			Version:        CurrentVersion,
+			Features: Features{
+				UserLimit: 0,
+				AuditLog:  1,
+			},
+		}
+		lic, err := makeLicense(claims, privKey, keyID)
+		require.NoError(t, err)
+		_, err = client.AddLicense(ctx, codersdk.AddLicenseRequest{
+			License: lic,
+		})
+		require.NoError(t, err)
+
+		// 2nd license
+		claims.AccountID = "testing2"
+		claims.Features.UserLimit = 200
+		lic2, err := makeLicense(claims, privKey, keyID)
+		require.NoError(t, err)
+		_, err = client.AddLicense(ctx, codersdk.AddLicenseRequest{
+			License: lic2,
+		})
+		require.NoError(t, err)
+
+		licenses, err := client.Licenses(ctx)
+		require.NoError(t, err)
+		assert.Len(t, licenses, 2)
+		for _, l := range licenses {
+			err = client.DeleteLicense(ctx, l.ID)
+			require.NoError(t, err)
+		}
+		licenses, err = client.Licenses(ctx)
+		require.NoError(t, err)
+		assert.Len(t, licenses, 0)
 	})
 }
 

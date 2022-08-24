@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,6 +125,7 @@ func newLicenseAPI(
 	a := &licenseAPI{router: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)
 	r.Get("/", a.licenses)
+	r.Delete("/{id}", a.delete)
 	return a
 }
 
@@ -263,4 +265,36 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
+}
+
+func (a *licenseAPI) delete(rw http.ResponseWriter, r *http.Request) {
+	if !a.auth.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "License ID must be an integer",
+		})
+		return
+	}
+
+	_, err = a.database.DeleteLicense(r.Context(), int32(id))
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "Unknown license ID",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
 }
