@@ -52,7 +52,7 @@ export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesG
 }
 
 export const MockMemberPermissions = {
-  viewAuditLog: false
+  viewAuditLog: false,
 }
 
 export const MockUser: TypesGen.User = {
