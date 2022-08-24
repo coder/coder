@@ -111,4 +111,24 @@ describe("TemplateSettingsPage", () => {
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(FormLanguage.ttlMaxError)
   })
+
+  it("allows a description of 128 chars", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      description:
+        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a description of 128 + 1 chars", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      description:
+        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError(FormLanguage.descriptionMaxError)
+  })
 })

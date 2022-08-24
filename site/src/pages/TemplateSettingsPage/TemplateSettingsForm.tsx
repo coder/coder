@@ -23,12 +23,19 @@ export const Language = {
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
   ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
+  descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
 }
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128
+const MAX_TTL_DAYS = 7
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
-  description: Yup.string(),
-  max_ttl_ms: Yup.number().integer().min(0).max(168, Language.ttlMaxError),
+  description: Yup.string().max(MAX_DESCRIPTION_CHAR_LIMIT, Language.descriptionMaxError),
+  max_ttl_ms: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
 })
 
 export interface TemplateSettingsForm {
