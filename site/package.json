@@ -26,6 +26,8 @@
     "typegen": "xstate typegen 'src/**/*.ts'"
   },
   "dependencies": {
+    "@emoji-mart/data": "^1.0.5",
+    "@emoji-mart/react": "^1.0.1",
     "@fontsource/ibm-plex-mono": "4.5.10",
     "@fontsource/inter": "4.5.11",
     "@material-ui/core": "4.9.4",
@@ -39,13 +41,16 @@
     "cron-parser": "4.5.0",
     "cronstrue": "2.11.0",
     "dayjs": "1.11.4",
+    "emoji-mart": "^5.2.1",
     "formik": "^2.2.9",
     "front-matter": "4.0.2",
     "history": "5.3.0",
+    "i18next": "21.9.1",
     "just-debounce-it": "3.0.1",
-    "react": "^18.2.0",
+    "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-helmet-async": "1.3.0",
+    "react-i18next": "11.18.4",
     "react-markdown": "8.0.3",
     "react-router-dom": "6.3.0",
     "sourcemapped-stacktrace": "1.1.11",
@@ -58,10 +63,7 @@
     "xterm-addon-web-links": "0.6.0",
     "xterm-addon-webgl": "0.11.4",
     "xterm-for-react": "1.0.4",
-    "yup": "0.32.11",
-    "@emoji-mart/data": "^1.0.5",
-    "@emoji-mart/react": "^1.0.1",
-    "emoji-mart": "^5.2.1"
+    "yup": "0.32.11"
   },
   "devDependencies": {
     "@playwright/test": "1.24.1",

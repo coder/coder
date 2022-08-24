@@ -4,23 +4,10 @@ import StopIcon from "@material-ui/icons/PauseOutlined"
 import PlayIcon from "@material-ui/icons/PlayArrowOutlined"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
+import i18next from "i18next"
 import React from "react"
 import { PaletteIndex } from "theme/palettes"
 import { getWorkspaceStatus } from "util/workspace"
-
-const StatusLanguage = {
-  loading: "Loading",
-  started: "Running",
-  starting: "Starting",
-  stopping: "Stopping",
-  stopped: "Stopped",
-  deleting: "Deleting",
-  deleted: "Deleted",
-  canceling: "Canceling action",
-  canceled: "Canceled action",
-  failed: "Failed",
-  queued: "Queued",
-}
 
 const LoadingIcon: React.FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -34,70 +21,72 @@ export const getStatus = (
   icon: React.ReactNode
 } => {
   const status = getWorkspaceStatus(build)
+  const { t } = i18next
+
   switch (status) {
     case undefined:
       return {
-        text: StatusLanguage.loading,
+        text: t("common:workspace_status.loading", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "started":
       return {
         type: "success",
-        text: StatusLanguage.started,
+        text: t("workspace_status.started", { ns: "common" }),
         icon: <PlayIcon />,
       }
     case "starting":
       return {
         type: "success",
-        text: StatusLanguage.starting,
+        text: t("workspace_status.starting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopping":
       return {
         type: "warning",
-        text: StatusLanguage.stopping,
+        text: t("workspace_status.stopping", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopped":
       return {
         type: "warning",
-        text: StatusLanguage.stopped,
+        text: t("workspace_status.stopped", { ns: "common" }),
         icon: <StopIcon />,
       }
     case "deleting":
       return {
         type: "warning",
-        text: StatusLanguage.deleting,
+        text: t("workspace_status.deleting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "deleted":
       return {
         type: "error",
-        text: StatusLanguage.deleted,
+        text: t("workspace_status.deleted", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "canceling":
       return {
         type: "warning",
-        text: StatusLanguage.canceling,
+        text: t("workspace_status.canceling", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "canceled":
       return {
         type: "warning",
-        text: StatusLanguage.canceled,
+        text: t("workspace_status.canceled", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "error":
       return {
         type: "error",
-        text: StatusLanguage.failed,
+        text: t("workspace_status.failed", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "queued":
       return {
         type: "info",
-        text: StatusLanguage.queued,
+        text: t("workspace_status.queued", { ns: "common" }),
         icon: <LoadingIcon />,
       }
   }

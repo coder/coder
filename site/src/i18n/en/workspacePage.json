@@ -1,0 +1,7 @@
+{
+  "workspace_schedule_button": {
+    "schedule": "Schedule",
+    "edit_deadline_minus": "Subtract one hour",
+    "edit_deadline_plus": "Add one hour"
+  }
+}
