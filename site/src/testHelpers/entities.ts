@@ -647,11 +647,15 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   features: {
-    activeUsers: {
+    user_limit: {
       enabled: true,
-      entitlement: "entitled",
+      entitlement: "grace_period",
       limit: 100,
       actual: 102,
     },
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    }
   },
 }
