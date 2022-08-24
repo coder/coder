@@ -244,11 +244,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"GET:/api/v2/entitlements":      {NoAuthorize: true},
 
-		"GET:/%40{user}/{workspacename}/apps/{application}/*": {
+		"GET:/%40{user}/{workspacename_and_agent}/apps/{application}/*": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/@{user}/{workspacename}/apps/{application}/*": {
+		"GET:/@{user}/{workspacename_and_agent}/apps/{application}/*": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
@@ -508,6 +508,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspace}", workspace.ID.String())
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
+			route = strings.ReplaceAll(route, "{workspacename_and_agent}", workspace.Name+"."+workspaceResources[0].Agents[0].Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
 			route = strings.ReplaceAll(route, "{workspaceagent}", workspaceResources[0].Agents[0].ID.String())
 			route = strings.ReplaceAll(route, "{buildnumber}", strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10))
