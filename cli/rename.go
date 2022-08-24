@@ -9,7 +9,7 @@ import (
 )
 
 func rename() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
@@ -41,4 +41,8 @@ func rename() *cobra.Command {
 			return nil
 		},
 	}
+
+	cliui.AllowSkipPrompt(cmd)
+
+	return cmd
 }
