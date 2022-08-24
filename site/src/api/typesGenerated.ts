@@ -206,7 +206,7 @@ export interface OrganizationMember {
   readonly organization_id: string
   readonly created_at: string
   readonly updated_at: string
-  readonly roles: string[]
+  readonly roles: Role[]
 }
 
 // From codersdk/pagination.go
