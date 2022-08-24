@@ -27,7 +27,7 @@ func TestRename(t *testing.T) {
 	defer cancel()
 
 	want := workspace.Name + "-test"
-	cmd, root := clitest.New(t, "rename", workspace.Name, want)
+	cmd, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
