@@ -579,9 +579,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: newUser,
 			Roles:        []string{rbac.RoleOrgAdmin(first.OrganizationID)},
 			ExpectedRoles: []string{
-				rbac.RoleOrgMember(first.OrganizationID),
 				rbac.RoleOrgAdmin(first.OrganizationID),
-				rbac.RoleMember(),
 			},
 			Error: false,
 		},
