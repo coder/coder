@@ -133,7 +133,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 		Name string
 		// Agents are mapped to a resource
 		Agents             map[string][]string
-		UrlParam           string
+		URLParam           string
 		WorkspaceName      string
 		ExpectedAgent      string
 		ExpectedStatusCode int
@@ -143,7 +143,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 			Name:               "NoAgents",
 			WorkspaceName:      "dev",
 			Agents:             map[string][]string{},
-			UrlParam:           "dev",
+			URLParam:           "dev",
 			ExpectedError:      "No agents exist",
 			ExpectedStatusCode: http.StatusBadRequest,
 		},
@@ -156,7 +156,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-two",
 				},
 			},
-			UrlParam:           "dev",
+			URLParam:           "dev",
 			ExpectedStatusCode: http.StatusBadRequest,
 			ExpectedError:      "More than one agent exists, but no agent specified",
 		},
@@ -171,7 +171,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-two",
 				},
 			},
-			UrlParam:           "dev",
+			URLParam:           "dev",
 			ExpectedStatusCode: http.StatusBadRequest,
 			ExpectedError:      "More than one agent exists, but no agent specified",
 		},
@@ -183,7 +183,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-one",
 				},
 			},
-			UrlParam:           "dev.not-exists",
+			URLParam:           "dev.not-exists",
 			ExpectedStatusCode: http.StatusBadRequest,
 			ExpectedError:      "No agent exists with the name",
 		},
@@ -201,7 +201,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-three",
 				},
 			},
-			UrlParam:           "dev.not-exists",
+			URLParam:           "dev.not-exists",
 			ExpectedStatusCode: http.StatusBadRequest,
 			ExpectedError:      "No agent exists with the name",
 		},
@@ -216,7 +216,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-one",
 				},
 			},
-			UrlParam:           "dev",
+			URLParam:           "dev",
 			ExpectedAgent:      "agent-one",
 			ExpectedStatusCode: http.StatusOK,
 		},
@@ -228,7 +228,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-one",
 				},
 			},
-			UrlParam:           "dev",
+			URLParam:           "dev",
 			ExpectedAgent:      "agent-one",
 			ExpectedStatusCode: http.StatusOK,
 		},
@@ -242,7 +242,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-selected",
 				},
 			},
-			UrlParam:           "dev.agent-selected",
+			URLParam:           "dev.agent-selected",
 			ExpectedAgent:      "agent-selected",
 			ExpectedStatusCode: http.StatusOK,
 		},
@@ -261,7 +261,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					"agent-three",
 				},
 			},
-			UrlParam:           "dev.agent-selected",
+			URLParam:           "dev.agent-selected",
 			ExpectedAgent:      "agent-selected",
 			ExpectedStatusCode: http.StatusOK,
 		},
@@ -270,12 +270,13 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 	for _, c := range testCases {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
 			db, r := setupWorkspaceWithAgents(t, setupConfig{
 				WorkspaceName: c.WorkspaceName,
 				Agents:        c.Agents,
 			})
 
-			chi.RouteContext(r.Context()).URLParams.Add("workspacename_and_agent", c.UrlParam)
+			chi.RouteContext(r.Context()).URLParams.Add("workspacename_and_agent", c.URLParam)
 
 			rtr := chi.NewRouter()
 			rtr.Use(
