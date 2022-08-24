@@ -137,7 +137,6 @@ func configSSH() *cobra.Command {
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
 		usePreviousOpts  bool
-		coderConfigFile  string
 		dryRun           bool
 		skipProxyCommand bool
 		wireguard        bool
@@ -198,15 +197,7 @@ func configSSH() *cobra.Command {
 			// Parse the previous configuration only if config-ssh
 			// has been run previously.
 			var lastConfig *sshConfigOptions
-			var ok bool
-			var coderConfigRaw []byte
-			if coderConfigFile, coderConfigRaw, ok = readDeprecatedCoderConfigFile(homedir, coderConfigFile); ok {
-				// Deprecated: Remove after migration period.
-				changes = append(changes, fmt.Sprintf("Remove old auto-generated coder config file at %s", coderConfigFile))
-				// Backwards compate, restore old options.
-				c := sshConfigParseLastOptions(bytes.NewReader(coderConfigRaw))
-				lastConfig = &c
-			} else if section, ok := sshConfigGetCoderSection(configRaw); ok {
+			if section, ok := sshConfigGetCoderSection(configRaw); ok {
 				c := sshConfigParseLastOptions(bytes.NewReader(section))
 				lastConfig = &c
 			}
@@ -237,6 +228,8 @@ func configSSH() *cobra.Command {
 					}
 					// Selecting "no" will use the last config.
 					sshConfigOpts = *lastConfig
+				} else {
+					changes = append(changes, "Use new SSH option")
 				}
 				// Only print when prompts are shown.
 				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
@@ -245,14 +238,6 @@ func configSSH() *cobra.Command {
 			}
 
 			configModified := configRaw
-
-			// Check for the presence of the coder Include
-			// statement is present and add if missing.
-			// Deprecated: Remove after migration period.
-			if configModified, ok = removeDeprecatedSSHIncludeStatement(configModified); ok {
-				changes = append(changes, fmt.Sprintf("Remove %q from %s", "Include coder", sshConfigFile))
-			}
-
 			root := createConfig(cmd)
 
 			buf := &bytes.Buffer{}
@@ -313,17 +298,34 @@ func configSSH() *cobra.Command {
 			_, _ = buf.Write(after)
 
 			if !bytes.Equal(configModified, buf.Bytes()) {
-				changes = append(changes, fmt.Sprintf("Update coder config section in %s", sshConfigFile))
+				changes = append(changes, fmt.Sprintf("Update the coder section in %s", sshConfigFile))
 				configModified = buf.Bytes()
 			}
 
-			if len(changes) > 0 {
-				dryRunDisclaimer := ""
-				if dryRun {
-					dryRunDisclaimer = " (dry-run, no changes will be made)"
+			if len(changes) == 0 {
+				_, _ = fmt.Fprintf(out, "No changes to make.\n")
+				return nil
+			}
+
+			if dryRun {
+				_, _ = fmt.Fprintf(out, "Dry run, the following changes would be made to your SSH configuration:\n\n  * %s\n\n", strings.Join(changes, "\n  * "))
+
+				color := isTTYOut(cmd)
+				diff, err := diffBytes(sshConfigFile, configRaw, configModified, color)
+				if err != nil {
+					return xerrors.Errorf("diff failed: %w", err)
 				}
+				if len(diff) > 0 {
+					// Write diff to stdout.
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s", diff)
+				}
+
+				return nil
+			}
+
+			if len(changes) > 0 {
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?%s", strings.Join(changes, "\n    * "), dryRunDisclaimer),
+					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?", strings.Join(changes, "\n    * ")),
 					IsConfirm: true,
 				})
 				if err != nil {
@@ -335,39 +337,10 @@ func configSSH() *cobra.Command {
 				}
 			}
 
-			if dryRun {
-				color := isTTYOut(cmd)
-				diffFns := []func() ([]byte, error){
-					func() ([]byte, error) { return diffBytes(sshConfigFile, configRaw, configModified, color) },
-				}
-				if len(coderConfigRaw) > 0 {
-					// Deprecated: Remove after migration period.
-					diffFns = append(diffFns, func() ([]byte, error) { return diffBytes(coderConfigFile, coderConfigRaw, nil, color) })
-				}
-
-				for _, diffFn := range diffFns {
-					diff, err := diffFn()
-					if err != nil {
-						return xerrors.Errorf("diff failed: %w", err)
-					}
-					if len(diff) > 0 {
-						// Write diff to stdout.
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%s", diff)
-					}
-				}
-			} else {
-				if !bytes.Equal(configRaw, configModified) {
-					err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
-					if err != nil {
-						return xerrors.Errorf("write ssh config failed: %w", err)
-					}
-				}
-				// Deprecated: Remove after migration period.
-				if len(coderConfigRaw) > 0 {
-					err = os.Remove(coderConfigFile)
-					if err != nil {
-						return xerrors.Errorf("remove coder config failed: %w", err)
-					}
+			if !bytes.Equal(configRaw, configModified) {
+				err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
+				if err != nil {
+					return xerrors.Errorf("write ssh config failed: %w", err)
 				}
 			}
 
@@ -388,10 +361,6 @@ func configSSH() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
 	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
 	_ = cmd.Flags().MarkHidden("wireguard")
-
-	// Deprecated: Remove after migration period.
-	cmd.Flags().StringVar(&coderConfigFile, "test.ssh-coder-config-file", sshDefaultCoderConfigFileName, "Specifies the path to an Coder SSH config file. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("test.ssh-coder-config-file")
 
 	cliui.AllowSkipPrompt(cmd)
 
