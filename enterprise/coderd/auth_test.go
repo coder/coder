@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -20,6 +21,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	assertRoute["POST:/api/v2/licenses"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionCreate,
 		AssertObject: rbac.ResourceLicense,
+	}
+	// TODO: fix this test so that there are licenses to get.
+	assertRoute["GET:/api/v2/licenses"] = coderdtest.RouteCheck{
+		StatusCode:  http.StatusOK,
+		NoAuthorize: true,
 	}
 	a.Test(ctx, assertRoute, skipRoutes)
 }
