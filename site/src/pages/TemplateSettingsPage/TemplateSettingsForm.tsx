@@ -20,16 +20,15 @@ export const Language = {
   descriptionLabel: "Description",
   maxTtlLabel: "Auto-stop limit",
   iconLabel: "Icon",
-  // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
-  maxTtlHelperText: "Edit the template maximum time before shutdown in hours",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
+  ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
 }
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
   description: Yup.string(),
-  max_ttl_ms: Yup.number(),
+  max_ttl_ms: Yup.number().integer().min(0).max(168, Language.ttlMaxError),
 })
 
 export interface TemplateSettingsForm {
@@ -148,18 +147,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 
         <TextField
           {...getFieldHelpers("max_ttl_ms")}
-          helperText={Language.maxTtlHelperText}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
-          // Display hours from ms
-          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 3600000 : ""}
-          // Convert hours to ms
-          onChange={(event) =>
-            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 3600000)
-          }
         />
       </Stack>
 

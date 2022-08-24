@@ -5,7 +5,7 @@ import { UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
 import { MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import { Language as FormLanguage } from "./TemplateSettingsForm"
+import { Language as FormLanguage, validationSchema } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import { Language as ViewLanguage } from "./TemplateSettingsPageView"
 
@@ -17,6 +17,14 @@ const renderTemplateSettingsPage = async () => {
   // Wait the form to be rendered
   await screen.findAllByLabelText(FormLanguage.nameLabel)
   return renderResult
+}
+
+const validFormValues: UpdateTemplateMeta = {
+  name: "A name",
+  description: "A description",
+  icon: "A string",
+  max_ttl_ms: 24,
+  min_autostart_interval_ms: 24,
 }
 
 const fillAndSubmitForm = async ({
@@ -98,5 +106,23 @@ describe("TemplateSettingsPage", () => {
         }),
       ),
     )
+  })
+
+  it("allows a ttl of 7 days", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 24 * 7,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a ttl of 7 days + 1 hour", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 24 * 7 + 1,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError("ttl must be less than or equal to 168")
   })
 })
