@@ -19,12 +19,11 @@ const renderTemplateSettingsPage = async () => {
   return renderResult
 }
 
-const validFormValues: UpdateTemplateMeta = {
-  name: "A name",
+const validFormValues = {
+  name: "Name",
   description: "A description",
   icon: "A string",
-  max_ttl_ms: 24,
-  min_autostart_interval_ms: 24,
+  max_ttl_ms: 1,
 }
 
 const fillAndSubmitForm = async ({
@@ -63,17 +62,11 @@ describe("TemplateSettingsPage", () => {
   it("succeeds", async () => {
     await renderTemplateSettingsPage()
 
-    const newTemplateSettings = {
-      name: "edited-template-name",
-      description: "Edited description",
-      max_ttl_ms: 4000,
-      icon: "/icon/code.svg",
-    }
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
-      ...newTemplateSettings,
+      ...validFormValues,
     })
-    await fillAndSubmitForm(newTemplateSettings)
+    await fillAndSubmitForm(validFormValues)
 
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
   })
@@ -81,28 +74,21 @@ describe("TemplateSettingsPage", () => {
   test("ttl is converted to and from hours", async () => {
     await renderTemplateSettingsPage()
 
-    const newTemplateSettings = {
-      name: "edited-template-name",
-      description: "Edited description",
-      max_ttl_ms: 1,
-      icon: "/icon/code.svg",
-    }
-
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
-      ...newTemplateSettings,
+      ...validFormValues,
     })
 
-    await fillAndSubmitForm(newTemplateSettings)
-    expect(screen.getByDisplayValue(1)).toBeInTheDocument()
+    await fillAndSubmitForm(validFormValues)
+    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the max_ttl_ms
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
 
     await waitFor(() =>
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
-          ...newTemplateSettings,
-          max_ttl_ms: 3600000,
+          ...validFormValues,
+          max_ttl_ms: 3600000, // the max_ttl_ms to ms
         }),
       ),
     )
@@ -123,6 +109,6 @@ describe("TemplateSettingsPage", () => {
       max_ttl_ms: 24 * 7 + 1,
     }
     const validate = () => validationSchema.validateSync(values)
-    expect(validate).toThrowError("ttl must be less than or equal to 168")
+    expect(validate).toThrowError(FormLanguage.ttlMaxError)
   })
 })

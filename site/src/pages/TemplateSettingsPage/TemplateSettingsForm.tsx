@@ -54,11 +54,18 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     initialValues: {
       name: template.name,
       description: template.description,
-      max_ttl_ms: template.max_ttl_ms,
+      // on display, convert from ms => hours
+      max_ttl_ms: template.max_ttl_ms / 3600000,
       icon: template.icon,
     },
     validationSchema,
-    onSubmit,
+    onSubmit: (formData) => {
+      // on submit, convert from hours => ms
+      onSubmit({
+        ...formData,
+        max_ttl_ms: formData.max_ttl_ms ? formData.max_ttl_ms * 3600000 : undefined,
+      })
+    },
     initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
@@ -152,6 +159,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
+          type="number"
         />
       </Stack>
 
