@@ -26,7 +26,7 @@ export const Language = {
   ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
   descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
   ttlHelperText: (
-    ttl?: number,
+    ttl: number,
   ): string => `Workspaces created from this template will, by default, shut down ${ttl}
   hours after starting.`,
 }
@@ -173,7 +173,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
-        {!form.errors.max_ttl_ms && (
+        {!form.errors.max_ttl_ms && form.values.max_ttl_ms && (
           <Typography variant="subtitle2">
             {Language.ttlHelperText(form.values.max_ttl_ms)}
           </Typography>
