@@ -36,7 +36,7 @@ data "coder_workspace" "me" {
 }
 
 resource "google_compute_disk" "root" {
-  name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  name  = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
   zone  = var.zone
   image = "debian-cloud/debian-10"

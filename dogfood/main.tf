@@ -46,14 +46,14 @@ resource "coder_app" "code-server" {
 
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+  name = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-home"
 }
 
 resource "coder_metadata" "home_info" {
   resource_id = docker_volume.home_volume.id
   item {
-    key = "🤫🤫🤫<br/><br/>"
-    value = "❤️❤️❤️"
+    key       = "🤫🤫🤫<br/><br/>"
+    value     = "❤️❤️❤️"
     sensitive = true
   }
 }
@@ -93,14 +93,14 @@ resource "docker_container" "workspace" {
 }
 
 resource "coder_metadata" "container_info" {
-  count = data.coder_workspace.me.start_count
+  count       = data.coder_workspace.me.start_count
   resource_id = docker_container.workspace[0].id
   item {
-    key = "memory"
+    key   = "memory"
     value = docker_container.workspace[0].memory
   }
   item {
-    key = "runtime"
+    key   = "runtime"
     value = docker_container.workspace[0].runtime
   }
 }

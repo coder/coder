@@ -62,7 +62,7 @@ variable "docker_image" {
 }
 
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-home"
+  name = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-home"
 }
 
 resource "docker_container" "workspace" {
@@ -75,7 +75,8 @@ resource "docker_container" "workspace" {
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
   command = [
-    "sh", "-c", replace(coder_agent.main.init_script, "localhost", "host.docker.internal")]
+    "sh", "-c", replace(coder_agent.main.init_script, "localhost", "host.docker.internal")
+  ]
   env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
