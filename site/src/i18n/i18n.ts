@@ -16,5 +16,6 @@ i18n
     resources,
   })
   .catch((error) => {
-    console.error(error)
+    // we are catching here to avoid lint's no-floating-promises error
+    console.error("[Translation Service]:", error)
   })
