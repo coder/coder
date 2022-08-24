@@ -41,7 +41,7 @@ updates:
         - version-update:semver-patch
 
   - package-ecosystem: "npm"
-    directory: "/site/"
+    directory: "/web/"
     schedule:
       interval: "monthly"
       time: "06:00"

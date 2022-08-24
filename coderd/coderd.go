@@ -34,7 +34,7 @@ import (
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
+	site "github.com/coder/coder/web"
 )
 
 // Options are requires parameters for Coder to start.

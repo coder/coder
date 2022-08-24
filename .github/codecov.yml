@@ -35,7 +35,7 @@ ignore:
   - provisionerd/proto
   - provisionersdk/proto
   - scripts
-  - site/.storybook
+  - web/.storybook
   - rules.go
   # Packages used for writing tests.
   - cli/clitest

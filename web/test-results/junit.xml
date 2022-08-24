@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Front-end Jest Tests" tests="7" failures="0" errors="0" time="14.718">
+  <testsuite name="TemplateSettingsPage" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:34" time="7.537" tests="2">
+    <testcase classname="TemplateSettingsPage renders" name="TemplateSettingsPage renders" time="0.293">
+    </testcase>
+    <testcase classname="TemplateSettingsPage succeeds" name="TemplateSettingsPage succeeds" time="1.361">
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:42" time="5.762" tests="1">
+    <testcase classname=" ESLint" name=" ESLint" time="5.762">
+    </testcase>
+    <testcase classname=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." name=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>null</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:42" time="5.913" tests="1">
+    <testcase classname=" ESLint" name=" ESLint" time="5.913">
+    </testcase>
+    <testcase classname=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." name=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>null</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:48" time="0.131" tests="1">
+    <testcase classname=" ESLint" name=" ESLint" time="0.131">
+    </testcase>
+    <testcase classname=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." name=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>null</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:48" time="0.144" tests="1">
+    <testcase classname=" ESLint" name=" ESLint" time="0.144">
+    </testcase>
+    <testcase classname=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." name=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>null</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="undefined" errors="0" failures="0" skipped="0" timestamp="2022-08-22T20:20:48" time="0.237" tests="1">
+    <testcase classname=" ESLint" name=" ESLint" time="0.237">
+    </testcase>
+    <testcase classname=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." name=" Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0">
+      <failure>null</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

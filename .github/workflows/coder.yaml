@@ -69,7 +69,7 @@ jobs:
             sh:
               - "**.sh"
             ts:
-              - 'site/**'
+              - 'web/**'
             k8s:
               - 'helm/**'
               - Dockerfile
@@ -148,7 +148,7 @@ jobs:
 
       - name: "yarn lint"
         run: yarn lint
-        working-directory: site
+        working-directory: web
 
   style-lint-k8s:
     name: "style/lint/k8s"
@@ -490,8 +490,8 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
-      - name: Build site
-        run: make -B site/out/index.html
+      - name: Build web
+        run: make -B web/out/index.html
 
       - name: Build Release
         run: |
@@ -568,7 +568,7 @@ jobs:
         run: ./scripts/yarn_install.sh
 
       - run: yarn test:coverage
-        working-directory: site
+        working-directory: web
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -579,7 +579,7 @@ jobs:
         if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./site/coverage/lcov.info
+          files: ./web/coverage/lcov.info
           flags: unittest-js
 
       - name: Upload DataDog Trace
@@ -588,7 +588,7 @@ jobs:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+        run: go run scripts/datadog-cireport/main.go web/test-results/junit.xml
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
@@ -648,18 +648,18 @@ jobs:
       - name: Build
         run: |
           sudo npm install -g prettier
-          make -B site/out/index.html
+          make -B web/out/index.html
 
       - run: yarn playwright:install
-        working-directory: site
+        working-directory: web
 
       - run: yarn playwright:install-deps
-        working-directory: site
+        working-directory: web
 
       - run: yarn playwright:test
         env:
           DEBUG: pw:api
-        working-directory: site
+        working-directory: web
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -667,7 +667,7 @@ jobs:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: e2e
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+        run: go run scripts/datadog-cireport/main.go web/test-results/junit.xml
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
@@ -682,7 +682,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install dependencies
-        run: cd site && yarn
+        run: cd web && yarn
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for
@@ -696,7 +696,7 @@ jobs:
           # Chromatic states its fine to make this token public. See:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
-          workingDir: "./site"
+          workingDir: "./web"
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -711,4 +711,4 @@ jobs:
           autoAcceptChanges: true
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
-          workingDir: "./site"
+          workingDir: "./web"

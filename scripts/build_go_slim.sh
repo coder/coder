@@ -13,11 +13,11 @@
 # accept variables such as `{os}` and `{arch}` and only accepts a directory
 # ending with `/`.
 #
-# The built binaries are additionally copied to the site output directory so
+# The built binaries are additionally copied to the web output directory so
 # they can be packaged into non-slim binaries correctly.
 #
-# When the --compress <level> parameter is provided, the binaries in site/bin
-# will be compressed using zstd into site/bin/coder.tar.zst, this helps reduce
+# When the --compress <level> parameter is provided, the binaries in web/bin
+# will be compressed using zstd into web/bin/coder.tar.zst, this helps reduce
 # final binary size significantly.
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
@@ -105,11 +105,11 @@ fi
 	"$@"
 
 cdroot
-dest_dir="./site/out/bin"
+dest_dir="./web/out/bin"
 mkdir -p "$dest_dir"
 dest_dir="$(realpath "$dest_dir")"
 
-# Copy the binaries to the site directory.
+# Copy the binaries to the web directory.
 cd "$(dirname "$output_path")"
 for f in ./coder-slim_*; do
 	# Remove ./ prefix

@@ -42,7 +42,7 @@ dependencies curl git go make yarn
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
 curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
-if [[ ! -e ./site/out/bin/coder.sha1 && ! -e ./site/out/bin/coder.tar.zst ]]; then
+if [[ ! -e ./web/out/bin/coder.sha1 && ! -e ./web/out/bin/coder.tar.zst ]]; then
 	log
 	log "======================================================================="
 	log "==   Run 'make bin' before running this command to build binaries.   =="
@@ -103,7 +103,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -$$ &
+	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./web dev || kill -INT -$$ &
 	log
 	log "======================================================================="
 	log "==                                                                   =="

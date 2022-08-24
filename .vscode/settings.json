@@ -113,7 +113,7 @@
       }
     ]
   },
-  "eslint.workingDirectories": ["./site"],
+  "eslint.workingDirectories": ["./web"],
   "files.exclude": {
     "**/node_modules": true
   },
@@ -139,5 +139,5 @@
   },
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib"
+  "typescript.tsdk": "./web/node_modules/typescript/lib"
 }

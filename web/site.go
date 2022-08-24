@@ -107,7 +107,7 @@ type csrfState struct {
 
 func ShouldCacheFile(reqFile string) bool {
 	// Images, favicons and uniquely content hashed bundle assets should be
-	// cached. By default, we cache everything in the site/out directory except
+	// cached. By default, we cache everything in the web/out directory except
 	// for deny-listed items enumerated here. The reason for this approach is
 	// that cache invalidation techniques should be used by default for all
 	// webpack-processed assets. The scenarios where we don't use cache
@@ -404,7 +404,7 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 // the provided FS is checked for a /bin directory, if it is non-empty
 // it is returned. Finally dest/bin is returned as a fallback allowing
 // binaries to be manually placed in dest (usually
-// ${CODER_CACHE_DIRECTORY}/site/bin).
+// ${CODER_CACHE_DIRECTORY}/web/bin).
 func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, error) {
 	if dest == "" {
 		// No destination on fs, embedded fs is the only option.

@@ -19,19 +19,19 @@ gotests.coverage
 
 # Front-end ignore
 .next/
-site/.eslintcache
-site/.next/
-site/node_modules/
-site/storybook-static/
-site/test-results/
-site/yarn-error.log
+web/.eslintcache
+web/.next/
+web/node_modules/
+web/storybook-static/
+web/test-results/
+web/yarn-error.log
 coverage/
-site/**/*.typegen.ts
-site/build-storybook.log
+web/**/*.typegen.ts
+web/build-storybook.log
 
 # Build
 dist/
-site/out/
+web/out/
 
 *.tfstate
 *.tfplan

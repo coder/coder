@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
+	site "github.com/coder/coder/web"
 )
 
 // workspaceAppsProxyPath proxies requests to a workspace application

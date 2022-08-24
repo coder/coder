@@ -16,11 +16,11 @@ VERSION=$(shell ./scripts/version.sh)
 
 bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	@echo "== This builds slim binaries for command-line usage."
-	@echo "== Use \"make build\" to embed the site."
+	@echo "== Use \"make build\" to embed the web."
 
 	mkdir -p ./dist
 	rm -rf ./dist/coder-slim_*
-	rm -f ./site/out/bin/coder*
+	rm -f ./web/out/bin/coder*
 	./scripts/build_go_slim.sh \
 		--compress 6 \
 		--version "$(VERSION)" \
@@ -30,12 +30,12 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 		darwin:amd64,arm64
 .PHONY: bin
 
-build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+build: web/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	rm -rf ./dist
 	mkdir -p ./dist
-	rm -f ./site/out/bin/coder*
+	rm -f ./web/out/bin/coder*
 
-	# build slim artifacts and copy them to the site output directory
+	# build slim artifacts and copy them to the web output directory
 	./scripts/build_go_slim.sh \
 		--version "$(VERSION)" \
 		--compress 6 \
@@ -65,7 +65,7 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 fmt/prettier:
 	@echo "--- prettier"
-	cd site
+	cd web
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
 	yarn run format:check
@@ -91,10 +91,10 @@ endif
 fmt: fmt/prettier fmt/terraform fmt/shfmt
 .PHONY: fmt
 
-gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
+gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go web/src/api/typesGenerated.ts
 .PHONY: gen
 
-install: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+install: web/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
 	@output_file="$(INSTALL_DIR)/coder"
 
 	@if [[ "$(GOOS)" == "windows" ]]; then
@@ -150,17 +150,17 @@ provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
 
-site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
+web/out/index.html: $(shell find ./web -not -path './web/node_modules/*' -type f -name '*.tsx') $(shell find ./web -not -path './web/node_modules/*' -type f -name '*.ts') web/package.json
 	./scripts/yarn_install.sh
-	cd site
+	cd web
 	yarn typegen
 	yarn build
 	# Restores GITKEEP files!
 	git checkout HEAD out
 
-site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
-	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
-	cd site
+web/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
+	go run scripts/apitypings/main.go > web/src/api/typesGenerated.ts
+	cd web
 	yarn run format:types
 
 test: test-clean

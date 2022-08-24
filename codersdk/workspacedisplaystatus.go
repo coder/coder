@@ -19,7 +19,7 @@ const unknownStatus = "Unknown"
 // WorkspaceDisplayStatus computes a status to display on CLI/UI based on
 // the workspace transition and the status of the provisioner job.
 // This code is in sync with how we compute the status on frontend.
-// Ref: site/src/util/workspace.ts (getWorkspaceStatus)
+// Ref: web/src/util/workspace.ts (getWorkspaceStatus)
 func WorkspaceDisplayStatus(jobStatus ProvisionerJobStatus, transition WorkspaceTransition) string {
 	switch jobStatus {
 	case ProvisionerJobSucceeded:
