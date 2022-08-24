@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -463,6 +464,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	agentConn := setupAgent(t, agent.Metadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	waitGroup := sync.WaitGroup{}
 	go func() {
 		defer listener.Close()
 		for {
@@ -475,11 +477,16 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 				_ = conn.Close()
 				return
 			}
-			go agent.Bicopy(context.Background(), conn, ssh)
+			waitGroup.Add(1)
+			go func() {
+				agent.Bicopy(context.Background(), conn, ssh)
+				waitGroup.Done()
+			}()
 		}
 	}()
 	t.Cleanup(func() {
 		_ = listener.Close()
+		waitGroup.Wait()
 	})
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
