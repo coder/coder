@@ -461,9 +461,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if icon == "" {
 			icon = template.Icon
 		}
-		if maxTTL == 0 {
-			maxTTL = time.Duration(template.MaxTtl)
-		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}

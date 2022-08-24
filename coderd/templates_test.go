@@ -329,6 +329,32 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
 
+	t.Run("NoMaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+		})
+		req := codersdk.UpdateTemplateMeta{
+			MaxTTLMillis: 0,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+
+		// Extra paranoid: did it _really_ happen?
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
+	})
+
 	t.Run("MaxTTLTooLow", func(t *testing.T) {
 		t.Parallel()
 
