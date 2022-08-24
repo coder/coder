@@ -175,6 +175,36 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 			ExpectedStatusCode: http.StatusBadRequest,
 			ExpectedError:      "More than one agent exists, but no agent specified",
 		},
+		{
+			Name:          "NotExistsOneAgent",
+			WorkspaceName: "dev",
+			Agents: map[string][]string{
+				"resource-a": {
+					"agent-one",
+				},
+			},
+			UrlParam:           "dev.not-exists",
+			ExpectedStatusCode: http.StatusBadRequest,
+			ExpectedError:      "No agent exists with the name",
+		},
+		{
+			Name:          "NotExistsMultipleAgents",
+			WorkspaceName: "dev",
+			Agents: map[string][]string{
+				"resource-a": {
+					"agent-one",
+				},
+				"resource-b": {
+					"agent-two",
+				},
+				"resource-c": {
+					"agent-three",
+				},
+			},
+			UrlParam:           "dev.not-exists",
+			ExpectedStatusCode: http.StatusBadRequest,
+			ExpectedError:      "No agent exists with the name",
+		},
 
 		// OKs
 		{

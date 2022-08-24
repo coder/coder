@@ -128,10 +128,12 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 				return
 			}
 
-			// If we have more than 1 workspace agent, we need to specify which one to use.
 			var agent database.WorkspaceAgent
 			var found bool
-			if len(agents) > 1 {
+			// If we have more than 1 workspace agent, we need to specify which one to use.
+			// If the user specified an agent, we need to make sure that agent
+			// actually exists.
+			if len(workspaceParts) > 1 || len(agents) > 1 {
 				for _, otherAgent := range agents {
 					if otherAgent.Name == workspaceParts[1] {
 						agent = otherAgent
@@ -141,7 +143,7 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 				}
 				if !found {
 					httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-						Message: fmt.Sprintf("No agent exists with the name %s", workspaceParts[1]),
+						Message: fmt.Sprintf("No agent exists with the name %q", workspaceParts[1]),
 					})
 					return
 				}
