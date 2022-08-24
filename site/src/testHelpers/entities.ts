@@ -51,6 +51,10 @@ export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesG
   }
 }
 
+export const MockMemberPermissions = {
+  viewAuditLog: false
+}
+
 export const MockUser: TypesGen.User = {
   id: "test-user",
   username: "TestUser",
@@ -653,6 +657,17 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       limit: 100,
       actual: 102,
     },
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  },
+}
+
+export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: true,
+  features: {
     audit_log: {
       enabled: true,
       entitlement: "entitled",
