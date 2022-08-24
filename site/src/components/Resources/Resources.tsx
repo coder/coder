@@ -131,6 +131,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                   appName={app.name}
                                   userName={workspace.owner_name}
                                   workspaceName={workspace.name}
+                                  agentName={agent.name}
                                 />
                               ))}
                             </div>
