@@ -130,7 +130,6 @@ func New(options *Options) *API {
 			})
 		},
 		httpmw.Prometheus(options.PrometheusRegistry),
-		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
 	apps := func(r chi.Router) {
@@ -138,6 +137,7 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
+			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
@@ -157,6 +157,7 @@ func New(options *Options) *API {
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
+			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{
