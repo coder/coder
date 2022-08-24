@@ -103,6 +103,15 @@ describe("TemplateSettingsPage", () => {
     expect(validate).not.toThrowError()
   })
 
+  it("allows ttl of 0", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 0,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
   it("disallows a ttl of 7 days + 1 hour", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
