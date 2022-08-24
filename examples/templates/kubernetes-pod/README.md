@@ -72,3 +72,40 @@ roleRef:
 
 Then start the Coder host with `serviceAccountName: coder` in the pod spec.
 
+## Namespace
+
+The target namespace in which the pod will be deployed is defined via the `coder_workspace`
+variable. The namespace must exist prior to creating workspaces.
+
+## Persistence
+
+The `/home/coder` directory in this example is persisted via the attached PersistentVolumeClaim.
+Any data saved outside of this directory will be wiped when the workspace stops.
+
+Since most binary installations and environment configurations live outside of
+the `/home` directory, we suggest including these in the `startup_script` argument
+of the `coder_agent` resource block, which will run each time the workspace starts up.
+
+For example, when installing the `aws` CLI, the install script will place the
+`aws` binary in `/usr/local/bin/aws`. To ensure the `aws` CLI is persisted across
+workspace starts/stops, include the following code in the `coder_agent` resource
+block of your workspace template:
+
+```terraform
+resource "coder_agent" "main" {
+  startup_script = <<EOT
+    #!/bin/bash
+
+    # install AWS CLI
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install
+  EOT
+}
+```
+
+## code-server
+
+`code-server` is installed via the `startup_script` argument in the `coder_agent`
+resource block. The `coder_app` resource is defined to access `code-server` through
+the dashboard UI over `localhost:13337`.
