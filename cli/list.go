@@ -57,7 +57,11 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 }
 
 func list() *cobra.Command {
-	var columns []string
+	var (
+		columns     []string
+		searchQuery string
+		me          bool
+	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
@@ -69,7 +73,17 @@ func list() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{})
+			filter := codersdk.WorkspaceFilter{
+				FilterQuery: searchQuery,
+			}
+			if me {
+				myUser, err := client.User(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
+				filter.Owner = myUser.Username
+			}
+			workspaces, err := client.Workspaces(cmd.Context(), filter)
 			if err != nil {
 				return err
 			}
@@ -106,5 +120,7 @@ func list() *cobra.Command {
 	}
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		"Specify a column to filter in the table.")
+	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
+	cmd.Flags().BoolVar(&me, "me", false, "Only show workspaces owned by the current user.")
 	return cmd
 }
