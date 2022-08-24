@@ -265,8 +265,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
+		node := makeNode()
 		c.lastMutex.Unlock()
-		callback(makeNode())
+		callback(node)
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		if err != nil {
@@ -278,8 +279,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		}
 		c.lastMutex.Lock()
 		c.lastEndpoints = endpoints
+		node := makeNode()
 		c.lastMutex.Unlock()
-		callback(makeNode())
+		callback(node)
 	})
 }
 
