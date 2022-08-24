@@ -12,12 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
-
-	"cdr.dev/slog"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
