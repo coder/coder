@@ -5,6 +5,7 @@ import InputAdornment from "@material-ui/core/InputAdornment"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import Typography from "@material-ui/core/Typography"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -24,6 +25,10 @@ export const Language = {
   selectEmoji: "Select emoji",
   ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
   descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
+  ttlHelperText: (
+    ttl?: number,
+  ): string => `Workspaces created from this template will, by default, shut down ${ttl}
+  hours after starting.`,
 }
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
@@ -168,6 +173,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
+        {!form.errors.max_ttl_ms && (
+          <Typography variant="subtitle2">
+            {Language.ttlHelperText(form.values.max_ttl_ms)}
+          </Typography>
+        )}
       </Stack>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
