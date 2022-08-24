@@ -1,8 +1,10 @@
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
+import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
 import { HelmetProvider } from "react-helmet-async"
+import { I18nextProvider } from "react-i18next"
 import {
   MemoryRouter,
   Route,
@@ -48,11 +50,13 @@ export function renderWithAuth(
     <HelmetProvider>
       <MemoryRouter initialEntries={[route]}>
         <XServiceProvider>
-          <ThemeProvider theme={dark}>
-            <Routes>
-              <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
-            </Routes>
-          </ThemeProvider>
+          <I18nextProvider i18n={i18n}>
+            <ThemeProvider theme={dark}>
+              <Routes>
+                <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+              </Routes>
+            </ThemeProvider>
+          </I18nextProvider>
         </XServiceProvider>
       </MemoryRouter>
     </HelmetProvider>,
