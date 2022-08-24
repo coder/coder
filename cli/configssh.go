@@ -229,7 +229,7 @@ func configSSH() *cobra.Command {
 					// Selecting "no" will use the last config.
 					sshConfigOpts = *lastConfig
 				} else {
-					changes = append(changes, "Use new SSH option")
+					changes = append(changes, "Use new SSH options")
 				}
 				// Only print when prompts are shown.
 				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
