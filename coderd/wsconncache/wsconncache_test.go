@@ -39,9 +39,7 @@ func TestCache(t *testing.T) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, 0)
 		defer func() {
-			fmt.Printf("Closing cache...\n")
 			_ = cache.Close()
-			fmt.Printf("Closed cache...\n")
 		}()
 		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
