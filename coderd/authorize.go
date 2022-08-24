@@ -49,6 +49,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 // This function will log appropriately, but the caller must return an
 // error to the api client.
 // Eg:
+//
 //	if !h.Authorize(...) {
 //		httpapi.Forbidden(rw)
 //		return
