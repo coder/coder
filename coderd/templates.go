@@ -173,7 +173,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	maxTTL := maxTTLDefault
-	if !ptr.NilOrZero(createTemplate.MaxTTLMillis) {
+	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
 	}
 	if maxTTL < 0 {

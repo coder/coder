@@ -148,6 +148,24 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Contains(t, err.Error(), "max_ttl_ms: Cannot be greater than")
 	})
 
+	t.Run("NoMaxTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:         "testing",
+			VersionID:    version.ID,
+			MaxTTLMillis: ptr.Ref(int64(0)),
+		})
+		require.NoError(t, err)
+		require.Zero(t, got.MaxTTLMillis)
+	})
+
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
