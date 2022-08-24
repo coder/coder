@@ -13,6 +13,8 @@ import (
 )
 
 func TestRecover(t *testing.T) {
+	t.Parallel()
+
 	handler := func(isPanic, hijack bool) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if isPanic {

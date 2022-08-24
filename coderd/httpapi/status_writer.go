@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"net"
 	"net/http"
+
+	"golang.org/x/xerrors"
 )
 
 var _ http.ResponseWriter = (*StatusWriter)(nil)
@@ -17,23 +19,31 @@ type StatusWriter struct {
 	Status       int
 	Hijacked     bool
 	ResponseBody []byte
+
+	wroteHeader bool
 }
 
 func (w *StatusWriter) WriteHeader(status int) {
-	w.Status = status
-	w.ResponseWriter.WriteHeader(status)
+	if !w.wroteHeader {
+		w.Status = status
+		w.wroteHeader = true
+		w.ResponseWriter.WriteHeader(status)
+	}
 }
 
 func (w *StatusWriter) Write(b []byte) (int, error) {
 	const maxBodySize = 4096
 
-	if w.Status == 0 {
+	if !w.wroteHeader {
 		w.Status = http.StatusOK
 	}
 
 	if w.Status >= http.StatusBadRequest {
-		// Instantiate the recorded response body to be at most
-		// maxBodySize length.
+		// This is technically wrong as multiple calls to write
+		// will simply overwrite w.ResponseBody but given that
+		// we typically only write to the response body once
+		// and this field is only used for logging I'm leaving
+		// this as-is.
 		w.ResponseBody = make([]byte, minInt(len(b), maxBodySize))
 		copy(w.ResponseBody, b)
 	}
@@ -41,8 +51,6 @@ func (w *StatusWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// minInt returns the smaller of a or b. This is helpful because math.Min only
-// works with float64s.
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -52,5 +60,10 @@ func minInt(a, b int) int {
 
 func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	w.Hijacked = true
-	return w.ResponseWriter.(http.Hijacker).Hijack()
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, xerrors.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
+	}
+
+	return hijacker.Hijack()
 }
