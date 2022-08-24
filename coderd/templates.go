@@ -176,6 +176,25 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !ptr.NilOrZero(createTemplate.MaxTTLMillis) {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
 	}
+	if maxTTL < 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Must be a positive integer."},
+			},
+		})
+		return
+	}
+
+	if maxTTL > maxTTLDefault {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
+	}
 
 	minAutostartInterval := minAutostartIntervalDefault
 	if !ptr.NilOrZero(createTemplate.MinAutostartIntervalMillis) {
@@ -383,6 +402,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.MinAutostartIntervalMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
 	}
 
 	if len(validErrs) > 0 {
