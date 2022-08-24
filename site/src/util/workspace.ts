@@ -200,7 +200,7 @@ export const getDisplayAgentStatus = (
       }
     case "connecting":
       return {
-        color: theme.palette.success.main,
+        color: theme.palette.primary.main,
         status: DisplayAgentStatusLanguage["connecting"],
       }
     case "disconnected":
