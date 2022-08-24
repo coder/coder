@@ -31,6 +31,7 @@ export const Language = {
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 7
+const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
@@ -65,7 +66,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       name: template.name,
       description: template.description,
       // on display, convert from ms => hours
-      max_ttl_ms: template.max_ttl_ms / 3600000,
+      max_ttl_ms: template.max_ttl_ms / MS_HOUR_CONVERSION,
       icon: template.icon,
     },
     validationSchema,
@@ -73,7 +74,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       // on submit, convert from hours => ms
       onSubmit({
         ...formData,
-        max_ttl_ms: formData.max_ttl_ms ? formData.max_ttl_ms * 3600000 : undefined,
+        max_ttl_ms: formData.max_ttl_ms ? formData.max_ttl_ms * MS_HOUR_CONVERSION : undefined,
       })
     },
     initialTouched,
@@ -171,7 +172,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
-        {!form.errors.max_ttl_ms && form.values.max_ttl_ms && (
+        {/* If a value for max_ttl_ms has been entered and
+        there are no validation errors for that field, display helper text.
+        We do not use the MUI helper-text prop because it overrides the validation error */}
+        {form.values.max_ttl_ms && !form.errors.max_ttl_ms && (
           <Typography variant="subtitle2">
             {Language.ttlHelperText(form.values.max_ttl_ms)}
           </Typography>

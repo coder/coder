@@ -36,11 +36,11 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled",
-  errorNoTime: "Start time is required when auto-start is enabled",
-  errorTime: "Time must be in HH:mm format (24 hours)",
-  errorTimezone: "Invalid timezone",
-  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled",
+  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled.",
+  errorNoTime: "Start time is required when auto-start is enabled.",
+  errorTime: "Time must be in HH:mm format (24 hours).",
+  errorTimezone: "Invalid timezone.",
+  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled.",
   errorTtlMax: "Please enter a limit that is less than or equal to 168 hours (7 days).",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
