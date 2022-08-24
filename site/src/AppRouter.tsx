@@ -143,7 +143,11 @@ export const AppRouter: FC = () => {
                 <Navigate to="/workspaces" />
               ) : (
                 <AuthAndFrame>
-                  <RequirePermission isFeatureVisible={featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog}>
+                  <RequirePermission
+                    isFeatureVisible={
+                      featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog
+                    }
+                  >
                     <AuditPage />
                   </RequirePermission>
                 </AuthAndFrame>

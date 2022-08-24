@@ -47,7 +47,7 @@ export const entitlementsMachine = createMachine(
         on: {
           GET_ENTITLEMENTS: "gettingEntitlements",
           SHOW_MOCK_BANNER: { actions: "assignMockEntitlements" },
-          HIDE_MOCK_BANNER: "gettingEntitlements"
+          HIDE_MOCK_BANNER: "gettingEntitlements",
         },
       },
       gettingEntitlements: {

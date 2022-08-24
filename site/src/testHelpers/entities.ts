@@ -656,6 +656,6 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
     audit_log: {
       enabled: true,
       entitlement: "entitled",
-    }
+    },
   },
 }

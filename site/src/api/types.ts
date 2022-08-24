@@ -18,5 +18,5 @@ export type Message = { message: string }
 // Keep up to date with coder/codersdk/features.go
 export enum FeatureNames {
   AuditLog = "audit_log",
-  UserLimit = "user_limit"
+  UserLimit = "user_limit",
 }
