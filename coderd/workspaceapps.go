@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -23,93 +22,12 @@ import (
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	// This can be in the form of: "<workspace-name>.[workspace-agent]" or "<workspace-name>"
-	workspaceWithAgent := chi.URLParam(r, "workspacename")
-	workspaceParts := strings.Split(workspaceWithAgent, ".")
-
-	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: user.ID,
-		Name:    workspaceParts[0],
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	workspace := httpmw.WorkspaceParam(r)
+	agent := httpmw.WorkspaceAgentParam(r)
 
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
-	}
-
-	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), build.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	resourceIDs := make([]uuid.UUID, 0)
-	for _, resource := range resources {
-		resourceIDs = append(resourceIDs, resource.ID)
-	}
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agents.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if len(agents) == 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No agents exist.",
-		})
-		return
-	}
-
-	// If we have more than 1 workspace agent, we need to specify which one to use.
-	if len(agents) > 1 && len(workspaceParts) <= 1 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "More than one agent exists, but no agent specified.",
-		})
-		return
-	}
-
-	// If we have more than 1 workspace agent, we need to specify which one to use.
-	var agent *database.WorkspaceAgent
-	if len(agents) > 1 {
-		for _, otherAgent := range agents {
-			if otherAgent.Name == workspaceParts[1] {
-				agent = &otherAgent
-				break
-			}
-		}
-		if agent == nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("No agent exists with the name %s", workspaceParts[1]),
-			})
-			return
-		}
-	} else {
-		agent = &agents[0]
 	}
 
 	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{

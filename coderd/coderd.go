@@ -138,14 +138,15 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
 	// other applications might not as well.
-	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
-	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Route("/%40{user}/{workspacename_and_agent}/apps/{workspaceapp}", apps)
+	r.Route("/@{user}/{workspacename_and_agent}/apps/{workspaceapp}", apps)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
