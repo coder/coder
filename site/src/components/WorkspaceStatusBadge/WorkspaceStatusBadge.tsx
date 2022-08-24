@@ -26,67 +26,67 @@ export const getStatus = (
   switch (status) {
     case undefined:
       return {
-        text: t("workspace_status.loading", { ns: "common" }),
+        text: t("workspaceStatus.loading", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "started":
       return {
         type: "success",
-        text: t("workspace_status.started", { ns: "common" }),
+        text: t("workspaceStatus.started", { ns: "common" }),
         icon: <PlayIcon />,
       }
     case "starting":
       return {
         type: "success",
-        text: t("workspace_status.starting", { ns: "common" }),
+        text: t("workspaceStatus.starting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopping":
       return {
         type: "warning",
-        text: t("workspace_status.stopping", { ns: "common" }),
+        text: t("workspaceStatus.stopping", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopped":
       return {
         type: "warning",
-        text: t("workspace_status.stopped", { ns: "common" }),
+        text: t("workspaceStatus.stopped", { ns: "common" }),
         icon: <StopIcon />,
       }
     case "deleting":
       return {
         type: "warning",
-        text: t("workspace_status.deleting", { ns: "common" }),
+        text: t("workspaceStatus.deleting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "deleted":
       return {
         type: "error",
-        text: t("workspace_status.deleted", { ns: "common" }),
+        text: t("workspaceStatus.deleted", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "canceling":
       return {
         type: "warning",
-        text: t("workspace_status.canceling", { ns: "common" }),
+        text: t("workspaceStatus.canceling", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "canceled":
       return {
         type: "warning",
-        text: t("workspace_status.canceled", { ns: "common" }),
+        text: t("workspaceStatus.canceled", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "error":
       return {
         type: "error",
-        text: t("workspace_status.failed", { ns: "common" }),
+        text: t("workspaceStatus.failed", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "queued":
       return {
         type: "info",
-        text: t("workspace_status.queued", { ns: "common" }),
+        text: t("workspaceStatus.queued", { ns: "common" }),
         icon: <LoadingIcon />,
       }
   }

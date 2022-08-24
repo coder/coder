@@ -1,5 +1,5 @@
 {
-  "workspace_status": {
+  "workspaceStatus": {
     "loading": "Loading",
     "started": "Running",
     "starting": "Starting",

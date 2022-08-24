@@ -174,7 +174,7 @@ describe("WorkspacePage", () => {
     await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, t("workspace_status.deleted", { ns: "common" }))
+    await testStatus(MockDeletedWorkspace, t("workspaceStatus.deleted", { ns: "common" }))
   })
 
   describe("Timeline", () => {

@@ -74,7 +74,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
               disabled={!deadlineMinusEnabled()}
               onClick={onDeadlineMinus}
             >
-              <Tooltip title={t("workspace_schedule_button.edit_deadline_minus")}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
                 <RemoveIcon />
               </Tooltip>
             </IconButton>
@@ -84,7 +84,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
               disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
-              <Tooltip title={t("workspace_schedule_button.edit_deadline_plus")}>
+              <Tooltip title={t("WorkspaceScheduleButton.editDeadlinePlus")}>
                 <AddIcon />
               </Tooltip>
             </IconButton>
@@ -100,7 +100,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           }}
           className={styles.scheduleButton}
         >
-          {t("workspace_schedule_button.schedule")}
+          {t("workspaceScheduleButton.schedule")}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}
