@@ -26,12 +26,12 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
     return false
   } else {
-    // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
-    // SEE: #1834
+    if (!workspace.latest_build.deadline) {
+      return false
+    }
     const deadline = dayjs(workspace.latest_build.deadline).utc()
-    const hasDeadline = deadline.year() > 1
     const thirtyMinutesFromNow = dayjs().add(30, "minutes").utc()
-    return hasDeadline && deadline.isSameOrBefore(thirtyMinutesFromNow)
+    return deadline.isSameOrBefore(thirtyMinutesFromNow)
   }
 }
 
