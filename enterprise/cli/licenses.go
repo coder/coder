@@ -26,6 +26,7 @@ func licenses() *cobra.Command {
 	}
 	cmd.AddCommand(
 		licenseAdd(),
+		licensesList(),
 	)
 	return cmd
 }
@@ -111,4 +112,33 @@ func validJWT(s string) error {
 		return nil
 	}
 	return xerrors.New("Invalid license")
+}
+
+func licensesList() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "list",
+		Short:   "List licenses (including expired)",
+		Aliases: []string{"ls"},
+		Args:    cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := agpl.CreateClient(cmd)
+			if err != nil {
+				return err
+			}
+
+			licenses, err := client.Licenses(cmd.Context())
+			if err != nil {
+				return err
+			}
+			// Ensure that we print "[]" instead of "null" when there are no licenses.
+			if licenses == nil {
+				licenses = make([]codersdk.License, 0)
+			}
+
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc.SetIndent("", "  ")
+			return enc.Encode(licenses)
+		},
+	}
+	return cmd
 }

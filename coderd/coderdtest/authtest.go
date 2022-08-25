@@ -8,13 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/coderd"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -33,8 +32,8 @@ type AuthTester struct {
 	t          *testing.T
 	api        *coderd.API
 	authorizer *recordingAuthorizer
-	client     *codersdk.Client
 
+	Client                *codersdk.Client
 	Workspace             codersdk.Workspace
 	Organization          codersdk.Organization
 	Admin                 codersdk.CreateFirstUserResponse
@@ -117,14 +116,11 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 	})
 	require.NoError(t, err, "create template param")
 
-	// Always fail auth from this point forward
-	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
-
 	return &AuthTester{
 		t:                     t,
 		api:                   api,
 		authorizer:            authorizer,
-		client:                client,
+		Client:                client,
 		Workspace:             workspace,
 		Organization:          organization,
 		Admin:                 admin,
@@ -386,6 +382,9 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 }
 
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
+	// Always fail auth from this point forward
+	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
+
 	for k, v := range assertRoute {
 		noTrailSlash := strings.TrimRight(k, "/")
 		if _, ok := assertRoute[noTrailSlash]; ok && noTrailSlash != k {
@@ -450,7 +449,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 				route = strings.ReplaceAll(route, "{scope}", string(a.TemplateParam.Scope))
 				route = strings.ReplaceAll(route, "{id}", a.TemplateParam.ScopeID.String())
 
-				resp, err := a.client.Request(ctx, method, route, nil)
+				resp, err := a.Client.Request(ctx, method, route, nil)
 				require.NoError(t, err, "do req")
 				body, _ := io.ReadAll(resp.Body)
 				t.Logf("Response Body: %q", string(body))

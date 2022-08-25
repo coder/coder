@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
@@ -253,7 +254,7 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	if len(parts) != 3 {
 		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
 	}
-	cb, err := base64.URLEncoding.DecodeString(parts[1])
+	cb, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
 	}
