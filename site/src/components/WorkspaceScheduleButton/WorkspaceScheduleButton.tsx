@@ -28,7 +28,7 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
-  return isWorkspaceOn(workspace) && !!workspace.latest_build.deadline
+  return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
 }
 
 export interface WorkspaceScheduleButtonProps {
