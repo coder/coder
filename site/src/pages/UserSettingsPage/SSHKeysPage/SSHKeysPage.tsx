@@ -9,10 +9,10 @@ export const Language = {
   title: "SSH keys",
   description: (
     <p>
-      Git in workspaces is authenticated with the following public key. You may add it to Git
+      The following public key is used to authenticate Git in workspaces. You may add it to Git
       services (such as GitHub) that you need to access from your workspace. <br />
       <br />
-      Coder sets <code>$GIT_SSH_COMMAND</code> to perform the override.
+      Coder configures authentication via <code>$GIT_SSH_COMMAND</code>.
     </p>
   ),
   regenerateDialogTitle: "Regenerate SSH key?",
