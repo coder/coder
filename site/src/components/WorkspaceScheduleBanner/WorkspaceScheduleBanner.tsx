@@ -23,16 +23,12 @@ export interface WorkspaceScheduleBannerProps {
 }
 
 export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
-  if (!isWorkspaceOn(workspace)) {
+  if (!isWorkspaceOn(workspace) || !workspace.latest_build.deadline) {
     return false
-  } else {
-    if (!workspace.latest_build.deadline) {
-      return false
-    }
-    const deadline = dayjs(workspace.latest_build.deadline).utc()
-    const thirtyMinutesFromNow = dayjs().add(30, "minutes").utc()
-    return deadline.isSameOrBefore(thirtyMinutesFromNow)
   }
+  const deadline = dayjs(workspace.latest_build.deadline).utc()
+  const thirtyMinutesFromNow = dayjs().add(30, "minutes").utc()
+  return deadline.isSameOrBefore(thirtyMinutesFromNow)
 }
 
 export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceScheduleBannerProps>> = ({
