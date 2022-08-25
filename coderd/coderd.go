@@ -66,6 +66,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 }
 

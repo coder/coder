@@ -37,6 +37,7 @@ var ValidMethods = []string{"EdDSA"}
 
 // key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
 // by our signing infrastructure
+//
 //go:embed keys/2022-08-12
 var key20220812 []byte
 
@@ -134,12 +135,12 @@ func (a *licenseAPI) handler() http.Handler {
 // postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
 // in the cluster at one time for several reasons:
 //
-// 1. Upgrades --- if the license format changes from one version of Coder to the next, during a
-//    rolling update you will have different Coder servers that need different licenses to function.
-// 2. Avoid abrupt feature breakage --- when an admin uploads a new license with different features
-//    we generally don't want the old features to immediately break without warning.  With a grace
-//    period on the license, features will continue to work from the old license until its grace
-//    period, then the users will get a warning allowing them to gracefully stop using the feature.
+//  1. Upgrades --- if the license format changes from one version of Coder to the next, during a
+//     rolling update you will have different Coder servers that need different licenses to function.
+//  2. Avoid abrupt feature breakage --- when an admin uploads a new license with different features
+//     we generally don't want the old features to immediately break without warning.  With a grace
+//     period on the license, features will continue to work from the old license until its grace
+//     period, then the users will get a warning allowing them to gracefully stop using the feature.
 func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 	if !a.auth.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
