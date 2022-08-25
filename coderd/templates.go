@@ -34,8 +34,7 @@ var (
 type AutoImportTemplate string
 
 const (
-	AutoImportTemplateKubernetes             AutoImportTemplate = "kubernetes"
-	AutoImportTemplateKubernetesMultiService AutoImportTemplate = "kubernetes-multi-service"
+	AutoImportTemplateKubernetes AutoImportTemplate = "kubernetes"
 )
 
 // Returns a single template.

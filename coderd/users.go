@@ -137,17 +137,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		// Determine which parameter values to use.
 		parameters := map[string]string{}
 		switch template {
-		case AutoImportTemplateKubernetes, AutoImportTemplateKubernetesMultiService:
+		case AutoImportTemplateKubernetes:
 
 			// Determine the current namespace we're in.
 			const namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 			namespace, err := os.ReadFile(namespaceFile)
 			if err != nil {
 				parameters["use_kubeconfig"] = "true" // use ~/.config/kubeconfig
-				parameters["workspaces_namespace"] = "coder-workspaces"
+				parameters["namespace"] = "coder-workspaces"
 			} else {
 				parameters["use_kubeconfig"] = "false" // use SA auth
-				parameters["workspaces_namespace"] = string(bytes.TrimSpace(namespace))
+				parameters["namespace"] = string(bytes.TrimSpace(namespace))
 			}
 
 		default:

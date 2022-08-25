@@ -65,7 +65,6 @@ func TestFirstUser(t *testing.T) {
 		// also added to the switch statement below.
 		autoImportTemplates := []coderd.AutoImportTemplate{
 			coderd.AutoImportTemplateKubernetes,
-			coderd.AutoImportTemplateKubernetesMultiService,
 		}
 		client := coderdtest.New(t, &coderdtest.Options{
 			AutoImportTemplates: autoImportTemplates,
@@ -77,10 +76,9 @@ func TestFirstUser(t *testing.T) {
 
 		templates, err := client.TemplatesByOrganization(ctx, u.OrganizationID)
 		require.NoError(t, err, "list templates")
-		require.Len(t, templates, 2, "should have two templates")
+		require.Len(t, templates, len(autoImportTemplates), "listed templates count does not match")
 		require.ElementsMatch(t, autoImportTemplates, []coderd.AutoImportTemplate{
 			coderd.AutoImportTemplate(templates[0].Name),
-			coderd.AutoImportTemplate(templates[1].Name),
 		}, "template names don't match")
 
 		for _, template := range templates {
@@ -91,9 +89,9 @@ func TestFirstUser(t *testing.T) {
 			// Ensure all template parameters are present.
 			expectedParams := map[string]bool{}
 			switch template.Name {
-			case "kubernetes", "kubernetes-multi-service":
+			case "kubernetes":
 				expectedParams["use_kubeconfig"] = false
-				expectedParams["workspaces_namespace"] = false
+				expectedParams["namespace"] = false
 			default:
 				t.Fatalf("unexpected template name %q", template.Name)
 			}
