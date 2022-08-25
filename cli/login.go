@@ -73,7 +73,9 @@ func login() *cobra.Command {
 			// on a very old client.
 			err = checkVersions(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("check versions: %w", err)
+				// Checking versions isn't a fatal error so we print a warning
+				// and proceed.
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(err.Error()))
 			}
 
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())

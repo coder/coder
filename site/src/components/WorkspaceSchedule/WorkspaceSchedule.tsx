@@ -36,7 +36,7 @@ export interface WorkspaceScheduleProps {
   canUpdateWorkspace: boolean
 }
 
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+export const WorkspaceSchedule: FC<React.PropsWithChildren<WorkspaceScheduleProps>> = ({
   workspace,
   canUpdateWorkspace,
 }) => {

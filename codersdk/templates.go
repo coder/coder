@@ -23,6 +23,7 @@ type Template struct {
 	ActiveVersionID            uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount        uint32          `json:"workspace_owner_count"`
 	Description                string          `json:"description"`
+	Icon                       string          `json:"icon"`
 	MaxTTLMillis               int64           `json:"max_ttl_ms"`
 	MinAutostartIntervalMillis int64           `json:"min_autostart_interval_ms"`
 	CreatedByID                uuid.UUID       `json:"created_by_id"`
@@ -34,7 +35,9 @@ type UpdateActiveTemplateVersion struct {
 }
 
 type UpdateTemplateMeta struct {
+	Name                       string `json:"name,omitempty" validate:"omitempty,username"`
 	Description                string `json:"description,omitempty"`
+	Icon                       string `json:"icon,omitempty"`
 	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
 	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
 }

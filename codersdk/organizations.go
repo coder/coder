@@ -48,10 +48,13 @@ type CreateTemplateVersionRequest struct {
 // CreateTemplateRequest provides options when creating a template.
 type CreateTemplateRequest struct {
 	// Name is the name of the template.
-	Name string `json:"name" validate:"username,required"`
+	Name string `json:"name" validate:"template_name,required"`
 	// Description is a description of what the template contains. It must be
 	// less than 128 bytes.
 	Description string `json:"description,omitempty" validate:"lt=128"`
+	// Icon is a relative path or external URL that specifies
+	// an icon to be displayed in the dashboard.
+	Icon string `json:"icon,omitempty"`
 
 	// VersionID is an in-progress or completed job to use as an initial version
 	// of the template.
@@ -75,7 +78,7 @@ type CreateTemplateRequest struct {
 // CreateWorkspaceRequest provides options for creating a new workspace.
 type CreateWorkspaceRequest struct {
 	TemplateID        uuid.UUID `json:"template_id" validate:"required"`
-	Name              string    `json:"name" validate:"username,required"`
+	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided

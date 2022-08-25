@@ -2,13 +2,24 @@
 
 ## Requirements
 
-Coder requires Go 1.18+, Node 14+, and GNU Make.
+You'll need the following tools:
+- Go 1.18+
+- Node 14+
+- GNU Make
+- [`shfmt`](https://github.com/mvdan/sh#shfmt)
+- [`nfpm`](https://nfpm.goreleaser.com/install)
+- [`pg_dump`]
+  - on macOS, run `brew install libpq zstd`
+  - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
+
+> **Note**:
+> Use [Nix](https://nix.dev/) for a one-command setup: `nix-shell`
 
 ### Development workflow
 
 Use the following `make` commands and scripts in development:
 
-- `make dev` runs the frontend and backend development server
+- `./scripts/develop.sh` runs the frontend and backend development server
 - `make build` compiles binaries and release packages
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`

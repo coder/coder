@@ -6,8 +6,7 @@
 //
 // Will produce the following usage docs:
 //
-//   -a, --address string              The address to serve the API and dashboard (uses $CODER_ADDRESS). (default "127.0.0.1:3000")
-//
+//	-a, --address string              The address to serve the API and dashboard (uses $CODER_ADDRESS). (default "127.0.0.1:3000")
 package cliflag
 
 import (
@@ -17,8 +16,32 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+// IsSetBool returns the value of the boolean flag if it is set.
+// It returns false if the flag isn't set or if any error occurs attempting
+// to parse the value of the flag.
+func IsSetBool(cmd *cobra.Command, name string) bool {
+	val, ok := IsSet(cmd, name)
+	if !ok {
+		return false
+	}
+
+	b, err := strconv.ParseBool(val)
+	return err == nil && b
+}
+
+// IsSet returns the string value of the flag and whether it was set.
+func IsSet(cmd *cobra.Command, name string) (string, bool) {
+	flag := cmd.Flag(name)
+	if flag == nil {
+		return "", false
+	}
+
+	return flag.Value.String(), flag.Changed
+}
 
 // String sets a string flag on the given flag set.
 func String(flagset *pflag.FlagSet, name, shorthand, env, def, usage string) {
@@ -65,6 +88,22 @@ func Uint8VarP(flagset *pflag.FlagSet, ptr *uint8, name string, shorthand string
 	}
 
 	flagset.Uint8VarP(ptr, name, shorthand, uint8(vi64), fmtUsage(usage, env))
+}
+
+func Bool(flagset *pflag.FlagSet, name, shorthand, env string, def bool, usage string) {
+	val, ok := os.LookupEnv(env)
+	if !ok || val == "" {
+		flagset.BoolP(name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	valb, err := strconv.ParseBool(val)
+	if err != nil {
+		flagset.BoolP(name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	flagset.BoolP(name, shorthand, valb, fmtUsage(usage, env))
 }
 
 // BoolVarP sets a bool flag on the given flag set.

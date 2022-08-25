@@ -11,7 +11,7 @@ By building on top of common development interfaces (SSH) and infrastructure too
 
 ## How it works
 
-Coder workspaces are represented with Terraform. But, no Terraform knowledge is
+Coder workspaces are represented with Terraform, but no Terraform knowledge is
 required to get started. We have a database of pre-made templates built into the
 product.
 

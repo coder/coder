@@ -15,6 +15,11 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
+if [[ "${CODER_FORCE_VERSION:-}" != "" ]]; then
+	echo "$CODER_FORCE_VERSION"
+	exit 0
+fi
+
 last_tag="$(git describe --tags --abbrev=0)"
 version="$last_tag"
 

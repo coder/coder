@@ -41,7 +41,7 @@ type ProvisionerDaemon struct {
 	Provisioners []ProvisionerType `json:"provisioners"`
 }
 
-// ProvisionerJobStaus represents the at-time state of a job.
+// ProvisionerJobStatus represents the at-time state of a job.
 type ProvisionerJobStatus string
 
 // Active returns whether the job is still active or not.

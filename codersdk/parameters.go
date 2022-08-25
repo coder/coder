@@ -50,14 +50,14 @@ type ComputedParameter struct {
 
 // Parameter represents a set value for the scope.
 type Parameter struct {
-	ID                uuid.UUID                  `json:"id"`
-	CreatedAt         time.Time                  `json:"created_at"`
-	UpdatedAt         time.Time                  `json:"updated_at"`
-	Scope             ParameterScope             `json:"scope"`
-	ScopeID           uuid.UUID                  `json:"scope_id"`
-	Name              string                     `json:"name"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme"`
+	ID                uuid.UUID                  `json:"id" table:"id"`
+	Scope             ParameterScope             `json:"scope" table:"scope"`
+	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id"`
+	Name              string                     `json:"name" table:"name"`
+	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme"`
+	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme"`
+	CreatedAt         time.Time                  `json:"created_at" table:"created at"`
+	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at"`
 }
 
 type ParameterSchema struct {

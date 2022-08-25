@@ -119,6 +119,7 @@ type AcquiredJob struct {
 	UserName              string `protobuf:"bytes,4,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	TemplateSourceArchive []byte `protobuf:"bytes,5,opt,name=template_source_archive,json=templateSourceArchive,proto3" json:"template_source_archive,omitempty"`
 	// Types that are assignable to Type:
+	//
 	//	*AcquiredJob_WorkspaceBuild_
 	//	*AcquiredJob_TemplateImport_
 	//	*AcquiredJob_TemplateDryRun_
@@ -250,6 +251,7 @@ type FailedJob struct {
 	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	// Types that are assignable to Type:
+	//
 	//	*FailedJob_WorkspaceBuild_
 	//	*FailedJob_TemplateImport_
 	//	*FailedJob_TemplateDryRun_
@@ -360,6 +362,7 @@ type CompletedJob struct {
 
 	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	// Types that are assignable to Type:
+	//
 	//	*CompletedJob_WorkspaceBuild_
 	//	*CompletedJob_TemplateImport_
 	//	*CompletedJob_TemplateDryRun_

@@ -17,7 +17,7 @@ export interface SectionProps {
   children?: React.ReactNode
 }
 
-type SectionFC = FC<SectionProps> & { Action: typeof SectionAction }
+type SectionFC = FC<React.PropsWithChildren<SectionProps>> & { Action: typeof SectionAction }
 
 export const Section: SectionFC = ({
   title,
@@ -30,7 +30,7 @@ export const Section: SectionFC = ({
 }) => {
   const styles = useStyles({ layout })
   return (
-    <div className={combineClasses([styles.root, className])}>
+    <section className={combineClasses([styles.root, className])}>
       <div className={styles.inner}>
         {(title || description) && (
           <div className={styles.header}>
@@ -49,7 +49,7 @@ export const Section: SectionFC = ({
         {alert && <div className={styles.alert}>{alert}</div>}
         {children}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -62,6 +62,12 @@ const useStyles = makeStyles((theme) => ({
     boxShadow: `0px 18px 12px 6px ${fade(theme.palette.common.black, 0.02)}`,
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
+
+    [theme.breakpoints.down("sm")]: {
+      padding: theme.spacing(4, 3, 4, 3),
+    },
   },
   inner: ({ layout }: { layout: SectionLayout }) => ({
     maxWidth: layout === "fluid" ? "100%" : 500,

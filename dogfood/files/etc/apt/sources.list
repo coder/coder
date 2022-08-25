@@ -1,0 +1,3 @@
+deb http://mirror.pit.teraswitch.com/ubuntu/ focal main restricted universe
+deb http://mirror.pit.teraswitch.com/ubuntu/ focal-updates main restricted universe
+deb http://mirror.pit.teraswitch.com/ubuntu/ focal-backports main restricted universe

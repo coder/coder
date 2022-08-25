@@ -43,6 +43,11 @@ const (
 	ProtocolReconnectingPTY = "reconnecting-pty"
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
+
+	// MagicSessionErrorCode indicates that something went wrong with the session, rather than the
+	// command just returning a nonzero exit code, and is chosen as an arbitrary, high number
+	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
+	MagicSessionErrorCode = 229
 )
 
 type Options struct {
@@ -56,8 +61,6 @@ type Options struct {
 
 type Metadata struct {
 	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
-	OwnerEmail           string             `json:"owner_email"`
-	OwnerUsername        string             `json:"owner_username"`
 	EnvironmentVariables map[string]string  `json:"environment_variables"`
 	StartupScript        string             `json:"startup_script"`
 	Directory            string             `json:"directory"`
@@ -126,6 +129,7 @@ func (a *agent) run(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		a.logger.Info(ctx, "connecting")
 		metadata, peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -252,6 +256,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 }
 
 func (a *agent) init(ctx context.Context) {
+	a.logger.Info(ctx, "generating host key")
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -275,9 +280,17 @@ func (a *agent) init(ctx context.Context) {
 		},
 		Handler: func(session ssh.Session) {
 			err := a.handleSSHSession(session)
+			var exitError *exec.ExitError
+			if xerrors.As(err, &exitError) {
+				a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+				_ = session.Exit(exitError.ExitCode())
+				return
+			}
 			if err != nil {
 				a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
-				_ = session.Exit(1)
+				// This exit code is designed to be unlikely to be confused for a legit exit code
+				// from the process.
+				_ = session.Exit(MagicSessionErrorCode)
 				return
 			}
 		},
@@ -381,23 +394,30 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if err != nil {
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
+	// Set environment variables reliable detection of being inside a
+	// Coder workspace.
+	cmd.Env = append(cmd.Env, "CODER=true")
+
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
-	// These prevent the user from having to specify _anything_ to successfully commit.
-	// Both author and committer must be set!
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, metadata.OwnerEmail))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, metadata.OwnerUsername))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, metadata.OwnerUsername))
+
+	// Set SSH connection environment variables (these are also set by OpenSSH
+	// and thus expected to be present by SSH clients). Since the agent does
+	// networking in-memory, trying to provide accurate values here would be
+	// nonsensical. For now, we hard code these values so that they're present.
+	srcAddr, srcPort := "0.0.0.0", "0"
+	dstAddr, dstPort := "0.0.0.0", "0"
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
 	for envKey, value := range metadata.EnvironmentVariables {
 		// Expanding environment variables allows for customization
-		// of the $PATH, among other variables. Customers can prepand
+		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
 	}
@@ -411,7 +431,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	return cmd, nil
 }
 
-func (a *agent) handleSSHSession(session ssh.Session) error {
+func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
@@ -430,19 +450,31 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
+
+		// The pty package sets `SSH_TTY` on supported platforms.
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		defer func() {
+			closeErr := ptty.Close()
+			if closeErr != nil {
+				a.logger.Warn(context.Background(), "failed to close tty",
+					slog.Error(closeErr))
+				if retErr == nil {
+					retErr = closeErr
+				}
+			}
+		}()
 		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
 		if err != nil {
 			return xerrors.Errorf("resize ptty: %w", err)
 		}
 		go func() {
 			for win := range windowSize {
-				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
-				if err != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
+				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
+				if resizeErr != nil {
+					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -452,9 +484,15 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		go func() {
 			_, _ = io.Copy(session, ptty.Output())
 		}()
-		_, _ = process.Wait()
-		_ = ptty.Close()
-		return nil
+		err = process.Wait()
+		var exitErr *exec.ExitError
+		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
+		// and not something to be concerned about.  But, if it's something else, we should log it.
+		if err != nil && !xerrors.As(err, &exitErr) {
+			a.logger.Warn(context.Background(), "wait error",
+				slog.Error(err))
+		}
+		return err
 	}
 
 	cmd.Stdout = session
@@ -557,7 +595,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		go func() {
 			// If the process dies randomly, we should
 			// close the pty.
-			_, _ = process.Wait()
+			_ = process.Wait()
 			rpty.Close()
 		}()
 		go func() {
@@ -774,7 +812,9 @@ func (r *reconnectingPTY) Close() {
 		_ = conn.Close()
 	}
 	_ = r.ptty.Close()
+	r.circularBufferMutex.Lock()
 	r.circularBuffer.Reset()
+	r.circularBufferMutex.Unlock()
 	r.timeout.Stop()
 }
 

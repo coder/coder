@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.2"
+      version = "0.4.9"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -93,7 +93,7 @@ provider "digitalocean" {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 }
@@ -116,8 +116,8 @@ resource "digitalocean_droplet" "workspace" {
   user_data = templatefile("cloud-config.yaml.tftpl", {
     username          = data.coder_workspace.me.owner
     home_volume_label = digitalocean_volume.home_volume.initial_filesystem_label
-    init_script       = base64encode(coder_agent.dev.init_script)
-    coder_agent_token = coder_agent.dev.token
+    init_script       = base64encode(coder_agent.main.init_script)
+    coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
   ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []
@@ -132,4 +132,28 @@ resource "digitalocean_project_resources" "project" {
     ] : [
     digitalocean_volume.home_volume.urn
   ]
+}
+
+resource "coder_metadata" "workspace-info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = digitalocean_droplet.workspace[0].id
+
+  item {
+    key   = "region"
+    value = digitalocean_droplet.workspace[0].region
+  }
+  item {
+    key   = "image"
+    value = digitalocean_droplet.workspace[0].image
+  }
+}
+
+resource "coder_metadata" "volume-info" {
+  resource_id = digitalocean_volume.home_volume.id
+
+  item {
+    key   = "size"
+    value = "${digitalocean_volume.home_volume.size} GiB"
+  }
+
 }

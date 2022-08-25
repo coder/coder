@@ -20,7 +20,7 @@ export const Language = {
 
 interface UsersTableBodyProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
   isLoading?: boolean
@@ -30,7 +30,7 @@ interface UsersTableBodyProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTableBody: FC<UsersTableBodyProps> = ({
+export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = ({
   users,
   roles,
   onSuspendUser,

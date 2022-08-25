@@ -1,11 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
+import { createDayString } from "util/createDayString"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
-import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-
-dayjs.extend(relativeTime)
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   usedByLabel: "Used by",
@@ -45,7 +42,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.lastUpdateLabel}</span>
         <span className={styles.statsValue} data-chromatic="ignore">
-          {dayjs().to(dayjs(template.updated_at))}
+          {createDayString(template.updated_at)}
         </span>
       </div>
       <div className={styles.statsDivider} />
@@ -62,7 +59,7 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     backgroundColor: theme.palette.background.paper,
-    borderRadius: CardRadius,
+    borderRadius: theme.shape.borderRadius,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,

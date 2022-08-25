@@ -1,10 +1,13 @@
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
+import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+import { Stack } from "../Stack/Stack"
+import { UserRoleHelpTooltip } from "../Tooltips"
 import { UsersTableBody } from "./UsersTableBody"
 
 export const Language = {
@@ -15,7 +18,7 @@ export const Language = {
 
 export interface UsersTableProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
   isLoading?: boolean
@@ -25,7 +28,7 @@ export interface UsersTableProps {
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
-export const UsersTable: FC<UsersTableProps> = ({
+export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   users,
   roles,
   onSuspendUser,
@@ -37,29 +40,36 @@ export const UsersTable: FC<UsersTableProps> = ({
   isLoading,
 }) => {
   return (
-    <Table>
-      <TableHead>
-        <TableRow>
-          <TableCell>{Language.usernameLabel}</TableCell>
-          <TableCell>{Language.statusLabel}</TableCell>
-          <TableCell>{Language.rolesLabel}</TableCell>
-          {/* 1% is a trick to make the table cell width fit the content */}
-          {canEditUsers && <TableCell width="1%" />}
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        <UsersTableBody
-          users={users}
-          roles={roles}
-          isLoading={isLoading}
-          canEditUsers={canEditUsers}
-          isUpdatingUserRoles={isUpdatingUserRoles}
-          onActivateUser={onActivateUser}
-          onResetUserPassword={onResetUserPassword}
-          onSuspendUser={onSuspendUser}
-          onUpdateUserRoles={onUpdateUserRoles}
-        />
-      </TableBody>
-    </Table>
+    <TableContainer>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>{Language.usernameLabel}</TableCell>
+            <TableCell>{Language.statusLabel}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>{Language.rolesLabel}</span>
+                <UserRoleHelpTooltip />
+              </Stack>
+            </TableCell>
+            {/* 1% is a trick to make the table cell width fit the content */}
+            {canEditUsers && <TableCell width="1%" />}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <UsersTableBody
+            users={users}
+            roles={roles}
+            isLoading={isLoading}
+            canEditUsers={canEditUsers}
+            isUpdatingUserRoles={isUpdatingUserRoles}
+            onActivateUser={onActivateUser}
+            onResetUserPassword={onResetUserPassword}
+            onSuspendUser={onSuspendUser}
+            onUpdateUserRoles={onUpdateUserRoles}
+          />
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 }

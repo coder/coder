@@ -13,6 +13,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
@@ -26,12 +27,6 @@ dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
-export const Language = {
-  schedule: "Schedule",
-  editDeadlineMinus: "Subtract one hour",
-  editDeadlinePlus: "Add one hour",
-}
-
 export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
     return false
@@ -40,20 +35,12 @@ export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   return deadline.year() > 1
 }
 
-export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta <= 30 * 60 * 1000 // 30 minutes
-}
-
-export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta >= 24 * 60 * 60 * 1000 // 24 hours
-}
-
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
+  deadlineMinusEnabled: () => boolean
+  deadlinePlusEnabled: () => boolean
   canUpdateWorkspace: boolean
 }
 
@@ -61,8 +48,11 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
+  deadlinePlusEnabled,
+  deadlineMinusEnabled,
   canUpdateWorkspace,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
@@ -77,24 +67,24 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
       <span className={styles.label}>
         <WorkspaceScheduleLabel workspace={workspace} />
         {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <span>
+          <span className={styles.actions}>
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlineMinusDisabled(workspace, dayjs())}
+              disabled={!deadlineMinusEnabled()}
               onClick={onDeadlineMinus}
             >
-              <Tooltip title={Language.editDeadlineMinus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
                 <RemoveIcon />
               </Tooltip>
             </IconButton>
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlinePlusDisabled(workspace, dayjs())}
+              disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
-              <Tooltip title={Language.editDeadlinePlus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
                 <AddIcon />
               </Tooltip>
             </IconButton>
@@ -110,7 +100,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           }}
           className={styles.scheduleButton}
         >
-          {Language.schedule}
+          {t("workspaceScheduleButton.schedule")}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}
@@ -136,25 +126,50 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+    },
   },
   label: {
     borderRight: 0,
-    height: "100%",
     padding: "0 8px 0 16px",
     color: theme.palette.text.secondary,
-    // It is from the button props
-    minHeight: 42,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      display: "flex",
+      alignItems: "center",
+      padding: theme.spacing(1.5, 2),
+    },
+  },
+  actions: {
+    [theme.breakpoints.down("sm")]: {
+      marginLeft: "auto",
+      display: "flex",
+      paddingLeft: theme.spacing(1),
+      marginRight: -theme.spacing(1),
+    },
   },
   scheduleButton: {
     border: "none",
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    flexShrink: 0,
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      borderLeft: 0,
+      borderTop: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+    },
   },
   iconButton: {
-    borderRadius: 2,
+    borderRadius: theme.shape.borderRadius,
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,

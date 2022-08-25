@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk/proto"
+
+	protobuf "github.com/golang/protobuf/proto"
 )
 
 func TestConvertResources(t *testing.T) {
@@ -31,7 +33,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "b",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -44,7 +46,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "first",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -55,10 +57,10 @@ func TestConvertResources(t *testing.T) {
 		}},
 		// Ensures the instance ID authentication type surfaces.
 		"instance-id": {{
-			Name: "dev",
+			Name: "main",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_InstanceId{},
@@ -70,7 +72,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "example",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev",
+				Name:            "main",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth:            &proto.Agent_Token{},
@@ -114,6 +116,24 @@ func TestConvertResources(t *testing.T) {
 				Auth: &proto.Agent_Token{},
 			}},
 		}},
+		// Tests fetching metadata about workspace resources.
+		"resource-metadata": {{
+			Name: "about",
+			Type: "null_resource",
+			Metadata: []*proto.Resource_Metadata{{
+				Key:   "hello",
+				Value: "world",
+			}, {
+				Key:    "null",
+				IsNull: true,
+			}, {
+				Key: "empty",
+			}, {
+				Key:       "secret",
+				Value:     "squirrel",
+				Sensitive: true,
+			}},
+		}},
 	} {
 		folderName := folderName
 		expected := expected
@@ -134,7 +154,16 @@ func TestConvertResources(t *testing.T) {
 				resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(resources)
-				resourcesWant, err := json.Marshal(expected)
+
+				// plan does not contain metadata, so clone expected and remove it
+				var expectedNoMetadata []*proto.Resource
+				for _, resource := range expected {
+					resourceCopy, _ := protobuf.Clone(resource).(*proto.Resource)
+					resourceCopy.Metadata = nil
+					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
+				}
+
+				resourcesWant, err := json.Marshal(expectedNoMetadata)
 				require.NoError(t, err)
 				resourcesGot, err := json.Marshal(resources)
 				require.NoError(t, err)
@@ -191,13 +220,17 @@ func TestInstanceIDAssociation(t *testing.T) {
 		ResourceType:  "aws_instance",
 		InstanceIDKey: "id",
 	}, {
+		Auth:          "aws-instance-identity",
+		ResourceType:  "aws_spot_instance_request",
+		InstanceIDKey: "spot_instance_id",
+	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_linux_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}, {
 		Auth:          "azure-instance-identity",
 		ResourceType:  "azurerm_windows_virtual_machine",
-		InstanceIDKey: "id",
+		InstanceIDKey: "virtual_machine_id",
 	}} {
 		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {

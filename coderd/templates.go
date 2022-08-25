@@ -173,8 +173,27 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	maxTTL := maxTTLDefault
-	if !ptr.NilOrZero(createTemplate.MaxTTLMillis) {
+	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+	if maxTTL < 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Must be a positive integer."},
+			},
+		})
+		return
+	}
+
+	if maxTTL > maxTTLDefault {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
 	}
 
 	minAutostartInterval := minAutostartIntervalDefault
@@ -273,7 +292,14 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates = AuthorizeFilter(api, r, rbac.ActionRead, templates)
+	templates, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, templates)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching templates.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	templateIDs := make([]uuid.UUID, 0, len(templates))
 
@@ -377,6 +403,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MinAutostartIntervalMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
 	}
+	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -402,22 +437,29 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			count = uint32(workspaceCounts[0].Count)
 		}
 
-		if req.Description == template.Description &&
+		if req.Name == template.Name &&
+			req.Description == template.Description &&
+			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
 			return nil
 		}
 
 		// Update template metadata -- empty fields are not overwritten.
+		name := req.Name
 		desc := req.Description
+		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
 
+		if name == "" {
+			name = template.Name
+		}
 		if desc == "" {
 			desc = template.Description
 		}
-		if maxTTL == 0 {
-			maxTTL = time.Duration(template.MaxTtl)
+		if icon == "" {
+			icon = template.Icon
 		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
@@ -426,7 +468,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if err := s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
+			Name:                 name,
 			Description:          desc,
+			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
 		}); err != nil {
@@ -506,6 +550,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32, cre
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,
 		Description:                template.Description,
+		Icon:                       template.Icon,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
 		CreatedByID:                template.CreatedBy,

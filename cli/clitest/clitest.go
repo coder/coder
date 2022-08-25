@@ -21,10 +21,22 @@ import (
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
 func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
-	cmd := cli.Root()
+	return NewWithSubcommands(t, cli.AGPL(), args...)
+}
+
+func NewWithSubcommands(
+	t *testing.T, subcommands []*cobra.Command, args ...string,
+) (*cobra.Command, config.Root) {
+	cmd := cli.Root(subcommands)
 	dir := t.TempDir()
 	root := config.Root(dir)
 	cmd.SetArgs(append([]string{"--global-config", dir}, args...))
+
+	// We could consider using writers
+	// that log via t.Log here instead.
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
 	return cmd, root
 }
 

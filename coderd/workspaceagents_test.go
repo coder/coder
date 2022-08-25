@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -32,6 +33,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
+		tmpDir := t.TempDir()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
@@ -43,7 +45,7 @@ func TestWorkspaceAgent(t *testing.T) {
 							Type: "aws_instance",
 							Agents: []*proto.Agent{{
 								Id:        uuid.NewString(),
-								Directory: "/tmp",
+								Directory: tmpDir,
 								Auth: &proto.Agent_Token{
 									Token: authToken,
 								},
@@ -58,10 +60,13 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		require.Equal(t, "/tmp", resources[0].Agents[0].Directory)
-		_, err = client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
+		require.Equal(t, tmpDir, resources[0].Agents[0].Directory)
+		_, err = client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
 }
@@ -107,15 +112,19 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
-		t.Cleanup(func() {
+		defer func() {
 			_ = agentCloser.Close()
-		})
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
-		t.Cleanup(func() {
+		defer func() {
 			_ = conn.Close()
-		})
+		}()
 		_, err = conn.Ping()
 		require.NoError(t, err)
 	})
@@ -123,7 +132,6 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	t.Run("FailNonLatestBuild", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerD: true,
 		})
@@ -178,7 +186,10 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		}, template.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		stopBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: version.ID,
 			Transition:        codersdk.WorkspaceTransitionStop,
 		})
@@ -232,20 +243,24 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	opts := &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Named("client"),
 	}
 	// Force a TURN connection!
 	opts.SettingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4})
-	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, opts)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		_ = conn.Close()
-	})
+	}()
 	_, err = conn.Ping()
 	require.NoError(t, err)
 }
@@ -293,12 +308,15 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
 	})
-	t.Cleanup(func() {
+	defer func() {
 		_ = agentCloser.Close()
-	})
+	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 
-	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80, "/bin/bash")
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, resources[0].Agents[0].ID, uuid.New(), 80, 80, "/bin/bash")
 	require.NoError(t, err)
 	defer conn.Close()
 

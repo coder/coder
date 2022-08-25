@@ -1,5 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { FC } from "react"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -14,6 +16,13 @@ import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceSch
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
+export enum WorkspaceErrors {
+  GET_RESOURCES_ERROR = "getResourcesError",
+  GET_BUILDS_ERROR = "getBuildsError",
+  BUILD_ERROR = "buildError",
+  CANCELLATION_ERROR = "cancellationError",
+}
+
 export interface WorkspaceProps {
   bannerProps: {
     isLoading?: boolean
@@ -22,6 +31,8 @@ export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: () => void
     onDeadlineMinus: () => void
+    deadlinePlusEnabled: () => boolean
+    deadlineMinusEnabled: () => boolean
   }
   handleStart: () => void
   handleStop: () => void
@@ -30,15 +41,15 @@ export interface WorkspaceProps {
   handleCancel: () => void
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
-  getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<WorkspaceProps> = ({
+export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   bannerProps,
   scheduleProps,
   handleStart,
@@ -48,22 +59,36 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleCancel,
   workspace,
   resources,
-  getResourcesError,
   builds,
   canUpdateWorkspace,
+  workspaceErrors,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
 
   return (
     <Margins>
+      <Stack spacing={1}>
+        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
+          <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+        ) : (
+          <></>
+        )}
+        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
+          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+        ) : (
+          <></>
+        )}
+      </Stack>
       <PageHeader
         actions={
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} className={styles.actions}>
             <WorkspaceScheduleButton
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
+              deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
+              deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
@@ -77,6 +102,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           </Stack>
         }
       >
+        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
         <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
         <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
       </PageHeader>
@@ -94,19 +120,23 @@ export const Workspace: FC<WorkspaceProps> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
-          <WorkspaceStats workspace={workspace} />
+          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
           {!!resources && !!resources.length && (
             <Resources
               resources={resources}
-              getResourcesError={getResourcesError}
+              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
             />
           )}
 
           <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
-            <BuildsTable builds={builds} className={styles.timelineTable} />
+            {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+              <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+            ) : (
+              <BuildsTable builds={builds} className={styles.timelineTable} />
+            )}
           </WorkspaceSection>
         </Stack>
       </Stack>
@@ -118,25 +148,36 @@ const spacerWidth = 300
 
 export const useStyles = makeStyles((theme) => {
   return {
+    statusBadge: {
+      marginBottom: theme.spacing(3),
+    },
+
+    actions: {
+      [theme.breakpoints.down("sm")]: {
+        flexDirection: "column",
+      },
+    },
+
     firstColumnSpacer: {
       flex: 2,
     },
+
     secondColumnSpacer: {
       flex: `0 0 ${spacerWidth}px`,
     },
+
     layout: {
       alignItems: "flex-start",
     },
+
     main: {
       width: "100%",
     },
-    sidebar: {
-      width: theme.spacing(32),
-      flexShrink: 0,
-    },
+
     timelineContents: {
       margin: 0,
     },
+
     timelineTable: {
       border: 0,
     },

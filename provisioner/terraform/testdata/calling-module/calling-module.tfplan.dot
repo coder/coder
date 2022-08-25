@@ -2,19 +2,19 @@ digraph {
 	compound = "true"
 	newrank = "true"
 	subgraph "root" {
-		"[root] coder_agent.dev (expand)" [label = "coder_agent.dev", shape = "box"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
 		"[root] module.module.data.null_data_source.script (expand)" [label = "module.module.data.null_data_source.script", shape = "box"]
 		"[root] module.module.null_resource.example (expand)" [label = "module.module.null_resource.example", shape = "box"]
 		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
-		"[root] coder_agent.dev (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
 		"[root] module.module (close)" -> "[root] module.module.null_resource.example (expand)"
 		"[root] module.module.data.null_data_source.script (expand)" -> "[root] module.module.var.script (expand)"
 		"[root] module.module.data.null_data_source.script (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
 		"[root] module.module.null_resource.example (expand)" -> "[root] module.module.data.null_data_source.script (expand)"
-		"[root] module.module.var.script (expand)" -> "[root] coder_agent.dev (expand)"
+		"[root] module.module.var.script (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] module.module.var.script (expand)" -> "[root] module.module (expand)"
-		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.dev (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.main (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] module.module.null_resource.example (expand)"
 		"[root] root" -> "[root] module.module (close)"
 		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"

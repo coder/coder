@@ -13,7 +13,7 @@ export interface SSHButtonProps {
   defaultIsOpen?: boolean
 }
 
-export const SSHButton: React.FC<SSHButtonProps> = ({
+export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
   defaultIsOpen = false,
@@ -81,7 +81,7 @@ export const SSHButton: React.FC<SSHButtonProps> = ({
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
             Install Coder CLI
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/configuring-web-ides">
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/web-ides">
             Configuring Web IDEs
           </HelpTooltipLink>
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">

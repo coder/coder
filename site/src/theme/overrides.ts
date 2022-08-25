@@ -1,22 +1,36 @@
-import { PaletteOptions, SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
-import { MONOSPACE_FONT_FAMILY } from "./constants"
+import { Theme } from "@material-ui/core/styles"
+import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { Overrides } from "@material-ui/core/styles/overrides"
+import { colors } from "./colors"
+import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const getOverrides = (palette: PaletteOptions) => {
+export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
+    MuiCssBaseline: {
+      "@global": {
+        body: {
+          backgroundImage: `linear-gradient(to right bottom, ${palette.background.default}, ${colors.gray[17]})`,
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment: "fixed",
+          letterSpacing: "-0.015em",
+        },
+      },
+    },
     MuiAvatar: {
       root: {
-        borderColor: palette.divider,
         width: 36,
         height: 36,
-        fontSize: 20,
+        fontSize: 18,
+      },
+      colorDefault: {
+        backgroundColor: "#a1adc9",
       },
     },
     MuiButton: {
       root: {
         // Prevents a loading button from collapsing!
         minHeight: 42,
-        fontWeight: "regular",
+        fontWeight: "normal",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         textTransform: "none",
@@ -25,8 +39,8 @@ export const getOverrides = (palette: PaletteOptions) => {
       },
       contained: {
         boxShadow: "none",
-        color: palette.text?.primary,
-        backgroundColor: "#151515",
+        color: palette.text.primary,
+        backgroundColor: colors.gray[17],
         "&:hover": {
           boxShadow: "none",
           backgroundColor: "#000000",
@@ -43,6 +57,12 @@ export const getOverrides = (palette: PaletteOptions) => {
         marginLeft: "0 !important",
         marginRight: 12,
       },
+      outlined: {
+        border: `1px solid ${palette.divider}`,
+        "&:hover": {
+          backgroundColor: palette.background.default,
+        },
+      },
     },
     MuiIconButton: {
       sizeSmall: {
@@ -54,32 +74,50 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiTableHead: {
       root: {
+        display: "table-header-group",
         fontFamily: MONOSPACE_FONT_FAMILY,
-        textTransform: "uppercase",
+      },
+    },
+    MuiTableContainer: {
+      root: {
+        borderRadius,
+        border: `1px solid ${palette.divider}`,
       },
     },
     MuiTable: {
       root: {
-        // Gives the appearance of a border!
-        borderRadius: 2,
-        border: `1px solid ${palette.divider}`,
+        borderCollapse: "collapse",
+        border: "none",
+        background: palette.background.default,
+        boxShadow: `0 0 0 1px ${palette.background.default} inset`,
+        overflow: "hidden",
 
         "& td": {
           paddingTop: 16,
           paddingBottom: 16,
+          background: "transparent",
+        },
+
+        [breakpoints.down("sm")]: {
+          // Random value based on visual adjustments.
+          // This is used to avoid line breaking on columns
+          minWidth: 1000,
         },
       },
     },
+
     MuiTableCell: {
       head: {
-        color: palette.text?.secondary,
+        fontSize: 14,
+        color: colors.gray[5],
+        fontWeight: 600,
       },
       root: {
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
-        background: palette.background?.paper,
+        background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
-        padding: 8,
+        padding: "12px 8px",
         // This targets the first+last td elements, and also the first+last elements
         // of a TableCellLink.
         "&:not(:only-child):first-child, &:not(:only-child):first-child > a": {
@@ -92,16 +130,20 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiInputBase: {
       root: {
-        borderRadius: 2,
+        borderRadius,
       },
     },
     MuiOutlinedInput: {
       root: {
+        "& .MuiOutlinedInput-notchedOutline": {
+          borderColor: palette.divider,
+        },
+
         "& input:-webkit-autofill": {
-          WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
+          WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
         "&:hover .MuiOutlinedInput-notchedOutline": {
-          borderColor: (palette.primary as SimplePaletteColorOptions).light,
+          borderColor: palette.divider,
         },
       },
     },
@@ -112,7 +154,7 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiPaper: {
       root: {
-        borderRadius: 2,
+        borderRadius,
         border: `1px solid ${palette.divider}`,
       },
     },

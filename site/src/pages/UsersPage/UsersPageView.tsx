@@ -17,7 +17,7 @@ export const Language = {
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.Role[]
+  roles?: TypesGen.AssignableRoles[]
   filter?: string
   error?: unknown
   isUpdatingUserRoles?: boolean
@@ -32,7 +32,7 @@ export interface UsersPageViewProps {
   onFilter: (query: string) => void
 }
 
-export const UsersPageView: FC<UsersPageViewProps> = ({
+export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   users,
   roles,
   openUserCreationDialog,

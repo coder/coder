@@ -99,6 +99,19 @@ JOIN
     workspace_builds wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
+-- name: GetLatestWorkspaceBuilds :many
+SELECT wb.*
+FROM (
+    SELECT
+        workspace_id, MAX(build_number) as max_build_number
+    FROM
+        workspace_builds
+    GROUP BY
+        workspace_id
+) m
+JOIN
+    workspace_builds wb
+ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
 -- name: InsertWorkspaceBuild :one
 INSERT INTO

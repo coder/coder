@@ -1,0 +1,9 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin deb.nodesource.com
+Pin-Priority: 1
+
+# Node.js for building the frontend
+Package: nodejs
+Pin: origin deb.nodesource.com
+Pin-Priority: 500

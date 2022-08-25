@@ -2,6 +2,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AccountTreeIcon from "@material-ui/icons/AccountTree"
 import AssistantIcon from "@material-ui/icons/Assistant"
+import ChatIcon from "@material-ui/icons/Chat"
 import * as TypesGen from "../../api/typesGenerated"
 
 export const Language = {
@@ -10,16 +11,20 @@ export const Language = {
   },
   copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`,
   reportBugLink: "Report an issue or share feedback",
+  discordLink: "Join Coder on Discord",
 }
 
 export interface FooterProps {
   buildInfo?: TypesGen.BuildInfoResponse
 }
 
-export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
+export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildInfo }) => {
   const styles = useFooterStyles()
 
-  const githubUrl = `https://github.com/coder/coder/issues/new?labels=bug,needs+grooming&title=Bug+in+${buildInfo?.version}:&template=external_bug_report.md`
+  const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
+
+<!--- Ask a question or leave feedback! -->`)}`
+  const discordUrl = `https://discord.gg/coder`
 
   return (
     <div className={styles.root}>
@@ -37,6 +42,10 @@ export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
           &nbsp;|&nbsp;
           <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
             <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
+          </Link>
+          &nbsp;|&nbsp;
+          <Link className={styles.link} variant="caption" target="_blank" href={discordUrl}>
+            <ChatIcon className={styles.icon} /> {Language.discordLink}
           </Link>
         </div>
       )}

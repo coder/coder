@@ -10,7 +10,11 @@ export interface TabPanelProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabPanel: FC<TabPanelProps> = ({ children, title, menuItems }) => {
+export const TabPanel: FC<React.PropsWithChildren<TabPanelProps>> = ({
+  children,
+  title,
+  menuItems,
+}) => {
   const styles = useStyles()
 
   return (
@@ -37,6 +41,11 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     maxWidth: 1920,
     padding: theme.spacing(5, 3.5, 0, 4),
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+      padding: 0,
+    },
   },
 
   icon: {
@@ -51,12 +60,15 @@ const useStyles = makeStyles((theme) => ({
 
   menuPanel: {
     paddingRight: 40,
+
+    [theme.breakpoints.down("sm")]: {
+      padding: 0,
+    },
   },
 
   title: {
-    marginTop: theme.spacing(4),
+    marginTop: theme.spacing(6),
     fontSize: 32,
-    letterSpacing: -theme.spacing(0.0375),
   },
 
   contentPanel: {
@@ -82,17 +94,9 @@ const useStyles = makeStyles((theme) => ({
       width: 890,
     },
   },
-  [theme.breakpoints.down("md")]: {
-    contentPanel: {
-      width: 700,
-    },
-  },
   [theme.breakpoints.down("sm")]: {
     contentPanel: {
-      width: 550,
-    },
-    root: {
-      marginRight: 0, //disabled scrollbar jump trick to avoid small screen bug with menu
+      width: "auto",
     },
   },
 }))

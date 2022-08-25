@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.3.4"
+      version = "0.4.9"
     }
     google = {
       source  = "hashicorp/google"
@@ -45,7 +45,7 @@ resource "google_compute_disk" "root" {
   }
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "windows"
@@ -71,7 +71,25 @@ resource "google_compute_instance" "dev" {
     scopes = ["cloud-platform"]
   }
   metadata = {
-    windows-startup-script-ps1 = coder_agent.dev.init_script
+    windows-startup-script-ps1 = coder_agent.main.init_script
     serial-port-enable         = "TRUE"
+  }
+}
+resource "coder_metadata" "workspace_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = google_compute_instance.dev[0].id
+
+  item {
+    key   = "type"
+    value = google_compute_instance.dev[0].machine_type
+  }
+}
+
+resource "coder_metadata" "home_info" {
+  resource_id = google_compute_disk.root.id
+
+  item {
+    key   = "size"
+    value = "${google_compute_disk.root.size} GiB"
   }
 }

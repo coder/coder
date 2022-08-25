@@ -14,7 +14,7 @@ WithIcon.args = {
   userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
-  appIcon: "/code.svg",
+  appIcon: "/icon/code.svg",
 }
 
 export const WithoutIcon = Template.bind({})

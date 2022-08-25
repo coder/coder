@@ -4,7 +4,7 @@
 package pty
 
 import (
-	"os"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -14,11 +14,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
+func startPty(cmd *exec.Cmd) (PTY, Process, error) {
 	ptty, tty, err := pty.Open()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("open: %w", err)
 	}
+
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_PTY=%s", tty.Name()))
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,
 		Setctty: true,
@@ -29,24 +31,24 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	err = cmd.Start()
 	if err != nil {
 		_ = ptty.Close()
+		_ = tty.Close()
 		if runtime.GOOS == "darwin" && strings.Contains(err.Error(), "bad file descriptor") {
-			// MacOS has an obscure issue where the PTY occasionally closes
+			// macOS has an obscure issue where the PTY occasionally closes
 			// before it's used. It's unknown why this is, but creating a new
 			// TTY resolves it.
 			return startPty(cmd)
 		}
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
-	go func() {
-		// The GC can garbage collect the TTY FD before the command
-		// has finished running. See:
-		// https://github.com/creack/pty/issues/127#issuecomment-932764012
-		_ = cmd.Wait()
-		runtime.KeepAlive(ptty)
-	}()
 	oPty := &otherPty{
 		pty: ptty,
 		tty: tty,
 	}
-	return oPty, cmd.Process, nil
+	oProcess := &otherProcess{
+		pty:     ptty,
+		cmd:     cmd,
+		cmdDone: make(chan any),
+	}
+	go oProcess.waitInternal()
+	return oPty, oProcess, nil
 }

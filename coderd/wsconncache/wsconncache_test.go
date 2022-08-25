@@ -40,9 +40,9 @@ func TestCache(t *testing.T) {
 		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, 0)
-		t.Cleanup(func() {
+		defer func() {
 			_ = cache.Close()
-		})
+		}()
 		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
 		conn2, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
@@ -56,9 +56,9 @@ func TestCache(t *testing.T) {
 			called.Add(1)
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
-		t.Cleanup(func() {
+		defer func() {
 			_ = cache.Close()
-		})
+		}()
 		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
 		release()
@@ -74,9 +74,9 @@ func TestCache(t *testing.T) {
 		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
-		t.Cleanup(func() {
+		defer func() {
 			_ = cache.Close()
-		})
+		}()
 		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
 		require.NoError(t, err)
 		time.Sleep(time.Millisecond)
@@ -87,28 +87,29 @@ func TestCache(t *testing.T) {
 		t.Parallel()
 		random, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
-		t.Cleanup(func() {
+		defer func() {
 			_ = random.Close()
-		})
+		}()
 		tcpAddr, valid := random.Addr().(*net.TCPAddr)
 		require.True(t, valid)
 
 		server := &http.Server{
+			ReadHeaderTimeout: time.Minute,
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}),
 		}
-		t.Cleanup(func() {
+		defer func() {
 			_ = server.Close()
-		})
+		}()
 		go server.Serve(random)
 
 		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
 			return setupAgent(t, agent.Metadata{}, 0), nil
 		}, time.Microsecond)
-		t.Cleanup(func() {
+		defer func() {
 			_ = cache.Close()
-		})
+		}()
 
 		var wg sync.WaitGroup
 		// Perform many requests in parallel to simulate
@@ -131,8 +132,9 @@ func TestCache(t *testing.T) {
 				proxy.Transport = conn.HTTPTransport()
 				res := httptest.NewRecorder()
 				proxy.ServeHTTP(res, req)
-				res.Result().Body.Close()
-				require.Equal(t, http.StatusOK, res.Result().StatusCode)
+				resp := res.Result()
+				defer resp.Body.Close()
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
 			}()
 		}
 		wg.Wait()

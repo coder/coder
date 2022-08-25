@@ -31,12 +31,16 @@ func main() {
 	}
 
 	cmd := exec.Command(
+		"docker",
+		"run",
+		"--rm",
+		"--network=host",
+		"postgres:13",
 		"pg_dump",
 		"--schema-only",
 		connection,
 		"--no-privileges",
 		"--no-owner",
-		"--no-comments",
 
 		// We never want to manually generate
 		// queries executing against this table.

@@ -1,13 +1,13 @@
-import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
-interface AccountFormValues {
+export interface AccountFormValues {
   username: string
 }
 
@@ -21,36 +21,39 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
-export type AccountFormErrors = FormikErrors<AccountFormValues>
-
 export interface AccountFormProps {
+  editable: boolean
   email: string
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
-  formErrors?: AccountFormErrors
-  error?: string
+  updateProfileError?: Error | unknown
+  // initialTouched is only used for testing the error state of the form.
+  initialTouched?: FormikTouched<AccountFormValues>
 }
 
-export const AccountForm: FC<AccountFormProps> = ({
+export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
+  editable,
   email,
   isLoading,
   onSubmit,
   initialValues,
-  formErrors = {},
-  error,
+  updateProfileError,
+  initialTouched,
 }) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
+    initialTouched,
   })
-  const getFieldHelpers = getFormHelpers<AccountFormValues>(form, formErrors)
+  const getFieldHelpers = getFormHelpersWithError<AccountFormValues>(form, updateProfileError)
 
   return (
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
+          {updateProfileError ? <ErrorSummary error={updateProfileError} /> : <></>}
           <TextField
             disabled
             fullWidth
@@ -61,16 +64,22 @@ export const AccountForm: FC<AccountFormProps> = ({
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
+            aria-disabled={!editable}
             autoComplete="username"
+            disabled={!editable}
             fullWidth
             label={Language.usernameLabel}
             variant="outlined"
           />
 
-          {error && <FormHelperText error>{error}</FormHelperText>}
-
           <div>
-            <LoadingButton loading={isLoading} type="submit" variant="contained">
+            <LoadingButton
+              loading={isLoading}
+              aria-disabled={!editable}
+              disabled={!editable}
+              type="submit"
+              variant="contained"
+            >
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>

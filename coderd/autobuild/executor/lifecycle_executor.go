@@ -54,15 +54,27 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // its channel is closed.
 func (e *Executor) Run() {
 	go func() {
-		for t := range e.tick {
-			stats := e.runOnce(t)
-			if stats.Error != nil {
-				e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
+		for {
+			select {
+			case <-e.ctx.Done():
+				return
+			case t, ok := <-e.tick:
+				if !ok {
+					return
+				}
+				stats := e.runOnce(t)
+				if stats.Error != nil {
+					e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
+				}
+				if e.statsCh != nil {
+					select {
+					case <-e.ctx.Done():
+						return
+					case e.statsCh <- stats:
+					}
+				}
+				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
-			if e.statsCh != nil {
-				e.statsCh <- stats
-			}
-			e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 		}
 	}()
 }
@@ -113,46 +125,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				continue
 			}
 
-			if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
-				e.log.Debug(e.ctx, "last workspace build did not complete successfully, skipping",
+			validTransition, nextTransition, err := getNextTransition(ws, priorHistory, priorJob)
+			if err != nil {
+				e.log.Debug(e.ctx, "skipping workspace",
+					slog.Error(err),
 					slog.F("workspace_id", ws.ID),
-					slog.F("error", priorJob.Error.String),
-				)
-				continue
-			}
-
-			var validTransition database.WorkspaceTransition
-			var nextTransition time.Time
-			switch priorHistory.Transition {
-			case database.WorkspaceTransitionStart:
-				validTransition = database.WorkspaceTransitionStop
-				if priorHistory.Deadline.IsZero() {
-					e.log.Debug(e.ctx, "latest workspace build has zero deadline, skipping",
-						slog.F("workspace_id", ws.ID),
-						slog.F("workspace_build_id", priorHistory.ID),
-					)
-					continue
-				}
-				// For stopping, do not truncate. This is inconsistent with autostart, but
-				// it ensures we will not stop too early.
-				nextTransition = priorHistory.Deadline
-			case database.WorkspaceTransitionStop:
-				validTransition = database.WorkspaceTransitionStart
-				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
-				if err != nil {
-					e.log.Debug(e.ctx, "workspace has invalid autostart schedule, skipping",
-						slog.F("workspace_id", ws.ID),
-						slog.F("autostart_schedule", ws.AutostartSchedule.String),
-					)
-					continue
-				}
-				// Round down to the nearest minute, as this is the finest granularity cron supports.
-				// Truncate is probably not necessary here, but doing it anyway to be sure.
-				nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
-			default:
-				e.log.Debug(e.ctx, "last transition not valid for autostart or autostop",
-					slog.F("workspace_id", ws.ID),
-					slog.F("latest_build_transition", priorHistory.Transition),
 				)
 				continue
 			}
@@ -184,6 +161,41 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		return nil
 	})
 	return stats
+}
+
+func getNextTransition(
+	ws database.Workspace,
+	priorHistory database.WorkspaceBuild,
+	priorJob database.ProvisionerJob,
+) (
+	validTransition database.WorkspaceTransition,
+	nextTransition time.Time,
+	err error,
+) {
+	if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
+		return "", time.Time{}, xerrors.Errorf("last workspace build did not complete successfully")
+	}
+
+	switch priorHistory.Transition {
+	case database.WorkspaceTransitionStart:
+		if priorHistory.Deadline.IsZero() {
+			return "", time.Time{}, xerrors.Errorf("latest workspace build has zero deadline")
+		}
+		// For stopping, do not truncate. This is inconsistent with autostart, but
+		// it ensures we will not stop too early.
+		return database.WorkspaceTransitionStop, priorHistory.Deadline, nil
+	case database.WorkspaceTransitionStop:
+		sched, err := schedule.Weekly(ws.AutostartSchedule.String)
+		if err != nil {
+			return "", time.Time{}, xerrors.Errorf("workspace has invalid autostart schedule: %w", err)
+		}
+		// Round down to the nearest minute, as this is the finest granularity cron supports.
+		// Truncate is probably not necessary here, but doing it anyway to be sure.
+		nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
+		return database.WorkspaceTransitionStart, nextTransition, nil
+	default:
+		return "", time.Time{}, xerrors.Errorf("last transition not valid for autostart or autostop")
+	}
 }
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.

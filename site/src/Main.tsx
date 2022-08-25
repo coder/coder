@@ -1,7 +1,9 @@
 import { inspect } from "@xstate/inspect"
-import ReactDOM from "react-dom"
+import { createRoot } from "react-dom/client"
 import { Interpreter } from "xstate"
 import { App } from "./app"
+
+import "./i18n"
 
 // if this is a development build and the developer wants to inspect
 if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
@@ -25,7 +27,11 @@ const main = () => {
      ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
 `)
   const element = document.getElementById("root")
-  ReactDOM.render(<App />, element)
+  if (element === null) {
+    throw new Error("root element is null")
+  }
+  const root = createRoot(element)
+  root.render(<App />)
 }
 
 main()

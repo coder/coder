@@ -1,11 +1,11 @@
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
 import { pageTitle } from "../../util/page"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
+import { CreateWorkspaceErrors, CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
@@ -21,6 +21,15 @@ const CreateWorkspacePage: FC = () => {
     },
   })
 
+  const {
+    templates,
+    templateSchema,
+    selectedTemplate,
+    getTemplateSchemaError,
+    getTemplatesError,
+    createWorkspaceError,
+  } = createWorkspaceState.context
+
   return (
     <>
       <Helmet>
@@ -30,10 +39,16 @@ const CreateWorkspacePage: FC = () => {
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
         loadingTemplateSchema={createWorkspaceState.matches("gettingTemplateSchema")}
         creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
-        templateName={createWorkspaceState.context.templateName}
-        templates={createWorkspaceState.context.templates}
-        selectedTemplate={createWorkspaceState.context.selectedTemplate}
-        templateSchema={createWorkspaceState.context.templateSchema}
+        hasTemplateErrors={createWorkspaceState.matches("error")}
+        templateName={templateName}
+        templates={templates}
+        selectedTemplate={selectedTemplate}
+        templateSchema={templateSchema}
+        createWorkspaceErrors={{
+          [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
+          [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: getTemplateSchemaError,
+          [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
+        }}
         onCancel={() => {
           navigate("/templates")
         }}

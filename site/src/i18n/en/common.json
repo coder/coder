@@ -1,0 +1,15 @@
+{
+  "workspaceStatus": {
+    "loading": "Loading",
+    "started": "Running",
+    "starting": "Starting",
+    "stopping": "Stopping",
+    "stopped": "Stopped",
+    "deleting": "Deleting",
+    "deleted": "Deleted",
+    "canceling": "Canceling action",
+    "canceled": "Canceled action",
+    "failed": "Failed",
+    "queued": "Queued"
+  }
+}

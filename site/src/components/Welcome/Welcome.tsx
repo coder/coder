@@ -1,9 +1,19 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import { CoderIcon } from "../Icons/CoderIcon"
 
-export const Welcome: FC = () => {
+const Language = {
+  defaultMessage: (
+    <>
+      Welcome to <strong>Coder</strong>
+    </>
+  ),
+}
+
+export const Welcome: FC<PropsWithChildren<{ message?: JSX.Element }>> = ({
+  message = Language.defaultMessage,
+}) => {
   const styles = useStyles()
 
   return (
@@ -12,7 +22,7 @@ export const Welcome: FC = () => {
         <CoderIcon className={styles.logo} />
       </div>
       <Typography className={styles.title} variant="h1">
-        Welcome to <strong>Coder</strong>
+        {message}
       </Typography>
     </div>
   )

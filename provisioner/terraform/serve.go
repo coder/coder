@@ -3,6 +3,8 @@ package terraform
 import (
 	"context"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
@@ -14,26 +16,20 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// This is the exact version of Terraform used internally
-// when Terraform is missing on the system.
-var terraformVersion = version.Must(version.NewVersion("1.1.9"))
-var minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-var maxTerraformVersion = version.Must(version.NewVersion("1.2.0"))
-
 var (
-	// The minimum version of Terraform supported by the provisioner.
-	// Validation came out in 0.13.0, which was released August 10th, 2020.
-	// https://www.hashicorp.com/blog/announcing-hashicorp-terraform-0-13
-	minimumTerraformVersion = func() *version.Version {
-		v, err := version.NewSemver("0.13.0")
-		if err != nil {
-			panic(err)
-		}
-		return v
-	}()
+	// TerraformVersion is the version of Terraform used internally
+	// when Terraform is not available on the system.
+	TerraformVersion = version.Must(version.NewVersion("1.2.1"))
+
+	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
+	maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
+
+	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
 
-var terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+const (
+	defaultExitTimeout = 5 * time.Minute
+)
 
 type ServeOptions struct {
 	*provisionersdk.ServeOptions
@@ -43,6 +39,17 @@ type ServeOptions struct {
 	BinaryPath string
 	CachePath  string
 	Logger     slog.Logger
+
+	// ExitTimeout defines how long we will wait for a running Terraform
+	// command to exit (cleanly) if the provision was stopped. This only
+	// happens when the command is still running after the provision
+	// stream is closed. If the provision is canceled via RPC, this
+	// timeout will not be used.
+	//
+	// This is a no-op on Windows where the process can't be interrupted.
+	//
+	// Default value: 5 minutes.
+	ExitTimeout time.Duration
 }
 
 func absoluteBinaryPath(ctx context.Context) (string, error) {
@@ -67,7 +74,7 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
 	}
 
-	if version.LessThan(minTerraformVersion) || version.GreaterThanOrEqual(maxTerraformVersion) {
+	if version.LessThan(minTerraformVersion) || version.GreaterThan(maxTerraformVersion) {
 		return "", terraformMinorVersionMismatch
 	}
 
@@ -89,7 +96,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
 				Product:    product.Terraform,
-				Version:    terraformVersion,
+				Version:    TerraformVersion,
 			}
 
 			execPath, err := installer.Install(ctx)
@@ -101,23 +108,34 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			options.BinaryPath = absoluteBinary
 		}
 	}
+	if options.ExitTimeout == 0 {
+		options.ExitTimeout = defaultExitTimeout
+	}
 	return provisionersdk.Serve(ctx, &server{
-		binaryPath: options.BinaryPath,
-		cachePath:  options.CachePath,
-		logger:     options.Logger,
+		binaryPath:  options.BinaryPath,
+		cachePath:   options.CachePath,
+		logger:      options.Logger,
+		exitTimeout: options.ExitTimeout,
 	}, options.ServeOptions)
 }
 
 type server struct {
+	// initMu protects against executors running `terraform init`
+	// concurrently when cache path is set.
+	initMu sync.Mutex
+
 	binaryPath string
 	cachePath  string
 	logger     slog.Logger
+
+	exitTimeout time.Duration
 }
 
-func (t server) executor(workdir string) executor {
+func (s *server) executor(workdir string) executor {
 	return executor{
-		binaryPath: t.binaryPath,
-		cachePath:  t.cachePath,
+		initMu:     &s.initMu,
+		binaryPath: s.binaryPath,
+		cachePath:  s.cachePath,
 		workdir:    workdir,
 	}
 }

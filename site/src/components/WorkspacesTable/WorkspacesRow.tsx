@@ -3,11 +3,9 @@ import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { useActor } from "@xstate/react"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { getDisplayStatus, getDisplayWorkspaceBuildInitiatedBy } from "../../util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { AvatarData } from "../AvatarData/AvatarData"
 import {
@@ -18,22 +16,21 @@ import {
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
 
-dayjs.extend(relativeTime)
-
 const Language = {
   upToDateLabel: "Up to date",
   outdatedLabel: "Outdated",
 }
 
-export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ workspaceRef }) => {
+export const WorkspacesRow: FC<
+  React.PropsWithChildren<{ workspaceRef: WorkspaceItemMachineRef }>
+> = ({ workspaceRef }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const theme: Theme = useTheme()
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
-  const status = getDisplayStatus(theme, workspace.latest_build)
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
+  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
   return (
     <TableRow
@@ -54,11 +51,17 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
         </TableCellData>
       </TableCellLink>
 
-      <TableCellLink to={workspacePageLink}>{workspace.template_name}</TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <AvatarData
-          title={initiatedBy}
-          subtitle={dayjs().to(dayjs(workspace.latest_build.created_at))}
+          title={workspace.template_name}
+          highlightTitle={false}
+          avatar={
+            hasTemplateIcon ? (
+              <div className={styles.templateIconWrapper}>
+                <img alt="" src={workspace.template_icon} />
+              </div>
+            ) : undefined
+          }
         />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
@@ -77,7 +80,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
       </TableCellLink>
 
       <TableCellLink to={workspacePageLink}>
-        <span style={{ color: status.color }}>{status.status}</span>
+        <WorkspaceStatusBadge build={workspace.latest_build} />
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <div className={styles.arrowCell}>
@@ -91,7 +94,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({ w
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.dark, 0.1),
     },
 
     "&:focus": {
@@ -119,5 +122,15 @@ const useStyles = makeStyles((theme) => ({
   buildTime: {
     color: theme.palette.text.secondary,
     fontSize: 12,
+  },
+  templateIconWrapper: {
+    // Same size then the avatar component
+    width: 36,
+    height: 36,
+    padding: 2,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))

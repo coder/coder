@@ -16,7 +16,7 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
+func startPty(cmd *exec.Cmd) (PTY, Process, error) {
 	fullPath, err := exec.LookPath(cmd.Path)
 	if err != nil {
 		return nil, nil, err
@@ -83,7 +83,12 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	if err != nil {
 		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
 	}
-	return pty, process, nil
+	wp := &windowsProcess{
+		cmdDone: make(chan any),
+		proc:    process,
+	}
+	go wp.waitInternal()
+	return pty, wp, nil
 }
 
 // Taken from: https://github.com/microsoft/hcsshim/blob/7fbdca16f91de8792371ba22b7305bf4ca84170a/internal/exec/exec.go#L476

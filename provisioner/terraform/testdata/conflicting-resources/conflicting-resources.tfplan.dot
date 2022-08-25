@@ -2,17 +2,17 @@ digraph {
 	compound = "true"
 	newrank = "true"
 	subgraph "root" {
-		"[root] coder_agent.dev (expand)" [label = "coder_agent.dev", shape = "box"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
 		"[root] null_resource.first (expand)" [label = "null_resource.first", shape = "box"]
 		"[root] null_resource.second (expand)" [label = "null_resource.second", shape = "box"]
 		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
-		"[root] coder_agent.dev (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
-		"[root] null_resource.first (expand)" -> "[root] coder_agent.dev (expand)"
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] null_resource.first (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] null_resource.first (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
-		"[root] null_resource.second (expand)" -> "[root] coder_agent.dev (expand)"
+		"[root] null_resource.second (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] null_resource.second (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
-		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.dev (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.main (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.first (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.second (expand)"
 		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"

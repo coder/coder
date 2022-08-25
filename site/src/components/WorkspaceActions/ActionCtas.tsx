@@ -1,13 +1,14 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import BlockIcon from "@material-ui/icons/Block"
 import CloudQueueIcon from "@material-ui/icons/CloudQueue"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
-import HighlightOffIcon from "@material-ui/icons/HighlightOff"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
+import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
-import { Workspace } from "../../api/typesGenerated"
-import { WorkspaceStatus } from "../../util/workspace"
+import { combineClasses } from "util/combineClasses"
+import { WorkspaceStateEnum } from "util/workspace"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 export const Language = {
@@ -16,13 +17,27 @@ export const Language = {
   delete: "Delete",
   cancel: "Cancel",
   update: "Update",
+  // these labels are used in WorkspaceActions.tsx
+  starting: "Starting...",
+  stopping: "Stopping...",
+  deleting: "Deleting...",
 }
 
 interface WorkspaceAction {
   handleAction: () => void
 }
 
-export const StartButton: FC<WorkspaceAction> = ({ handleAction }) => {
+export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+  const styles = useStyles()
+
+  return (
+    <Button className={styles.actionButton} startIcon={<CloudQueueIcon />} onClick={handleAction}>
+      {Language.update}
+    </Button>
+  )
+}
+
+export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
 
   return (
@@ -35,7 +50,7 @@ export const StartButton: FC<WorkspaceAction> = ({ handleAction }) => {
   )
 }
 
-export const StopButton: FC<WorkspaceAction> = ({ handleAction }) => {
+export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
 
   return (
@@ -48,7 +63,7 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction }) => {
   )
 }
 
-export const DeleteButton: FC<WorkspaceAction> = ({ handleAction }) => {
+export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
 
   return (
@@ -61,45 +76,45 @@ export const DeleteButton: FC<WorkspaceAction> = ({ handleAction }) => {
   )
 }
 
-type UpdateAction = WorkspaceAction & {
-  workspace: Workspace
-  workspaceStatus: WorkspaceStatus
-}
-
-export const UpdateButton: FC<UpdateAction> = ({ handleAction, workspace, workspaceStatus }) => {
+export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
 
-  /**
-   * Jobs submitted while another job is in progress will be discarded,
-   * so check whether workspace job status has reached completion (whether successful or not).
-   */
-  const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
-    ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
-
+  // this is an icon button, so it's important to include an aria label
   return (
-    <>
-      {workspace.outdated && canAcceptJobs(workspaceStatus) && (
-        <Button
-          className={styles.actionButton}
-          startIcon={<CloudQueueIcon />}
-          onClick={handleAction}
-        >
-          {Language.update}
-        </Button>
-      )}
-    </>
+    <WorkspaceActionButton
+      icon={<BlockIcon />}
+      onClick={handleAction}
+      className={styles.cancelButton}
+      ariaLabel="cancel action"
+    />
   )
 }
 
-export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
+interface DisabledProps {
+  workspaceState: WorkspaceStateEnum
+}
+
+export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ workspaceState }) => {
   const styles = useStyles()
 
   return (
-    <WorkspaceActionButton
-      className={styles.actionButton}
-      icon={<HighlightOffIcon />}
-      onClick={handleAction}
-      label={Language.cancel}
+    <Button disabled className={styles.actionButton}>
+      {workspaceState}
+    </Button>
+  )
+}
+
+interface LoadingProps {
+  label: string
+}
+
+export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({ label }) => {
+  const styles = useStyles()
+  return (
+    <LoadingButton
+      loading
+      loadingLabel={label}
+      className={combineClasses([styles.loadingButton, styles.actionButton])}
     />
   )
 }
@@ -108,8 +123,26 @@ const useStyles = makeStyles((theme) => ({
   actionButton: {
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
-    width: theme.spacing(16),
+    width: theme.spacing(20),
     border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+  },
+  cancelButton: {
+    "&.MuiButton-root": {
+      padding: "0px 0px !important",
+      border: "none",
+      borderLeft: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+      width: "63px", // matching dropdown button so button grouping doesn't grow in size
+    },
+    "& .MuiButton-label": {
+      marginLeft: "10px",
+    },
+  },
+  // this is all custom to work with our button wrapper
+  loadingButton: {
+    border: "none",
+    borderLeft: "1px solid #333740", // MUI disabled button
+    borderRadius: "3px 0px 0px 3px",
   },
 }))

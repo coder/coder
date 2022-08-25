@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/provisionerd/runner"
+	"github.com/coder/coder/testutil"
 
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +70,7 @@ func TestProvisionerd(t *testing.T) {
 			defer close(completeChan)
 			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
 
@@ -92,7 +93,7 @@ func TestProvisionerd(t *testing.T) {
 				updateJob: noopUpdateJob,
 			}), nil
 		}, provisionerd.Provisioners{})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
 
@@ -137,7 +138,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		closerMutex.Unlock()
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
 
@@ -175,7 +176,7 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
 
@@ -218,7 +219,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
 
@@ -323,7 +324,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.True(t, didDryRun.Load())
@@ -403,7 +404,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
@@ -474,7 +475,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
@@ -529,7 +530,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.True(t, didFail.Load())
 		require.NoError(t, closer.Close())
 	})
@@ -602,10 +603,10 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(updateChan, 5*time.Second))
+		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
 		err := server.Shutdown(context.Background())
 		require.NoError(t, err)
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
 	})
 
@@ -685,8 +686,8 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(updateChan, 5*time.Second))
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
 	})
 
@@ -758,7 +759,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
 	})
 
@@ -830,7 +831,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
 	})
 
@@ -915,7 +916,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
-		require.Condition(t, closedWithin(completeChan, 5*time.Second))
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		m.Lock()
 		defer m.Unlock()
 		require.Equal(t, ops[len(ops)-1], "CompleteJob")
@@ -962,6 +963,7 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners p
 // Creates a provisionerd protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestServer) proto.DRPCProvisionerDaemonClient {
+	t.Helper()
 	if server.failJob == nil {
 		// Default to asserting the error from the failure, otherwise
 		// it can be lost in tests!
@@ -990,6 +992,7 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 // Creates a provisioner protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
+	t.Helper()
 	clientPipe, serverPipe := provisionersdk.TransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()

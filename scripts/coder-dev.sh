@@ -17,7 +17,7 @@ fi
 
 if [[ ! -x "${CODER_DEV_BIN}" ]]; then
 	echo "Run this command first:"
-	echo "go build -o ${CODER_DEV_BIN} ${PROJECT_ROOT}/cmd/coder"
+	echo "go build -o ${CODER_DEV_BIN} ${PROJECT_ROOT}/enterprise/cmd/coder"
 	exit 1
 fi
 

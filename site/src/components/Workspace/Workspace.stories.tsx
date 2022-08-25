@@ -1,7 +1,9 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
+import dayjs from "dayjs"
+import { canExtendDeadline, canReduceDeadline } from "util/schedule"
 import * as Mocks from "../../testHelpers/entities"
-import { Workspace, WorkspaceProps } from "./Workspace"
+import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 
 export default {
   title: "components/Workspace",
@@ -24,6 +26,16 @@ Started.args = {
     onDeadlinePlus: () => {
       // do nothing, this is just for storybook
     },
+    deadlineMinusEnabled: () => {
+      return canReduceDeadline(dayjs(Mocks.MockWorkspace.latest_build.deadline))
+    },
+    deadlinePlusEnabled: () => {
+      return canExtendDeadline(
+        dayjs(Mocks.MockWorkspace.latest_build.deadline),
+        Mocks.MockWorkspace,
+        Mocks.MockTemplate,
+      )
+    },
   },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
@@ -31,6 +43,7 @@ Started.args = {
   resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
   builds: [Mocks.MockWorkspaceBuild],
   canUpdateWorkspace: true,
+  workspaceErrors: {},
 }
 
 export const WithoutUpdateAccess = Template.bind({})
@@ -71,6 +84,11 @@ Error.args = {
       transition: "start",
     },
   },
+  workspaceErrors: {
+    [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
+      message: "A workspace build is already active.",
+    }),
+  },
 }
 
 export const Deleting = Template.bind({})
@@ -101,4 +119,34 @@ export const Outdated = Template.bind({})
 Outdated.args = {
   ...Started.args,
   workspace: Mocks.MockOutdatedWorkspace,
+}
+
+export const GetBuildsError = Template.bind({})
+GetBuildsError.args = {
+  ...Started.args,
+  workspaceErrors: {
+    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
+      message: "There is a problem fetching builds.",
+    }),
+  },
+}
+
+export const GetResourcesError = Template.bind({})
+GetResourcesError.args = {
+  ...Started.args,
+  workspaceErrors: {
+    [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
+      message: "There is a problem fetching workspace resources.",
+    }),
+  },
+}
+
+export const CancellationError = Template.bind({})
+CancellationError.args = {
+  ...Error.args,
+  workspaceErrors: {
+    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
+      message: "Job could not be canceled.",
+    }),
+  },
 }

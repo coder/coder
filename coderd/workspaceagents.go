@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
@@ -70,7 +71,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -108,6 +109,10 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
+
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
+
 	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
@@ -129,38 +134,6 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace owner.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
 	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.WireguardNodeIPv6.IPNet)
 	if !ok {
@@ -173,8 +146,6 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
 		WireguardAddresses:   []netaddr.IPPrefix{ipp},
-		OwnerEmail:           owner.Email,
-		OwnerUsername:        owner.Username,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
@@ -304,6 +275,9 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
+
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -334,6 +308,19 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request) {
 	httpapi.Write(rw, http.StatusOK, api.ICEServers)
+}
+
+// userWorkspaceAgentTurn is a user connecting to a remote workspace agent
+// through turn.
+func (api *API) userWorkspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Passed authorization
+	api.workspaceAgentTurn(rw, r)
 }
 
 // workspaceAgentTurn proxies a WebSocket connection to the TURN server.
@@ -378,7 +365,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
+	defer wsNetConn.Close()          // Also closes conn.
+	trace.SpanFromContext(ctx).End() // end span so we don't get long lived trace data
 
 	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
@@ -398,7 +386,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -512,7 +500,7 @@ func (api *API) postWorkspaceAgentWireguardPeer(rw http.ResponseWriter, r *http.
 		workspace      = httpmw.WorkspaceParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -591,6 +579,9 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 		return
 	}
 	defer subCancel()
+
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
 
 	// Wait for the connection to close or the client to send a message.
 	//nolint:dogsled

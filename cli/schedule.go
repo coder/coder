@@ -77,7 +77,7 @@ func scheduleShow() *cobra.Command {
 		Long:  scheduleShowDescriptionLong,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -106,7 +106,7 @@ func scheduleStart() *cobra.Command {
 		Long:  scheduleStartDescriptionLong,
 		Args:  cobra.RangeArgs(2, 4),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -156,7 +156,7 @@ func scheduleStop() *cobra.Command {
 		Short: "Edit workspace stop schedule",
 		Long:  scheduleStopDescriptionLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -207,7 +207,7 @@ func scheduleOverride() *cobra.Command {
 				return err
 			}
 
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}

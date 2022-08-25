@@ -1,11 +1,12 @@
 import { fireEvent, render } from "@testing-library/react"
 import { FC } from "react"
-import { act } from "react-dom/test-utils"
 import { WrapperComponent } from "../../testHelpers/renderHelpers"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 namespace Helpers {
-  export const Component: FC<ConfirmDialogProps> = (props: ConfirmDialogProps) => {
+  export const Component: FC<React.PropsWithChildren<ConfirmDialogProps>> = (
+    props: ConfirmDialogProps,
+  ) => {
     return (
       <WrapperComponent>
         <ConfirmDialog {...props} />
@@ -116,9 +117,7 @@ describe("ConfirmDialog", () => {
 
     // When
     const { getByText } = render(<Helpers.Component {...props} />)
-    act(() => {
-      fireEvent.click(getByText("CANCEL"))
-    })
+    fireEvent.click(getByText("CANCEL"))
 
     // Then
     expect(onCloseMock).toBeCalledTimes(1)
@@ -140,9 +139,7 @@ describe("ConfirmDialog", () => {
 
     // When
     const { getByText } = render(<Helpers.Component {...props} />)
-    act(() => {
-      fireEvent.click(getByText("CONFIRM"))
-    })
+    fireEvent.click(getByText("CONFIRM"))
 
     // Then
     expect(onCloseMock).toBeCalledTimes(0)

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
@@ -26,8 +26,8 @@ func templates() *cobra.Command {
 				Command:     "coder templates plan my-template",
 			},
 			example{
-				Description: "Update the template. Your developers can update their workspaces",
-				Command:     "coder templates update my-template",
+				Description: "Push an update to the template. Your developers can update their workspaces",
+				Command:     "coder templates push my-template",
 			},
 		),
 	}
@@ -37,7 +37,7 @@ func templates() *cobra.Command {
 		templateInit(),
 		templateList(),
 		templatePlan(),
-		templateUpdate(),
+		templatePush(),
 		templateVersions(),
 		templateDelete(),
 		templatePull(),
@@ -46,35 +46,41 @@ func templates() *cobra.Command {
 	return cmd
 }
 
+type templateTableRow struct {
+	Name                 string                   `table:"name"`
+	CreatedAt            string                   `table:"created at"`
+	LastUpdated          string                   `table:"last updated"`
+	OrganizationID       uuid.UUID                `table:"organization id"`
+	Provisioner          codersdk.ProvisionerType `table:"provisioner"`
+	ActiveVersionID      uuid.UUID                `table:"active version id"`
+	UsedBy               string                   `table:"used by"`
+	MaxTTL               time.Duration            `table:"max ttl"`
+	MinAutostartInterval time.Duration            `table:"min autostart"`
+}
+
 // displayTemplates will return a table displaying all templates passed in.
 // filterColumns must be a subset of the template fields and will determine which
 // columns to display
-func displayTemplates(filterColumns []string, templates ...codersdk.Template) string {
-	tableWriter := cliui.Table()
-	header := table.Row{
-		"Name", "Created At", "Last Updated", "Organization ID", "Provisioner",
-		"Active Version ID", "Used By", "Max TTL", "Min Autostart"}
-	tableWriter.AppendHeader(header)
-	tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, filterColumns))
-	tableWriter.SortBy([]table.SortBy{{
-		Name: "name",
-	}})
-	for _, template := range templates {
+func displayTemplates(filterColumns []string, templates ...codersdk.Template) (string, error) {
+	rows := make([]templateTableRow, len(templates))
+	for i, template := range templates {
 		suffix := ""
 		if template.WorkspaceOwnerCount != 1 {
 			suffix = "s"
 		}
-		tableWriter.AppendRow(table.Row{
-			template.Name,
-			template.CreatedAt.Format("January 2, 2006"),
-			template.UpdatedAt.Format("January 2, 2006"),
-			template.OrganizationID.String(),
-			template.Provisioner,
-			template.ActiveVersionID.String(),
-			cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
-			(time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
-			(time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
-		})
+
+		rows[i] = templateTableRow{
+			Name:                 template.Name,
+			CreatedAt:            template.CreatedAt.Format("January 2, 2006"),
+			LastUpdated:          template.UpdatedAt.Format("January 2, 2006"),
+			OrganizationID:       template.OrganizationID,
+			Provisioner:          template.Provisioner,
+			ActiveVersionID:      template.ActiveVersionID,
+			UsedBy:               cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+			MaxTTL:               (time.Duration(template.MaxTTLMillis) * time.Millisecond),
+			MinAutostartInterval: (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond),
+		}
 	}
-	return tableWriter.Render()
+
+	return cliui.DisplayTable(rows, "name", filterColumns)
 }

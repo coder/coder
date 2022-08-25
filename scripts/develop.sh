@@ -1,8 +1,32 @@
 #!/usr/bin/env bash
 
+# Usage: ./develop.sh [--agpl]
+#
+# If the --agpl parameter is specified, builds only the AGPL-licensed code (no
+# Coder enterprise features).
+
 # Allow toggling verbose output
 [[ -n ${VERBOSE:-""} ]] && set -x
 set -euo pipefail
+
+agpl="${CODER_BUILD_AGPL:-0}"
+args="$(getopt -o "" -l agpl -- "$@")"
+eval set -- "$args"
+while true; do
+	case "$1" in
+	--agpl)
+		agpl=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		error "Unrecognized option: $1"
+		;;
+	esac
+done
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
@@ -28,8 +52,13 @@ if [[ ! -e ./site/out/bin/coder.sha1 && ! -e ./site/out/bin/coder.tar.zst ]]; th
 	exit 1
 fi
 
+cmd_path="enterprise/cmd/coder"
+if [[ "$agpl" == 1 ]]; then
+	cmd_path="cmd/coder"
+fi
+
 # Compile the CLI binary once just so we don't waste time compiling things multiple times
-go build -tags embed -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/cmd/coder"
+go build -tags embed -o "${CODER_DEV_BIN}" "${PROJECT_ROOT}/${cmd_path}"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
@@ -44,7 +73,6 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	# rather than leaving things in an inconsistent state.
 	trap 'kill -TERM -$$' ERR
 	cdroot
-	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -$$ &
 	"${CODER_DEV_SHIM}" server --address 127.0.0.1:3000 --in-memory --tunnel || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
@@ -68,10 +96,14 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 		DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
 		template_name="docker-${GOARCH}"
-		"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
-		rm -rfv "${temp_template_dir}"
+		(
+			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes &&
+				rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
+		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
 
+	# Start the frontend once we have a template up and running
+	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev || kill -INT -$$ &
 	log
 	log "======================================================================="
 	log "==                                                                   =="

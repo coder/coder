@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestPostFiles(t *testing.T) {
@@ -17,7 +18,11 @@ func TestPostFiles(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.Upload(context.Background(), "bad", []byte{'a'})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Upload(ctx, "bad", []byte{'a'})
 		require.Error(t, err)
 	})
 
@@ -25,7 +30,11 @@ func TestPostFiles(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.Upload(context.Background(), codersdk.ContentTypeTar, make([]byte, 1024))
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
 	})
 
@@ -33,10 +42,14 @@ func TestPostFiles(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		data := make([]byte, 1024)
-		_, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		_, err = client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 	})
 }
@@ -47,7 +60,11 @@ func TestDownload(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, _, err := client.Download(context.Background(), "something")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, _, err := client.Download(ctx, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -57,9 +74,13 @@ func TestDownload(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		resp, err := client.Upload(context.Background(), codersdk.ContentTypeTar, make([]byte, 1024))
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
-		data, contentType, err := client.Download(context.Background(), resp.Hash)
+		data, contentType, err := client.Download(ctx, resp.Hash)
 		require.NoError(t, err)
 		require.Len(t, data, 1024)
 		require.Equal(t, codersdk.ContentTypeTar, contentType)

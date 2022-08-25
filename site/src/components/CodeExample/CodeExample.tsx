@@ -8,18 +8,28 @@ export interface CodeExampleProps {
   code: string
   className?: string
   buttonClassName?: string
+  tooltipTitle?: string
 }
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({ code, className, buttonClassName }) => {
+export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
+  code,
+  className,
+  buttonClassName,
+  tooltipTitle,
+}) => {
   const styles = useStyles()
 
   return (
     <div className={combineClasses([styles.root, className])}>
       <code className={styles.code}>{code}</code>
-      <CopyButton text={code} buttonClassName={combineClasses([styles.button, buttonClassName])} />
+      <CopyButton
+        text={code}
+        tooltipTitle={tooltipTitle}
+        buttonClassName={combineClasses([styles.button, buttonClassName])}
+      />
     </div>
   )
 }
@@ -29,7 +39,8 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    background: theme.palette.background.default,
+    background: "hsl(223, 27%, 3%)",
+    border: `1px solid ${theme.palette.divider}`,
     color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 14,
@@ -43,13 +54,10 @@ const useStyles = makeStyles((theme) => ({
       ${theme.spacing(0.5)}px
       ${theme.spacing(2)}px
     `,
-    whiteSpace: "nowrap",
     width: "100%",
-    overflowX: "auto",
-    // Have a better area to display the scrollbar
-    height: 42,
     display: "flex",
     alignItems: "center",
+    wordBreak: "break-all",
   },
   button: {
     border: 0,

@@ -28,7 +28,7 @@ func templateInit() *cobra.Command {
 					"%s\n%s\n%s\n",
 					cliui.Styles.Bold.Render(example.Name),
 					cliui.Styles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
-					cliui.Styles.Keyword.PaddingLeft(6).Render(example.URL),
+					cliui.Styles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
 				)
 				exampleNames = append(exampleNames, name)
 				exampleByName[name] = example
@@ -36,7 +36,7 @@ func templateInit() *cobra.Command {
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render(
 				"A template defines infrastructure as code to be provisioned "+
-					"for individual developer workspaces. Select an example to get started:\n"))
+					"for individual developer workspaces. Select an example to be copied to the active directory:\n"))
 			option, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: exampleNames,
 			})

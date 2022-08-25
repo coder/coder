@@ -27,7 +27,8 @@ CREATE TYPE log_source AS ENUM (
 
 CREATE TYPE login_type AS ENUM (
     'password',
-    'github'
+    'github',
+    'oidc'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -95,10 +96,6 @@ CREATE TABLE api_keys (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     login_type login_type NOT NULL,
-    oauth_access_token text DEFAULT ''::text NOT NULL,
-    oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_id_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL
 );
@@ -136,9 +133,12 @@ CREATE TABLE gitsshkeys (
 
 CREATE TABLE licenses (
     id integer NOT NULL,
-    license jsonb NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    uploaded_at timestamp with time zone NOT NULL,
+    jwt text NOT NULL,
+    exp timestamp with time zone NOT NULL
 );
+
+COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';
 
 CREATE SEQUENCE licenses_id_seq
     AS integer
@@ -263,7 +263,17 @@ CREATE TABLE templates (
     description character varying(128) DEFAULT ''::character varying NOT NULL,
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
     min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
+);
+
+CREATE TABLE user_links (
+    user_id uuid NOT NULL,
+    login_type login_type NOT NULL,
+    linked_id text DEFAULT ''::text NOT NULL,
+    oauth_access_token text DEFAULT ''::text NOT NULL,
+    oauth_refresh_token text DEFAULT ''::text NOT NULL,
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE users (
@@ -274,7 +284,8 @@ CREATE TABLE users (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::public.login_type NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -287,7 +298,7 @@ CREATE TABLE workspace_agents (
     disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
-    auth_instance_id character varying(64),
+    auth_instance_id character varying,
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
     operating_system character varying(64) NOT NULL,
@@ -327,6 +338,13 @@ CREATE TABLE workspace_builds (
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
+CREATE TABLE workspace_resource_metadata (
+    workspace_resource_id uuid NOT NULL,
+    key character varying(1024) NOT NULL,
+    value character varying(65536),
+    sensitive boolean NOT NULL
+);
+
 CREATE TABLE workspace_resources (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -362,6 +380,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY licenses
+    ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
@@ -408,6 +429,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
+
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
@@ -431,6 +455,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
@@ -502,6 +529,9 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
@@ -516,6 +546,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

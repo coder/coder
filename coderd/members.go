@@ -21,6 +21,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	member := httpmw.OrganizationMemberParam(r)
 	apiKey := httpmw.APIKey(r)
+	actorRoles := httpmw.AuthorizationUserRoles(r)
 
 	if apiKey.UserID == member.UserID {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -37,16 +38,22 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	// The org-member role is always implied.
 	impliedTypes := append(params.Roles, rbac.RoleOrgMember(organization.ID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
-	for _, roleName := range added {
-		// Assigning a role requires the create permission.
-		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
-			httpapi.Forbidden(rw)
-			return
-		}
+
+	// Assigning a role requires the create permission.
+	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
 	}
-	for _, roleName := range removed {
-		// Removing a role requires the delete permission.
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.WithID(roleName).InOrg(organization.ID)) {
+
+	// Removing a role requires the delete permission.
+	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -98,11 +105,17 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 }
 
 func convertOrganizationMember(mem database.OrganizationMember) codersdk.OrganizationMember {
-	return codersdk.OrganizationMember{
+	convertedMember := codersdk.OrganizationMember{
 		UserID:         mem.UserID,
 		OrganizationID: mem.OrganizationID,
 		CreatedAt:      mem.CreatedAt,
 		UpdatedAt:      mem.UpdatedAt,
-		Roles:          mem.Roles,
+		Roles:          make([]codersdk.Role, 0, len(mem.Roles)),
 	}
+
+	for _, roleName := range mem.Roles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedMember.Roles = append(convertedMember.Roles, convertRole(rbacRole))
+	}
+	return convertedMember
 }

@@ -56,17 +56,12 @@ build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name 
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
-coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
+coderd/database/dump.sql: coderd/database/dump/main.go $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
 
 # Generates Go code for querying the database.
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
-
-# This target is deprecated, as GNU make has issues passing signals to subprocesses.
-dev:
-	@echo Please run ./scripts/develop.sh manually.
-.PHONY: dev
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -121,6 +116,7 @@ lint: lint/shellcheck lint/go
 .PHONY: lint
 
 lint/go:
+	./scripts/check_enterprise_imports.sh
 	golangci-lint run
 .PHONY: lint/go
 
@@ -171,10 +167,12 @@ test: test-clean
 	gotestsum -- -v -short ./...
 .PHONY: test
 
+# When updating -timeout for this test, keep in sync with
+# test-go-postgres (.github/workflows/coder.yaml).
 test-postgres: test-clean test-postgres-docker
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
-		-covermode=atomic -coverprofile="gotests.coverage" -timeout=30m \
-		-coverpkg=./...,github.com/coder/coder/codersdk \
+		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
+		-coverpkg=./... \
 		-count=1 -race -failfast
 .PHONY: test-postgres
 

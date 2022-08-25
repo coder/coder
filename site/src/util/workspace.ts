@@ -1,10 +1,29 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
+import duration from "dayjs/plugin/duration"
+import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
+dayjs.extend(duration)
 dayjs.extend(utc)
+dayjs.extend(minMax)
+
+// all the possible states returned by the API
+export enum WorkspaceStateEnum {
+  starting = "Starting",
+  started = "Started",
+  stopping = "Stopping",
+  stopped = "Stopped",
+  canceling = "Canceling",
+  canceled = "Canceled",
+  deleting = "Deleting",
+  deleted = "Deleted",
+  queued = "Queued",
+  error = "Error",
+  loading = "Loading",
+}
 
 export type WorkspaceStatus =
   | "queued"
@@ -65,75 +84,6 @@ export const DisplayStatusLanguage = {
   canceled: "Canceled action",
   failed: "Failed",
   queued: "Queued",
-}
-
-// Localize workspace status and provide corresponding color from theme
-export const getDisplayStatus = (
-  theme: Theme,
-  build: TypesGen.WorkspaceBuild,
-): {
-  color: string
-  status: string
-} => {
-  const status = getWorkspaceStatus(build)
-  switch (status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayStatusLanguage.loading,
-      }
-    case "started":
-      return {
-        color: theme.palette.success.main,
-        status: `⦿ ${DisplayStatusLanguage.started}`,
-      }
-    case "starting":
-      return {
-        color: theme.palette.primary.main,
-        status: `⦿ ${DisplayStatusLanguage.starting}`,
-      }
-    case "stopping":
-      return {
-        color: theme.palette.primary.main,
-        status: `◍ ${DisplayStatusLanguage.stopping}`,
-      }
-    case "stopped":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.stopped}`,
-      }
-    case "deleting":
-      return {
-        color: theme.palette.text.secondary,
-        status: `⦸ ${DisplayStatusLanguage.deleting}`,
-      }
-    case "deleted":
-      return {
-        color: theme.palette.text.secondary,
-        status: `⦸ ${DisplayStatusLanguage.deleted}`,
-      }
-    case "canceling":
-      return {
-        color: theme.palette.warning.light,
-        status: `◍ ${DisplayStatusLanguage.canceling}`,
-      }
-    case "canceled":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.canceled}`,
-      }
-    case "error":
-      return {
-        color: theme.palette.error.main,
-        status: `ⓧ ${DisplayStatusLanguage.failed}`,
-      }
-    case "queued":
-      return {
-        color: theme.palette.text.secondary,
-        status: `◍ ${DisplayStatusLanguage.queued}`,
-      }
-  }
-  throw new Error("unknown status " + status)
 }
 
 export const DisplayWorkspaceBuildStatusLanguage = {
@@ -250,7 +200,7 @@ export const getDisplayAgentStatus = (
       }
     case "connecting":
       return {
-        color: theme.palette.success.main,
+        color: theme.palette.primary.main,
         status: DisplayAgentStatusLanguage["connecting"],
       }
     case "disconnected":

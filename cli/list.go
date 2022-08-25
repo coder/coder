@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
@@ -14,29 +13,85 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+type workspaceListRow struct {
+	Workspace  string `table:"workspace"`
+	Template   string `table:"template"`
+	Status     string `table:"status"`
+	LastBuilt  string `table:"last built"`
+	Outdated   bool   `table:"outdated"`
+	StartsAt   string `table:"starts at"`
+	StopsAfter string `table:"stops after"`
+}
+
+func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]codersdk.User, workspace codersdk.Workspace) workspaceListRow {
+	status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
+
+	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
+	autostartDisplay := "-"
+	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
+		if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
+			autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
+		}
+	}
+
+	autostopDisplay := "-"
+	if !ptr.NilOrZero(workspace.TTLMillis) {
+		dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
+		autostopDisplay = durationDisplay(dur)
+		if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.After(now) && status == "Running" {
+			remaining := time.Until(workspace.LatestBuild.Deadline)
+			autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
+		}
+	}
+
+	user := usersByID[workspace.OwnerID]
+	return workspaceListRow{
+		Workspace:  user.Username + "/" + workspace.Name,
+		Template:   workspace.TemplateName,
+		Status:     status,
+		LastBuilt:  durationDisplay(lastBuilt),
+		Outdated:   workspace.Outdated,
+		StartsAt:   autostartDisplay,
+		StopsAfter: autostopDisplay,
+	}
+}
+
 func list() *cobra.Command {
 	var (
-		columns []string
+		columns     []string
+		searchQuery string
+		me          bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List all workspaces",
 		Aliases:     []string{"ls"},
+		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
-			workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{})
+			filter := codersdk.WorkspaceFilter{
+				FilterQuery: searchQuery,
+			}
+			if me {
+				myUser, err := client.User(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
+				filter.Owner = myUser.Username
+			}
+			workspaces, err := client.Workspaces(cmd.Context(), filter)
 			if err != nil {
 				return err
 			}
 			if len(workspaces) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
-				_, _ = fmt.Fprintln(cmd.OutOrStdout())
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder create <name>"))
-				_, _ = fmt.Fprintln(cmd.OutOrStdout())
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  "+cliui.Styles.Code.Render("coder create <name>"))
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 				return nil
 			}
 			users, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
@@ -48,52 +103,24 @@ func list() *cobra.Command {
 				usersByID[user.ID] = user
 			}
 
-			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated", "starts at", "stops after"}
-			tableWriter.AppendHeader(header)
-			tableWriter.SortBy([]table.SortBy{{
-				Name: "workspace",
-			}})
-			tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, columns))
-
 			now := time.Now()
-			for _, workspace := range workspaces {
-				status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
-
-				lastBuilt := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
-				autostartDisplay := "-"
-				if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
-					if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
-						autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
-					}
-				}
-
-				autostopDisplay := "-"
-				if !ptr.NilOrZero(workspace.TTLMillis) {
-					dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
-					autostopDisplay = durationDisplay(dur)
-					if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.After(now) && status == "Running" {
-						remaining := time.Until(workspace.LatestBuild.Deadline)
-						autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
-					}
-				}
-
-				user := usersByID[workspace.OwnerID]
-				tableWriter.AppendRow(table.Row{
-					user.Username + "/" + workspace.Name,
-					workspace.TemplateName,
-					status,
-					durationDisplay(lastBuilt),
-					workspace.Outdated,
-					autostartDisplay,
-					autostopDisplay,
-				})
+			displayWorkspaces := make([]workspaceListRow, len(workspaces))
+			for i, workspace := range workspaces {
+				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
+
+			out, err := cliui.DisplayTable(displayWorkspaces, "workspace", columns)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		"Specify a column to filter in the table.")
+	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
+	cmd.Flags().BoolVar(&me, "me", false, "Only show workspaces owned by the current user.")
 	return cmd
 }

@@ -3,13 +3,13 @@ import { fade, makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
+import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
+import { createDayString } from "util/createDayString"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -31,8 +31,6 @@ import {
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
-dayjs.extend(relativeTime)
-
 export const Language = {
   developerCount: (ownerCount: number): string => {
     return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
@@ -46,7 +44,7 @@ export const Language = {
   emptyDescription: (
     <>
       To create a workspace you need to have a template. You can{" "}
-      <Link target="_blank" href="https://github.com/coder/coder/blob/main/docs/templates.md">
+      <Link target="_blank" href="https://coder.com/docs/coder-oss/latest/templates">
         create one from scratch
       </Link>{" "}
       or use a built-in template using the following Coder CLI command:
@@ -65,7 +63,7 @@ const TemplateHelpTooltip: React.FC = () => {
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://github.com/coder/coder/blob/main/docs/templates.md#manage-templates">
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/templates#manage-templates">
           {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
@@ -79,7 +77,7 @@ export interface TemplatesPageViewProps {
   templates?: TypesGen.Template[]
 }
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
+export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
 
@@ -93,77 +91,106 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = (props) => {
           </Stack>
         </PageHeaderTitle>
         {props.templates && props.templates.length > 0 && (
-          <PageHeaderSubtitle>Choose a template to create a new workspace.</PageHeaderSubtitle>
+          <PageHeaderSubtitle>
+            Choose a template to create a new workspace
+            {props.canCreateTemplate ? (
+              <>
+                , or{" "}
+                <Link
+                  href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
+                  target="_blank"
+                >
+                  manage templates
+                </Link>{" "}
+                from the CLI.
+              </>
+            ) : (
+              "."
+            )}
+          </PageHeaderSubtitle>
         )}
       </PageHeader>
 
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>{Language.nameLabel}</TableCell>
-            <TableCell>{Language.usedByLabel}</TableCell>
-            <TableCell>{Language.lastUpdatedLabel}</TableCell>
-            <TableCell>{Language.createdByLabel}</TableCell>
-            <TableCell width="1%"></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {props.loading && <TableLoader />}
-          {!props.loading && !props.templates?.length && (
+      <TableContainer>
+        <Table>
+          <TableHead>
             <TableRow>
-              <TableCell colSpan={999}>
-                <EmptyState
-                  message={Language.emptyMessage}
-                  description={
-                    props.canCreateTemplate ? Language.emptyDescription : Language.emptyViewNoPerms
-                  }
-                  descriptionClassName={styles.emptyDescription}
-                  cta={<CodeExample code="coder template init" />}
-                />
-              </TableCell>
+              <TableCell>{Language.nameLabel}</TableCell>
+              <TableCell>{Language.usedByLabel}</TableCell>
+              <TableCell>{Language.lastUpdatedLabel}</TableCell>
+              <TableCell>{Language.createdByLabel}</TableCell>
+              <TableCell width="1%"></TableCell>
             </TableRow>
-          )}
-          {props.templates?.map((template) => {
-            const templatePageLink = `/templates/${template.name}`
-            return (
-              <TableRow
-                key={template.id}
-                hover
-                data-testid={`template-${template.id}`}
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    navigate(templatePageLink)
-                  }
-                }}
-                className={styles.clickableTableRow}
-              >
-                <TableCellLink to={templatePageLink}>
-                  <AvatarData
-                    title={template.name}
-                    subtitle={template.description}
-                    highlightTitle
+          </TableHead>
+          <TableBody>
+            {props.loading && <TableLoader />}
+            {!props.loading && !props.templates?.length && (
+              <TableRow>
+                <TableCell colSpan={999}>
+                  <EmptyState
+                    message={Language.emptyMessage}
+                    description={
+                      props.canCreateTemplate
+                        ? Language.emptyDescription
+                        : Language.emptyViewNoPerms
+                    }
+                    descriptionClassName={styles.emptyDescription}
+                    cta={<CodeExample code="coder templates init" />}
                   />
-                </TableCellLink>
-
-                <TableCellLink to={templatePageLink}>
-                  {Language.developerCount(template.workspace_owner_count)}
-                </TableCellLink>
-
-                <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                  {dayjs().to(dayjs(template.updated_at))}
-                </TableCellLink>
-                <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
-                <TableCellLink to={templatePageLink}>
-                  <div className={styles.arrowCell}>
-                    <KeyboardArrowRight className={styles.arrowRight} />
-                  </div>
-                </TableCellLink>
+                </TableCell>
               </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+            )}
+            {props.templates?.map((template) => {
+              const templatePageLink = `/templates/${template.name}`
+              const hasIcon = template.icon && template.icon !== ""
+
+              return (
+                <TableRow
+                  key={template.id}
+                  hover
+                  data-testid={`template-${template.id}`}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      navigate(templatePageLink)
+                    }
+                  }}
+                  className={styles.clickableTableRow}
+                >
+                  <TableCellLink to={templatePageLink}>
+                    <AvatarData
+                      title={template.name}
+                      subtitle={template.description}
+                      highlightTitle
+                      avatar={
+                        hasIcon ? (
+                          <div className={styles.templateIconWrapper}>
+                            <img alt="" src={template.icon} />
+                          </div>
+                        ) : undefined
+                      }
+                    />
+                  </TableCellLink>
+
+                  <TableCellLink to={templatePageLink}>
+                    {Language.developerCount(template.workspace_owner_count)}
+                  </TableCellLink>
+
+                  <TableCellLink data-chromatic="ignore" to={templatePageLink}>
+                    {createDayString(template.updated_at)}
+                  </TableCellLink>
+                  <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
+                  <TableCellLink to={templatePageLink}>
+                    <div className={styles.arrowCell}>
+                      <KeyboardArrowRight className={styles.arrowRight} />
+                    </div>
+                  </TableCellLink>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Margins>
   )
 }
@@ -174,7 +201,7 @@ const useStyles = makeStyles((theme) => ({
   },
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.light, 0.1),
+      backgroundColor: fade(theme.palette.primary.dark, 0.1),
     },
 
     "&:focus": {
@@ -192,5 +219,15 @@ const useStyles = makeStyles((theme) => ({
   },
   arrowCell: {
     display: "flex",
+  },
+  templateIconWrapper: {
+    // Same size then the avatar component
+    width: 36,
+    height: 36,
+    padding: 2,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))

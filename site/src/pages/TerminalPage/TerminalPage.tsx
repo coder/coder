@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -18,9 +18,11 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const TerminalPage: FC<{
-  readonly renderer?: XTerm.RendererType
-}> = ({ renderer }) => {
+const TerminalPage: FC<
+  React.PropsWithChildren<{
+    readonly renderer?: XTerm.RendererType
+  }>
+> = ({ renderer }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const styles = useStyles()
@@ -203,7 +205,7 @@ const TerminalPage: FC<{
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
       <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
-        <span>Disconnected</span>
+        <span className={styles.overlayText}>Disconnected</span>
       </div>
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
@@ -227,10 +229,15 @@ const useStyles = makeStyles(() => ({
     color: "white",
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     "&.connected": {
       opacity: 0,
     },
+  },
+  overlayText: {
+    padding: 32,
+    fontSize: 24,
+    backgroundColor: "#000",
   },
   terminal: {
     width: "100vw",

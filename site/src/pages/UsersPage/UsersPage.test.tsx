@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
+import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
@@ -15,7 +17,6 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
-import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 import { Language as UsersViewLanguage } from "./UsersPageView"
 
@@ -29,13 +30,16 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Click on the "more" button to display the "Suspend" option
   const moreButton = within(firstUserRow).getByLabelText("more")
+
   fireEvent.click(moreButton)
-  const menu = screen.getByRole("menu")
+
+  const menu = await screen.findByRole("menu")
   const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
+
   fireEvent.click(suspendButton)
 
   // Check if the confirm message is displayed
-  const confirmDialog = screen.getByRole("dialog")
+  const confirmDialog = await screen.findByRole("dialog")
   expect(confirmDialog).toHaveTextContent(
     `${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`,
   )
@@ -59,6 +63,7 @@ const activateUser = async (setupActionSpies: () => void) => {
   // Click on the "more" button to display the "Activate" option
   const moreButton = within(firstUserRow).getByLabelText("more")
   fireEvent.click(moreButton)
+
   const menu = screen.getByRole("menu")
   const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
   fireEvent.click(activateButton)
@@ -87,9 +92,12 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
 
   // Click on the "more" button to display the "Suspend" option
   const moreButton = within(firstUserRow).getByLabelText("more")
+
   fireEvent.click(moreButton)
+
   const menu = screen.getByRole("menu")
   const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
+
   fireEvent.click(resetPasswordButton)
 
   // Check if the confirm message is displayed
@@ -105,6 +113,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   const confirmButton = within(confirmDialog).getByRole("button", {
     name: ResetPasswordDialogLanguage.confirmText,
   })
+
   fireEvent.click(confirmButton)
 }
 
@@ -136,7 +145,7 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   }
 }
 
-describe("Users Page", () => {
+describe("UsersPage", () => {
   it("shows users", async () => {
     render(<UsersPage />)
     const users = await screen.findAllByText(/.*@coder.com/)
@@ -187,7 +196,7 @@ describe("Users Page", () => {
         })
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserSuccess)
+        screen.findByText(usersXServiceLanguage.suspendUserSuccess)
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
@@ -197,7 +206,6 @@ describe("Users Page", () => {
         await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
       })
     })
-
     describe("when it fails", () => {
       it("shows an error message", async () => {
         render(
@@ -212,7 +220,7 @@ describe("Users Page", () => {
         })
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserError)
+        screen.findByText(usersXServiceLanguage.suspendUserError)
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
@@ -239,7 +247,7 @@ describe("Users Page", () => {
         })
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserSuccess)
+        screen.findByText(usersXServiceLanguage.activateUserSuccess)
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1)
@@ -260,7 +268,7 @@ describe("Users Page", () => {
         })
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserError)
+        screen.findByText(usersXServiceLanguage.activateUserError)
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1)
@@ -284,7 +292,7 @@ describe("Users Page", () => {
         })
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
+        screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
@@ -294,7 +302,6 @@ describe("Users Page", () => {
         })
       })
     })
-
     describe("when it fails", () => {
       it("shows an error message", async () => {
         render(
@@ -309,7 +316,7 @@ describe("Users Page", () => {
         })
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordError)
+        screen.findByText(usersXServiceLanguage.resetUserPasswordError)
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
@@ -339,7 +346,7 @@ describe("Users Page", () => {
         }, MockAuditorRole)
 
         // Check if the select text was updated with the Auditor role
-        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Auditor"))
+        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Owner, Auditor"))
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
@@ -365,10 +372,12 @@ describe("Users Page", () => {
         }, MockAuditorRole)
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.updateUserRolesError)
+        const errorMessage = screen.findByText(usersXServiceLanguage.updateUserRolesError)
+        await waitFor(() => expect(errorMessage).toBeDefined())
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
+
         expect(API.updateUserRoles).toBeCalledTimes(1)
         expect(API.updateUserRoles).toBeCalledWith(
           [...currentRoles, MockAuditorRole.name],
@@ -393,7 +402,8 @@ describe("Users Page", () => {
         await updateUserRole(() => {}, MockAuditorRole)
 
         // Check if the error message is displayed
-        await screen.findByText("message from the backend")
+        const errorMessage = screen.findByText("message from the backend")
+        await waitFor(() => expect(errorMessage).toBeDefined())
       })
     })
   })

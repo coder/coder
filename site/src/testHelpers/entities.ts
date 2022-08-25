@@ -1,3 +1,4 @@
+import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -14,9 +15,19 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
-export const MockAdminRole: TypesGen.Role = {
-  name: "admin",
-  display_name: "Admin",
+export const MockOwnerRole: TypesGen.Role = {
+  name: "owner",
+  display_name: "Owner",
+}
+
+export const MockUserAdminRole: TypesGen.Role = {
+  name: "user_admin",
+  display_name: "User Admin",
+}
+
+export const MockTemplateAdminRole: TypesGen.Role = {
+  name: "template_admin",
+  display_name: "Template Admin",
 }
 
 export const MockMemberRole: TypesGen.Role = {
@@ -29,7 +40,16 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockAdminRole, MockAuditorRole]
+export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
+
+// assignableRole takes a role and a boolean. The boolean implies if the
+// actor can assign (add/remove) the role from other users.
+export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
+  return {
+    ...role,
+    assignable: assignable,
+  }
+}
 
 export const MockUser: TypesGen.User = {
   id: "test-user",
@@ -38,7 +58,17 @@ export const MockUser: TypesGen.User = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [MockAdminRole],
+  roles: [MockOwnerRole],
+}
+
+export const MockUserAdmin: TypesGen.User = {
+  id: "test-user",
+  username: "TestUser",
+  email: "test@coder.com",
+  created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [MockUserAdminRole],
 }
 
 export const MockUser2: TypesGen.User = {
@@ -80,6 +110,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   id: "test-provisioner-job",
   status: "succeeded",
   storage_source: "asdf",
+  completed_at: "2022-05-17T17:39:01.382927298Z",
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -98,7 +129,10 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "running",
 }
-
+export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "pending",
+}
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -122,15 +156,16 @@ export const MockTemplate: TypesGen.Template = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
-  name: "Test Template",
+  name: "test-template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,
   description: "This is a test description.",
-  max_ttl_ms: 604800000,
-  min_autostart_interval_ms: 3600000,
+  max_ttl_ms: 24 * 60 * 60 * 1000,
+  min_autostart_interval_ms: 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
+  icon: "/icon/code.svg",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -183,6 +218,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   updated_at: "",
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
+  template_icon: MockTemplate.icon,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -236,6 +272,15 @@ export const MockDeletedWorkspace: TypesGen.Workspace = {
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
+export const MockQueuedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockPendingProvisionerJob,
+    transition: "start",
+  },
+}
+
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
@@ -273,12 +318,20 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  metadata: [
+    { key: "type", value: "a-workspace-resource", sensitive: false },
+    { key: "api_key", value: "12345678", sensitive: true },
+  ],
 }
 
 export const MockWorkspaceResource2 = {
   ...MockWorkspaceResource,
   id: "test-workspace-resource-2",
   name: "another-workspace-resource",
+  metadata: [
+    { key: "type", value: "google_compute_disk", sensitive: false },
+    { key: "size", value: "32GB", sensitive: false },
+  ],
 }
 
 export const MockUserAgent: Types.UserAgent = {
@@ -291,6 +344,7 @@ export const MockUserAgent: Types.UserAgent = {
 export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
+  oidc: false,
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -571,4 +625,43 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
 
 export const MockCancellationMessage = {
   message: "Job successfully canceled",
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const makeMockApiError = ({
+  message,
+  detail,
+  validations,
+}: {
+  message?: string
+  detail?: string
+  validations?: FieldError[]
+}) => ({
+  response: {
+    data: {
+      message: message ?? "Something went wrong.",
+      detail: detail ?? undefined,
+      validations: validations ?? undefined,
+    },
+  },
+  isAxiosError: true,
+})
+
+export const MockEntitlements: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: false,
+  features: {},
+}
+
+export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  warnings: ["You are over your active user limit.", "And another thing."],
+  has_license: true,
+  features: {
+    activeUsers: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 100,
+      actual: 102,
+    },
+  },
 }

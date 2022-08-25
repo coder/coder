@@ -36,6 +36,9 @@ type Config struct {
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
 	Tunnel Node `json:"tunnel"`
+
+	// Used in testing.  Normally this is nil, indicating to use DefaultClient.
+	HTTPClient *http.Client `json:"-"`
 }
 type configExt struct {
 	Version    int                    `json:"-"`
@@ -43,6 +46,9 @@ type configExt struct {
 	PublicKey  device.NoisePublicKey  `json:"public_key"`
 
 	Tunnel Node `json:"-"`
+
+	// Used in testing.  Normally this is nil, indicating to use DefaultClient.
+	HTTPClient *http.Client `json:"-"`
 }
 
 // NewWithConfig calls New with the given config. For documentation, see New.
@@ -65,17 +71,27 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*Tunnel
 	if err != nil {
 		return nil, nil, xerrors.Errorf("resolve endpoint: %w", err)
 	}
+	// In IPv6, we need to enclose the address to in [] before passing to wireguard's endpoint key, like
+	// [2001:abcd::1]:8888.  We'll use netip.AddrPort to correctly handle this.
+	wgAddr, err := netip.ParseAddr(wgip.String())
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse address: %w", err)
+	}
+	wgEndpoint := netip.AddrPortFrom(wgAddr, cfg.Tunnel.WireguardPort)
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
+	dlog := &device.Logger{
+		Verbosef: slog.Stdlib(ctx, logger, slog.LevelDebug).Printf,
+		Errorf:   slog.Stdlib(ctx, logger, slog.LevelError).Printf,
+	}
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), dlog)
 	err = dev.IpcSet(fmt.Sprintf(`private_key=%s
 public_key=%s
-endpoint=%s:%d
+endpoint=%s
 persistent_keepalive_interval=21
 allowed_ip=%s/128`,
 		hex.EncodeToString(cfg.PrivateKey[:]),
 		server.ServerPublicKey,
-		wgip.IP.String(),
-		cfg.Tunnel.WireguardPort,
+		wgEndpoint.String(),
 		server.ServerIP.String(),
 	))
 	if err != nil {
@@ -92,11 +108,14 @@ allowed_ip=%s/128`,
 		return nil, nil, xerrors.Errorf("wireguard device listen: %w", err)
 	}
 
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	go func() {
 		select {
 		case <-ctx.Done():
 			_ = wgListen.Close()
+			// We need to remove peers before closing to avoid a race condition between dev.Close() and the peer
+			// goroutines which results in segfault.
+			dev.RemoveAllPeers()
 			dev.Close()
 			<-routineEnd
 			close(ch)
@@ -174,7 +193,11 @@ func sendConfigToServer(ctx context.Context, cfg Config) (ServerResponse, error)
 		return ServerResponse{}, xerrors.Errorf("new request: %w", err)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if cfg.HTTPClient != nil {
+		client = cfg.HTTPClient
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return ServerResponse{}, xerrors.Errorf("do request: %w", err)
 	}

@@ -3,9 +3,25 @@ import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { ParameterSchema } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+
+const isBoolean = (schema: ParameterSchema) => {
+  return schema.validation_value_type === "bool"
+}
+
+const ParameterLabel: React.FC<{ schema: ParameterSchema }> = ({ schema }) => {
+  const styles = useStyles()
+
+  return (
+    <label className={styles.label} htmlFor={schema.name}>
+      <strong>var.{schema.name}</strong>
+      {schema.description && <span className={styles.labelDescription}>{schema.description}</span>}
+    </label>
+  )
+}
 
 export interface ParameterInputProps {
   disabled?: boolean
@@ -13,25 +29,32 @@ export interface ParameterInputProps {
   onChange: (value: string) => void
 }
 
-export const ParameterInput: FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
+export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = ({
+  disabled,
+  onChange,
+  schema,
+}) => {
   const styles = useStyles()
+
   return (
-    <div className={styles.root}>
-      <div className={styles.title}>
-        <h2>var.{schema.name}</h2>
-        {schema.description && <span>{schema.description}</span>}
-      </div>
+    <Stack direction="column" className={styles.root}>
+      <ParameterLabel schema={schema} />
       <div className={styles.input}>
         <ParameterField disabled={disabled} onChange={onChange} schema={schema} />
       </div>
-    </div>
+    </Stack>
   )
 }
 
-const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, schema }) => {
+const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = ({
+  disabled,
+  onChange,
+  schema,
+}) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <RadioGroup
+        id={schema.name}
         defaultValue={schema.default_source_value}
         onChange={(event) => {
           onChange(event.target.value)
@@ -50,11 +73,37 @@ const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, sch
     )
   }
 
+  if (isBoolean(schema)) {
+    return (
+      <RadioGroup
+        id={schema.name}
+        defaultValue={schema.default_source_value}
+        onChange={(event) => {
+          onChange(event.target.value)
+        }}
+      >
+        <FormControlLabel
+          disabled={disabled}
+          value="true"
+          control={<Radio color="primary" size="small" disableRipple />}
+          label="True"
+        />
+        <FormControlLabel
+          disabled={disabled}
+          value="false"
+          control={<Radio color="primary" size="small" disableRipple />}
+          label="False"
+        />
+      </RadioGroup>
+    )
+  }
+
   // A text field can technically handle all cases!
   // As other cases become more prominent (like filtering for numbers),
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
+      id={schema.name}
       size="small"
       disabled={disabled}
       placeholder={schema.default_source_value}
@@ -67,25 +116,26 @@ const ParameterField: React.FC<ParameterInputProps> = ({ disabled, onChange, sch
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    display: "flex",
-    flexDirection: "column",
     fontFamily: MONOSPACE_FONT_FAMILY,
     paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(2),
   },
-  title: {
+  label: {
     display: "flex",
     flexDirection: "column",
-    "& h2": {
-      margin: 0,
-    },
-    "& span": {
-      paddingTop: theme.spacing(1),
-    },
+    fontSize: 21,
+  },
+  labelDescription: {
+    fontSize: 14,
+    marginTop: theme.spacing(1),
   },
   input: {
-    marginTop: theme.spacing(2),
     display: "flex",
     flexDirection: "column",
+  },
+  checkbox: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
   },
 }))

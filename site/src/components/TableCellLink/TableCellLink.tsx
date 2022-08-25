@@ -7,9 +7,11 @@ import { combineClasses } from "../../util/combineClasses"
 // TableCellLink wraps a TableCell filling the entirety with a Link.
 // This allows table rows to be clickable with browser-behavior like ctrl+click.
 export const TableCellLink: React.FC<
-  TableCellProps & {
-    to: string
-  }
+  React.PropsWithChildren<
+    TableCellProps & {
+      to: string
+    }
+  >
 > = (props) => {
   const styles = useStyles()
 
@@ -30,7 +32,7 @@ const useStyles = makeStyles((theme) => ({
   cell: {
     // This must override all padding for all rules on a TableCell.
     // Otherwise, the link will not cover the entire region.
-    // It's unfortuante to use `!important`, but this seems to be
+    // It's unfortunate to use `!important`, but this seems to be
     // a reasonable use-case.
     padding: "0 !important",
   },

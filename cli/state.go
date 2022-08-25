@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -26,7 +27,7 @@ func statePull() *cobra.Command {
 		Use:  "pull <workspace> [file]",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -50,7 +51,7 @@ func statePull() *cobra.Command {
 			}
 
 			if len(args) < 2 {
-				cmd.Println(string(state))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(state))
 				return nil
 			}
 
@@ -67,7 +68,7 @@ func statePush() *cobra.Command {
 		Use:  "push <workspace> <file>",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

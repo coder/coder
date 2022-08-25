@@ -42,7 +42,7 @@ code once you run `coder templates init` (new) or `coder templates pull`
 ## Concepts in templates
 
 While templates are written with standard Terraform, the
-[Coder Terraform Provider](https://registry.terraform.io/providers/coder/coder/latest/docs) is 
+[Coder Terraform Provider](https://registry.terraform.io/providers/coder/coder/latest/docs) is
 used to define the workspace lifecycle and establish a connection from resources
 to Coder.
 
@@ -51,7 +51,7 @@ template options, reference [Coder Terraform provider docs](https://registry.ter
 
 ### Resource
 
-Resources in Coder are simply [Terraform resources](https://www.terraform.io/language/resources). 
+Resources in Coder are simply [Terraform resources](https://www.terraform.io/language/resources).
 If a Coder agent is attached to a resource, users can connect directly to the resource over
 SSH or web apps.
 
@@ -60,12 +60,12 @@ SSH or web apps.
 Once a Coder workspace is created, the Coder agent establishes a connection
 between a resource (docker_container) and Coder, so that a user can connect to
 their workspace from the web UI or CLI. A template can have multiple agents to
-allow users to connect to multiple resources in their workspace. 
+allow users to connect to multiple resources in their workspace.
 
 > Resources must download and start the Coder agent binary to connect to Coder.
 > This means the resource must be able to reach your Coder URL.
 
-Use the Coder agent's init script to 
+Use the Coder agent's init script to
 
 ```hcl
 data "coder_workspace" "me" {
@@ -90,6 +90,46 @@ resource "kubernetes_pod" "pod1" {
 }
 ```
 
+The `coder_agent` resource can be configured as described in the
+[documentation for the `coder` Terraform provider.](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+For example, you can use the `env` property to set environment variables that will be
+inherited by all child processes of the agent, including SSH sessions.
+
+#### startup_script
+
+Use the Coder agent's `startup_script` to run additional commands like
+installing IDEs, [cloning dotfiles](./dotfiles.md#templates), and cloning project repos.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+# install code-server
+curl -fsSL https://code-server.dev/install.sh | sh
+
+# The & prevents the startup_script from blocking so the
+# next commands can run.
+code-server --auth none --port &
+
+# var.repo and var.dotfiles_uri is specified
+# elsewhere in the Terraform code as input
+# variables.
+
+# clone repo
+ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+git clone --progress git@github.com:${var.repo}
+
+# use coder CLI to clone and install dotfiles
+coder dotfiles -y ${var.dotfiles_uri}
+
+  EOT
+}
+```
+
 ### Parameters
 
 Templates often contain _parameters_. These are defined by `variable` blocks in
@@ -102,13 +142,13 @@ Terraform. There are two types of parameters:
   values are often personalization settings such as "preferred region"
   or "workspace image".
 
-The template sample below uses *admin and user parameters* to allow developers to
+The template sample below uses _admin and user parameters_ to allow developers to
 create workspaces from any image as long as it is in the proper registry:
 
 ```hcl
 variable "image_registry_url" {
-  description = "The image registry developers can sele"
-  default     = "artifactory1.organization.com`
+  description = "The image registry developers can select"
+  default     = "artifactory1.organization.com"
   sensitive   = true # admin (template-wide) parameter
 }
 
@@ -183,7 +223,6 @@ resource "kubernetes_pod" "podName" {
 }
 ```
 
-
 #### Delete workspaces
 
 When a workspace is deleted, the Coder server essentially runs a
@@ -199,8 +238,33 @@ resources associated with the workspace.
 ### Coder apps
 
 By default, all templates allow developers to connect over SSH and a web
-terminal. See [Configuring Web IDEs](./ides/configuring-web-ides.md) to
+terminal. See [Configuring Web IDEs](./ides/web-ides.md) to
 learn how to give users access to additional web applications.
+
+### Data source
+
+When a workspace is being started or stopped, the `coder_workspace` data source provides
+some useful parameters. See the [documentation for the `coder` Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
+for more information.
+
+For example, the [Docker quick-start template](https://github.com/coder/coder/tree/main/examples/templates/docker)
+sets a few environment variables based on the username and email address of the workspace's owner, so
+that you can make Git commits immediately without any manual configuration:
+
+```tf
+resource "coder_agent" "main" {
+  # ...
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
+}
+```
+
+You can add these environment variable definitions to your own templates, or customize them however
+you like.
 
 ## Creating & troubleshooting templates
 
@@ -226,14 +290,14 @@ practices:
 - Ensure the resource has `curl` installed
 - Ensure the resource can reach your Coder URL
 - Manually connect to the resource (e.g., `docker exec` or AWS console)
-  - The Coder agent logs are typically stored in (`/var/log/coder-agent.log`)
-
+  - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
+  - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
 ## Change Management
 
 We recommend source controlling your templates as you would other code.
 
-CI is as simple as running `coder templates update` with the appropriate
+CI is as simple as running `coder templates push` with the appropriate
 credentials.
 
 

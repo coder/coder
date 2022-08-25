@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react"
-import { MockAdminRole, MockUser } from "../../testHelpers/entities"
+import { MockOwnerRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
@@ -26,21 +26,7 @@ describe("UserDropdownContent", () => {
   it("displays the user's roles", () => {
     render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
 
-    expect(screen.getByText(MockAdminRole.display_name)).toBeDefined()
-  })
-
-  it("has the correct link for the documentation item", () => {
-    process.env.CODER_VERSION = "v0.5.4"
-    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
-
-    const link = screen.getByText(Language.docsLabel).closest("a")
-    if (!link) {
-      throw new Error("Anchor tag not found for the documentation menu item")
-    }
-
-    expect(link.getAttribute("href")).toBe(
-      `https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`,
-    )
+    expect(screen.getByText(MockOwnerRole.display_name)).toBeDefined()
   })
 
   it("has the correct link for the account item", () => {

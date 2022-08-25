@@ -28,6 +28,9 @@ export const handlers = [
   rest.get("/api/v2/templates/:templateId/versions", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockTemplateVersion]))
   }),
+  rest.patch("/api/v2/templates/:templateId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplate))
+  }),
   rest.get("/api/v2/templateversions/:templateVersionId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
   }),
@@ -87,6 +90,14 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),
 
+  // First user
+  rest.get("/api/v2/users/first", async (req, res, ctx) => {
+    return res(ctx.status(200))
+  }),
+  rest.post("/api/v2/users/first", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockUser))
+  }),
+
   // workspaces
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspace]))
@@ -132,5 +143,8 @@ export const handlers = [
   }),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))
+  }),
+  rest.get("/api/v2/entitlements", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockEntitlements))
   }),
 ]

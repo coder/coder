@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/site"
+	"github.com/coder/coder/testutil"
 )
 
 func TestCaching(t *testing.T) {
@@ -48,7 +49,7 @@ func TestCaching(t *testing.T) {
 	defer srv.Close()
 
 	// Create a context
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
 	testCases := []struct {
@@ -108,7 +109,7 @@ func TestServingFiles(t *testing.T) {
 	defer srv.Close()
 
 	// Create a context
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
 	testCases := []struct {
@@ -296,7 +297,7 @@ func TestServingBin(t *testing.T) {
 			},
 		},
 		{
-			name: "Serve local fs when embedd fs empty",
+			name: "Serve local fs when embed fs empty",
 			fs:   fstest.MapFS{},
 			reqs: []req{
 				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusNotFound},
@@ -304,17 +305,17 @@ func TestServingBin(t *testing.T) {
 			},
 		},
 		{
-			name: "Serve embedd fs",
+			name: "Serve embed fs",
 			fs: fstest.MapFS{
 				"bin/GITKEEP": &fstest.MapFile{
 					Data: []byte(""),
 				},
 				"bin/coder-linux-amd64": &fstest.MapFile{
-					Data: []byte("embedd"),
+					Data: []byte("embed"),
 				},
 			},
 			reqs: []req{
-				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("embedd")},
+				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("embed")},
 				{url: "/bin/GITKEEP", wantStatus: http.StatusOK, wantBody: []byte("")},
 			},
 		},
@@ -337,7 +338,7 @@ func TestServingBin(t *testing.T) {
 			defer srv.Close()
 
 			// Create a context
-			ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancelFunc()
 
 			for _, tr := range tt.reqs {
@@ -465,6 +466,7 @@ func TestServeAPIResponse(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	var body struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`

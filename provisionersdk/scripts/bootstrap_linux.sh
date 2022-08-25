@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-set -eux pipefail
+set -eux
 # Sleep for a good long while before exiting.
 # This is to allow folks to exec into a failed workspace and poke around to
 # troubleshoot.

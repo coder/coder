@@ -1,16 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import React, { ReactNode } from "react"
 import { Stack } from "../Stack/Stack"
 
 interface StyleProps {
   highlight?: boolean
 }
 
-export const TableCellData: React.FC = ({ children }) => {
+export const TableCellData: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <Stack spacing={0}>{children}</Stack>
 }
 
-export const TableCellDataPrimary: React.FC<{ highlight?: boolean }> = ({
+export const TableCellDataPrimary: React.FC<React.PropsWithChildren<{ highlight?: boolean }>> = ({
   children,
   highlight,
 }) => {
@@ -19,7 +19,9 @@ export const TableCellDataPrimary: React.FC<{ highlight?: boolean }> = ({
   return <span className={styles.primary}>{children}</span>
 }
 
-export const TableCellDataSecondary: React.FC = ({ children }) => {
+export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles()
 
   return <span className={styles.secondary}>{children}</span>

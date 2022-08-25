@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestProvisionerJobLogs(t *testing.T) {
@@ -40,8 +41,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		before := time.Now().UTC()
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		for {
@@ -76,8 +78,10 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		before := database.Now()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		for {
@@ -111,7 +115,11 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		logs, err := client.WorkspaceBuildLogsBefore(context.Background(), workspace.LatestBuild.ID, time.Now())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		logs, err := client.WorkspaceBuildLogsBefore(ctx, workspace.LatestBuild.ID, time.Now())
 		require.NoError(t, err)
 		require.Greater(t, len(logs), 1)
 	})

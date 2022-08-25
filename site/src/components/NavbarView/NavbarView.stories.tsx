@@ -27,3 +27,17 @@ ForMember.args = {
     return Promise.resolve()
   },
 }
+
+export const SmallViewport = Template.bind({})
+SmallViewport.args = {
+  user: MockUser,
+  onSignOut: () => {
+    return Promise.resolve()
+  },
+}
+SmallViewport.parameters = {
+  viewport: {
+    defaultViewport: "tablet",
+  },
+  chromatic: { viewports: [420] },
+}

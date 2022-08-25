@@ -1,4 +1,4 @@
-# Authentication & Secrets
+# Provider Authentication
 
 <blockquote class="danger">
   <p>

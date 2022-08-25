@@ -43,7 +43,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
+
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -169,6 +170,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	}
 	defer release()
 
+	// This strips the session token from a workspace app request.
+	cookieHeaders := r.Header.Values("Cookie")[:]
+	r.Header.Del("Cookie")
+	for _, cookieHeader := range cookieHeaders {
+		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
+	}
 	proxy.Transport = conn.HTTPTransport()
 	proxy.ServeHTTP(rw, r)
 }

@@ -1,0 +1,25 @@
+{{- if .Values.coder.service.enable }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.coder.service.type }}
+  ports:
+    {{- if .Values.coder.tls.secretName }}
+    - name: https
+      port: 443
+      targetPort: https
+      protocol: TCP
+    {{- else }}
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "coder.selectorLabels" . | nindent 4 }}
+{{- end }}

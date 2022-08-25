@@ -26,7 +26,7 @@ interface BorderedMenuRowProps {
   onClick?: () => void
 }
 
-export const BorderedMenuRow: FC<BorderedMenuRowProps> = ({
+export const BorderedMenuRow: FC<React.PropsWithChildren<BorderedMenuRowProps>> = ({
   active,
   description,
   Icon,
@@ -91,7 +91,7 @@ const useStyles = makeStyles((theme) => ({
     padding: `0 ${theme.spacing(1.5)}px`,
   },
   content: {
-    borderRadius: 7,
+    borderRadius: theme.shape.borderRadius,
     display: "flex",
     flexDirection: "column",
     padding: theme.spacing(2),
