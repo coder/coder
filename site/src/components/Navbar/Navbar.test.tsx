@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import { App } from "app"
 import { rest } from "msw"
 import {
   MockEntitlementsWithAuditLog,
@@ -6,7 +7,6 @@ import {
   MockUser,
 } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
-import { App } from "app"
 
 /**
  * The LicenseBanner, mounted above the AppRouter, fetches entitlements. Thus, to test their
