@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { App } from "app"
+import { Language } from "components/NavbarView/NavbarView"
 import { rest } from "msw"
 import {
   MockEntitlementsWithAuditLog,
@@ -21,7 +22,7 @@ describe("Navbar", () => {
     )
     render(<App />)
     await waitFor(() => {
-      const link = screen.getByText("Audit")
+      const link = screen.getByText(Language.audit)
       expect(link).toBeDefined()
     })
   })
@@ -29,7 +30,7 @@ describe("Navbar", () => {
   it("does not show Audit Log link when not entitled", async () => {
     render(<App />)
     await waitFor(() => {
-      const link = screen.queryByText("Audit")
+      const link = screen.queryByText(Language.audit)
       expect(link).toBe(null)
     })
   })
@@ -47,7 +48,7 @@ describe("Navbar", () => {
     )
     render(<App />)
     await waitFor(() => {
-      const link = screen.queryByText("Audit")
+      const link = screen.queryByText(Language.audit)
       expect(link).toBe(null)
     })
   })
