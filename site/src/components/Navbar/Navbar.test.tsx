@@ -24,7 +24,7 @@ describe("Navbar", () => {
     await waitFor(() => {
       const link = screen.getByText(Language.users) // TODO change after debugging
       expect(link).toBeDefined()
-    })
+    }, { timeout: 10000 })
   })
 
   it("does not show Audit Log link when not entitled", async () => {
