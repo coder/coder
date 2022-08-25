@@ -64,6 +64,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 }
 
@@ -125,7 +126,6 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
-		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
 	apps := func(r chi.Router) {
@@ -133,6 +133,7 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
+			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
@@ -151,6 +152,7 @@ func New(options *Options) *API {
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{

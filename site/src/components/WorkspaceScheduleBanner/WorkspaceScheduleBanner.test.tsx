@@ -10,12 +10,12 @@ describe("WorkspaceScheduleBanner", () => {
   describe("shouldDisplay", () => {
     // Manual TTL case
     it("should not display if the build does not have a deadline", () => {
-      // Given: a workspace with deadline of '"0001-01-01T00:00:00Z"'
+      // Given: a workspace with deadline of undefined.
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
         latest_build: {
           ...Mocks.MockWorkspaceBuild,
-          deadline: "0001-01-01T00:00:00Z",
+          deadline: undefined,
           transition: "start",
         },
       }

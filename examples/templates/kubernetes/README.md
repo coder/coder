@@ -1,14 +1,16 @@
 ---
-name: Develop multiple services in Kubernetes
+name: Develop in Kubernetes
 description: Get started with Kubernetes development.
 tags: [cloud, kubernetes]
 ---
 
 # Getting started
 
+This template creates a pod running the `codercom/enterprise-base:ubuntu` image.
+
 ## RBAC
 
-The Coder provisioner requires permission to administer pods to use this template.  The template
+The Coder provisioner requires permission to administer pods to use this template. The template
 creates workspaces in a single Kubernetes namespace, using the `workspaces_namespace` parameter set
 while creating the template.
 
@@ -20,15 +22,15 @@ kind: Role
 metadata:
   name: coder
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["*"]
 ```
 
 ## Authentication
 
 This template can authenticate using in-cluster authentication, or using a kubeconfig local to the
-Coder host.  For additional authentication options, consult the [Kubernetes provider
+Coder host. For additional authentication options, consult the [Kubernetes provider
 documentation](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs).
 
 ### kubeconfig on Coder host
@@ -46,8 +48,8 @@ you can use in-cluster authentication.
 To use this authentication, set the parameter `use_kubeconfig` to false.
 
 The Terraform provisioner will automatically use the service account associated with the pod to
-authenticate to Kubernetes.  Be sure to bind a [role with appropriate permission](#rbac) to the
-service account.  For example, assuming the Coder host runs in the same namespace as you intend
+authenticate to Kubernetes. Be sure to bind a [role with appropriate permission](#rbac) to the
+service account. For example, assuming the Coder host runs in the same namespace as you intend
 to create workspaces:
 
 ```yaml

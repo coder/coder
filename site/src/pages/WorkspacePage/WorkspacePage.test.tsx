@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -25,6 +26,8 @@ import {
 import { server } from "../../testHelpers/server"
 import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
+
+const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
@@ -171,7 +174,7 @@ describe("WorkspacePage", () => {
     await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
+    await testStatus(MockDeletedWorkspace, t("workspaceStatus.deleted", { ns: "common" }))
   })
 
   describe("Timeline", () => {

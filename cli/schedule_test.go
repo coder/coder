@@ -239,7 +239,7 @@ func TestScheduleOverride(t *testing.T) {
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
 		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -252,7 +252,7 @@ func TestScheduleOverride(t *testing.T) {
 		// Then: the deadline of the latest build is updated assuming the units are minutes
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.WithinDuration(t, expectedDeadline, updated.LatestBuild.Deadline, time.Minute)
+		require.WithinDuration(t, expectedDeadline, updated.LatestBuild.Deadline.Time, time.Minute)
 	})
 
 	t.Run("InvalidDuration", func(t *testing.T) {
@@ -279,7 +279,7 @@ func TestScheduleOverride(t *testing.T) {
 
 		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
 		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline, time.Minute)
+		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)

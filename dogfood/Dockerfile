@@ -299,10 +299,7 @@ ENV PATH=$PATH:/usr/local/go/bin
 RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/gofmt 100
 
 COPY --from=go /tmp/bin /usr/local/bin
-
 COPY --from=rust-utils /tmp/bin /usr/local/bin
-RUN mv /usr/local/bin/exa /usr/local/bin/ls
-RUN mv /usr/local/bin/bat /usr/local/bin/cat
 
 USER coder
 

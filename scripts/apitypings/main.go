@@ -415,15 +415,6 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 	case *types.Named:
 		n := ty
-		// First see if the type is defined elsewhere. If it is, we can just
-		// put the name as it will be defined in the typescript codeblock
-		// we generate.
-		name := n.Obj().Name()
-		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
-			// Sweet! Using other typescript types as fields. This could be an
-			// enum or another struct
-			return TypescriptType{ValueType: name}, nil
-		}
 
 		// These are external named types that we handle uniquely.
 		switch n.String() {
@@ -434,10 +425,22 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "database/sql.NullTime":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
+		case "github.com/coder/coder/codersdk.NullTime":
+			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.NullUUID":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.UUID":
 			return TypescriptType{ValueType: "string"}, nil
+		}
+
+		// Then see if the type is defined elsewhere. If it is, we can just
+		// put the name as it will be defined in the typescript codeblock
+		// we generate.
+		name := n.Obj().Name()
+		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
+			// Sweet! Using other typescript types as fields. This could be an
+			// enum or another struct
+			return TypescriptType{ValueType: name}, nil
 		}
 
 		// If it's a struct, just use the name of the struct type
