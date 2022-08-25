@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,8 +18,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 
 	"cdr.dev/slog"
 
@@ -670,36 +669,38 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		// Fix for Safari 15.1:
-		// There is a bug in latest Safari in which compressed web socket traffic
-		// isn't handled correctly. Turning off compression is a workaround:
-		// https://github.com/nhooyr/websocket/issues/218
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		api.Logger.Warn(r.Context(), "accept websocket connection", slog.Error(err))
+	h := rw.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no")
+
+	f, ok := rw.(http.Flusher)
+	if !ok {
 		return
 	}
-	defer c.Close(websocket.StatusInternalError, "internal error")
 
-	// Makes the websocket connection write-only
-	ctx := c.CloseRead(r.Context())
+	_, err := io.WriteString(rw, ": ping\n\n")
+	if err != nil {
+		return
+	}
+	f.Flush()
 
-	// Send a heartbeat every 15 seconds to avoid the websocket being killed.
+	// Send a heartbeat every 15 seconds to avoid the connection being killed.
 	go func() {
 		ticker := time.NewTicker(time.Second * 15)
 		defer ticker.Stop()
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.Context().Done():
 				return
 			case <-ticker.C:
-				err := c.Ping(ctx)
+				_, err := io.WriteString(rw, ": ping\n\n")
 				if err != nil {
 					return
 				}
+				f.Flush()
 			}
 		}
 	}()
@@ -711,7 +712,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		case <-t.C:
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = wsjson.Write(ctx, c, codersdk.Response{
+				_ = httpapi.Event(rw, codersdk.Response{
 					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
@@ -719,8 +720,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			}
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = wsjson.Write(ctx, c, codersdk.Response{
-					Message: "Internal error fetching workspace build.",
+				_ = httpapi.Event(rw, codersdk.Response{
+					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
 				return
@@ -820,7 +821,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			err = group.Wait()
 			if err != nil {
-				_ = wsjson.Write(ctx, c, codersdk.Response{
+				_ = httpapi.Event(rw, codersdk.Response{
 					Message: "Internal error fetching resource.",
 					Detail:  err.Error(),
 				})
@@ -828,8 +829,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			}
 			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
 			apiWorkspace.LatestBuild.Resources = apiResources
-			_ = wsjson.Write(ctx, c, apiWorkspace)
-		case <-ctx.Done():
+			_ = httpapi.Event(rw, apiWorkspace)
+		case <-r.Context().Done():
 			return
 		}
 	}

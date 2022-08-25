@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -131,4 +132,37 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	}
 
 	return msg
+}
+
+func Event(rw http.ResponseWriter, event interface{}) error {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(true)
+	err := enc.Encode(struct {
+		Data interface{} `json:"data"`
+	}{Data: event})
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	_, err = buf.Write([]byte{'\n'})
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	_, err = rw.Write(buf.Bytes())
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	f, ok := rw.(http.Flusher)
+	if !ok {
+		return xerrors.New("http.ResponseWriter is not http.Flusher")
+	}
+	f.Flush()
+
+	return nil
 }
