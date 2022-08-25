@@ -475,6 +475,40 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const getLicenses = `-- name: GetLicenses :many
+SELECT id, uploaded_at, jwt, exp
+FROM licenses
+ORDER BY (id)
+`
+
+func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
+	rows, err := q.db.QueryContext(ctx, getLicenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []License
+	for rows.Next() {
+		var i License
+		if err := rows.Scan(
+			&i.ID,
+			&i.UploadedAt,
+			&i.JWT,
+			&i.Exp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertLicense = `-- name: InsertLicense :one
 INSERT INTO
 	licenses (

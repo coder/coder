@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
@@ -108,6 +109,10 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
+
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
+
 	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
@@ -270,6 +275,9 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
+
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -357,7 +365,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
+	defer wsNetConn.Close()          // Also closes conn.
+	trace.SpanFromContext(ctx).End() // end span so we don't get long lived trace data
 
 	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
@@ -570,6 +579,9 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 		return
 	}
 	defer subCancel()
+
+	// end span so we don't get long lived trace data
+	trace.SpanFromContext(ctx).End()
 
 	// Wait for the connection to close or the client to send a message.
 	//nolint:dogsled

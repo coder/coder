@@ -13,6 +13,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
@@ -25,12 +26,6 @@ dayjs.extend(advancedFormat)
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
-
-export const Language = {
-  schedule: "Schedule",
-  editDeadlineMinus: "Subtract one hour",
-  editDeadlinePlus: "Add one hour",
-}
 
 export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
@@ -57,6 +52,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   deadlineMinusEnabled,
   canUpdateWorkspace,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
@@ -78,7 +74,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
               disabled={!deadlineMinusEnabled()}
               onClick={onDeadlineMinus}
             >
-              <Tooltip title={Language.editDeadlineMinus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
                 <RemoveIcon />
               </Tooltip>
             </IconButton>
@@ -88,7 +84,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
               disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
-              <Tooltip title={Language.editDeadlinePlus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
                 <AddIcon />
               </Tooltip>
             </IconButton>
@@ -104,7 +100,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           }}
           className={styles.scheduleButton}
         >
-          {Language.schedule}
+          {t("workspaceScheduleButton.schedule")}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}

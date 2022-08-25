@@ -158,7 +158,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err = AuthorizeFilter(api, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -503,7 +503,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only include ones we can read from RBAC.
-	memberships, err = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
+	memberships, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, memberships)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching memberships.",
@@ -631,7 +631,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, organizations)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",
@@ -1000,7 +1000,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0),
+		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
 	}
 
 	for _, roleName := range user.RBACRoles {

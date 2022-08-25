@@ -292,7 +292,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api, r, rbac.ActionRead, templates)
+	templates, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, templates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching templates.",

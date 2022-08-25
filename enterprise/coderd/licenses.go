@@ -1,18 +1,21 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	_ "embed"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
-
-	"cdr.dev/slog"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
@@ -119,6 +122,7 @@ func newLicenseAPI(
 	r := chi.NewRouter()
 	a := &licenseAPI{router: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)
+	r.Get("/", a.licenses)
 	return a
 }
 
@@ -191,4 +195,71 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 		UploadedAt: dl.UploadedAt,
 		Claims:     c,
 	}
+}
+
+func (a *licenseAPI) licenses(rw http.ResponseWriter, r *http.Request) {
+	licenses, err := a.database.GetLicenses(r.Context())
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusOK, []codersdk.License{})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching licenses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	licenses, err = coderd.AuthorizeFilter(a.auth, r, rbac.ActionRead, licenses)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching licenses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	sdkLicenses, err := convertLicenses(licenses)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error parsing licenses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, sdkLicenses)
+}
+
+func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
+	var out []codersdk.License
+	for _, l := range licenses {
+		c, err := decodeClaims(l)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, convertLicense(l, c))
+	}
+	return out, nil
+}
+
+// decodeClaims decodes the JWT claims from the stored JWT.  Note here we do not validate the JWT
+// and just return the claims verbatim.  We want to include all licenses on the GET response, even
+// if they are expired, or signed by a key this version of Coder no longer considers valid.
+//
+// Also, we do not return the whole JWT itself because a signed JWT is a bearer token and we
+// want to limit the chance of it being accidentally leaked.
+func decodeClaims(l database.License) (jwt.MapClaims, error) {
+	parts := strings.Split(l.JWT, ".")
+	if len(parts) != 3 {
+		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
+	}
+	cb, err := base64.URLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
+	}
+	c := make(jwt.MapClaims)
+	d := json.NewDecoder(bytes.NewBuffer(cb))
+	d.UseNumber()
+	err = d.Decode(&c)
+	return c, err
 }

@@ -2272,8 +2272,8 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 
 func (q *fakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams) (database.License, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	l := database.License{
 		ID:         q.lastLicenseID + 1,
@@ -2284,6 +2284,15 @@ func (q *fakeQuerier) InsertLicense(
 	q.lastLicenseID = l.ID
 	q.licenses = append(q.licenses, l)
 	return l, nil
+}
+
+func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	results := append([]database.License{}, q.licenses...)
+	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
+	return results, nil
 }
 
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
