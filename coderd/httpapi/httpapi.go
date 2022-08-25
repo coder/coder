@@ -138,9 +138,14 @@ func Event(rw http.ResponseWriter, event interface{}) error {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
-	err := enc.Encode(struct {
-		Data interface{} `json:"data"`
-	}{Data: event})
+
+	_, err := buf.Write([]byte("data: "))
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	err = enc.Encode(event)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return err
