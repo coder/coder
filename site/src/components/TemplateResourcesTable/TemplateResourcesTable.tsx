@@ -55,7 +55,7 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
               //  If there is no agent, just display the resource name
               if (!agent) {
                 return (
-                  <TableRow>
+                  <TableRow key={resource.id}>
                     <TableCell className={styles.resourceNameCell}>
                       <AvatarData
                         title={resource.name}
