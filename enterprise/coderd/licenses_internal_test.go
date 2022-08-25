@@ -250,6 +250,7 @@ func TestDeleteLicense(t *testing.T) {
 		resp, err := client.Request(ctx, http.MethodDelete, "/api/v2/licenses/drivers", nil)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	})
 
 	t.Run("DELETE", func(t *testing.T) {
