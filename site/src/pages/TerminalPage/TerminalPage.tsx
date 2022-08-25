@@ -3,6 +3,7 @@ import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
 import { FitAddon } from "xterm-addon-fit"
@@ -11,7 +12,6 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../util/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
-import { colors } from "theme/colors"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
