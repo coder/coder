@@ -22,7 +22,7 @@ describe("Navbar", () => {
     )
     render(<App />)
     await waitFor(() => {
-      const link = screen.getByText(Language.audit)
+      const link = screen.getByText(Language.users) // TODO change after debugging
       expect(link).toBeDefined()
     })
   })
