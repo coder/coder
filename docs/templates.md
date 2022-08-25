@@ -300,6 +300,7 @@ We recommend source controlling your templates as you would other code.
 CI is as simple as running `coder templates push` with the appropriate
 credentials.
 
----
 
-Next: [Authentication & Secrets](templates/authentication.md) and [Workspaces](./workspaces.md)
+## Next Steps
+- Learn about [Authentication & Secrets](templates/authentication.md)
+- Learn about [Workspaces](workspaces.md)
