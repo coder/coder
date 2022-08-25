@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -93,7 +94,7 @@ func TestPagination(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			rw := httptest.NewRecorder()
-			r, err := http.NewRequest("GET", "https://example.com", nil)
+			r, err := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
 			require.NoError(t, err, "new request")
 
 			// Set query params

@@ -29,7 +29,7 @@ export interface WorkspacesPageViewProps {
   onFilter: (query: string) => void
 }
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
+export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewProps>> = ({
   isLoading,
   workspaceRefs,
   filter,

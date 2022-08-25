@@ -14,6 +14,7 @@ import (
 )
 
 // Testcliflag cannot run in parallel because it uses t.Setenv.
+//
 //nolint:paralleltest
 func TestCliflag(t *testing.T) {
 	t.Run("StringDefault", func(t *testing.T) {

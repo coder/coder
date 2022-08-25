@@ -18,7 +18,7 @@ export interface FooterProps {
   buildInfo?: TypesGen.BuildInfoResponse
 }
 
-export const Footer: React.FC<FooterProps> = ({ buildInfo }) => {
+export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildInfo }) => {
   const styles = useFooterStyles()
 
   const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})

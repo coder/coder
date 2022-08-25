@@ -9,7 +9,7 @@ export interface WorkspaceActionButtonProps {
   ariaLabel?: string
 }
 
-export const WorkspaceActionButton: FC<WorkspaceActionButtonProps> = ({
+export const WorkspaceActionButton: FC<React.PropsWithChildren<WorkspaceActionButtonProps>> = ({
   label,
   icon,
   onClick,

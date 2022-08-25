@@ -1,7 +1,7 @@
 import { useActor } from "@xstate/react"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import React, { useContext } from "react"
-import { Helmet } from "react-helmet"
+import { Helmet } from "react-helmet-async"
 import { Navigate, useLocation } from "react-router-dom"
 import { LoginErrors, SignInForm } from "../../components/SignInForm/SignInForm"
 import { pageTitle } from "../../util/page"

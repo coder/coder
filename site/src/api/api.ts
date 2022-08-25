@@ -145,6 +145,14 @@ export const getTemplateVersions = async (
   return response.data
 }
 
+export const updateTemplateMeta = async (
+  templateId: string,
+  data: TypesGen.UpdateTemplateMeta,
+): Promise<TypesGen.Template> => {
+  const response = await axios.patch<TypesGen.Template>(`/api/v2/templates/${templateId}`, data)
+  return response.data
+}
+
 export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
@@ -369,4 +377,9 @@ export const putWorkspaceExtension = async (
   newDeadline: dayjs.Dayjs,
 ): Promise<void> => {
   await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
+}
+
+export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
+  const response = await axios.get("/api/v2/entitlements")
+  return response.data
 }

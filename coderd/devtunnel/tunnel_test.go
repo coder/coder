@@ -52,6 +52,7 @@ func TestTunnel(t *testing.T) {
 	defer cancelTun()
 
 	server := http.Server{
+		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Log("got request for", r.URL)
 			// Going to use something _slightly_ exotic so that we can't accidentally get some
@@ -100,8 +101,8 @@ func TestTunnel(t *testing.T) {
 
 // fakeTunnelServer is a fake version of the real dev tunnel server.  It fakes 2 client interactions
 // that we want to test:
-//   1. Responding to a POST /tun from the client
-//   2. Sending an HTTP request down the wireguard connection
+//  1. Responding to a POST /tun from the client
+//  2. Sending an HTTP request down the wireguard connection
 //
 // Note that for 2, we don't implement a full proxy that accepts arbitrary requests, we just send
 // a test request over the Wireguard tunnel to make sure that we can listen.  The proxy behavior is
@@ -229,5 +230,9 @@ func (f *fakeTunnelServer) requestHTTP() (*http.Response, error) {
 		Transport: transport,
 		Timeout:   testutil.WaitLong,
 	}
-	return client.Get(fmt.Sprintf("http://[%s]:8090", clientIP))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, fmt.Sprintf("http://[%s]:8090", clientIP), nil)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(req)
 }

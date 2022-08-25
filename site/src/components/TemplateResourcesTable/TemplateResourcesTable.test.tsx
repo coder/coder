@@ -5,7 +5,7 @@ import { Language as AgentTooltipLanguage } from "../Tooltips/AgentHelpTooltip"
 import { Language as ResourceTooltipLanguage } from "../Tooltips/ResourcesHelpTooltip"
 import { TemplateResourcesProps, TemplateResourcesTable } from "./TemplateResourcesTable"
 
-const Component: FC<TemplateResourcesProps> = (props) => (
+const Component: FC<React.PropsWithChildren<TemplateResourcesProps>> = (props) => (
   <WrapperComponent>
     <TemplateResourcesTable {...props} />
   </WrapperComponent>

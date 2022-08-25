@@ -3,10 +3,10 @@ import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import { FC } from "react"
 
-const useStyles = makeStyles((theme: Theme) => ({
+const useStyles = makeStyles<Theme, ArrowProps>((theme: Theme) => ({
   arrowIcon: {
     color: fade(theme.palette.primary.contrastText, 0.7),
-    marginLeft: theme.spacing(1),
+    marginLeft: ({ margin }) => (margin ? theme.spacing(1) : 0),
     width: 16,
     height: 16,
   },
@@ -15,12 +15,16 @@ const useStyles = makeStyles((theme: Theme) => ({
   },
 }))
 
-export const OpenDropdown: FC = () => {
-  const styles = useStyles()
+interface ArrowProps {
+  margin?: boolean
+}
+
+export const OpenDropdown: FC<ArrowProps> = ({ margin = true }) => {
+  const styles = useStyles({ margin })
   return <KeyboardArrowDown className={styles.arrowIcon} />
 }
 
-export const CloseDropdown: FC = () => {
-  const styles = useStyles()
+export const CloseDropdown: FC<ArrowProps> = ({ margin = true }) => {
+  const styles = useStyles({ margin })
   return <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
 }

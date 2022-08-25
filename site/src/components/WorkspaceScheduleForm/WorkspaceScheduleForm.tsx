@@ -36,11 +36,12 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled",
-  errorNoTime: "Start time is required when auto-start is enabled",
-  errorTime: "Time must be in HH:mm format (24 hours)",
-  errorTimezone: "Invalid timezone",
-  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled",
+  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled.",
+  errorNoTime: "Start time is required when auto-start is enabled.",
+  errorTime: "Time must be in HH:mm format (24 hours).",
+  errorTimezone: "Invalid timezone.",
+  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled.",
+  errorTtlMax: "Please enter a limit that is less than or equal to 168 hours (7 days).",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
   dayMondayLabel: "Monday",
@@ -54,7 +55,7 @@ export const Language = {
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
-  ttlCausesShutdownAfterStart: "after start",
+  ttlCausesShutdownAfterStart: "after its next start",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
   startSection: "Start",
@@ -159,7 +160,7 @@ export const validationSchema = Yup.object({
   ttl: Yup.number()
     .integer()
     .min(0)
-    .max(24 * 7 /* 7 days */)
+    .max(24 * 7 /* 7 days */, Language.errorTtlMax)
     .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
       if (parent.autoStopEnabled) {
@@ -170,7 +171,7 @@ export const validationSchema = Yup.object({
     }),
 })
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceScheduleFormProps>> = ({
   submitScheduleError,
   initialValues,
   isLoading,
@@ -221,7 +222,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
-          {submitScheduleError && <ErrorSummary error={submitScheduleError} />}
+          {submitScheduleError ? <ErrorSummary error={submitScheduleError} /> : <></>}
           <Section title={Language.startSection}>
             <FormControlLabel
               control={

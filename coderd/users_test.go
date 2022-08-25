@@ -551,7 +551,7 @@ func TestGrantSiteRoles(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 	var err error
 
 	admin := coderdtest.New(t, nil)
@@ -563,17 +563,19 @@ func TestGrantSiteRoles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, randOrgUser := coderdtest.CreateAnotherUserWithUser(t, admin, randOrg.ID, rbac.RoleOrgAdmin(randOrg.ID))
+	userAdmin := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
 
 	const newUser = "newUser"
 
 	testCases := []struct {
-		Name         string
-		Client       *codersdk.Client
-		OrgID        uuid.UUID
-		AssignToUser string
-		Roles        []string
-		Error        bool
-		StatusCode   int
+		Name          string
+		Client        *codersdk.Client
+		OrgID         uuid.UUID
+		AssignToUser  string
+		Roles         []string
+		ExpectedRoles []string
+		Error         bool
+		StatusCode    int
 	}{
 		{
 			Name:         "OrgRoleInSite",
@@ -650,7 +652,20 @@ func TestGrantSiteRoles(t *testing.T) {
 			OrgID:        first.OrganizationID,
 			AssignToUser: newUser,
 			Roles:        []string{rbac.RoleOrgAdmin(first.OrganizationID)},
-			Error:        false,
+			ExpectedRoles: []string{
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+			Error: false,
+		},
+		{
+			Name:         "UserAdminMakeMember",
+			Client:       userAdmin,
+			AssignToUser: newUser,
+			Roles:        []string{rbac.RoleMember()},
+			ExpectedRoles: []string{
+				rbac.RoleMember(),
+			},
+			Error: false,
 		},
 	}
 
@@ -671,16 +686,21 @@ func TestGrantSiteRoles(t *testing.T) {
 				c.AssignToUser = newUser.ID.String()
 			}
 
+			var newRoles []codersdk.Role
 			if c.OrgID != uuid.Nil {
 				// Org assign
-				_, err = c.Client.UpdateOrganizationMemberRoles(ctx, c.OrgID, c.AssignToUser, codersdk.UpdateRoles{
+				var mem codersdk.OrganizationMember
+				mem, err = c.Client.UpdateOrganizationMemberRoles(ctx, c.OrgID, c.AssignToUser, codersdk.UpdateRoles{
 					Roles: c.Roles,
 				})
+				newRoles = mem.Roles
 			} else {
 				// Site assign
-				_, err = c.Client.UpdateUserRoles(ctx, c.AssignToUser, codersdk.UpdateRoles{
+				var user codersdk.User
+				user, err = c.Client.UpdateUserRoles(ctx, c.AssignToUser, codersdk.UpdateRoles{
 					Roles: c.Roles,
 				})
+				newRoles = user.Roles
 			}
 
 			if c.Error {
@@ -688,6 +708,11 @@ func TestGrantSiteRoles(t *testing.T) {
 				requireStatusCode(t, err, c.StatusCode)
 			} else {
 				require.NoError(t, err)
+				roles := make([]string, 0, len(newRoles))
+				for _, r := range newRoles {
+					roles = append(roles, r.Name)
+				}
+				require.ElementsMatch(t, roles, c.ExpectedRoles)
 			}
 		})
 	}
@@ -808,7 +833,7 @@ func TestUsersFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
@@ -1149,7 +1174,7 @@ func TestSuspendedPagination(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -1195,7 +1220,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	// This test takes longer than a long time.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)

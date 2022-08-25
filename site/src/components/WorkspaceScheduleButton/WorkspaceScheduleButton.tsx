@@ -13,6 +13,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
@@ -26,12 +27,6 @@ dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
-export const Language = {
-  schedule: "Schedule",
-  editDeadlineMinus: "Subtract one hour",
-  editDeadlinePlus: "Add one hour",
-}
-
 export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   if (!isWorkspaceOn(workspace)) {
     return false
@@ -40,20 +35,12 @@ export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   return deadline.year() > 1
 }
 
-export const deadlineMinusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta <= 30 * 60 * 1000 // 30 minutes
-}
-
-export const deadlinePlusDisabled = (workspace: Workspace, now: dayjs.Dayjs): boolean => {
-  const delta = dayjs(workspace.latest_build.deadline).diff(now)
-  return delta >= 24 * 60 * 60 * 1000 // 24 hours
-}
-
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
   onDeadlineMinus: () => void
+  deadlineMinusEnabled: () => boolean
+  deadlinePlusEnabled: () => boolean
   canUpdateWorkspace: boolean
 }
 
@@ -61,8 +48,11 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
+  deadlinePlusEnabled,
+  deadlineMinusEnabled,
   canUpdateWorkspace,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
@@ -81,20 +71,20 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlineMinusDisabled(workspace, dayjs())}
+              disabled={!deadlineMinusEnabled()}
               onClick={onDeadlineMinus}
             >
-              <Tooltip title={Language.editDeadlineMinus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
                 <RemoveIcon />
               </Tooltip>
             </IconButton>
             <IconButton
               className={styles.iconButton}
               size="small"
-              disabled={deadlinePlusDisabled(workspace, dayjs())}
+              disabled={!deadlinePlusEnabled()}
               onClick={onDeadlinePlus}
             >
-              <Tooltip title={Language.editDeadlinePlus}>
+              <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
                 <AddIcon />
               </Tooltip>
             </IconButton>
@@ -110,7 +100,7 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           }}
           className={styles.scheduleButton}
         >
-          {Language.schedule}
+          {t("workspaceScheduleButton.schedule")}
         </Button>
         <Popover
           classes={{ paper: styles.popoverPaper }}

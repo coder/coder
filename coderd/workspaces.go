@@ -32,8 +32,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-const workspaceDefaultTTL = 2 * time.Hour
-
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
@@ -145,7 +143,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+	workspaces, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -310,11 +308,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
 		})
 		return
-	}
-
-	if !dbTTL.Valid {
-		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
-		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(workspaceDefaultTTL))}
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
@@ -891,6 +884,7 @@ func convertWorkspace(
 		TemplateID:        workspace.TemplateID,
 		LatestBuild:       convertWorkspaceBuild(owner, initiator, workspace, workspaceBuild, job),
 		TemplateName:      template.Name,
+		TemplateIcon:      template.Icon,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
 		AutostartSchedule: autostartSchedule,
@@ -922,7 +916,8 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 		return sql.NullInt64{}, errTTLMax
 	}
 
-	if truncated > max {
+	// template level
+	if max > 0 && truncated > max {
 		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be below template maximum %s", max.String())
 	}
 
@@ -1048,11 +1043,4 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
-}
-
-func min(x, y int64) int64 {
-	if x < y {
-		return x
-	}
-	return y
 }

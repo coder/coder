@@ -15,6 +15,7 @@ import (
 )
 
 func TestRoot(t *testing.T) {
+	t.Parallel()
 	t.Run("FormatCobraError", func(t *testing.T) {
 		t.Parallel()
 

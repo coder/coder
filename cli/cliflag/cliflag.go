@@ -6,8 +6,7 @@
 //
 // Will produce the following usage docs:
 //
-//   -a, --address string              The address to serve the API and dashboard (uses $CODER_ADDRESS). (default "127.0.0.1:3000")
-//
+//	-a, --address string              The address to serve the API and dashboard (uses $CODER_ADDRESS). (default "127.0.0.1:3000")
 package cliflag
 
 import (

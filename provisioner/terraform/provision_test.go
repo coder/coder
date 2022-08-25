@@ -61,11 +61,10 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 }
 
 func TestProvision_Cancel(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("This test uses interrupts and is not supported on Windows")
 	}
-
-	t.Parallel()
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
@@ -100,7 +99,7 @@ func TestProvision_Cancel(t *testing.T) {
 
 			// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
 			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
-			err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 			require.NoError(t, err)
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{

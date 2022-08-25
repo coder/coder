@@ -74,6 +74,7 @@ type Options struct {
 
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD bool
+	APIBuilder          func(*coderd.Options) *coderd.API
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -103,6 +104,14 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+	client, closer, _ := newWithAPI(t, options)
+	return client, closer
+}
+
+// newWithAPI constructs an in-memory API instance and returns a client to talk to it.
+// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
+// Do not expose the API or wrath shall descend upon thee.
+func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -122,6 +131,9 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		t.Cleanup(func() {
 			close(options.AutobuildStats)
 		})
+	}
+	if options.APIBuilder == nil {
+		options.APIBuilder = coderd.New
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -178,7 +190,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	})
 
 	// We set the handler after server creation for the access URL.
-	coderAPI := coderd.New(&coderd.Options{
+	coderAPI := options.APIBuilder(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
@@ -214,7 +226,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		_ = provisionerCloser.Close()
 	})
 
-	return codersdk.New(serverURL), provisionerCloser
+	return codersdk.New(serverURL), provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work

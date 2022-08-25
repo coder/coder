@@ -7,7 +7,7 @@ import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../u
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
-interface AccountFormValues {
+export interface AccountFormValues {
   username: string
 }
 
@@ -22,6 +22,7 @@ const validationSchema = Yup.object({
 })
 
 export interface AccountFormProps {
+  editable: boolean
   email: string
   isLoading: boolean
   initialValues: AccountFormValues
@@ -31,7 +32,8 @@ export interface AccountFormProps {
   initialTouched?: FormikTouched<AccountFormValues>
 }
 
-export const AccountForm: FC<AccountFormProps> = ({
+export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
+  editable,
   email,
   isLoading,
   onSubmit,
@@ -51,7 +53,7 @@ export const AccountForm: FC<AccountFormProps> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateProfileError && <ErrorSummary error={updateProfileError} />}
+          {updateProfileError ? <ErrorSummary error={updateProfileError} /> : <></>}
           <TextField
             disabled
             fullWidth
@@ -62,14 +64,22 @@ export const AccountForm: FC<AccountFormProps> = ({
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
+            aria-disabled={!editable}
             autoComplete="username"
+            disabled={!editable}
             fullWidth
             label={Language.usernameLabel}
             variant="outlined"
           />
 
           <div>
-            <LoadingButton loading={isLoading} type="submit" variant="contained">
+            <LoadingButton
+              loading={isLoading}
+              aria-disabled={!editable}
+              disabled={!editable}
+              type="submit"
+              variant="contained"
+            >
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>

@@ -33,7 +33,11 @@ const useHelpTooltip = () => {
   return helpTooltipContext
 }
 
-export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size = "medium" }) => {
+export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = ({
+  children,
+  open,
+  size = "medium",
+}) => {
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(!!open)
@@ -92,19 +96,22 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ children, open, size =
   )
 }
 
-export const HelpTooltipTitle: React.FC = ({ children }) => {
+export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return <h4 className={styles.title}>{children}</h4>
 }
 
-export const HelpTooltipText: React.FC = ({ children }) => {
+export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return <p className={styles.text}>{children}</p>
 }
 
-export const HelpTooltipLink: React.FC<{ href: string }> = ({ children, href }) => {
+export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>> = ({
+  children,
+  href,
+}) => {
   const styles = useStyles()
 
   return (
@@ -115,11 +122,13 @@ export const HelpTooltipLink: React.FC<{ href: string }> = ({ children, href }) 
   )
 }
 
-export const HelpTooltipAction: React.FC<{
-  icon: Icon
-  onClick: () => void
-  ariaLabel?: string
-}> = ({ children, icon: Icon, onClick, ariaLabel }) => {
+export const HelpTooltipAction: React.FC<
+  React.PropsWithChildren<{
+    icon: Icon
+    onClick: () => void
+    ariaLabel?: string
+  }>
+> = ({ children, icon: Icon, onClick, ariaLabel }) => {
   const styles = useStyles()
   const tooltip = useHelpTooltip()
 
@@ -139,7 +148,7 @@ export const HelpTooltipAction: React.FC<{
   )
 }
 
-export const HelpTooltipLinksGroup: React.FC = ({ children }) => {
+export const HelpTooltipLinksGroup: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const styles = useStyles()
 
   return (

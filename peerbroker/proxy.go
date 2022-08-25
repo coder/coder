@@ -40,16 +40,19 @@ type ProxyOptions struct {
 // PubSub is used to geodistribute WebRTC handshakes. All negotiation
 // messages are small in size (<=8KB), and we don't require delivery
 // guarantees because connections can always be renegotiated.
-//                           ┌────────────────────┐   ┌─────────────────────────────┐
-//                           │      coderd        │   │          coderd             │
+//
+//	┌────────────────────┐   ┌─────────────────────────────┐
+//	│      coderd        │   │          coderd             │
+//
 // ┌─────────────────────┐   │/<agent-id>/connect │   │    /<agent-id>/listen       │
 // │       client        │   │                    │   │                             │   ┌─────┐
 // │                     ├──►│Creates a stream ID │◄─►│Subscribe() to the <agent-id>│◄──┤agent│
 // │NegotiateConnection()│   │and Publish() to the│   │channel. Parse the stream ID │   └─────┘
 // └─────────────────────┘   │<agent-id> channel: │   │from payloads to create new  │
-//                           │                    │   │NegotiateConnection() streams│
-//                           │<stream-id><payload>│   │or write to existing ones.   │
-//                           └────────────────────┘   └─────────────────────────────┘
+//
+//	│                    │   │NegotiateConnection() streams│
+//	│<stream-id><payload>│   │or write to existing ones.   │
+//	└────────────────────┘   └─────────────────────────────┘
 func ProxyDial(client proto.DRPCPeerBrokerClient, options ProxyOptions) (io.Closer, error) {
 	proxyDial := &proxyDial{
 		channelID:  options.ChannelID,

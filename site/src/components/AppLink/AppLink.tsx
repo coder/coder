@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
 
@@ -13,13 +13,20 @@ export const Language = {
 export interface AppLinkProps {
   userName: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
+  agentName: TypesGen.WorkspaceAgent["name"]
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
 }
 
-export const AppLink: FC<AppLinkProps> = ({ userName, workspaceName, appName, appIcon }) => {
+export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
+  userName,
+  workspaceName,
+  agentName,
+  appName,
+  appIcon,
+}) => {
   const styles = useStyles()
-  const href = `/@${userName}/${workspaceName}/apps/${appName}`
+  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${appName}`
 
   return (
     <Link

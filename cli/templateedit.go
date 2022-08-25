@@ -15,6 +15,7 @@ func templateEdit() *cobra.Command {
 	var (
 		name                 string
 		description          string
+		icon                 string
 		maxTTL               time.Duration
 		minAutostartInterval time.Duration
 	)
@@ -24,7 +25,7 @@ func templateEdit() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Short: "Edit the metadata of a template by name.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
@@ -41,6 +42,7 @@ func templateEdit() *cobra.Command {
 			req := codersdk.UpdateTemplateMeta{
 				Name:                       name,
 				Description:                description,
+				Icon:                       icon,
 				MaxTTLMillis:               maxTTL.Milliseconds(),
 				MinAutostartIntervalMillis: minAutostartInterval.Milliseconds(),
 			}
@@ -56,8 +58,9 @@ func templateEdit() *cobra.Command {
 
 	cmd.Flags().StringVarP(&name, "name", "", "", "Edit the template name")
 	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
-	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown")
-	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", 0, "Edit the template minimum autostart interval")
+	cmd.Flags().StringVarP(&icon, "icon", "", "", "Edit the template icon path")
+	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown - workspaces created from this template cannot stay running longer than this.")
+	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", 0, "Edit the template minimum autostart interval - workspaces created from this template must wait at least this long between autostarts.")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd

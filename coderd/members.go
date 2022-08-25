@@ -105,11 +105,17 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 }
 
 func convertOrganizationMember(mem database.OrganizationMember) codersdk.OrganizationMember {
-	return codersdk.OrganizationMember{
+	convertedMember := codersdk.OrganizationMember{
 		UserID:         mem.UserID,
 		OrganizationID: mem.OrganizationID,
 		CreatedAt:      mem.CreatedAt,
 		UpdatedAt:      mem.UpdatedAt,
-		Roles:          mem.Roles,
+		Roles:          make([]codersdk.Role, 0, len(mem.Roles)),
 	}
+
+	for _, roleName := range mem.Roles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedMember.Roles = append(convertedMember.Roles, convertRole(rbacRole))
+	}
+	return convertedMember
 }

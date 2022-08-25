@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -58,7 +59,42 @@ func init() {
 	cobra.AddTemplateFuncs(templateFunctions)
 }
 
-func Root() *cobra.Command {
+func Core() []*cobra.Command {
+	return []*cobra.Command{
+		configSSH(),
+		create(),
+		deleteWorkspace(),
+		dotfiles(),
+		gitssh(),
+		list(),
+		login(),
+		logout(),
+		parameters(),
+		portForward(),
+		publickey(),
+		resetPassword(),
+		schedules(),
+		show(),
+		ssh(),
+		start(),
+		state(),
+		stop(),
+		templates(),
+		update(),
+		users(),
+		versionCmd(),
+		wireguardPortForward(),
+		workspaceAgent(),
+		features(),
+	}
+}
+
+func AGPL() []*cobra.Command {
+	all := append(Core(), Server(coderd.New))
+	return all
+}
+
+func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
@@ -78,7 +114,7 @@ func Root() *cobra.Command {
 					return nil
 				}
 
-				client, err := createClient(cmd)
+				client, err := CreateClient(cmd)
 				// If the client is unauthenticated we can ignore the check.
 				// The child commands should handle an unauthenticated client.
 				if xerrors.Is(err, errUnauthenticated) {
@@ -109,34 +145,7 @@ func Root() *cobra.Command {
 		),
 	}
 
-	cmd.AddCommand(
-		configSSH(),
-		create(),
-		deleteWorkspace(),
-		dotfiles(),
-		gitssh(),
-		list(),
-		login(),
-		logout(),
-		parameters(),
-		portForward(),
-		publickey(),
-		resetPassword(),
-		schedules(),
-		server(),
-		show(),
-		ssh(),
-		start(),
-		state(),
-		stop(),
-		templates(),
-		update(),
-		users(),
-		versionCmd(),
-		wireguardPortForward(),
-		workspaceAgent(),
-		features(),
-	)
+	cmd.AddCommand(subcommands...)
 
 	cmd.SetUsageTemplate(usageTemplate())
 
@@ -181,9 +190,9 @@ func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-// createClient returns a new client from the command context.
+// CreateClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
-func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
+func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	root := createConfig(cmd)
 	rawURL, err := cmd.Flags().GetString(varURL)
 	if err != nil || rawURL == "" {
@@ -217,7 +226,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 }
 
 // createAgentClient returns a new client from the command context.
-// It works just like createClient, but uses the agent token and URL instead.
+// It works just like CreateClient, but uses the agent token and URL instead.
 func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	rawURL, err := cmd.Flags().GetString(varAgentURL)
 	if err != nil {

@@ -361,7 +361,9 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 }
 
 // roleName is a quick helper function to return
-// 	role_name:scopeID
+//
+//	role_name:scopeID
+//
 // If no scopeID is required, only 'role_name' is returned
 func roleName(name string, orgID string) string {
 	if orgID == "" {

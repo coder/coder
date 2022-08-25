@@ -61,6 +61,16 @@ export const MockUser: TypesGen.User = {
   roles: [MockOwnerRole],
 }
 
+export const MockUserAdmin: TypesGen.User = {
+  id: "test-user",
+  username: "TestUser",
+  email: "test@coder.com",
+  created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [MockUserAdminRole],
+}
+
 export const MockUser2: TypesGen.User = {
   id: "test-user-2",
   username: "TestUser2",
@@ -146,15 +156,16 @@ export const MockTemplate: TypesGen.Template = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
-  name: "Test Template",
+  name: "test-template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,
   description: "This is a test description.",
-  max_ttl_ms: 604800000,
-  min_autostart_interval_ms: 3600000,
+  max_ttl_ms: 24 * 60 * 60 * 1000,
+  min_autostart_interval_ms: 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
+  icon: "/icon/code.svg",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -207,6 +218,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   updated_at: "",
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
+  template_icon: MockTemplate.icon,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -634,3 +646,22 @@ export const makeMockApiError = ({
   },
   isAxiosError: true,
 })
+
+export const MockEntitlements: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: false,
+  features: {},
+}
+
+export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  warnings: ["You are over your active user limit.", "And another thing."],
+  has_license: true,
+  features: {
+    activeUsers: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 100,
+      actual: 102,
+    },
+  },
+}

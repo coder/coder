@@ -33,7 +33,7 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
 }
 
-export const Resources: FC<ResourcesProps> = ({
+export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
   getResourcesError,
   workspace,
@@ -131,6 +131,7 @@ export const Resources: FC<ResourcesProps> = ({
                                   appName={app.name}
                                   userName={workspace.owner_name}
                                   workspaceName={workspace.name}
+                                  agentName={agent.name}
                                 />
                               ))}
                             </div>

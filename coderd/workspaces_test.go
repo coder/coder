@@ -191,6 +191,26 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	})
 
+	t.Run("TemplateNoTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = ptr.Ref(int64(0))
+		})
+		// Given: the template has no max TTL set
+		require.Zero(t, template.MaxTTLMillis)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// When: we create a workspace with autostop not enabled
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = ptr.Ref(int64(0))
+		})
+		// Then: No TTL should be set by the template
+		require.Nil(t, workspace.TTLMillis)
+	})
+
 	t.Run("TemplateCustomTTL", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
@@ -402,7 +422,7 @@ func TestWorkspaceFilter(t *testing.T) {
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	users := make([]coderUser, 0)
 	for i := 0; i < 10; i++ {
@@ -1050,6 +1070,17 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
 			expectedError:  "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
+		},
+		{
+			name:           "no template maximum ttl",
+			ttlMillis:      ptr.Ref((7 * 24 * time.Hour).Milliseconds()),
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
+		},
+		{
+			name:           "above maximum ttl even with no template max",
+			ttlMillis:      ptr.Ref((365 * 24 * time.Hour).Milliseconds()),
+			expectedError:  "ttl_ms: time until shutdown must be less than 7 days",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
 		},
 	}
 

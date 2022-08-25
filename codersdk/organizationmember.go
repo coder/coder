@@ -11,5 +11,5 @@ type OrganizationMember struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	Roles          []string  `db:"roles" json:"roles"`
+	Roles          []Role    `db:"roles" json:"roles"`
 }

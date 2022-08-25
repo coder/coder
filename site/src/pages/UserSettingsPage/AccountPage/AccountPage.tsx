@@ -11,7 +11,8 @@ export const Language = {
 export const AccountPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
-  const { me, updateProfileError } = authState.context
+  const { me, permissions, updateProfileError } = authState.context
+  const canEditUsers = permissions && permissions.updateUsers
 
   if (!me) {
     throw new Error("No current user found")
@@ -20,10 +21,13 @@ export const AccountPage: React.FC = () => {
   return (
     <Section title={Language.title}>
       <AccountForm
+        editable={Boolean(canEditUsers)}
         email={me.email}
         updateProfileError={updateProfileError}
         isLoading={authState.matches("signedIn.profile.updatingProfile")}
-        initialValues={{ username: me.username }}
+        initialValues={{
+          username: me.username,
+        }}
         onSubmit={(data) => {
           authSend({
             type: "UPDATE_PROFILE",

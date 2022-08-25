@@ -1,7 +1,7 @@
 import Avatar from "@material-ui/core/Avatar"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "../../util/firstLetter"
 import {
@@ -12,13 +12,13 @@ import {
 
 export interface AvatarDataProps {
   title: string
-  subtitle: string
+  subtitle?: string
   highlightTitle?: boolean
   link?: string
   avatar?: React.ReactNode
 }
 
-export const AvatarData: FC<AvatarDataProps> = ({
+export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
   title,
   subtitle,
   link,
@@ -39,13 +39,13 @@ export const AvatarData: FC<AvatarDataProps> = ({
         <Link to={link} underline="none" component={RouterLink}>
           <TableCellData>
             <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-            <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+            {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
           </TableCellData>
         </Link>
       ) : (
         <TableCellData>
           <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-          <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+          {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
         </TableCellData>
       )}
     </div>
