@@ -726,14 +726,81 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			var (
-				group    errgroup.Group
-				job      database.ProvisionerJob
-				template database.Template
-				users    []database.User
+				group        errgroup.Group
+				job          database.ProvisionerJob
+				template     database.Template
+				users        []database.User
+				apiResources []codersdk.WorkspaceResource
 			)
 			group.Go(func() (err error) {
 				job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
-				return err
+				if err != nil {
+					return err
+				}
+
+				if !job.CompletedAt.Valid {
+					return nil
+				}
+
+				resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return err
+				}
+
+				resourceIDs := make([]uuid.UUID, 0)
+				for _, resource := range resources {
+					resourceIDs = append(resourceIDs, resource.ID)
+				}
+
+				resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return err
+				}
+
+				resourceAgentIDs := make([]uuid.UUID, 0)
+				for _, agent := range resourceAgents {
+					resourceAgentIDs = append(resourceAgentIDs, agent.ID)
+				}
+
+				apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return err
+				}
+
+				resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
+				if err != nil {
+					return err
+				}
+
+				for _, resource := range resources {
+					agents := make([]codersdk.WorkspaceAgent, 0)
+					for _, agent := range resourceAgents {
+						if agent.ResourceID != resource.ID {
+							continue
+						}
+						dbApps := make([]database.WorkspaceApp, 0)
+						for _, app := range apps {
+							if app.AgentID == agent.ID {
+								dbApps = append(dbApps, app)
+							}
+						}
+
+						apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+						if err != nil {
+							return err
+						}
+						agents = append(agents, apiAgent)
+					}
+					metadata := make([]database.WorkspaceResourceMetadatum, 0)
+					for _, field := range resourceMetadata {
+						if field.WorkspaceResourceID == resource.ID {
+							metadata = append(metadata, field)
+						}
+					}
+					apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
+				}
+
+				return nil
 			})
 			group.Go(func() (err error) {
 				template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
@@ -751,9 +818,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-
-			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, build, job, template,
-				findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users)))
+			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
+			apiWorkspace.LatestBuild.Resources = apiResources
+			_ = wsjson.Write(ctx, c, apiWorkspace)
 		case <-ctx.Done():
 			return
 		}
