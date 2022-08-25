@@ -8,8 +8,13 @@ INSERT INTO
 VALUES
 	($1, $2, $3) RETURNING *;
 
-
 -- name: GetLicenses :many
 SELECT *
 FROM licenses
 ORDER BY (id);
+
+-- name: DeleteLicense :one
+DELETE
+FROM licenses
+WHERE id = $1
+RETURNING id;

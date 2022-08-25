@@ -475,6 +475,19 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const deleteLicense = `-- name: DeleteLicense :one
+DELETE
+FROM licenses
+WHERE id = $1
+RETURNING id
+`
+
+func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteLicense, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp
 FROM licenses

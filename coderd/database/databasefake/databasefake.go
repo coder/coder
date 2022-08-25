@@ -2301,6 +2301,20 @@ func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error)
 	return results, nil
 }
 
+func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, l := range q.licenses {
+		if l.ID == id {
+			q.licenses[index] = q.licenses[len(q.licenses)-1]
+			q.licenses = q.licenses[:len(q.licenses)-1]
+			return id, nil
+		}
+	}
+	return 0, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
