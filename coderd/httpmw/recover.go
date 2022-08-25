@@ -13,11 +13,11 @@ func Recover(log slog.Logger) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				err := recover()
-				if err != nil {
+				r := recover()
+				if r != nil {
 					log.Warn(context.Background(),
 						"panic serving http request (recovered)",
-						slog.F("err", err),
+						slog.F("panic", r),
 						slog.F("stack", string(debug.Stack())),
 					)
 

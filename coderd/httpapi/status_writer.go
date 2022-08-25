@@ -27,8 +27,8 @@ func (w *StatusWriter) WriteHeader(status int) {
 	if !w.wroteHeader {
 		w.Status = status
 		w.wroteHeader = true
-		w.ResponseWriter.WriteHeader(status)
 	}
+	w.ResponseWriter.WriteHeader(status)
 }
 
 func (w *StatusWriter) Write(b []byte) (int, error) {
@@ -36,6 +36,7 @@ func (w *StatusWriter) Write(b []byte) (int, error) {
 
 	if !w.wroteHeader {
 		w.Status = http.StatusOK
+		w.wroteHeader = true
 	}
 
 	if w.Status >= http.StatusBadRequest {
@@ -59,11 +60,11 @@ func minInt(a, b int) int {
 }
 
 func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	w.Hijacked = true
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
 		return nil, nil, xerrors.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
 	}
+	w.Hijacked = true
 
 	return hijacker.Hijack()
 }

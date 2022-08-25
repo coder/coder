@@ -27,7 +27,7 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 
 			sw, ok := rw.(*httpapi.StatusWriter)
 			if !ok {
-				panic("ResponseWriter not a *httpapi.StatusWriter?")
+				panic(fmt.Sprintf("ResponseWriter not a *httpapi.StatusWriter; got %T", rw))
 			}
 
 			// pass the span through the request context and serve the request to the next middleware
