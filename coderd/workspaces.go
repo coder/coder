@@ -735,7 +735,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			group.Go(func() (err error) {
 				job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
 				if err != nil {
-					return err
+					return xerrors.Errorf("fetching workspace build job: %w", err)
 				}
 
 				if !job.CompletedAt.Valid {
@@ -744,7 +744,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 				resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return err
+					return xerrors.Errorf("fetching workspace resources by job: %w", err)
 				}
 
 				resourceIDs := make([]uuid.UUID, 0)
@@ -754,7 +754,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 				resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return err
+					return xerrors.Errorf("fetching workspace agents: %w", err)
 				}
 
 				resourceAgentIDs := make([]uuid.UUID, 0)
@@ -764,7 +764,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 				apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return err
+					return xerrors.Errorf("fetching workspace apps: %w", err)
 				}
 
 				resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
@@ -787,7 +787,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 						apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 						if err != nil {
-							return err
+							return xerrors.Errorf("converting workspace agent: %w", err)
 						}
 						agents = append(agents, apiAgent)
 					}
@@ -804,11 +804,19 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			group.Go(func() (err error) {
 				template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-				return err
+				if err != nil {
+					return xerrors.Errorf("fetching template: %w", err)
+				}
+
+				return nil
 			})
 			group.Go(func() (err error) {
 				users, err = api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, build.InitiatorID})
-				return err
+				if err != nil {
+					return xerrors.Errorf("fetching users: %w", err)
+				}
+
+				return nil
 			})
 			err = group.Wait()
 			if err != nil {
