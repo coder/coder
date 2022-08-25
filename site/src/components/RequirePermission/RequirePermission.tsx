@@ -1,7 +1,7 @@
 import { FC } from "react"
 import { Navigate } from "react-router"
 
-export interface RequirePermissionProps  {
+export interface RequirePermissionProps {
   children: JSX.Element
   isFeatureVisible: boolean
 }

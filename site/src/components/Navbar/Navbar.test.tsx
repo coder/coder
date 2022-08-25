@@ -27,7 +27,7 @@ describe("Navbar", () => {
         const link = screen.getByText(Language.audit)
         expect(link).toBeDefined()
       },
-      { timeout: 2500 },
+      { timeout: 2000 },
     )
   })
 
@@ -40,7 +40,7 @@ describe("Navbar", () => {
         const link = screen.queryByText(Language.audit)
         expect(link).toBe(null)
       },
-      { timeout: 2500 },
+      { timeout: 2000 },
     )
   })
 
@@ -63,7 +63,7 @@ describe("Navbar", () => {
         const link = screen.queryByText(Language.audit)
         expect(link).toBe(null)
       },
-      { timeout: 2500 },
+      { timeout: 2000 },
     )
   })
 })
