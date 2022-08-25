@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -669,41 +668,14 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h := rw.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Connection", "keep-alive")
-	h.Set("X-Accel-Buffering", "no")
-
-	f, ok := rw.(http.Flusher)
-	if !ok {
-		return
-	}
-
-	_, err := io.WriteString(rw, ": ping\n\n")
+	err := httpapi.SetupSSE(rw, r)
 	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-side events.",
+			Detail:  err.Error(),
+		})
 		return
 	}
-	f.Flush()
-
-	// Send a heartbeat every 15 seconds to avoid the connection being killed.
-	go func() {
-		ticker := time.NewTicker(time.Second * 15)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case <-ticker.C:
-				_, err := io.WriteString(rw, ": ping\n\n")
-				if err != nil {
-					return
-				}
-				f.Flush()
-			}
-		}
-	}()
 
 	t := time.NewTicker(time.Second * 1)
 	defer t.Stop()
