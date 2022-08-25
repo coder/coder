@@ -148,6 +148,14 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 			ExpectedStatusCode: http.StatusBadRequest,
 		},
 		{
+			Name:               "NoAgentsSpecify",
+			WorkspaceName:      "dev",
+			Agents:             map[string][]string{},
+			URLParam:           "dev.agent",
+			ExpectedError:      "No agents exist",
+			ExpectedStatusCode: http.StatusBadRequest,
+		},
+		{
 			Name:          "MultipleAgents",
 			WorkspaceName: "dev",
 			Agents: map[string][]string{
@@ -229,6 +237,18 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 				},
 			},
 			URLParam:           "dev",
+			ExpectedAgent:      "agent-one",
+			ExpectedStatusCode: http.StatusOK,
+		},
+		{
+			Name:          "OneAgentSelected",
+			WorkspaceName: "dev",
+			Agents: map[string][]string{
+				"resource-a": {
+					"agent-one",
+				},
+			},
+			URLParam:           "dev.agent-one",
 			ExpectedAgent:      "agent-one",
 			ExpectedStatusCode: http.StatusOK,
 		},
