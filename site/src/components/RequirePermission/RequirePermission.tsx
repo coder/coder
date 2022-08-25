@@ -1,10 +1,10 @@
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import { Navigate } from "react-router"
 
-export interface RequirePermissionProps {
+export type RequirePermissionProps = PropsWithChildren<{
   children: JSX.Element
   isFeatureVisible: boolean
-}
+}>
 
 /**
  * Wraps routes that are available based on RBAC or licensing.
