@@ -11,6 +11,7 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../util/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
+import { colors } from "theme/colors"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -75,9 +76,7 @@ const TerminalPage: FC<
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        // This is a slight off-black.
-        // It's really easy on the eyes!
-        background: "#1F1F1F",
+        background: colors.gray[16],
       },
       rendererType: renderer,
     })
