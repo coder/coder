@@ -19,12 +19,12 @@ spec:
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
-  serviceAccountName: coder
   template:
     metadata:
       labels:
         {{- include "coder.selectorLabels" . | nindent 8 }}
     spec:
+      serviceAccountName: coder
       restartPolicy: Always
       terminationGracePeriodSeconds: 60
       containers:
