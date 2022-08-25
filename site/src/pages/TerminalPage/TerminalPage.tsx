@@ -12,7 +12,6 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../util/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
-import { colors } from "theme/colors"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
