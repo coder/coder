@@ -17,13 +17,13 @@ describe("Navbar", () => {
       }),
     )
     render(<Navbar />)
-    const link = await screen.findByText("Audit Log")
+    const link = await screen.findByText("Audit")
     expect(link).toBeDefined()
   })
 
   it("does not show Audit Log link when not entitled", () => {
     render(<Navbar />)
-    const link = screen.getByText("Audit Log")
+    const link = screen.getByText("Audit")
     expect(link).not.toBeDefined()
   })
 
@@ -34,7 +34,7 @@ describe("Navbar", () => {
       }),
     )
     render(<Navbar />)
-    const link = screen.getByText("Audit Log")
+    const link = screen.getByText("Audit")
     expect(link).not.toBeDefined()
   })
 })
