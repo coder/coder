@@ -34,18 +34,18 @@ func run() error {
 	s := bufio.NewScanner(dump)
 	query := ""
 	for s.Scan() {
-		line := s.Text()
+		line := strings.TrimSpace(s.Text())
 		switch {
 		case strings.HasPrefix(line, "--"):
 		case line == "":
 		case strings.HasSuffix(line, ";"):
-			query += strings.TrimSpace(line)
+			query += line
 			if isUniqueConstraint(query) {
 				uniqueConstraints = append(uniqueConstraints, query)
 			}
 			query = ""
 		default:
-			query += strings.TrimSpace(line) + " "
+			query += line + " "
 		}
 	}
 	if err = s.Err(); err != nil {
