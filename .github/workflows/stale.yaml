@@ -31,6 +31,5 @@ jobs:
             isn't more activity.
           # Upped from 30 since we have a big tracker and was hitting the limit.
           operations-per-run: 60
-          close-issue-reason: not_planned
           # Start with the oldest issues, always.
           ascending: true

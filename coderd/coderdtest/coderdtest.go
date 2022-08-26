@@ -68,6 +68,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 
@@ -103,6 +104,14 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+	client, closer, _ := newWithAPI(t, options)
+	return client, closer
+}
+
+// newWithAPI constructs an in-memory API instance and returns a client to talk to it.
+// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
+// Do not expose the API or wrath shall descend upon thee.
+func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -202,6 +211,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
+		AutoImportTemplates:  options.AutoImportTemplates,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()
@@ -216,7 +226,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 		_ = provisionerCloser.Close()
 	})
 
-	return codersdk.New(serverURL), provisionerCloser
+	return codersdk.New(serverURL), provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work

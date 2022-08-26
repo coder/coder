@@ -40,9 +40,7 @@ NoTTL.args = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
-      // SEE: #1834
-      deadline: "0001-01-01T00:00:00Z",
+      deadline: undefined,
     },
     ttl_ms: undefined,
   },

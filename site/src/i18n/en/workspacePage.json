@@ -1,0 +1,7 @@
+{
+  "workspaceScheduleButton": {
+    "schedule": "Schedule",
+    "editDeadlineMinus": "Subtract one hour",
+    "editDeadlinePlus": "Add one hour"
+  }
+}

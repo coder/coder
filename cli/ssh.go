@@ -33,8 +33,10 @@ import (
 	"github.com/coder/coder/peer/peerwg"
 )
 
-var workspacePollInterval = time.Minute
-var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
+var (
+	workspacePollInterval   = time.Minute
+	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
+)
 
 func ssh() *cobra.Command {
 	var (
@@ -385,7 +387,7 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		deadline = ws.LatestBuild.Deadline
+		deadline = ws.LatestBuild.Deadline.Time
 		callback = func() {
 			ttl := deadline.Sub(now)
 			var title, body string

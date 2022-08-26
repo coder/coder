@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
@@ -177,5 +178,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
 	}
 	proxy.Transport = conn.HTTPTransport()
+
+	// end span so we don't get long lived trace data
+	tracing.EndHTTPSpan(r, 200)
+
 	proxy.ServeHTTP(rw, r)
 }

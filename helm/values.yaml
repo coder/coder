@@ -16,6 +16,18 @@ coder:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
 
+  # coder.serviceAccount -- Configuration for the automatically created service
+  # account. Creation of the service account cannot be disabled.
+  serviceAccount:
+    # coder.serviceAccount.workspacePerms -- Whether or not to grant the coder
+    # service account permissions to manage workspaces. This includes
+    # permission to manage pods and persistent volume claims in the deployment
+    # namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
   # for information about what environment variables can be set.

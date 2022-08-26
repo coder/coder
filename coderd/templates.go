@@ -2,7 +2,9 @@ package coderd
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -24,6 +27,14 @@ import (
 var (
 	maxTTLDefault               = 24 * 7 * time.Hour
 	minAutostartIntervalDefault = time.Hour
+)
+
+// Auto-importable templates. These can be auto-imported after the first user
+// has been created.
+type AutoImportTemplate string
+
+const (
+	AutoImportTemplateKubernetes AutoImportTemplate = "kubernetes"
 )
 
 // Returns a single template.
@@ -173,8 +184,27 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	maxTTL := maxTTLDefault
-	if !ptr.NilOrZero(createTemplate.MaxTTLMillis) {
+	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+	if maxTTL < 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Must be a positive integer."},
+			},
+		})
+		return
+	}
+
+	if maxTTL > maxTTLDefault {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
 	}
 
 	minAutostartInterval := minAutostartIntervalDefault
@@ -273,7 +303,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api, r, rbac.ActionRead, templates)
+	templates, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, templates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching templates.",
@@ -384,6 +414,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MinAutostartIntervalMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
 	}
+	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid create template request.",
+			Validations: []codersdk.ValidationError{
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+			},
+		})
+		return
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -433,9 +472,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if icon == "" {
 			icon = template.Icon
 		}
-		if maxTTL == 0 {
-			maxTTL = time.Duration(template.MaxTtl)
-		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
@@ -481,6 +517,146 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
+}
+
+type autoImportTemplateOpts struct {
+	name    string
+	archive []byte
+	params  map[string]string
+	userID  uuid.UUID
+	orgID   uuid.UUID
+}
+
+func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateOpts) (database.Template, error) {
+	var template database.Template
+	err := api.Database.InTx(func(s database.Store) error {
+		// Insert the archive into the files table.
+		var (
+			hash = sha256.Sum256(opts.archive)
+			now  = database.Now()
+		)
+		file, err := s.InsertFile(ctx, database.InsertFileParams{
+			Hash:      hex.EncodeToString(hash[:]),
+			CreatedAt: now,
+			CreatedBy: opts.userID,
+			Mimetype:  "application/x-tar",
+			Data:      opts.archive,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert auto-imported template archive into files table: %w", err)
+		}
+
+		jobID := uuid.New()
+
+		// Insert parameters
+		for key, value := range opts.params {
+			_, err = s.InsertParameterValue(ctx, database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              key,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				Scope:             database.ParameterScopeImportJob,
+				ScopeID:           jobID,
+				SourceScheme:      database.ParameterSourceSchemeData,
+				SourceValue:       value,
+				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert job-scoped parameter %q with value %q: %w", key, value, err)
+			}
+		}
+
+		// Create provisioner job
+		job, err := s.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             jobID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			OrganizationID: opts.orgID,
+			InitiatorID:    opts.userID,
+			Provisioner:    database.ProvisionerTypeTerraform,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			StorageSource:  file.Hash,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte{'{', '}'},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+
+		// Create template version
+		templateVersion, err := s.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID: uuid.New(),
+			TemplateID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+			OrganizationID: opts.orgID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			Name:           namesgenerator.GetRandomName(1),
+			Readme:         "",
+			JobID:          job.ID,
+			CreatedBy: uuid.NullUUID{
+				UUID:  opts.userID,
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template version: %w", err)
+		}
+
+		// Create template
+		template, err = s.InsertTemplate(ctx, database.InsertTemplateParams{
+			ID:                   uuid.New(),
+			CreatedAt:            now,
+			UpdatedAt:            now,
+			OrganizationID:       opts.orgID,
+			Name:                 opts.name,
+			Provisioner:          job.Provisioner,
+			ActiveVersionID:      templateVersion.ID,
+			Description:          "This template was auto-imported by Coder.",
+			MaxTtl:               int64(maxTTLDefault),
+			MinAutostartInterval: int64(minAutostartIntervalDefault),
+			CreatedBy:            opts.userID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template: %w", err)
+		}
+
+		// Update template version with template ID
+		err = s.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+			ID: templateVersion.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("update template version to set template ID: %s", err)
+		}
+
+		// Insert parameters at the template scope
+		for key, value := range opts.params {
+			_, err = s.InsertParameterValue(ctx, database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              key,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				Scope:             database.ParameterScopeTemplate,
+				ScopeID:           template.ID,
+				SourceScheme:      database.ParameterSourceSchemeData,
+				SourceValue:       value,
+				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value, err)
+			}
+		}
+
+		return nil
+	})
+
+	return template, err
 }
 
 func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
