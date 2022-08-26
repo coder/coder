@@ -2341,6 +2341,21 @@ func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error)
 	return results, nil
 }
 
+func (q *fakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	now := time.Now()
+	var results []database.License
+	for _, l := range q.licenses {
+		if l.Exp.After(now) {
+			results = append(results, l)
+		}
+	}
+	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
+	return results, nil
+}
+
 func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

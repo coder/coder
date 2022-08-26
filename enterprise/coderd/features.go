@@ -135,7 +135,7 @@ func (s entitlementState) toSDK() codersdk.Entitlement {
 	case gracePeriod:
 		return codersdk.EntitlementGracePeriod
 	case entitled:
-		return codersdk.EntitlementGracePeriod
+		return codersdk.EntitlementEntitled
 	default:
 		panic("unknown entitlementState")
 	}
@@ -153,7 +153,7 @@ type entitlements struct {
 }
 
 func (s *featuresService) getEntitlements(ctx context.Context) (entitlements, error) {
-	licenses, err := s.database.GetLicenses(ctx)
+	licenses, err := s.database.GetUnexpiredLicenses(ctx)
 	if err != nil {
 		return entitlements{}, err
 	}

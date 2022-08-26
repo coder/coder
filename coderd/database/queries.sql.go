@@ -522,6 +522,41 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
+SELECT id, uploaded_at, jwt, exp
+FROM licenses
+WHERE exp > NOW()
+ORDER BY (id)
+`
+
+func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error) {
+	rows, err := q.db.QueryContext(ctx, getUnexpiredLicenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []License
+	for rows.Next() {
+		var i License
+		if err := rows.Scan(
+			&i.ID,
+			&i.UploadedAt,
+			&i.JWT,
+			&i.Exp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertLicense = `-- name: InsertLicense :one
 INSERT INTO
 	licenses (
