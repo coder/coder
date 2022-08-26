@@ -68,6 +68,7 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
+	FeaturesService      FeaturesService
 }
 
 // New constructs a Coder API handler.
@@ -96,6 +97,9 @@ func New(options *Options) *API {
 	}
 	if options.LicenseHandler == nil {
 		options.LicenseHandler = licenses()
+	}
+	if options.FeaturesService == nil {
+		options.FeaturesService = featuresService{}
 	}
 
 	siteCacheDir := options.CacheDir
@@ -404,7 +408,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/entitlements", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/", entitlements)
+			r.Get("/", api.FeaturesService.EntitlementsAPI)
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

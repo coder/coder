@@ -246,6 +246,19 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	active := int64(0)
+	for _, u := range q.users {
+		if u.Status == database.UserStatusActive {
+			active++
+		}
+	}
+	return active, nil
+}
+
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

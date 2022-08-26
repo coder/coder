@@ -2664,6 +2664,22 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const getActiveUserCount = `-- name: GetActiveUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+    status = 'active'::public.user_status
+`
+
+func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username is returned just to help for logging purposes

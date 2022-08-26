@@ -64,8 +64,9 @@ type Claims struct {
 }
 
 var (
-	ErrInvalidVersion = xerrors.New("license must be version 3")
-	ErrMissingKeyID   = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrInvalidVersion        = xerrors.New("license must be version 3")
+	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
 )
 
 // parseLicense parses the license and returns the claims. If the license's signature is invalid or
@@ -86,6 +87,30 @@ func parseLicense(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, e
 		}
 		if int64(version) != CurrentVersion {
 			return nil, ErrInvalidVersion
+		}
+		return claims, nil
+	}
+	return nil, xerrors.New("unable to parse Claims")
+}
+
+// validateDBLicense validates a database.License record, and if valid, returns the claims.  If
+// unparsable or invalid, it returns an error
+func validateDBLicense(l database.License, keys map[string]ed25519.PublicKey) (*Claims, error) {
+	tok, err := jwt.ParseWithClaims(
+		l.JWT,
+		&Claims{},
+		keyFunc(keys),
+		jwt.WithValidMethods(ValidMethods),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if claims, ok := tok.Claims.(*Claims); ok && tok.Valid {
+		if claims.Version != uint64(CurrentVersion) {
+			return nil, ErrInvalidVersion
+		}
+		if claims.LicenseExpires == nil {
+			return nil, ErrMissingLicenseExpires
 		}
 		return claims, nil
 	}
@@ -296,6 +321,12 @@ func (a *licenseAPI) delete(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	err = a.pubsub.Publish(PubSubEventLicenses, []byte("delete"))
+	if err != nil {
+		a.logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
+		// don't fail the HTTP request, since we did write it successfully to the database
 	}
 	rw.WriteHeader(http.StatusOK)
 }
