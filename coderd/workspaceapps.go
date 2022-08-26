@@ -96,9 +96,30 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	api.proxyWorkspaceApplication(proxyApplication{
+		Workspace: workspace,
+		Agent:     agent,
+		AppName:   chi.URLParam(r, "workspaceapp"),
+	}, rw, r)
+}
+
+// proxyApplication are the required fields to proxy a workspace application.
+type proxyApplication struct {
+	Workspace database.Workspace
+	Agent     database.WorkspaceAgent
+
+	AppName string
+}
+
+func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, rbac.ActionCreate, proxyApp.Workspace.ExecutionRBAC()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
-		AgentID: agent.ID,
-		Name:    chi.URLParam(r, "workspaceapp"),
+		AgentID: proxyApp.Agent.ID,
+		Name:    proxyApp.AppName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
@@ -161,7 +182,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	}
 	r.URL.Path = path
 
-	conn, release, err := api.workspaceAgentCache.Acquire(r, agent.ID)
+	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",

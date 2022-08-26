@@ -1,10 +1,16 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
+
+	"github.com/coder/coder/coderd/database"
 
 	"golang.org/x/xerrors"
 )
@@ -17,20 +23,66 @@ const (
 )
 
 type Application struct {
-	AppURL    string
-	AppName   string
-	Workspace string
-	Agent     string
-	User      string
-	Path      string
+	AppURL        string
+	AppName       string
+	WorkspaceName string
+	Agent         string
+	Username      string
+	Path          string
 
 	// Domain is used to output the url to reach the app.
 	Domain string
 }
 
 func (api *API) handleSubdomain(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		app, err := ParseSubdomainAppURL(r)
+		if err != nil {
+			// Not a Dev URL, proceed as usual.
+			// TODO: @emyrk we should probably catch invalid subdomains. Meaning
+			// 	an invalid devurl should not route to the coderd.
+			next.ServeHTTP(rw, r)
+			return
+		}
 
+		user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Username: app.Username,
+		})
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
+			OwnerID: user.ID,
+			Name:    app.WorkspaceName,
+		})
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		api.proxyWorkspaceApplication(proxyApplication{
+			Workspace: workspace,
+			// TODO: Fetch workspace agent
+			Agent:   database.WorkspaceAgent{},
+			AppName: app.AppName,
+		}, rw, r)
 	})
 }
 
@@ -64,13 +116,13 @@ func ParseSubdomainAppURL(r *http.Request) (Application, error) {
 	matchGroup := matches[0]
 
 	return Application{
-		AppURL:    "",
-		AppName:   matchGroup[appURL.SubexpIndex("AppName")],
-		Workspace: matchGroup[appURL.SubexpIndex("WorkspaceName")],
-		Agent:     matchGroup[appURL.SubexpIndex("AgentName")],
-		User:      matchGroup[appURL.SubexpIndex("UserName")],
-		Path:      r.URL.Path,
-		Domain:    domain,
+		AppURL:        "",
+		AppName:       matchGroup[appURL.SubexpIndex("AppName")],
+		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
+		Agent:         matchGroup[appURL.SubexpIndex("AgentName")],
+		Username:      matchGroup[appURL.SubexpIndex("UserName")],
+		Path:          r.URL.Path,
+		Domain:        domain,
 	}, nil
 }
 
