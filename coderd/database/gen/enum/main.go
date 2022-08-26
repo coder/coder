@@ -24,7 +24,7 @@ func main() {
 func run() error {
 	dump, err := os.Open("dump.sql")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s must be run in the database directory with dump.sql present\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "error: %s must be run in the database directory with dump.sql present\n", os.Args[0])
 		return err
 	}
 	defer dump.Close()
