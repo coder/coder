@@ -292,11 +292,27 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	existing, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
+		OwnerID: apiKey.UserID,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace by owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(existing) >= int(api.Options.MaxWorkspacesPerUser) {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot exceed limit of %d workspaces per user, already have %d existing workspace(s).", api.Options.MaxWorkspacesPerUser, len(existing)),
+		})
+		return
+	}
+
 	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule, time.Duration(template.MinAutostartInterval))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid Autostart Schedule.",
-			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
+			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
 		})
 		return
 	}

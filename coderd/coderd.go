@@ -68,6 +68,7 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
+	MaxWorkspacesPerUser uint8
 }
 
 // New constructs a Coder API handler.
