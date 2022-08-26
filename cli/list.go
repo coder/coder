@@ -38,8 +38,8 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	if !ptr.NilOrZero(workspace.TTLMillis) {
 		dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
 		autostopDisplay = durationDisplay(dur)
-		if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.After(now) && status == "Running" {
-			remaining := time.Until(workspace.LatestBuild.Deadline)
+		if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.Time.After(now) && status == "Running" {
+			remaining := time.Until(workspace.LatestBuild.Deadline.Time)
 			autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
 		}
 	}

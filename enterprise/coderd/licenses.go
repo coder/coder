@@ -9,13 +9,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
@@ -36,6 +38,7 @@ var ValidMethods = []string{"EdDSA"}
 
 // key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
 // by our signing infrastructure
+//
 //go:embed keys/2022-08-12
 var key20220812 []byte
 
@@ -123,6 +126,7 @@ func newLicenseAPI(
 	a := &licenseAPI{router: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)
 	r.Get("/", a.licenses)
+	r.Delete("/{id}", a.delete)
 	return a
 }
 
@@ -133,12 +137,12 @@ func (a *licenseAPI) handler() http.Handler {
 // postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
 // in the cluster at one time for several reasons:
 //
-// 1. Upgrades --- if the license format changes from one version of Coder to the next, during a
-//    rolling update you will have different Coder servers that need different licenses to function.
-// 2. Avoid abrupt feature breakage --- when an admin uploads a new license with different features
-//    we generally don't want the old features to immediately break without warning.  With a grace
-//    period on the license, features will continue to work from the old license until its grace
-//    period, then the users will get a warning allowing them to gracefully stop using the feature.
+//  1. Upgrades --- if the license format changes from one version of Coder to the next, during a
+//     rolling update you will have different Coder servers that need different licenses to function.
+//  2. Avoid abrupt feature breakage --- when an admin uploads a new license with different features
+//     we generally don't want the old features to immediately break without warning.  With a grace
+//     period on the license, features will continue to work from the old license until its grace
+//     period, then the users will get a warning allowing them to gracefully stop using the feature.
 func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 	if !a.auth.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
@@ -253,7 +257,7 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	if len(parts) != 3 {
 		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
 	}
-	cb, err := base64.URLEncoding.DecodeString(parts[1])
+	cb, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
 	}
@@ -262,4 +266,36 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
+}
+
+func (a *licenseAPI) delete(rw http.ResponseWriter, r *http.Request) {
+	if !a.auth.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "License ID must be an integer",
+		})
+		return
+	}
+
+	_, err = a.database.DeleteLicense(r.Context(), int32(id))
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "Unknown license ID",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
 }

@@ -371,6 +371,11 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceRequest {
+  readonly name?: string
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
@@ -527,7 +532,7 @@ export interface WorkspaceBuild {
   readonly initiator_id: string
   readonly initiator_name: string
   readonly job: ProvisionerJob
-  readonly deadline: string
+  readonly deadline?: string
   readonly reason: BuildReason
 }
 

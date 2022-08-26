@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
@@ -27,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
@@ -111,7 +111,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// end span so we don't get long lived trace data
-	trace.SpanFromContext(ctx).End()
+	tracing.EndHTTPSpan(r, 200)
 
 	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
@@ -276,7 +276,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// end span so we don't get long lived trace data
-	trace.SpanFromContext(ctx).End()
+	tracing.EndHTTPSpan(r, 200)
 
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
@@ -365,8 +365,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close()          // Also closes conn.
-	trace.SpanFromContext(ctx).End() // end span so we don't get long lived trace data
+	defer wsNetConn.Close()     // Also closes conn.
+	tracing.EndHTTPSpan(r, 200) // end span so we don't get long lived trace data
 
 	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
@@ -581,7 +581,7 @@ func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.
 	defer subCancel()
 
 	// end span so we don't get long lived trace data
-	trace.SpanFromContext(ctx).End()
+	tracing.EndHTTPSpan(r, 200)
 
 	// Wait for the connection to close or the client to send a message.
 	//nolint:dogsled

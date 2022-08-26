@@ -66,6 +66,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
+	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 }
 
@@ -375,6 +376,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspace)
+				r.Patch("/", api.patchWorkspace)
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)

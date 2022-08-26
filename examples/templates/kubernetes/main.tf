@@ -25,17 +25,21 @@ variable "use_kubeconfig" {
   EOF
 }
 
-variable "coder_namespace" {
+variable "namespace" {
   type        = string
   sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
-  default     = "coder-namespace"
+  default     = "coder-workspaces"
 }
 
-variable "disk_size" {
-  type = number
-  description = "Disk size (__ GB)"
+variable "home_disk_size" {
+  type        = number
+  description = "How large would you like your home volume to be (in GB)?"
   default     = 10
+  validation {
+    condition     = var.home_disk_size >= 1
+    error_message = "Value must be greater than or equal to 1."
+  }
 }
 
 provider "kubernetes" {
@@ -46,8 +50,8 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
+  os             = "linux"
+  arch           = "amd64"
   startup_script = <<EOT
     #!/bin/bash
 
@@ -66,11 +70,26 @@ resource "coder_app" "code-server" {
   relative_path = true
 }
 
+resource "kubernetes_persistent_volume_claim" "home" {
+  metadata {
+    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+    namespace = var.namespace
+  }
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = {
+        storage = "${var.home_disk_size}Gi"
+      }
+    }
+  }
+}
+
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
-    namespace = var.coder_namespace
+    namespace = var.namespace
   }
   spec {
     security_context {
@@ -90,28 +109,16 @@ resource "kubernetes_pod" "main" {
       }
       volume_mount {
         mount_path = "/home/coder"
-        name       = "home-directory"
+        name       = "home"
+        read_only  = false
       }
     }
-    volume {
-      name = "home-directory"
-      persistent_volume_claim {
-        claim_name = kubernetes_persistent_volume_claim.home-directory.metadata.0.name
-      }
-    }
-  }
-}
 
-resource "kubernetes_persistent_volume_claim" "home-directory" {
-  metadata {
-    name      = "home-coder-java-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
-    namespace = var.coder_namespace
-  }
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    resources {
-      requests = {
-        storage = "${var.disk_size}Gi"
+    volume {
+      name = "home"
+      persistent_volume_claim {
+        claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
+        read_only  = false
       }
     }
   }
