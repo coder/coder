@@ -221,6 +221,7 @@ func (s *featuresService) syncEntitlements(ctx context.Context) {
 				time.Sleep(b.NextBackOff())
 				continue
 			}
+			// nolint: revive
 			defer cancel()
 			subscribed = true
 			s.logger.Debug(ctx, "successfully subscribed to pubsub")
