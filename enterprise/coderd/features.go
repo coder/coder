@@ -66,7 +66,6 @@ func (s *featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Reques
 	s.mu.RLock()
 	e := s.entitlements
 	s.mu.RUnlock()
-	s.logger.Info(r.Context(), "entitlements now", slog.F("entitlements", e))
 
 	resp := codersdk.Entitlements{
 		Features:   make(map[string]codersdk.Feature),
@@ -166,24 +165,21 @@ func (s *featuresService) getEntitlements(ctx context.Context) (entitlements, er
 			},
 		},
 	}
-	s.logger.Info(ctx, "Got licenses", slog.F("num", len(licenses)))
 	for _, l := range licenses {
 		claims, err := validateDBLicense(l, s.keys)
 		if err != nil {
-			s.logger.Info(ctx, "skipping invalid license",
+			s.logger.Debug(ctx, "skipping invalid license",
 				slog.F("id", l.ID), slog.Error(err))
 			continue
 		}
 		e.hasLicense = true
 		thisEntitlement := entitled
 		if now.After(claims.LicenseExpires.Time) {
-			s.logger.Info(ctx, "grace period license")
 			// if the grace period were over, the validation fails, so if we are after
 			// LicenseExpires we must be in grace period.
 			thisEntitlement = gracePeriod
 		}
 		if claims.Features.UserLimit > 0 {
-			s.logger.Info(ctx, "user limit", slog.F("user_limit", claims.Features.UserLimit))
 			e.activeUsers.state = thisEntitlement
 			e.activeUsers.unlimited = false
 			e.activeUsers.limit = max(e.activeUsers.limit, claims.Features.UserLimit)
@@ -196,7 +192,6 @@ func (s *featuresService) getEntitlements(ctx context.Context) (entitlements, er
 }
 
 func (s *featuresService) syncEntitlements(ctx context.Context) {
-	s.logger.Info(ctx, "starting license sync function")
 	eb := backoff.NewExponentialBackOff()
 	eb.MaxElapsedTime = 0 // retry indefinitely
 	b := backoff.WithContext(eb, ctx)
@@ -228,7 +223,7 @@ func (s *featuresService) syncEntitlements(ctx context.Context) {
 			}
 			defer cancel()
 			subscribed = true
-			s.logger.Info(ctx, "successfully subscribed to pubsub")
+			s.logger.Debug(ctx, "successfully subscribed to pubsub")
 		}
 
 		s.logger.Info(ctx, "syncing licensed entitlements")
@@ -243,7 +238,7 @@ func (s *featuresService) syncEntitlements(ctx context.Context) {
 		s.mu.Lock()
 		s.entitlements = ents
 		s.mu.Unlock()
-		s.logger.Info(ctx, "synced licensed entitlements")
+		s.logger.Debug(ctx, "synced licensed entitlements")
 
 		select {
 		case <-ctx.Done():
@@ -251,7 +246,7 @@ func (s *featuresService) syncEntitlements(ctx context.Context) {
 		case <-time.After(s.resyncInterval):
 			continue
 		case <-updates:
-			s.logger.Info(ctx, "got pubsub update")
+			s.logger.Debug(ctx, "got pubsub update")
 			continue
 		}
 	}
