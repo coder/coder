@@ -15,12 +15,12 @@ ifndef VERBOSE
 .SILENT:
 endif
 
-# Create the build directory if it does not exist.
-$(shell mkdir -p build)
+# Create the output directories if they do not exist.
+$(shell mkdir -p build site/out/bin)
 
-INSTALL_DIR  := $(shell go env GOPATH)/bin
 GOOS         := $(shell go env GOOS)
 GOARCH       := $(shell go env GOARCH)
+GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
@@ -63,8 +63,9 @@ CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IM
 
 
 clean:
-	rm -rf build
-	mkdir -p build
+	rm -rf build site/out
+	mkdir -p build site/out/bin
+	git restore site/out
 .PHONY: clean
 
 build-slim bin: $(CODER_SLIM_BINARIES)
@@ -320,22 +321,12 @@ fmt: fmt/prettier fmt/terraform fmt/shfmt
 gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
 .PHONY: gen
 
-install: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
-	output_file="$(INSTALL_DIR)/coder"
+install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
+	install_dir="$$(go env GOPATH)/bin"
+	output_file="$${install_dir}/coder$(GOOS_BIN_EXT)"
 
-	if [[ "$(GOOS)" == "windows" ]]; then
-		output_file="$${output_file}.exe"
-	fi
-
-	echo "-- Building CLI for $(GOOS) $(GOARCH) at $$output_file"
-
-	./scripts/build_go.sh \
-		--version "$(VERSION)" \
-		--output "$$output_file" \
-		--os "$(GOOS)" \
-		--arch "$(GOARCH)"
-
-	echo
+	mkdir -p "$$install_dir"
+	cp "$<" "$$output_file"
 .PHONY: install
 
 lint: lint/shellcheck lint/go
