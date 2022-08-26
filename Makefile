@@ -9,51 +9,149 @@ SHELL := bash
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
 
-INSTALL_DIR=$(shell go env GOPATH)/bin
-GOOS=$(shell go env GOOS)
-GOARCH=$(shell go env GOARCH)
-VERSION=$(shell ./scripts/version.sh)
+INSTALL_DIR = $(shell go env GOPATH)/bin
+GOOS = $(shell go env GOOS)
+GOARCH = $(shell go env GOARCH)
+VERSION = $(shell ./scripts/version.sh)
 
-bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
-	@echo "== This builds slim binaries for command-line usage."
-	@echo "== Use \"make build\" to embed the site."
+# All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
+OS_ARCHES = \
+	linux_amd64 linux_arm64 linux_armv7 \
+	darwin_amd64 darwin_arm64 \
+	windows_amd64.exe windows_arm64.exe
 
-	mkdir -p ./dist
-	rm -rf ./dist/coder-slim_*
-	rm -f ./site/out/bin/coder*
-	./scripts/build_go_slim.sh \
-		--compress 6 \
+# Archive formats and their corresponding ${OS}_${ARCH} combos.
+ARCHIVE_TAR_GZ = linux_amd64 linux_arm64 linux_armv7
+ARCHIVE_ZIP = \
+	darwin darwin_arm64 \
+	windows_amd64 windows_arm64
+
+# All ${OS}_${ARCH} combos we build packages for.
+PACKAGE_OS_ARCHES = linux_amd64 linux_armv7 linux_arm64
+
+# All package formats we build.
+PACKAGE_FORMATS = apk deb rpm
+
+bin build-slim: $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
+.PHONY: bin build-slim
+
+build build-full: $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
+.PHONY: build build-full
+
+# Redirect from version-less targets to the versioned ones. This is kinda gross
+# since it's make shelling out to make, but it's the easiest way less we write
+# out every target manually.
+$(addprefix build/coder_,$(OS_ARCHES)): site/out/index.html build-slim
+	@target="coder_$(VERSION)_$(@:build/coder_%=%)"
+	@$(MAKE) \
+		--no-print-directory \
+		--assume-old site/out/index.html \
+		--assume-old build-slim \
+		"build/$$target"
+	@rm -f "$@"
+	@ln -s "$$target" "$@"
+.PHONY: $(addprefix build/coder_,$(OS_ARCHES))
+
+$(addprefix build/coder-slim_,$(OS_ARCHES)):
+	@target="coder-slim_$(VERSION)_$(@:build/coder-slim_%=%)"
+	@echo $(MAKE) \
+		--no-print-directory \
+		"build/$$target"
+	@rm -f "$@"
+	@ln -s "$$target" "$@"
+.PHONY: $(addprefix build/coder-slim_,$(OS_ARCHES))
+
+# "full" binaries always depend on all "slim" binaries.
+$(addprefix build/coder_$(VERSION)_,$(OS_ARCHES)): site/out/index.html build-slim
+
+# This task handles all builds, for both "full" and "slim" binaries. It parses
+# the target name to get the metadata for the build, so it must be specified in
+# this format:
+#     build/coder(-slim)?_$version_$os_$arch(.exe)?
+$(addprefix build/coder_$(VERSION)_,$(OS_ARCHES)) $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES)): \
+	go.mod go.sum \
+	$(shell find . -not -path './vendor/*' -type f -name '*.go') \
+	$(shell find ./examples/templates)
+
+	@mkdir -p build
+	@mode=$$([[ "$@" = build/coder-slim* ]] && echo "slim" || echo "full")
+	@os=$$(echo $@ | cut -d_ -f3)
+	@arch=$$(echo $@ | cut -d_ -f4)
+	@if [ "$$mode" != "full" ] && [ "$$mode" != "slim" ]; then
+		@echo "Invalid build mode: $$mode"
+		@exit 1
+	@fi
+	@if [[ "$$os" == "windows" ]] && [[ "$$arch" == *.exe ]]; then
+		@arch=$${arch%.exe}
+	@fi
+
+	@build_args=( \
+		--os "$$os" \
+		--arch "$$arch" \
 		--version "$(VERSION)" \
-		--output ./dist/ \
-		linux:amd64,armv7,arm64 \
-		windows:amd64,arm64 \
-		darwin:amd64,arm64
-.PHONY: bin
+		--output "$@" \
+	)
+	@if [ "$$mode" == "slim" ]; then
+		@build_args+=(--slim)
+	@fi
 
-build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
-	rm -rf ./dist
-	mkdir -p ./dist
-	rm -f ./site/out/bin/coder*
+	./scripts/build_go.sh "$${build_args[@]}"
 
-	# build slim artifacts and copy them to the site output directory
-	./scripts/build_go_slim.sh \
+# This task builds all archives. It parses the target name to get the metadata
+# for the build, so it must be specified in this format:
+#     build/coder_${version}_${os}_${arch}.${format}
+#
+# The following OS/arch/format combinations are supported:
+#     .tar.gz: linux_amd64, linux_arm64, linux_armv7
+#     .zip:    darwin_amd64, darwin_arm64, windows_amd64, windows_arm64
+#
+# This depends on build-full because it's difficult to do dynamic dependencies.
+$(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz) \
+$(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip): \
+	build-full
+
+	@mkdir -p build
+	@os=$$(echo $@ | cut -d_ -f3)
+	@arch_format=$$(echo $@ | cut -d_ -f4)
+	@arch=$$(echo $$arch_format | cut -d. -f1)
+	@format=$${arch_format#*.}
+
+	@bin_ext=""
+	@if [[ "$$os" == "windows" ]]; then
+		@bin_ext=".exe"
+	@fi
+
+	./script/archive.sh \
+		--format "$$format" \
+		--output "$@" \
+		"build/coder_$(VERSION)_$${os}_$${arch}$${bin_ext}"
+
+# This task builds all packages. It parses the target name to get the metadata
+# for the build, so it must be specified in this format:
+#     build/coder_${version}_${os}_${arch}.${format}
+#
+# Supports apk, deb, rpm for all linux targets.
+#
+# This depends on build-full because it's difficult to do dynamic dependencies.
+$(foreach os_arch, $(PACKAGE_OS_ARCHES), $(addprefix build/coder_$(VERSION)_$(os_arch).,$(PACKAGE_FORMATS))): \
+	build-full
+
+	@mkdir -p build
+	@os=$$(echo $@ | cut -d_ -f3)
+	@arch_format=$$(echo $@ | cut -d_ -f4)
+	@arch=$$(echo $$arch_format | cut -d. -f1)
+	@format=$${arch_format#*.}
+
+	./scripts/package.sh \
+		--arch "$$arch" \
+		--format "$$format" \
 		--version "$(VERSION)" \
-		--compress 6 \
-		--output ./dist/ \
-		linux:amd64,armv7,arm64 \
-		windows:amd64,arm64 \
-		darwin:amd64,arm64
+		--output "$@" \
+		"build/coder_$(VERSION)_$${os}_$${arch}"
 
-	# build not-so-slim artifacts with the default name format
-	./scripts/build_go_matrix.sh \
-		--version "$(VERSION)" \
-		--output ./dist/ \
-		--archive \
-		--package-linux \
-		linux:amd64,armv7,arm64 \
-		windows:amd64,arm64 \
-		darwin:amd64,arm64
-.PHONY: build
+clean:
+	rm -rf build
+.PHONY: clean
 
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: coderd/database/dump/main.go $(wildcard coderd/database/migrations/*.sql)

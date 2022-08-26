@@ -32,7 +32,7 @@ version=""
 os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
-sign_darwin=0
+sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
@@ -53,6 +53,7 @@ while true; do
 		shift 2
 		;;
 	--output)
+		mkdir -p "$(dirname "$2")"
 		output_path="$(realpath "$2")"
 		shift 2
 		;;

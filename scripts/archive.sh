@@ -14,7 +14,7 @@
 # utility and then notarized using the `gon` utility, which may take a while.
 # $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
 # imported for this to work. Also, the input binary must already be signed with
-# the `codesign` tool.=
+# the `codesign` tool.
 #
 # If the --agpl parameter is specified, only includes AGPL license.
 #
@@ -26,7 +26,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 format=""
 output_path=""
-sign_darwin=0
+sign_darwin="${CODER_SIGN_DARWIN:-0}"
 agpl="${CODER_BUILD_AGPL:-0}"
 
 args="$(getopt -o "" -l format:,output:,sign-darwin,agpl -- "$@")"

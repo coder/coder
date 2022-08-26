@@ -1,27 +1,35 @@
 #!/usr/bin/env bash
 
-# This script creates Linux packages for the given binary. It will output a
-# .rpm, .deb and .apk file in the same directory as the input file with the same
-# filename (except the package format suffix).
+# This script creates a Linux package for the given binary.
 #
-# ./package.sh --arch amd64 [--version 1.2.3] path/to/coder
+# ./package.sh --arch amd64 --format "(apk|deb|rpm)" --output "path/to/coder.apk" [--version 1.2.3] path/to/coder
 #
-# The --arch parameter is required. If no version is specified, defaults to the
-# version from ./version.sh.
+# If no version is specified, defaults to the version from ./version.sh.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-version=""
 arch=""
+format=""
+output_path=""
+version=""
 
-args="$(getopt -o "" -l arch:,version: -- "$@")"
+args="$(getopt -o "" -l arch:,format:,output:,version: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--arch)
 		arch="$2"
+		shift 2
+		;;
+	--format)
+		format="$2"
+		shift 2
+		;;
+	--output)
+		mkdir -p "$(dirname "$2")"
+		output_path="$(realpath "$2")"
 		shift 2
 		;;
 	--version)
@@ -40,6 +48,12 @@ done
 
 if [[ "$arch" == "" ]]; then
 	error "--arch is a required parameter"
+fi
+if [[ "$format" != "apk" ]] && [[ "$format" != "deb" ]] && [[ "$format" != "rpm" ]]; then
+	error "--format is a required parameter and must be one of 'apk', 'deb', or 'rpm'"
+fi
+if [[ "$output_path" == "" ]]; then
+	error "--output is a required parameter"
 fi
 
 if [[ "$#" != 1 ]]; then
@@ -74,18 +88,12 @@ ln -P "$(realpath coder.service)" "$temp_dir/"
 ln -P "$(realpath preinstall.sh)" "$temp_dir/"
 ln -P "$(realpath scripts/nfpm.yaml)" "$temp_dir/"
 
-cd "$temp_dir"
-
-formats=(apk deb rpm)
-for format in "${formats[@]}"; do
-	output_path="$input_file.$format"
-	log "--- Building $format package ($output_path)"
-
+pushd "$temp_dir"
 	GOARCH="$arch" CODER_VERSION="$version" nfpm package \
 		-f nfpm.yaml \
 		-p "$format" \
-		-t "$output_path"
-done
+		-t "$output_path" \
+		1>&2
+popd
 
-cdroot
 rm -rf "$temp_dir"
