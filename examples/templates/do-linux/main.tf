@@ -100,7 +100,7 @@ resource "coder_agent" "main" {
 
 resource "digitalocean_volume" "home_volume" {
   region                   = var.region
-  name                     = "coder-${data.coder_workspace.me.owner_id}-${data.coder_workspace.me.id}-home"
+  name                     = "coder-${data.coder_workspace.me.id}-home"
   size                     = var.home_volume_size
   initial_filesystem_type  = "ext4"
   initial_filesystem_label = "coder-home"
