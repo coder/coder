@@ -89,11 +89,11 @@ ln -P "$(realpath preinstall.sh)" "$temp_dir/"
 ln -P "$(realpath scripts/nfpm.yaml)" "$temp_dir/"
 
 pushd "$temp_dir"
-	GOARCH="$arch" CODER_VERSION="$version" nfpm package \
-		-f nfpm.yaml \
-		-p "$format" \
-		-t "$output_path" \
-		1>&2
+GOARCH="$arch" CODER_VERSION="$version" nfpm package \
+	-f nfpm.yaml \
+	-p "$format" \
+	-t "$output_path" \
+	1>&2
 popd
 
 rm -rf "$temp_dir"
