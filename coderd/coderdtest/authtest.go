@@ -178,9 +178,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"GET:/api/v2/entitlements":      {NoAuthorize: true},
 
-		// TODO needs authorization test
-		"GET:/api/v2/provisionerdaemons/me/listen": {NoAuthorize: true},
-
 		"GET:/%40{user}/{workspacename}/apps/{workspaceapp}/*": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
@@ -208,6 +205,9 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
+
+		// Provisioner daemon endpoint does not use RBAC
+		"GET:/api/v2/provisionerdaemons/me/listen": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
@@ -366,6 +366,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/provisionerdaemons": {
 			StatusCode:   http.StatusOK,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceProvisionerDaemon,
+		},
+		"POST:/api/v2/provisionerdaemons": {
+			AssertAction: rbac.ActionCreate,
 			AssertObject: rbac.ResourceProvisionerDaemon,
 		},
 

@@ -33,7 +33,7 @@ func provisionerCreate() *cobra.Command {
 			}
 			tokenArg := provisionerDaemon.AuthToken.String()
 
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `A new provisioner daemon has been registered.
+			_, _ = fmt.Fprintln(cmd.OutOrStderr(), `A new provisioner daemon has been registered.
 
 Start the provisioner daemon with the following command:
 
