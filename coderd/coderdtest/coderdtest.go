@@ -73,8 +73,9 @@ type Options struct {
 	AutobuildStats       chan<- executor.Stats
 
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
-	IncludeProvisionerD bool
-	APIBuilder          func(*coderd.Options) *coderd.API
+	IncludeProvisionerD  bool
+	APIBuilder           func(*coderd.Options) *coderd.API
+	MaxWorkspacesPerUser uint8
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -134,6 +135,10 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	if options.APIBuilder == nil {
 		options.APIBuilder = coderd.New
+	}
+
+	if options.MaxWorkspacesPerUser == 0 {
+		options.MaxWorkspacesPerUser = 50
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -212,6 +217,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
 		AutoImportTemplates:  options.AutoImportTemplates,
+		MaxWorkspacesPerUser: options.MaxWorkspacesPerUser,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()

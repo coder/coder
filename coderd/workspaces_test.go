@@ -340,6 +340,37 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Equal(t, apiErr.Validations[0].Field, "schedule")
 		require.Equal(t, apiErr.Validations[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
 	})
+
+	t.Run("MaxWorkspaceLimit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerD:  true,
+			MaxWorkspacesPerUser: 1,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing",
+		}
+		_, err := client.CreateWorkspace(ctx, template.OrganizationID, req)
+		require.NoError(t, err)
+		req2 := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing2",
+		}
+		_, err = client.CreateWorkspace(ctx, template.OrganizationID, req2)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
 }
 
 func TestWorkspaceByOwnerAndName(t *testing.T) {
