@@ -31,24 +31,36 @@ OS_ARCHES := \
 
 # Archive formats and their corresponding ${OS}_${ARCH} combos.
 ARCHIVE_TAR_GZ := linux_amd64 linux_arm64 linux_armv7
-ARCHIVE_ZIP := \
+ARCHIVE_ZIP    := \
 	darwin darwin_arm64 \
 	windows_amd64 windows_arm64
 
 # All package formats we build and the ${OS}_${ARCH} combos we build them for.
-PACKAGE_FORMATS := apk deb rpm
+PACKAGE_FORMATS   := apk deb rpm
 PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 
+# All architectures we build Docker images for (Linux only).
+DOCKER_ARCHES := amd64 arm64 armv7
+
 # Computed variables based on the above.
-CODER_SLIM_BINARIES := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
-CODER_FAT_BINARIES := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
-CODER_ALL_BINARIES := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
-CODER_SLIM_NOVERSION_BINARIES := $(addprefix build/coder-slim_,$(OS_ARCHES))
-CODER_FAT_NOVERSION_BINARIES := $(addprefix build/coder_,$(OS_ARCHES))
-CODER_TAR_GZ_ARCHIVES := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
-CODER_ZIP_ARCHIVES := $(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip)
-CODER_ALL_ARCHIVES := $(CODER_TAR_GZ_ARCHIVES) $(CODER_ZIP_ARCHIVES)
-CODER_ALL_PACKAGES := $(foreach os_arch, $(PACKAGE_OS_ARCHES), $(addprefix build/coder_$(VERSION)_$(os_arch).,$(PACKAGE_FORMATS)))
+CODER_SLIM_BINARIES          := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
+CODER_FAT_BINARIES           := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
+CODER_ALL_BINARIES           := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
+CODER_TAR_GZ_ARCHIVES        := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
+CODER_ZIP_ARCHIVES           := $(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip)
+CODER_ALL_ARCHIVES           := $(CODER_TAR_GZ_ARCHIVES) $(CODER_ZIP_ARCHIVES)
+CODER_ALL_PACKAGES           := $(foreach os_arch, $(PACKAGE_OS_ARCHES), $(addprefix build/coder_$(VERSION)_$(os_arch).,$(PACKAGE_FORMATS)))
+CODER_ALL_ARCH_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_$(VERSION)_linux_$(arch).tag)
+CODER_ALL_ARCH_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_ARCH_IMAGES))
+CODER_MAIN_IMAGE             := build/coder_$(VERSION)_linux.tag
+CODER_ALL_IMAGES             := $(CODER_ALL_ARCH_IMAGES) $(CODER_MAIN_IMAGE)
+CODER_ALL_IMAGES_PUSHED      := $(addprefix push/, $(CODER_ALL_IMAGES))
+
+CODER_SLIM_NOVERSION_BINARIES     := $(addprefix build/coder-slim_,$(OS_ARCHES))
+CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
+CODER_ALL_NOVERSION_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_linux_$(arch).tag) build/coder_linux.tag
+CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IMAGES))
+
 
 clean:
 	rm -rf build
@@ -189,7 +201,8 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 #     .zip:    darwin_amd64, darwin_arm64, windows_amd64, windows_arm64
 #
 # This depends on all fat binaries because it's difficult to do dynamic
-# dependencies. These targets are typically only used during release anyways.
+# dependencies due to the .exe requirement on Windows. These targets are
+# typically only used during release anyways.
 $(CODER_ALL_ARCHIVES): $(CODER_FAT_BINARIES)
 	$(get-mode-os-arch-ext)
 	bin_ext=""
@@ -209,7 +222,8 @@ $(CODER_ALL_ARCHIVES): $(CODER_FAT_BINARIES)
 # Supports apk, deb, rpm for all linux targets.
 #
 # This depends on all fat binaries because it's difficult to do dynamic
-# dependencies. These targets are typically only used during release anyways.
+# dependencies due to the .exe requirement on Windows. These targets are
+# typically only used during release anyways.
 $(CODER_ALL_PACKAGES): $(CODER_FAT_BINARIES)
 	$(get-mode-os-arch-ext)
 
@@ -219,6 +233,53 @@ $(CODER_ALL_PACKAGES): $(CODER_FAT_BINARIES)
 		--version "$(VERSION)" \
 		--output "$@" \
 		"build/coder_$(VERSION)_$${os}_$${arch}"
+
+# Redirect from version-less Docker image targets to the versioned ones.
+#
+# Called like this:
+#   make build/coder_linux_amd64.tag
+$(CODER_ALL_NOVERSION_IMAGES): build/coder_%: build/coder_$(VERSION)_%
+.PHONY: $(CODER_ALL_NOVERSION_IMAGES)
+
+# Redirect from version-less push Docker image targets to the versioned ones.
+#
+# Called like this:
+#   make push/build/coder_linux_amd64.tag
+$(CODER_ALL_NOVERSION_IMAGES_PUSHED): push/build/coder_%: push/build/coder_$(VERSION)_%
+.PHONY: $(CODER_ALL_NOVERSION_IMAGES_PUSHED)
+
+# This task builds all Docker images. It parses the target name to get the
+# metadata for the build, so it must be specified in this format:
+#     build/coder_${version}_${os}_${arch}.tag
+#
+# Supports linux_amd64, linux_arm64, linux_armv7.
+$(CODER_ALL_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: build/coder_$(VERSION)_%
+	$(get-mode-os-arch-ext)
+
+	image_tag="$$(./scripts/image_tag.sh --arch "$$arch" --version "$(VERSION)")"
+	./scripts/build_docker.sh \
+		--arch "$$arch" \
+		--target "$$image_tag" \
+		--version "$(VERSION)" \
+		"build/coder_$(VERSION)_$${os}_$${arch}"
+
+	echo "$$image_tag" > "$@"
+
+# Multi-arch Docker image. This requires all architecture-specific images to be
+# built AND pushed.
+build/coder_$(VERSION)_linux.tag: $(CODER_ALL_ARCH_IMAGES_PUSHED)
+	image_tag="$$(./scripts/image_tag.sh --version "$(VERSION)")"
+	./scripts/build_docker_multiarch.sh \
+		--target "$$image_tag" \
+		--version "$(VERSION)" \
+		$(foreach img, $^, "$$(cat "$(img)")")
+
+	echo "$$image_tag" > "$@"
+
+$(CODER_ALL_IMAGES_PUSHED): push/%: %
+	image_tag="$$(cat "$<")"
+	docker push "$$image_tag"
+.PHONY: $(CODER_ALL_IMAGES_PUSHED)
 
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: coderd/database/dump/main.go $(wildcard coderd/database/migrations/*.sql)

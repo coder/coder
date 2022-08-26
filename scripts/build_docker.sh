@@ -3,14 +3,14 @@
 # This script builds a Docker image of Coder containing the given binary, for
 # the given architecture. Only linux binaries are supported at this time.
 #
-# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--push] path/to/coder
+# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--target image_tag] [--push] path/to/coder
 #
 # The --arch parameter is required and accepts a Golang arch specification. It
 # will be automatically mapped to a suitable architecture that Docker accepts
 # before being passed to `docker buildx build`.
 #
 # The image will be built and tagged against the image tag returned by
-# ./image_tag.sh.
+# ./image_tag.sh unless a --target parameter is supplied.
 #
 # If no version is specified, defaults to the version from ./version.sh.
 #
@@ -23,15 +23,20 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 arch=""
+image_tag=""
 version=""
 push=0
 
-args="$(getopt -o "" -l arch:,version:,push -- "$@")"
+args="$(getopt -o "" -l arch:,target:,version:,push -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--arch)
 		arch="$2"
+		shift 2
+		;;
+	--target)
+		image_tag="$2"
 		shift 2
 		;;
 	--version)
@@ -65,7 +70,9 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
-image_tag="$(execrelative ./image_tag.sh --arch "$arch" --version="$version")"
+if [[ "$image_tag" == "" ]]; then
+	image_tag="$(execrelative ./image_tag.sh --arch "$arch" --version="$version")"
+fi
 
 if [[ "$#" != 1 ]]; then
 	error "Exactly one argument must be provided to this script, $# were supplied"
