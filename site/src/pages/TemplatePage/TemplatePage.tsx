@@ -31,6 +31,11 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     templateState.context
   const isLoading = !template || !activeTemplateVersion || !templateResources
 
+  const handleDeleteTemplate = (templateId: string) => {
+    //TODO
+    console.log("implement me", templateId)
+  }
+
   if (isLoading) {
     return <Loader />
   }
@@ -45,6 +50,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         activeTemplateVersion={activeTemplateVersion}
         templateResources={templateResources}
         templateVersions={templateVersions}
+        handleDeleteTemplate={handleDeleteTemplate}
       />
     </>
   )

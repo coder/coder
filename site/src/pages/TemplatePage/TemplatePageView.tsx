@@ -4,6 +4,8 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import { DeleteButton } from "components/DropdownButton/ActionCtas"
+import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
@@ -36,6 +38,7 @@ export interface TemplatePageViewProps {
   activeTemplateVersion: TemplateVersion
   templateResources: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
+  handleDeleteTemplate: (templateId: string) => void
 }
 
 export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
@@ -43,6 +46,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   activeTemplateVersion,
   templateResources,
   templateVersions,
+  handleDeleteTemplate
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -66,13 +70,22 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
                 {Language.settingsButton}
               </Button>
             </Link>
-            <Link
-              underline="none"
-              component={RouterLink}
-              to={`/templates/${template.name}/workspace`}
-            >
-              <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-            </Link>
+
+            <DropdownButton
+              primaryAction={
+                <Link
+                  underline="none"
+                  component={RouterLink}
+                  to={`/templates/${template.name}/workspace`}
+                >
+                  <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+                </Link>
+              }
+              secondaryActions={[
+                { action: "delete", button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} /> }
+              ]}
+              canCancel={false}
+             />
           </Stack>
         }
       >
