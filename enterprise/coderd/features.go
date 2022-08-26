@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/cenkalti/backoff/v4"
+
+	"cdr.dev/slog"
 
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"

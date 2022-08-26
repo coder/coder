@@ -12,10 +12,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
