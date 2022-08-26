@@ -71,30 +71,15 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
-      - name: Build Site
-        run: make site/out/index.html
-
       - name: Build Linux and Windows Binaries
         run: |
           set -euo pipefail
           go mod download
 
-          mkdir -p ./dist
-          # build slim binaries
-          ./scripts/build_go_slim.sh \
-            --output ./dist/ \
-            --compress 22 \
-            linux:amd64,armv7,arm64 \
-            windows:amd64,arm64 \
-            darwin:amd64,arm64
-
-          # build linux and windows binaries
-          ./scripts/build_go_matrix.sh \
-            --output ./dist/ \
-            --archive \
-            --package-linux \
-            linux:amd64,armv7,arm64 \
-            windows:amd64,arm64
+          version="$(./script/version.sh)"
+          make -j \
+            build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
+            build/coder_"$version"_windows_{amd64,arm64}.zip \
 
       - name: Build Linux Docker images
         run: |
@@ -107,7 +92,7 @@ jobs:
               ./scripts/build_docker.sh \
                 ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
                 --arch "$arch" \
-                ./dist/coder_*_linux_"$arch"
+                ./build/coder_*_linux_"$arch"
             )"
             images+=("$img")
           done
@@ -139,11 +124,11 @@ jobs:
         with:
           name: linux
           path: |
-            dist/*.zip
-            dist/*.tar.gz
-            dist/*.apk
-            dist/*.deb
-            dist/*.rpm
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
 
   # The mac binaries get built on mac runners because they need to be signed,
   # and the signing tool only runs on mac. This darwin job only builds the Mac
@@ -213,22 +198,11 @@ jobs:
           set -euo pipefail
           go mod download
 
-          mkdir -p ./dist
-          # build slim binaries
-          ./scripts/build_go_slim.sh \
-            --output ./dist/ \
-            --compress 22 \
-            linux:amd64,armv7,arm64 \
-            windows:amd64,arm64 \
-            darwin:amd64,arm64
-
-          # build darwin binaries
-          ./scripts/build_go_matrix.sh \
-            --output ./dist/ \
-            --archive \
-            --sign-darwin \
-            darwin:amd64,arm64
+          version="$(./script/version.sh)"
+          make -j \
+            build/coder_"$version"_darwin_{amd64,arm64}.zip
         env:
+          CODER_SIGN_DARWIN: "true"
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
           AC_APPLICATION_IDENTITY: BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
@@ -237,7 +211,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: darwin
-          path: ./dist/coder_*.zip
+          path: ./build/*.zip
 
   publish:
     runs-on: ubuntu-latest
@@ -279,7 +253,7 @@ jobs:
         run: |
           set -euxo pipefail
           ./scripts/helm.sh --push
-          mv ./dist/*.tgz ./artifacts/
+          mv ./build/*.tgz ./artifacts/
 
       - name: Publish Release
         run: |

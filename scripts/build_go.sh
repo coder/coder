@@ -133,7 +133,13 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
-	codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
+	codesign \
+		-f -v \
+		-s "$AC_APPLICATION_IDENTITY" \
+		--timestamp \
+		--options runtime \
+		"$output_path" \
+		1>&2
 fi
 
 echo "$output_path"
