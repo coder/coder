@@ -280,16 +280,10 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						// In SSH configs, strings inside "" are interpreted literally and there
-						// is no need to e.g. escape backslashes (common on Windows platforms).
-						// We will escape the quotes, though.
-						escapedBinaryFile := strings.ReplaceAll(binaryFile, "\"", "\\\"")
 						if !wireguard {
-							//nolint:gocritic // We don't want to use %q here, see above.
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand \"%s\" --global-config \"%s\" ssh --stdio %s", escapedBinaryFile, root, hostname))
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
 						} else {
-							//nolint:gocritic // We don't want to use %q here, see above.
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand \"%s\" --global-config \"%s\" ssh --wireguard --stdio %s", escapedBinaryFile, root, hostname))
+							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --wireguard --stdio %s", binaryFile, root, hostname))
 						}
 					}
 
