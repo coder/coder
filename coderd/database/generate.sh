@@ -49,4 +49,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# suggestions.
 	go mod download
 	goimports -w queries.sql.go
+
+	# Generate enums (e.g. unique constraints).
+	go run gen/enum/main.go
 )
