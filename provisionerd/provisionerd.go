@@ -108,7 +108,7 @@ func (p *Server) connect(ctx context.Context) {
 			continue
 		}
 		p.clientValue.Store(client)
-		p.opts.Logger.Debug(context.Background(), "connected")
+		p.opts.Logger.Debug(context.Background(), "provisioner client connected")
 		break
 	}
 	select {

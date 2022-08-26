@@ -7,6 +7,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/pty/ptytest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,12 @@ func TestProvisionerRun(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		cmd, root := clitest.New(t, "provisioners", "run", "--token", token.String())
+		cmd, root := clitest.New(t, "provisioners", "run",
+			"--token", token.String(),
+			"--verbose", // to test debug-level logs
+		)
+		pty := ptytest.New(t)
+		cmd.SetErr(pty.Output())
 		// command should only have access to provisioner auth token, not user credentials
 		err = root.URL().Write(client.URL.String())
 		require.NoError(t, err)
@@ -43,5 +49,7 @@ func TestProvisionerRun(t *testing.T) {
 			defer close(doneCh)
 			doneCh <- cmd.ExecuteContext(ctx)
 		}()
+
+		pty.ExpectMatch("\tprovisioner client connected")
 	})
 }
