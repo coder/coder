@@ -14,7 +14,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	cd "$SCRIPT_DIR"
 
 	# Dump the updated schema.
-	go run dump/main.go
+	go run gen/dump/main.go
 	# The logic below depends on the exact version being correct :(
 	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0 generate
 
