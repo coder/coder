@@ -249,6 +249,11 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
+// From codersdk/workspaceagents.go
+export interface PostWorkspaceAgentVersionRequest {
+  readonly version: string
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -479,6 +484,7 @@ export interface WorkspaceAgent {
   // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly ipv6: any
+  readonly version: string
 }
 
 // From codersdk/workspaceagents.go

@@ -305,6 +305,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   wireguard_public_key: "",
   disco_public_key: "",
   ipv6: "",
+  version: "v0.0.0-devel",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

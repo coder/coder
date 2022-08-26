@@ -57,6 +57,7 @@ type WorkspaceAgent struct {
 	WireguardPublicKey   key.NodePublic       `json:"wireguard_public_key"`
 	DiscoPublicKey       key.DiscoPublic      `json:"disco_public_key"`
 	IPv6                 netaddr.IPPrefix     `json:"ipv6"`
+	Version              string               `json:"version"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

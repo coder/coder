@@ -8,8 +8,13 @@ import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
-import { getDisplayAgentStatus, getWorkspaceStatus, WorkspaceStateEnum } from "util/workspace"
-import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import {
+  getDisplayAgentStatus,
+  getDisplayVersionStatus,
+  getWorkspaceStatus,
+  WorkspaceStateEnum,
+} from "util/workspace"
+import { BuildInfoResponse, Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
@@ -31,6 +36,7 @@ interface ResourcesProps {
   getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
+  buildInfo?: BuildInfoResponse | undefined
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -38,6 +44,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   getResourcesError,
   workspace,
   canUpdateWorkspace,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
@@ -91,6 +98,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     )
                   }
 
+                  const versionStatus = getDisplayVersionStatus(
+                    theme,
+                    agent.version,
+                    buildInfo?.version || "",
+                  )
                   const agentStatus = getDisplayAgentStatus(theme, agent)
                   return (
                     <TableRow key={`${resource.id}-${agent.id}`}>
@@ -104,6 +116,15 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 
                       <TableCell className={styles.agentColumn}>
                         {agent.name}
+                        <div className={styles.agentInfo}>
+                          Version
+                          <span
+                            className={styles.agentVersion}
+                            style={{ color: versionStatus.color }}
+                          >
+                            {versionStatus.version}
+                          </span>
+                        </div>
                         <div className={styles.agentInfo}>
                           <span className={styles.operatingSystem}>{agent.operating_system}</span>
                           {WorkspaceStateEnum[workspaceStatus] !==
@@ -192,6 +213,10 @@ const useStyles = makeStyles((theme) => ({
   operatingSystem: {
     display: "block",
     textTransform: "capitalize",
+  },
+
+  agentVersion: {
+    display: "block",
   },
 
   accessLinks: {
