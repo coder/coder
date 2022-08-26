@@ -374,6 +374,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspace)
+				r.Patch("/", api.patchWorkspace)
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)

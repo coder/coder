@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
@@ -2084,6 +2085,32 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, workspace := range q.workspaces {
+		if workspace.Deleted || workspace.ID != arg.ID {
+			continue
+		}
+		for _, other := range q.workspaces {
+			if other.Deleted || other.ID == workspace.ID || workspace.OwnerID != other.OwnerID {
+				continue
+			}
+			if other.Name == arg.Name {
+				return database.Workspace{}, &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
+			}
+		}
+
+		workspace.Name = arg.Name
+		q.workspaces[i] = workspace
+
+		return workspace, nil
+	}
+
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
