@@ -22,7 +22,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({ lines, className 
       {lines.map((line, idx) => (
         <div className={styles.line} key={idx}>
           <span className={styles.time}>{dayjs(line.time).format(`HH:mm:ss.SSS`)}</span>
-          &nbsp;&nbsp;&nbsp;&nbsp;
+          <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
           <span>{line.output}</span>
         </div>
       ))}
@@ -45,7 +45,11 @@ const useStyles = makeStyles((theme) => ({
   line: {
     whiteSpace: "nowrap",
   },
+  space: {
+    userSelect: "none",
+  },
   time: {
+    userSelect: "none",
     width: theme.spacing(12.5),
     display: "inline-block",
   },

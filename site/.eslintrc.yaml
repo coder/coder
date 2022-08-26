@@ -115,6 +115,7 @@ rules:
     - error
     - children: ignore
   # https://reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html#eslint
+  react/jsx-key: error
   react/jsx-uses-react: "off"
   react/react-in-jsx-scope: "off"
 settings:

@@ -1,11 +1,11 @@
 import Button from "@material-ui/core/Button"
 import Collapse from "@material-ui/core/Collapse"
 import IconButton from "@material-ui/core/IconButton"
-import Link from "@material-ui/core/Link"
 import { darken, lighten, makeStyles, Theme } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
+import { Expander } from "components/Expander/Expander"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 
@@ -36,10 +36,6 @@ export const ErrorSummary: FC<React.PropsWithChildren<ErrorSummaryProps>> = ({
 
   const styles = useStyles({ showDetails })
 
-  const toggleShowDetails = () => {
-    setShowDetails(!showDetails)
-  }
-
   const closeError = () => {
     setOpen(false)
   }
@@ -51,19 +47,10 @@ export const ErrorSummary: FC<React.PropsWithChildren<ErrorSummaryProps>> = ({
   return (
     <Stack className={styles.root}>
       <Stack direction="row" alignItems="center" className={styles.messageBox}>
-        <div>
+        <Stack direction="row" spacing={0}>
           <span className={styles.errorMessage}>{message}</span>
-          {!!detail && (
-            <Link
-              aria-expanded={showDetails}
-              onClick={toggleShowDetails}
-              className={styles.detailsLink}
-              tabIndex={0}
-            >
-              {showDetails ? Language.lessDetails : Language.moreDetails}
-            </Link>
-          )}
-        </div>
+          {!!detail && <Expander expanded={showDetails} setExpanded={setShowDetails} />}
+        </Stack>
         {dismissible && (
           <IconButton onClick={closeError} className={styles.iconButton}>
             <CloseIcon className={styles.closeIcon} />
@@ -100,6 +87,9 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     padding: `${theme.spacing(2)}px`,
     borderRadius: theme.shape.borderRadius,
     gap: 0,
+  },
+  flex: {
+    display: "flex",
   },
   messageBox: {
     justifyContent: "space-between",

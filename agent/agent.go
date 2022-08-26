@@ -394,11 +394,24 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if err != nil {
 		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
+	// Set environment variables reliable detection of being inside a
+	// Coder workspace.
+	cmd.Env = append(cmd.Env, "CODER=true")
+
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
+
+	// Set SSH connection environment variables (these are also set by OpenSSH
+	// and thus expected to be present by SSH clients). Since the agent does
+	// networking in-memory, trying to provide accurate values here would be
+	// nonsensical. For now, we hard code these values so that they're present.
+	srcAddr, srcPort := "0.0.0.0", "0"
+	dstAddr, dstPort := "0.0.0.0", "0"
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
@@ -437,6 +450,8 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
+
+		// The pty package sets `SSH_TTY` on supported platforms.
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
@@ -797,7 +812,9 @@ func (r *reconnectingPTY) Close() {
 		_ = conn.Close()
 	}
 	_ = r.ptty.Close()
+	r.circularBufferMutex.Lock()
 	r.circularBuffer.Reset()
+	r.circularBufferMutex.Unlock()
 	r.timeout.Stop()
 }
 

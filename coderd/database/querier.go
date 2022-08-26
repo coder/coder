@@ -21,6 +21,7 @@ type querier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
+	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
@@ -36,6 +37,7 @@ type querier interface {
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
+	GetLicenses(ctx context.Context) ([]License, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)

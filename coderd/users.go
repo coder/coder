@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -27,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/examples"
 )
 
 // Returns whether the initial user has been created or not.
@@ -77,11 +82,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), createUserRequest{
+	user, organizationID, err := api.createUser(r.Context(), api.Database, createUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
 			Password: createUser.Password,
+			// Create an org for the first user.
+			OrganizationID: uuid.Nil,
 		},
 		LoginType: database.LoginTypePassword,
 	})
@@ -114,6 +121,60 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// Auto-import any designated templates into the new organization.
+	for _, template := range api.AutoImportTemplates {
+		archive, err := examples.Archive(string(template))
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  xerrors.Errorf("load template archive for %q: %w", template, err).Error(),
+			})
+			return
+		}
+
+		// Determine which parameter values to use.
+		parameters := map[string]string{}
+		switch template {
+		case AutoImportTemplateKubernetes:
+
+			// Determine the current namespace we're in.
+			const namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+			namespace, err := os.ReadFile(namespaceFile)
+			if err != nil {
+				parameters["use_kubeconfig"] = "true" // use ~/.config/kubeconfig
+				parameters["namespace"] = "coder-workspaces"
+			} else {
+				parameters["use_kubeconfig"] = "false" // use SA auth
+				parameters["namespace"] = string(bytes.TrimSpace(namespace))
+			}
+
+		default:
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  fmt.Sprintf("cannot auto-import %q template", template),
+			})
+			return
+		}
+
+		tpl, err := api.autoImportTemplate(r.Context(), autoImportTemplateOpts{
+			name:    string(template),
+			archive: archive,
+			params:  parameters,
+			userID:  user.ID,
+			orgID:   organizationID,
+		})
+		if err != nil {
+			api.Logger.Warn(r.Context(), "failed to auto-import template", slog.F("template", template), slog.F("parameters", parameters), slog.Error(err))
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error importing template.",
+				Detail:  xerrors.Errorf("failed to import template %q: %w", template, err).Error(),
+			})
+			return
+		}
+
+		api.Logger.Info(r.Context(), "auto-imported template", slog.F("id", tpl.ID), slog.F("template", template), slog.F("parameters", parameters))
 	}
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
@@ -158,7 +219,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err = AuthorizeFilter(api, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -246,7 +307,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), createUserRequest{
+	user, _, err := api.createUser(r.Context(), api.Database, createUserRequest{
 		CreateUserRequest: req,
 		LoginType:         database.LoginTypePassword,
 	})
@@ -503,7 +564,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only include ones we can read from RBAC.
-	memberships, err = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
+	memberships, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, memberships)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching memberships.",
@@ -631,7 +692,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, organizations)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",
@@ -722,16 +783,22 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 	})
-	if !created {
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
+	http.SetCookie(rw, cookie)
+
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
-		SessionToken: sessionToken,
+		SessionToken: cookie.Value,
 	})
 }
 
@@ -745,7 +812,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lifeTime := time.Hour * 24 * 7
-	sessionToken, created := api.createAPIKey(rw, r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:    user.ID,
 		LoginType: database.LoginTypePassword,
 		// All api generated keys will last 1 week. Browser login tokens have
@@ -753,11 +820,19 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       database.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
-	if !created {
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
+	// We intentionally do not set the cookie on the response here.
+	// Setting the cookie will couple the browser sesion to the API
+	// key we return here, meaning logging out of the website would
+	// invalid your CLI key.
+	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
@@ -840,14 +915,10 @@ type createAPIKeyParams struct {
 	LifetimeSeconds int64
 }
 
-func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params createAPIKeyParams) (string, bool) {
+func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.Cookie, error) {
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error generating API key.",
-			Detail:  err.Error(),
-		})
-		return "", false
+		return nil, xerrors.Errorf("generate API key: %w", err)
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
@@ -885,11 +956,7 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params cre
 		LoginType:    params.LoginType,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error inserting API key.",
-			Detail:  err.Error(),
-		})
-		return "", false
+		return nil, xerrors.Errorf("insert API key: %w", err)
 	}
 
 	api.Telemetry.Report(&telemetry.Snapshot{
@@ -898,15 +965,14 @@ func (api *API) createAPIKey(rw http.ResponseWriter, r *http.Request, params cre
 
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
-	http.SetCookie(rw, &http.Cookie{
+	return &http.Cookie{
 		Name:     codersdk.SessionTokenKey,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   api.SecureAuthCookie,
-	})
-	return sessionToken, true
+	}, nil
 }
 
 type createUserRequest struct {
@@ -914,13 +980,13 @@ type createUserRequest struct {
 	LoginType database.LoginType
 }
 
-func (api *API) createUser(ctx context.Context, req createUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) createUser(ctx context.Context, store database.Store, req createUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
-	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
+	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
-			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:        uuid.New(),
 				Name:      req.Username,
 				CreatedAt: database.Now(),
@@ -953,7 +1019,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		}
 
 		var err error
-		user, err = db.InsertUser(ctx, params)
+		user, err = tx.InsertUser(ctx, params)
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
@@ -962,7 +1028,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		if err != nil {
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}
-		_, err = db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
 			CreatedAt:  database.Now(),
 			UpdatedAt:  database.Now(),
@@ -972,7 +1038,7 @@ func (api *API) createUser(ctx context.Context, req createUserRequest) (database
 		if err != nil {
 			return xerrors.Errorf("insert user gitsshkey: %w", err)
 		}
-		_, err = db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
 			UserID:         user.ID,
 			CreatedAt:      database.Now(),
@@ -995,7 +1061,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0),
+		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
 	}
 
 	for _, roleName := range user.RBACRoles {

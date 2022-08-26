@@ -28,7 +28,7 @@ func deleteWorkspace() *cobra.Command {
 				return err
 			}
 
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

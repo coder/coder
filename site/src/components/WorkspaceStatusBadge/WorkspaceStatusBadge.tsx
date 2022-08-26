@@ -1,118 +1,92 @@
 import CircularProgress from "@material-ui/core/CircularProgress"
-import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
 import ErrorIcon from "@material-ui/icons/ErrorOutline"
 import StopIcon from "@material-ui/icons/PauseOutlined"
 import PlayIcon from "@material-ui/icons/PlayArrowOutlined"
 import { WorkspaceBuild } from "api/typesGenerated"
+import { Pill } from "components/Pill/Pill"
+import i18next from "i18next"
 import React from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { combineClasses } from "util/combineClasses"
+import { PaletteIndex } from "theme/palettes"
 import { getWorkspaceStatus } from "util/workspace"
-
-const StatusLanguage = {
-  loading: "Loading",
-  started: "Running",
-  starting: "Starting",
-  stopping: "Stopping",
-  stopped: "Stopped",
-  deleting: "Deleting",
-  deleted: "Deleted",
-  canceling: "Canceling action",
-  canceled: "Canceled action",
-  failed: "Failed",
-  queued: "Queued",
-}
 
 const LoadingIcon: React.FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }
 
 export const getStatus = (
-  theme: Theme,
   build: WorkspaceBuild,
 ): {
-  borderColor: string
-  backgroundColor: string
+  type?: PaletteIndex
   text: string
   icon: React.ReactNode
 } => {
   const status = getWorkspaceStatus(build)
+  const { t } = i18next
+
   switch (status) {
     case undefined:
       return {
-        borderColor: theme.palette.text.secondary,
-        backgroundColor: theme.palette.text.secondary,
-        text: StatusLanguage.loading,
+        text: t("workspaceStatus.loading", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "started":
       return {
-        borderColor: theme.palette.success.main,
-        backgroundColor: theme.palette.success.dark,
-        text: StatusLanguage.started,
+        type: "success",
+        text: t("workspaceStatus.started", { ns: "common" }),
         icon: <PlayIcon />,
       }
     case "starting":
       return {
-        borderColor: theme.palette.success.main,
-        backgroundColor: theme.palette.success.dark,
-        text: StatusLanguage.starting,
+        type: "success",
+        text: t("workspaceStatus.starting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopping":
       return {
-        borderColor: theme.palette.warning.main,
-        backgroundColor: theme.palette.warning.dark,
-        text: StatusLanguage.stopping,
+        type: "warning",
+        text: t("workspaceStatus.stopping", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "stopped":
       return {
-        borderColor: theme.palette.warning.main,
-        backgroundColor: theme.palette.warning.dark,
-        text: StatusLanguage.stopped,
+        type: "warning",
+        text: t("workspaceStatus.stopped", { ns: "common" }),
         icon: <StopIcon />,
       }
     case "deleting":
       return {
-        borderColor: theme.palette.warning.main,
-        backgroundColor: theme.palette.warning.dark,
-        text: StatusLanguage.deleting,
+        type: "warning",
+        text: t("workspaceStatus.deleting", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "deleted":
       return {
-        borderColor: theme.palette.error.main,
-        backgroundColor: theme.palette.error.dark,
-        text: StatusLanguage.deleted,
+        type: "error",
+        text: t("workspaceStatus.deleted", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "canceling":
       return {
-        borderColor: theme.palette.warning.main,
-        backgroundColor: theme.palette.warning.dark,
-        text: StatusLanguage.canceling,
+        type: "warning",
+        text: t("workspaceStatus.canceling", { ns: "common" }),
         icon: <LoadingIcon />,
       }
     case "canceled":
       return {
-        borderColor: theme.palette.warning.main,
-        backgroundColor: theme.palette.warning.dark,
-        text: StatusLanguage.canceled,
+        type: "warning",
+        text: t("workspaceStatus.canceled", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "error":
       return {
-        borderColor: theme.palette.error.main,
-        backgroundColor: theme.palette.error.dark,
-        text: StatusLanguage.failed,
+        type: "error",
+        text: t("workspaceStatus.failed", { ns: "common" }),
         icon: <ErrorIcon />,
       }
     case "queued":
       return {
-        borderColor: theme.palette.info.main,
-        backgroundColor: theme.palette.info.dark,
-        text: StatusLanguage.queued,
+        type: "info",
+        text: t("workspaceStatus.queued", { ns: "common" }),
         icon: <LoadingIcon />,
       }
   }
@@ -128,50 +102,6 @@ export const WorkspaceStatusBadge: React.FC<React.PropsWithChildren<WorkspaceSta
   build,
   className,
 }) => {
-  const styles = useStyles()
-  const theme = useTheme()
-  const { text, icon, ...colorStyles } = getStatus(theme, build)
-  return (
-    <div
-      className={combineClasses([styles.wrapper, className])}
-      style={{ ...colorStyles }}
-      role="status"
-    >
-      <div className={styles.iconWrapper}>{icon}</div>
-      {text}
-    </div>
-  )
+  const { text, icon, type } = getStatus(build)
+  return <Pill className={className} icon={icon} text={text} type={type} />
 }
-
-const useStyles = makeStyles((theme) => ({
-  wrapper: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    display: "inline-flex",
-    alignItems: "center",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderRadius: 99999,
-    fontSize: 14,
-    fontWeight: 500,
-    color: "#FFF",
-    height: theme.spacing(3),
-    paddingLeft: theme.spacing(0.75),
-    paddingRight: theme.spacing(1.5),
-    whiteSpace: "nowrap",
-  },
-
-  iconWrapper: {
-    marginRight: theme.spacing(0.5),
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-    lineHeight: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    "& > svg": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
-    },
-  },
-}))

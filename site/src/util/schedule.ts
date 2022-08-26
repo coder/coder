@@ -73,27 +73,26 @@ export const autoStartDisplay = (schedule: string | undefined): string => {
 
 export const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
   if (!deadline) {
+    if (!workspace.latest_build.deadline) {
+      return false
+    }
     deadline = dayjs(workspace.latest_build.deadline).utc()
   }
-  const hasDeadline = deadline.year() > 1
   const now = dayjs().utc()
-  return isWorkspaceOn(workspace) && hasDeadline && now.isAfter(deadline)
+  return isWorkspaceOn(workspace) && now.isAfter(deadline)
 }
 
 export const autoStopDisplay = (workspace: Workspace): string => {
-  const deadline = dayjs(workspace.latest_build.deadline).utc()
-  // a manual shutdown has a deadline of '"0001-01-01T00:00:00Z"'
-  // SEE: #1834
-  const hasDeadline = deadline.year() > 1
   const ttl = workspace.ttl_ms
 
-  if (isWorkspaceOn(workspace) && hasDeadline) {
+  if (isWorkspaceOn(workspace) && workspace.latest_build.deadline) {
     // Workspace is on --> derive from latest_build.deadline. Note that the
     // user may modify their workspace object (ttl) while the workspace is
     // running and depending on system semantics, the deadline may still
     // represent the previously defined ttl. Thus, we always derive from the
     // deadline as the source of truth.
 
+    const deadline = dayjs(workspace.latest_build.deadline).utc()
     if (isShuttingDown(workspace, deadline)) {
       return Language.workspaceShuttingDownLabel
     } else {

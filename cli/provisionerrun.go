@@ -32,7 +32,7 @@ func provisionerRun() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

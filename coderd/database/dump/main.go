@@ -41,7 +41,6 @@ func main() {
 		connection,
 		"--no-privileges",
 		"--no-owner",
-		"--no-comments",
 
 		// We never want to manually generate
 		// queries executing against this table.

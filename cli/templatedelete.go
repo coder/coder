@@ -23,7 +23,7 @@ func templateDelete() *cobra.Command {
 				templates     = []codersdk.Template{}
 			)
 
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

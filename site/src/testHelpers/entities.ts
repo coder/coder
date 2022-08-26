@@ -51,6 +51,10 @@ export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesG
   }
 }
 
+export const MockMemberPermissions = {
+  viewAuditLog: false,
+}
+
 export const MockUser: TypesGen.User = {
   id: "test-user",
   username: "TestUser",
@@ -59,6 +63,16 @@ export const MockUser: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
+}
+
+export const MockUserAdmin: TypesGen.User = {
+  id: "test-user",
+  username: "TestUser",
+  email: "test@coder.com",
+  created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [MockUserAdminRole],
 }
 
 export const MockUser2: TypesGen.User = {
@@ -636,3 +650,37 @@ export const makeMockApiError = ({
   },
   isAxiosError: true,
 })
+
+export const MockEntitlements: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: false,
+  features: {},
+}
+
+export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  warnings: ["You are over your active user limit.", "And another thing."],
+  has_license: true,
+  features: {
+    user_limit: {
+      enabled: true,
+      entitlement: "grace_period",
+      limit: 100,
+      actual: 102,
+    },
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  },
+}
+
+export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: true,
+  features: {
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  },
+}

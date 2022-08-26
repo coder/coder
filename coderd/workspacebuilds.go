@@ -638,7 +638,8 @@ func convertWorkspaceBuild(
 	buildInitiator *database.User,
 	workspace database.Workspace,
 	workspaceBuild database.WorkspaceBuild,
-	job database.ProvisionerJob) codersdk.WorkspaceBuild {
+	job database.ProvisionerJob,
+) codersdk.WorkspaceBuild {
 	//nolint:unconvert
 	if workspace.ID != workspaceBuild.WorkspaceID {
 		panic("workspace and build do not match")
@@ -671,7 +672,7 @@ func convertWorkspaceBuild(
 		InitiatorID:        workspaceBuild.InitiatorID,
 		InitiatorUsername:  initiatorName,
 		Job:                convertProvisionerJob(job),
-		Deadline:           workspaceBuild.Deadline,
+		Deadline:           codersdk.NewNullTime(workspaceBuild.Deadline, !workspaceBuild.Deadline.IsZero()),
 		Reason:             codersdk.BuildReason(workspaceBuild.Reason),
 	}
 }

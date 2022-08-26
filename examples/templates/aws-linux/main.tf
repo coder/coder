@@ -138,8 +138,7 @@ sudo shutdown -h now
 --//--
 EOT
 
-  # Ensure Coder username is a valid Linux username
-  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+  linux_user = "coder" # Ensure this user/group does not exist in your VM image
 
 }
 

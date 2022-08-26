@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -55,6 +56,77 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+	})
+
+	t.Run("AutoImportsTemplates", func(t *testing.T) {
+		t.Parallel()
+
+		// All available auto import templates should be added to this list, and
+		// also added to the switch statement below.
+		autoImportTemplates := []coderd.AutoImportTemplate{
+			coderd.AutoImportTemplateKubernetes,
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			AutoImportTemplates: autoImportTemplates,
+		})
+		u := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		templates, err := client.TemplatesByOrganization(ctx, u.OrganizationID)
+		require.NoError(t, err, "list templates")
+		require.Len(t, templates, len(autoImportTemplates), "listed templates count does not match")
+		require.ElementsMatch(t, autoImportTemplates, []coderd.AutoImportTemplate{
+			coderd.AutoImportTemplate(templates[0].Name),
+		}, "template names don't match")
+
+		for _, template := range templates {
+			// Check template parameters.
+			templateParams, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
+			require.NoErrorf(t, err, "get template parameters for %q", template.Name)
+
+			// Ensure all template parameters are present.
+			expectedParams := map[string]bool{}
+			switch template.Name {
+			case "kubernetes":
+				expectedParams["use_kubeconfig"] = false
+				expectedParams["namespace"] = false
+			default:
+				t.Fatalf("unexpected template name %q", template.Name)
+			}
+			for _, v := range templateParams {
+				if _, ok := expectedParams[v.Name]; !ok {
+					t.Fatalf("unexpected template parameter %q in template %q", v.Name, template.Name)
+				}
+				expectedParams[v.Name] = true
+			}
+			for k, v := range expectedParams {
+				if !v {
+					t.Fatalf("missing template parameter %q in template %q", k, template.Name)
+				}
+			}
+
+			// Ensure template version is legit
+			templateVersion, err := client.TemplateVersion(ctx, template.ActiveVersionID)
+			require.NoErrorf(t, err, "get template version for %q", template.Name)
+
+			// Compare job parameters to template parameters.
+			jobParams, err := client.Parameters(ctx, codersdk.ParameterImportJob, templateVersion.Job.ID)
+			require.NoErrorf(t, err, "get template import job parameters for %q", template.Name)
+			for _, v := range jobParams {
+				if _, ok := expectedParams[v.Name]; !ok {
+					t.Fatalf("unexpected job parameter %q for template %q", v.Name, template.Name)
+				}
+				// Change it back to false so we can reuse the map
+				expectedParams[v.Name] = false
+			}
+			for k, v := range expectedParams {
+				if v {
+					t.Fatalf("missing job parameter %q for template %q", k, template.Name)
+				}
+			}
+		}
 	})
 }
 
@@ -489,17 +561,19 @@ func TestGrantSiteRoles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, randOrgUser := coderdtest.CreateAnotherUserWithUser(t, admin, randOrg.ID, rbac.RoleOrgAdmin(randOrg.ID))
+	userAdmin := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
 
 	const newUser = "newUser"
 
 	testCases := []struct {
-		Name         string
-		Client       *codersdk.Client
-		OrgID        uuid.UUID
-		AssignToUser string
-		Roles        []string
-		Error        bool
-		StatusCode   int
+		Name          string
+		Client        *codersdk.Client
+		OrgID         uuid.UUID
+		AssignToUser  string
+		Roles         []string
+		ExpectedRoles []string
+		Error         bool
+		StatusCode    int
 	}{
 		{
 			Name:         "OrgRoleInSite",
@@ -576,7 +650,20 @@ func TestGrantSiteRoles(t *testing.T) {
 			OrgID:        first.OrganizationID,
 			AssignToUser: newUser,
 			Roles:        []string{rbac.RoleOrgAdmin(first.OrganizationID)},
-			Error:        false,
+			ExpectedRoles: []string{
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+			Error: false,
+		},
+		{
+			Name:         "UserAdminMakeMember",
+			Client:       userAdmin,
+			AssignToUser: newUser,
+			Roles:        []string{rbac.RoleMember()},
+			ExpectedRoles: []string{
+				rbac.RoleMember(),
+			},
+			Error: false,
 		},
 	}
 
@@ -597,16 +684,21 @@ func TestGrantSiteRoles(t *testing.T) {
 				c.AssignToUser = newUser.ID.String()
 			}
 
+			var newRoles []codersdk.Role
 			if c.OrgID != uuid.Nil {
 				// Org assign
-				_, err = c.Client.UpdateOrganizationMemberRoles(ctx, c.OrgID, c.AssignToUser, codersdk.UpdateRoles{
+				var mem codersdk.OrganizationMember
+				mem, err = c.Client.UpdateOrganizationMemberRoles(ctx, c.OrgID, c.AssignToUser, codersdk.UpdateRoles{
 					Roles: c.Roles,
 				})
+				newRoles = mem.Roles
 			} else {
 				// Site assign
-				_, err = c.Client.UpdateUserRoles(ctx, c.AssignToUser, codersdk.UpdateRoles{
+				var user codersdk.User
+				user, err = c.Client.UpdateUserRoles(ctx, c.AssignToUser, codersdk.UpdateRoles{
 					Roles: c.Roles,
 				})
+				newRoles = user.Roles
 			}
 
 			if c.Error {
@@ -614,6 +706,11 @@ func TestGrantSiteRoles(t *testing.T) {
 				requireStatusCode(t, err, c.StatusCode)
 			} else {
 				require.NoError(t, err)
+				roles := make([]string, 0, len(newRoles))
+				for _, r := range newRoles {
+					roles = append(roles, r.Name)
+				}
+				require.ElementsMatch(t, roles, c.ExpectedRoles)
 			}
 		})
 	}

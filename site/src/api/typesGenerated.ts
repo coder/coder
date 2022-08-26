@@ -211,7 +211,7 @@ export interface OrganizationMember {
   readonly organization_id: string
   readonly created_at: string
   readonly updated_at: string
-  readonly roles: string[]
+  readonly roles: Role[]
 }
 
 // From codersdk/pagination.go
@@ -533,7 +533,7 @@ export interface WorkspaceBuild {
   readonly initiator_id: string
   readonly initiator_name: string
   readonly job: ProvisionerJob
-  readonly deadline: string
+  readonly deadline?: string
   readonly reason: BuildReason
 }
 

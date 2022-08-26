@@ -161,7 +161,7 @@ describe("validationSchema", () => {
       ttl: 24 * 7 + 1,
     }
     const validate = () => validationSchema.validateSync(values)
-    expect(validate).toThrowError("ttl must be less than or equal to 168")
+    expect(validate).toThrowError(Language.errorTtlMax)
   })
 })
 

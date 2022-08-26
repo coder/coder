@@ -89,7 +89,7 @@ locals {
   prefix = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
 
   userdata = templatefile("cloud-config.yaml.tftpl", {
-    username    = lower(substr(data.coder_workspace.me.owner, 0, 32))
+    username    = "coder" # Ensure this user/group does not exist in your VM image
     init_script = base64encode(coder_agent.main.init_script)
     hostname    = lower(data.coder_workspace.me.name)
   })

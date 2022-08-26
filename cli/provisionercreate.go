@@ -14,7 +14,7 @@ func provisionerCreate() *cobra.Command {
 		Short: "Create a provisioner daemon instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}

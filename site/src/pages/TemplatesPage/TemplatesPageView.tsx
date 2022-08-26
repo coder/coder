@@ -135,7 +135,7 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                         : Language.emptyViewNoPerms
                     }
                     descriptionClassName={styles.emptyDescription}
-                    cta={<CodeExample code="coder template init" />}
+                    cta={<CodeExample code="coder templates init" />}
                   />
                 </TableCell>
               </TableRow>

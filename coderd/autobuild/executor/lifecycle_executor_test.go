@@ -193,7 +193,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 
 	// When: the autobuild executor ticks *after* the deadline:
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
 		close(tickCh)
 	}()
 
@@ -229,7 +229,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	require.NotZero(t, originalDeadline)
 
 	// Given: we extend the workspace deadline
-	newDeadline := originalDeadline.Add(30 * time.Minute)
+	newDeadline := originalDeadline.Time.Add(30 * time.Minute)
 	err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: newDeadline,
 	})
@@ -237,7 +237,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 
 	// When: the autobuild executor ticks *after* the original deadline:
 	go func() {
-		tickCh <- originalDeadline.Add(time.Minute)
+		tickCh <- originalDeadline.Time.Add(time.Minute)
 	}()
 
 	// Then: nothing should happen and the workspace should stay running
@@ -281,7 +281,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
 		close(tickCh)
 	}()
 
@@ -323,7 +323,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
 		close(tickCh)
 	}()
 
@@ -415,7 +415,7 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 
 	// When: the autobuild executor ticks before the TTL
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(-1 * time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(-1 * time.Minute)
 		close(tickCh)
 	}()
 
@@ -447,11 +447,11 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 
 	// Then: the deadline should still be the original value
 	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.WithinDuration(t, workspace.LatestBuild.Deadline, updated.LatestBuild.Deadline, time.Minute)
+	assert.WithinDuration(t, workspace.LatestBuild.Deadline.Time, updated.LatestBuild.Deadline.Time, time.Minute)
 
 	// When: the autobuild executor ticks after the original deadline
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
 	}()
 
 	// Then: the workspace should stop
@@ -478,7 +478,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 
 	// When: the relentless onward march of time continues
 	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Add(newTTL + time.Minute)
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(newTTL + time.Minute)
 		close(tickCh)
 	}()
 
