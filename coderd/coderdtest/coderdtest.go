@@ -75,7 +75,7 @@ type Options struct {
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD  bool
 	APIBuilder           func(*coderd.Options) *coderd.API
-	MaxWorkspacesPerUser uint8
+	MaxWorkspacesPerUser uint
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.

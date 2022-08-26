@@ -111,8 +111,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		autoImportTemplates              []string
 		spooky                           bool
 		verbose                          bool
-		// maxWorkspacesPerUser is a uint8 to ensure a number > 0.
-		maxWorkspacesPerUser uint8
+		// maxWorkspacesPerUser is a uint to ensure a number > 0.
+		maxWorkspacesPerUser uint
 	)
 
 	root := &cobra.Command{
@@ -778,7 +778,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes")
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
 	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
-	cliflag.Uint8VarP(root.Flags(), &maxWorkspacesPerUser, "max-workspaces-per-user", "", "CODER_MAX_WORKSPACES_PER_USER", 50, "Specifies the max number of workspaces that can be created by a user.")
+	cliflag.UintVarP(root.Flags(), &maxWorkspacesPerUser, "max-workspaces-per-user", "", "CODER_MAX_WORKSPACES_PER_USER", 50, "Specifies the max number of workspaces that can be created by a user.")
 	_ = root.Flags().MarkHidden("spooky")
 
 	return root

@@ -312,7 +312,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule, time.Duration(template.MinAutostartInterval))
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
+			Message:     "Invalid Autostart Schedule.",
+			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
 		})
 		return
 	}
