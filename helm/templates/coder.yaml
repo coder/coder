@@ -34,40 +34,33 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
-            {{- if .Values.coder.tls.secretName }}
             - name: CODER_ADDRESS
-              value: "0.0.0.0:8443"
+              value: "0.0.0.0:{{ include "coder.port" . }}"
+            {{- if .Values.coder.tls.secretName }}
             - name: CODER_TLS_ENABLE
               value: "true"
             - name: CODER_TLS_CERT_FILE
               value: /etc/ssl/certs/coder/tls.crt
             - name: CODER_TLS_KEY_FILE
               value: /etc/ssl/certs/coder/tls.key
-            {{- else }}
-            - name: CODER_ADDRESS
-              value: "0.0.0.0:8080"
             {{- end }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            {{- if .Values.coder.tls.secretName }}
-            - name: https
-              containerPort: 8443
+            - name: {{ include "coder.portName" . | quote }}
+              containerPort: {{ include "coder.port" . }}
               protocol: TCP
-            {{- else }}
-            - name: http
-              containerPort: 8080
-              protocol: TCP
-            {{- end }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: http
+              port: {{ include "coder.portName" . | quote }}
+              scheme: {{ include "coder.scheme" . | quote }}
           livenessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: http
+              port: {{ include "coder.portName" . | quote }}
+              scheme: {{ include "coder.scheme" . | quote }}
           {{- if .Values.coder.tls.secretName }}
           volumeMounts:
             - name: tls
