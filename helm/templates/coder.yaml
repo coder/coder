@@ -68,3 +68,16 @@ spec:
             httpGet:
               path: /api/v2/buildinfo
               port: http
+          {{- if .Values.coder.tls.secretName }}
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/ssl/certs/coder
+              readOnly: true
+          {{- end }}
+
+      {{- if .Values.coder.tls.secretName }}
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ .Values.coder.tls.secretName | quote }}
+      {{- end }}
