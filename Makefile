@@ -95,39 +95,24 @@ build/coder-slim_$(VERSION).tar.zst site/out/coder.tar.zst: build/coder-slim_$(V
 
 	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/coder.tar.zst"
 
-# Redirect from version-less targets to the versioned ones. This is kinda gross
-# since it's make shelling out to make, but it's the easiest way less we write
-# out every target manually.
-#
-# There is a similar target for slim binaries below.
+# Redirect from version-less targets to the versioned ones. There is a similar
+# target for slim binaries below.
 #
 # Called like this:
 #   make build/coder_linux_amd64
 #   make build/coder_windows_amd64.exe
-$(CODER_FAT_NOVERSION_BINARIES): site/out/index.html site/out/coder.tar.zst
-	target="coder_$(VERSION)_$(@:build/coder_%=%)"
-	$(MAKE) \
-		--no-print-directory \
-		--assume-old site/out/index.html \
-		--assume-old site/out/coder.tar.zst \
-		"build/$$target"
+$(CODER_FAT_NOVERSION_BINARIES): build/coder_%: build/coder_$(VERSION)_%
 	rm -f "$@"
-	ln -s "$$target" "$@"
-.PHONY: $(CODER_FAT_NONVERSION_BINARIES)
+	ln -s "$$(basename "$<")" "$@"
 
 # Same as above, but for slim binaries.
 #
 # Called like this:
 #   make build/coder-slim_linux_amd64
 #   make build/coder-slim_windows_amd64.exe
-$(CODER_SLIM_NOVERSION_BINARIES):
-	target="coder-slim_$(VERSION)_$(@:build/coder-slim_%=%)"
-	$(MAKE) \
-		--no-print-directory \
-		"build/$$target"
+$(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION)_%
 	rm -f "$@"
-	ln -s "$$target" "$@"
-.PHONY: $(CODER_SLIM_NOVERSION_BINARIES)
+	ln -s "$$(basename "$<")" "$@"
 
 # "fat" binaries always depend on the site and the compressed slim binaries.
 $(CODER_FAT_BINARIES): site/out/index.html site/out/coder.tar.zst
@@ -277,10 +262,22 @@ build/coder_$(VERSION)_linux.tag: $(CODER_ALL_ARCH_IMAGES_PUSHED)
 
 	echo "$$image_tag" > "$@"
 
+# Push a Docker image.
 $(CODER_ALL_IMAGES_PUSHED): push/%: %
 	image_tag="$$(cat "$<")"
 	docker push "$$image_tag"
 .PHONY: $(CODER_ALL_IMAGES_PUSHED)
+
+# Shortcut for Helm chart package.
+build/coder_helm.tgz: build/coder_helm_$(VERSION).tgz
+	rm -f "$@"
+	ln -s "$$(basename "$<")" "$@"
+
+# Helm chart package.
+build/coder_helm_$(VERSION).tgz:
+	./scripts/helm.sh \
+		--version "$(VERSION)" \
+		--output "$@"
 
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: coderd/database/dump/main.go $(wildcard coderd/database/migrations/*.sql)

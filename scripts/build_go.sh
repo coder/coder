@@ -12,7 +12,7 @@
 # with "vX" (e.g. "v7", "v8").
 #
 # Unless overridden via --output, the built binary will be dropped in
-# "$repo_root/dist/coder_$version_$os_$arch" (with a ".exe" suffix for windows
+# "$repo_root/build/coder_$version_$os_$arch" (with a ".exe" suffix for windows
 # builds) and the absolute path to the binary will be printed to stdout on
 # completion.
 #
@@ -26,7 +26,6 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-cdroot
 
 version=""
 os="${GOOS:-linux}"
@@ -82,6 +81,8 @@ while true; do
 	esac
 done
 
+cdroot
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
@@ -103,9 +104,8 @@ fi
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then
-	dist_dir="dist"
-	mkdir -p "$dist_dir"
-	output_path="${dist_dir}/coder_${version}_${os}_${arch}"
+	mkdir -p "build"
+	output_path="build/coder_${version}_${os}_${arch}"
 	if [[ "$os" == "windows" ]]; then
 		output_path+=".exe"
 	fi

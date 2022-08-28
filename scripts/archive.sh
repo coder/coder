@@ -16,7 +16,8 @@
 # imported for this to work. Also, the input binary must already be signed with
 # the `codesign` tool.
 #
-# If the --agpl parameter is specified, only includes AGPL license.
+# If the --agpl parameter is specified, only the AGPL license is included in the
+# outputted archive.
 #
 # The absolute output path is printed on success.
 
