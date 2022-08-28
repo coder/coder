@@ -86,16 +86,13 @@ jobs:
           set -euxo pipefail
 
           # build and (maybe) push Docker images for each architecture
-          images=()
-          for arch in amd64 armv7 arm64; do
-            img="$(
-              ./scripts/build_docker.sh \
-                ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
-                --arch "$arch" \
-                ./build/coder_*_linux_"$arch"
-            )"
-            images+=("$img")
-          done
+          version="$(./script/version.sh)"
+          push=""
+          if [[ "$CODER_RELEASE" == *t* ]]; then
+            push="push/"
+          fi
+          make -j \
+            "$push"build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -105,14 +102,13 @@ jobs:
           fi
 
           # build and push multi-arch manifest
-          ./scripts/build_docker_multiarch.sh \
-            --push \
-            "${images[@]}"
+          make -j push/build/coder_"$version"_linux.tag
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            make -j push/build/coder_"$version"_linux.tag
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
@@ -252,7 +248,10 @@ jobs:
       - name: Publish Helm
         run: |
           set -euxo pipefail
-          ./scripts/helm.sh --push
+
+          version="$(./script/version.sh)"
+          make -j \
+            build/coder_helm_"$version".tgz
           mv ./build/*.tgz ./artifacts/
 
       - name: Publish Release
