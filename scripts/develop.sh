@@ -81,7 +81,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 		echo "${example_template}" | "${CODER_DEV_SHIM}" templates init "${temp_template_dir}"
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
-		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" > "${temp_template_dir}/params.yaml"
+		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
 			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
