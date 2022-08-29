@@ -37,5 +37,8 @@ const useStyles = makeStyles((theme) => ({
   secondary: {
     fontSize: 12,
     color: theme.palette.text.secondary,
+    lineHeight: "140%",
+    marginTop: 2,
+    maxWidth: 540,
   },
 }))
