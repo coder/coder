@@ -54,7 +54,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 }
 
 // ExtractWorkspaceAndAgentParam grabs a workspace and an agent from the
-// "workspacename_and_agent" URL parameter. `ExtractUserParam` must be called
+// "workspace_and_agent" URL parameter. `ExtractUserParam` must be called
 // before this.
 // This can be in the form of:
 //	- "<workspace-name>.[workspace-agent]"	: If multiple agents exist
@@ -63,7 +63,7 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			user := UserParam(r)
-			workspaceWithAgent := chi.URLParam(r, "workspacename_and_agent")
+			workspaceWithAgent := chi.URLParam(r, "workspace_and_agent")
 			workspaceParts := strings.Split(workspaceWithAgent, ".")
 
 			workspace, err := db.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{

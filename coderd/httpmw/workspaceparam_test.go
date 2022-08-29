@@ -296,7 +296,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 				Agents:        c.Agents,
 			})
 
-			chi.RouteContext(r.Context()).URLParams.Add("workspacename_and_agent", c.URLParam)
+			chi.RouteContext(r.Context()).URLParams.Add("workspace_and_agent", c.URLParam)
 
 			rtr := chi.NewRouter()
 			rtr.Use(

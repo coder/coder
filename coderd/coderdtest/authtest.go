@@ -120,23 +120,23 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 	require.NoError(t, err, "create template param")
 
 	urlParameters := map[string]string{
-		"{organization}":            admin.OrganizationID.String(),
-		"{user}":                    admin.UserID.String(),
-		"{organizationname}":        organization.Name,
-		"{workspace}":               workspace.ID.String(),
-		"{workspacebuild}":          workspace.LatestBuild.ID.String(),
-		"{workspacename}":           workspace.Name,
-		"{workspacebuildname}":      workspace.LatestBuild.Name,
-		"{workspaceagent}":          workspaceResources[0].Agents[0].ID.String(),
-		"{buildnumber}":             strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
-		"{template}":                template.ID.String(),
-		"{hash}":                    file.Hash,
-		"{workspaceresource}":       workspaceResources[0].ID.String(),
-		"{workspaceapp}":            workspaceResources[0].Agents[0].Apps[0].Name,
-		"{templateversion}":         version.ID.String(),
-		"{jobID}":                   templateVersionDryRun.ID.String(),
-		"{templatename}":            template.Name,
-		"{workspacename_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		"{organization}":        admin.OrganizationID.String(),
+		"{user}":                admin.UserID.String(),
+		"{organizationname}":    organization.Name,
+		"{workspace}":           workspace.ID.String(),
+		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
+		"{workspacename}":       workspace.Name,
+		"{workspacebuildname}":  workspace.LatestBuild.Name,
+		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		"{template}":            template.ID.String(),
+		"{hash}":                file.Hash,
+		"{workspaceresource}":   workspaceResources[0].ID.String(),
+		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{templateversion}":     version.ID.String(),
+		"{jobID}":               templateVersionDryRun.ID.String(),
+		"{templatename}":        template.Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -406,11 +406,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		}
 	}
 
-	assertAllHTTPMethods("/%40{user}/{workspacename_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
 		AssertObject: workspaceExecObj,
 	})
-	assertAllHTTPMethods("/@{user}/{workspacename_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
 		AssertObject: workspaceExecObj,
 	})
