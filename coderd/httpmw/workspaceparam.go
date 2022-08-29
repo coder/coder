@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type workspaceParamContextKey struct{}
@@ -57,8 +58,8 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 // "workspace_and_agent" URL parameter. `ExtractUserParam` must be called
 // before this.
 // This can be in the form of:
-//	- "<workspace-name>.[workspace-agent]"	: If multiple agents exist
-//	- "<workspace-name>"					: If one agent exists
+//   - "<workspace-name>.[workspace-agent]"	: If multiple agents exist
+//   - "<workspace-name>"					: If one agent exists
 func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

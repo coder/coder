@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -338,7 +339,13 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts, createdByNameMap))
+	// Sort templates by WorkspaceOwnerCount DESC
+	templateList := convertTemplates(templates, workspaceCounts, createdByNameMap)
+	sort.SliceStable(templateList, func(i, j int) bool {
+		return templateList[i].WorkspaceOwnerCount > templateList[j].WorkspaceOwnerCount
+	})
+
+	httpapi.Write(rw, http.StatusOK, templateList)
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
