@@ -18,7 +18,7 @@ type StatusWriter struct {
 	http.ResponseWriter
 	Status       int
 	Hijacked     bool
-	ResponseBody []byte
+	responseBody []byte
 
 	wroteHeader bool
 }
@@ -45,8 +45,8 @@ func (w *StatusWriter) Write(b []byte) (int, error) {
 		// we typically only write to the response body once
 		// and this field is only used for logging I'm leaving
 		// this as-is.
-		w.ResponseBody = make([]byte, minInt(len(b), maxBodySize))
-		copy(w.ResponseBody, b)
+		w.responseBody = make([]byte, minInt(len(b), maxBodySize))
+		copy(w.responseBody, b)
 	}
 
 	return w.ResponseWriter.Write(b)
@@ -67,4 +67,8 @@ func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	w.Hijacked = true
 
 	return hijacker.Hijack()
+}
+
+func (w *StatusWriter) ResponseBody() []byte {
+	return w.responseBody
 }

@@ -62,7 +62,7 @@ func TestStatusWriter(t *testing.T) {
 		// Should set the status to OK.
 		require.Equal(t, http.StatusOK, w.Status)
 		// We don't record the body for codes <400.
-		require.Equal(t, []byte(nil), w.ResponseBody)
+		require.Equal(t, []byte(nil), w.ResponseBody())
 		require.Equal(t, body, rec.Body.Bytes())
 	})
 
@@ -80,7 +80,7 @@ func TestStatusWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, code, w.Status)
-		require.Equal(t, body, w.ResponseBody)
+		require.Equal(t, body, w.ResponseBody())
 		require.Equal(t, body, rec.Body.Bytes())
 	})
 
@@ -103,7 +103,7 @@ func TestStatusWriter(t *testing.T) {
 
 		require.Equal(t, code, w.Status)
 		require.Equal(t, body, rec.Body.Bytes())
-		require.Equal(t, body[:4096], w.ResponseBody)
+		require.Equal(t, body[:4096], w.ResponseBody())
 	})
 
 	t.Run("Hijack", func(t *testing.T) {

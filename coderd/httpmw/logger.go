@@ -38,7 +38,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			// want to log the response body.
 			if sw.Status >= 400 {
 				httplog = httplog.With(
-					slog.F("response_body", string(sw.ResponseBody)),
+					slog.F("response_body", string(sw.ResponseBody())),
 				)
 			}
 
