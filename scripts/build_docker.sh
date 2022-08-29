@@ -90,8 +90,8 @@ fi
 # hardlinked from.
 cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
-ln -P "$input_file" "$temp_dir/coder"
-ln -P Dockerfile "$temp_dir/"
+ln "$input_file" "$temp_dir/coder"
+ln Dockerfile "$temp_dir/"
 
 cd "$temp_dir"
 
