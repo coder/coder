@@ -39,6 +39,11 @@
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder.",
           "path": "./install/upgrade.md"
+        },
+        {
+          "title": "Uninstall",
+          "description": "Learn how to uninstall Coder.",
+          "path": "./install/uninstall.md"
         }
       ]
     },
