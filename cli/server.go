@@ -659,13 +659,13 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := createConfig(cmd)
 			url, err := embeddedPostgresURL(cfg)
 			if err != nil {
 				return err
 			}
-			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
 			return nil
 		},
 	})
