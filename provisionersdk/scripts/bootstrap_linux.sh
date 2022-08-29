@@ -45,7 +45,7 @@ fi
 
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
-exec ./$BINARY_NAME agent
+exec ./$BINARY_NAME agent &
 
 if [ "$@" ]; then
         exec "$@"
