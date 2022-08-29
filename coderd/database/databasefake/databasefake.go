@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
@@ -591,14 +592,14 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	defer q.mutex.RUnlock()
 
 	var row database.WorkspaceBuild
-	var buildNum int32
+	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
 			row = workspaceBuild
 			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	if buildNum == 0 {
+	if buildNum == -1 {
 		return database.WorkspaceBuild{}, sql.ErrNoRows
 	}
 	return row, nil
@@ -1262,9 +1263,6 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 			workspaceAgents = append(workspaceAgents, agent)
 		}
 	}
-	if len(workspaceAgents) == 0 {
-		return nil, sql.ErrNoRows
-	}
 	return workspaceAgents, nil
 }
 
@@ -1345,9 +1343,6 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 			continue
 		}
 		resources = append(resources, resource)
-	}
-	if len(resources) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return resources, nil
 }
@@ -2084,6 +2079,32 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, workspace := range q.workspaces {
+		if workspace.Deleted || workspace.ID != arg.ID {
+			continue
+		}
+		for _, other := range q.workspaces {
+			if other.Deleted || other.ID == workspace.ID || workspace.OwnerID != other.OwnerID {
+				continue
+			}
+			if other.Name == arg.Name {
+				return database.Workspace{}, &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
+			}
+		}
+
+		workspace.Name = arg.Name
+		q.workspaces[i] = workspace
+
+		return workspace, nil
+	}
+
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {

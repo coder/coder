@@ -316,17 +316,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	})
 	if err == nil {
 		// If the workspace already exists, don't allow creation.
-		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Find template for conflicting workspace name %q.", createWorkspace.Name),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q already exists in the %q template.", createWorkspace.Name, template.Name),
+			Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
@@ -479,6 +470,68 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		findUser(apiKey.UserID, users), findUser(workspaceBuild.InitiatorID, users)))
 }
 
+func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.UpdateWorkspaceRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	if req.Name == "" || req.Name == workspace.Name {
+		// Nothing changed, optionally this could be an error.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// The reason we double check here is in case more fields can be
+	// patched in the future, it's enough if one changes.
+	name := workspace.Name
+	if req.Name != "" || req.Name != workspace.Name {
+		name = req.Name
+	}
+
+	_, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
+		ID:   workspace.ID,
+		Name: name,
+	})
+	if err != nil {
+		// The query protects against updating deleted workspaces and
+		// the existence of the workspace is checked in the request,
+		// if we get ErrNoRows it means the workspace was deleted.
+		//
+		// We could do this check earlier but we'd need to start a
+		// transaction.
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusMethodNotAllowed, codersdk.Response{
+				Message: fmt.Sprintf("Workspace %q is deleted and cannot be updated.", workspace.Name),
+			})
+			return
+		}
+		// Check if the name was already in use.
+		if database.IsUniqueViolation(err, database.UniqueWorkspacesOwnerIDLowerIndex) {
+			httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Workspace %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+			return
+		}
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
@@ -556,7 +609,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
-
 	if err != nil {
 		resp := codersdk.Response{
 			Message: "Error updating workspace time until shutdown.",
@@ -656,7 +708,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
-
 	if err != nil {
 		api.Logger.Info(r.Context(), "extending workspace", slog.Error(err))
 	}
@@ -861,6 +912,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	}
 	return apiWorkspaces, nil
 }
+
 func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild database.WorkspaceBuild,
