@@ -35,18 +35,20 @@ var (
 )
 
 const (
-	varURL             = "url"
-	varToken           = "token"
-	varAgentToken      = "agent-token"
-	varAgentURL        = "agent-url"
-	varGlobalConfig    = "global-config"
-	varNoOpen          = "no-open"
-	varNoVersionCheck  = "no-version-warning"
-	varForceTty        = "force-tty"
-	varVerbose         = "verbose"
-	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
+	varURL              = "url"
+	varToken            = "token"
+	varAgentToken       = "agent-token"
+	varAgentURL         = "agent-url"
+	varGlobalConfig     = "global-config"
+	varNoOpen           = "no-open"
+	varNoVersionCheck   = "no-version-warning"
+	varNoFeatureWarning = "no-feature-warning"
+	varForceTty         = "force-tty"
+	varVerbose          = "verbose"
+	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
-	envNoVersionCheck = "CODER_NO_VERSION_WARNING"
+	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
+	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
 )
 
 var (
@@ -103,29 +105,25 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			err := func() error {
-				if cliflag.IsSetBool(cmd, varNoVersionCheck) {
-					return nil
-				}
+			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
+				cliflag.IsSetBool(cmd, varNoFeatureWarning) {
+				return
+			}
 
-				// Login handles checking the versions itself since it
-				// has a handle to an unauthenticated client.
-				// Server is skipped for obvious reasons.
-				if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "gitssh" {
-					return nil
-				}
+			// Login handles checking the versions itself since it
+			// has a handle to an unauthenticated client.
+			// Server is skipped for obvious reasons.
+			if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "gitssh" {
+				return
+			}
 
-				client, err := CreateClient(cmd)
-				// If the client is unauthenticated we can ignore the check.
-				// The child commands should handle an unauthenticated client.
-				if xerrors.Is(err, errUnauthenticated) {
-					return nil
-				}
-				if err != nil {
-					return xerrors.Errorf("create client: %w", err)
-				}
-				return checkVersions(cmd, client)
-			}()
+			client, err := CreateClient(cmd)
+			// If we are unable to create a client, presumably the subcommand will fail as well
+			// so we can bail out here.
+			if err != nil {
+				return
+			}
+			err = checkVersions(cmd, client)
 			if err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
@@ -133,6 +131,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 					cliui.Styles.Warn.Render("check versions error: %s"), err)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
+			checkWarnings(cmd, client)
 		},
 		Example: formatExamples(
 			example{
@@ -152,6 +151,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
+	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
@@ -492,4 +492,17 @@ download the server version with: 'curl -L https://coder.com/install.sh | sh -s 
 	}
 
 	return nil
+}
+
+func checkWarnings(cmd *cobra.Command, client *codersdk.Client) {
+	if cliflag.IsSetBool(cmd, varNoFeatureWarning) {
+		return
+	}
+	entitlements, err := client.Entitlements(cmd.Context())
+	if err != nil {
+		return
+	}
+	for _, w := range entitlements.Warnings {
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+	}
 }
