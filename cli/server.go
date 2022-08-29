@@ -499,9 +499,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			server := &http.Server{
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-				ErrorLog:          log.New(io.Discard, "", 0),
-				Handler:           coderAPI.Handler,
-				ReadHeaderTimeout: time.Minute,
+				ErrorLog: log.New(io.Discard, "", 0),
+				Handler:  coderAPI.Handler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -1107,9 +1106,8 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: time.Minute,
+		Addr:    addr,
+		Handler: handler,
 	}
 	go func() {
 		err := srv.ListenAndServe()
