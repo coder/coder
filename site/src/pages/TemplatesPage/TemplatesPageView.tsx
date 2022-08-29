@@ -115,10 +115,10 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>{Language.nameLabel}</TableCell>
-              <TableCell>{Language.usedByLabel}</TableCell>
-              <TableCell>{Language.lastUpdatedLabel}</TableCell>
-              <TableCell>{Language.createdByLabel}</TableCell>
+              <TableCell width="50%">{Language.nameLabel}</TableCell>
+              <TableCell width="16%">{Language.usedByLabel}</TableCell>
+              <TableCell width="16%">{Language.lastUpdatedLabel}</TableCell>
+              <TableCell width="16%">{Language.createdByLabel}</TableCell>
               <TableCell width="1%"></TableCell>
             </TableRow>
           </TableHead>
