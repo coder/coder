@@ -2,7 +2,6 @@ package executor
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -101,10 +100,19 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	eligibleWorkspaces, err := e.db.GetWorkspacesAutostart(e.ctx)
+	workspaces, err := e.db.GetWorkspaces(e.ctx, database.GetWorkspacesParams{
+		Deleted: false,
+	})
 	if err != nil {
-		e.log.Error(e.ctx, "get eligible workspaces for autostart or autostop", slog.Error(err))
+		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
+	}
+
+	var eligibleWorkspaceIDs []uuid.UUID
+	for _, ws := range workspaces {
+		if isEligibleForAutoStartStop(ws) {
+			eligibleWorkspaceIDs = append(eligibleWorkspaceIDs, ws.ID)
+		}
 	}
 
 	// We only use errgroup here for convenience of API, not for early
@@ -113,24 +121,20 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// Limit the concurrency to avoid overloading the database.
 	eg.SetLimit(10)
 
-	for _, ws := range eligibleWorkspaces {
-		ws := ws
-		log := e.log.With(slog.F("workspace_id", ws.ID))
+	for _, wsID := range eligibleWorkspaceIDs {
+		wsID := wsID
+		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
 			err := e.db.InTx(func(db database.Store) error {
-				var err error
-
 				// Re-check eligibility since the first check was outside the
 				// transaction and the workspace settings may have changed.
-				ws, err = db.GetWorkspaceAutostart(e.ctx, ws.ID)
+				ws, err := db.GetWorkspaceByID(e.ctx, wsID)
 				if err != nil {
-					// Receiving ErrNoRows means the workspace settings changed
-					// and it is no longer eligible for autostart. Other errors
-					// means something went wrong.
-					if !xerrors.Is(err, sql.ErrNoRows) {
-						log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
-					}
+					log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
+					return nil
+				}
+				if !isEligibleForAutoStartStop(ws) {
 					return nil
 				}
 
@@ -189,6 +193,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	}
 
 	return stats
+}
+
+func isEligibleForAutoStartStop(ws database.Workspace) bool {
+	return ws.AutostartSchedule.String != "" || ws.Ttl.Int64 > 0
 }
 
 func getNextTransition(

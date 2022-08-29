@@ -50,37 +50,6 @@ WHERE
 	END
 ;
 
--- name: GetWorkspaceAutostart :one
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	deleted = false
-AND
-(
-	id = @workspace_id
-	AND (
-		(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
-		OR
-		(ttl IS NOT NULL AND ttl > 0)
-	)
-);
-
--- name: GetWorkspacesAutostart :many
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	deleted = false
-AND
-(
-	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
-	OR
-	(ttl IS NOT NULL AND ttl > 0)
-);
-
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*

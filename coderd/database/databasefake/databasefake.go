@@ -588,33 +588,6 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAutostart(_ context.Context, workspaceID uuid.UUID) (database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	for _, ws := range q.workspaces {
-		if ws.ID == workspaceID {
-			if ws.AutostartSchedule.String != "" || ws.Ttl.Valid {
-				return ws, nil
-			}
-		}
-	}
-	return database.Workspace{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	workspaces := make([]database.Workspace, 0)
-	for _, ws := range q.workspaces {
-		if ws.AutostartSchedule.String != "" {
-			workspaces = append(workspaces, ws)
-		} else if ws.Ttl.Valid {
-			workspaces = append(workspaces, ws)
-		}
-	}
-	return workspaces, nil
-}
-
 func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
