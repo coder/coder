@@ -588,6 +588,19 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAutostart(_ context.Context, workspaceID uuid.UUID) (database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for _, ws := range q.workspaces {
+		if ws.ID == workspaceID {
+			if ws.AutostartSchedule.String != "" || ws.Ttl.Valid {
+				return ws, nil
+			}
+		}
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2383,7 +2396,8 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 }
 
 func (q *fakeQuerier) InsertLicense(
-	_ context.Context, arg database.InsertLicenseParams) (database.License, error) {
+	_ context.Context, arg database.InsertLicenseParams,
+) (database.License, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

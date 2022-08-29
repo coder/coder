@@ -2,17 +2,18 @@ package executor
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/coderd/autobuild/schedule"
-	"github.com/coder/coder/coderd/database"
-
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/database"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -89,77 +90,103 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		stats.Error = err
 	}()
 	currentTick := t.Truncate(time.Minute)
-	err = e.db.InTx(func(db database.Store) error {
-		// TTL is set at the workspace level, and deadline at the workspace build level.
-		// When a workspace build is created, its deadline initially starts at zero.
-		// When provisionerd successfully completes a provision job, the deadline is
-		// set to now + TTL if the associated workspace has a TTL set. This deadline
-		// is what we compare against when performing autostop operations, rounded down
-		// to the minute.
-		//
-		// NOTE: If a workspace build is created with a given TTL and then the user either
-		//       changes or unsets the TTL, the deadline for the workspace build will not
-		//       have changed. This behavior is as expected per #2229.
-		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
-		if err != nil {
-			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)
-		}
 
-		for _, ws := range eligibleWorkspaces {
-			// Determine the workspace state based on its latest build.
-			priorHistory, err := db.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+	// TTL is set at the workspace level, and deadline at the workspace build level.
+	// When a workspace build is created, its deadline initially starts at zero.
+	// When provisionerd successfully completes a provision job, the deadline is
+	// set to now + TTL if the associated workspace has a TTL set. This deadline
+	// is what we compare against when performing autostop operations, rounded down
+	// to the minute.
+	//
+	// NOTE: If a workspace build is created with a given TTL and then the user either
+	//       changes or unsets the TTL, the deadline for the workspace build will not
+	//       have changed. This behavior is as expected per #2229.
+	eligibleWorkspaces, err := e.db.GetWorkspacesAutostart(e.ctx)
+	if err != nil {
+		e.log.Error(e.ctx, "get eligible workspaces for autostart or autostop", slog.Error(err))
+	}
+
+	// We only use errgroup here for convenience of API, not for early
+	// cancellation. This means we only return nil errors in th eg.Go.
+	eg := errgroup.Group{}
+	// Limit the concurrency to avoid overloading the database.
+	eg.SetLimit(10)
+
+	for _, ws := range eligibleWorkspaces {
+		ws := ws
+		log := e.log.With(slog.F("workspace_id", ws.ID))
+
+		eg.Go(func() error {
+			err := e.db.InTx(func(db database.Store) error {
+				var err error
+
+				// Re-check eligibility since the first check was outside the
+				// transaction and the workspace settings may have changed.
+				ws, err = db.GetWorkspaceAutostart(e.ctx, ws.ID)
+				if err != nil {
+					// Receiving ErrNoRows means the workspace settings changed
+					// and it is no longer eligible for autostart. Other errors
+					// means something went wrong.
+					if !xerrors.Is(err, sql.ErrNoRows) {
+						log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
+					}
+					return nil
+				}
+
+				// Determine the workspace state based on its latest build.
+				priorHistory, err := db.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+				if err != nil {
+					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
+					return nil
+				}
+
+				priorJob, err := db.GetProvisionerJobByID(e.ctx, priorHistory.JobID)
+				if err != nil {
+					log.Warn(e.ctx, "get last provisioner job for workspace %q: %w", slog.Error(err))
+					return nil
+				}
+
+				validTransition, nextTransition, err := getNextTransition(ws, priorHistory, priorJob)
+				if err != nil {
+					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
+					return nil
+				}
+
+				if currentTick.Before(nextTransition) {
+					log.Debug(e.ctx, "skipping workspace: too early",
+						slog.F("next_transition_at", nextTransition),
+						slog.F("transition", validTransition),
+						slog.F("current_tick", currentTick),
+					)
+					return nil
+				}
+
+				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", validTransition))
+
+				stats.Transitions[ws.ID] = validTransition
+				if err := build(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
+					log.Error(e.ctx, "unable to transition workspace",
+						slog.F("transition", validTransition),
+						slog.Error(err),
+					)
+					return nil
+				}
+
+				return nil
+			})
 			if err != nil {
-				e.log.Warn(e.ctx, "get latest workspace build",
-					slog.F("workspace_id", ws.ID),
-					slog.Error(err),
-				)
-				continue
+				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
 			}
+			return nil
+		})
+	}
 
-			priorJob, err := db.GetProvisionerJobByID(e.ctx, priorHistory.JobID)
-			if err != nil {
-				e.log.Warn(e.ctx, "get last provisioner job for workspace %q: %w",
-					slog.F("workspace_id", ws.ID),
-					slog.Error(err),
-				)
-				continue
-			}
+	// This should not happen since we don't want early cancellation.
+	err = eg.Wait()
+	if err != nil {
+		e.log.Error(e.ctx, "workspace scheduling errgroup failed", slog.Error(err))
+	}
 
-			validTransition, nextTransition, err := getNextTransition(ws, priorHistory, priorJob)
-			if err != nil {
-				e.log.Debug(e.ctx, "skipping workspace",
-					slog.Error(err),
-					slog.F("workspace_id", ws.ID),
-				)
-				continue
-			}
-
-			if currentTick.Before(nextTransition) {
-				e.log.Debug(e.ctx, "skipping workspace: too early",
-					slog.F("workspace_id", ws.ID),
-					slog.F("next_transition_at", nextTransition),
-					slog.F("transition", validTransition),
-					slog.F("current_tick", currentTick),
-				)
-				continue
-			}
-
-			e.log.Info(e.ctx, "scheduling workspace transition",
-				slog.F("workspace_id", ws.ID),
-				slog.F("transition", validTransition),
-			)
-
-			stats.Transitions[ws.ID] = validTransition
-			if err := build(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
-				e.log.Error(e.ctx, "unable to transition workspace",
-					slog.F("workspace_id", ws.ID),
-					slog.F("transition", validTransition),
-					slog.Error(err),
-				)
-			}
-		}
-		return nil
-	})
 	return stats
 }
 

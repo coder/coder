@@ -4560,6 +4560,42 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return i, err
 }
 
+const getWorkspaceAutostart = `-- name: GetWorkspaceAutostart :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+(
+	id = $1
+	AND (
+		(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
+		OR
+		(ttl IS NOT NULL AND ttl > 0)
+	)
+)
+`
+
+func (q *sqlQuerier) GetWorkspaceAutostart(ctx context.Context, workspaceID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAutostart, workspaceID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+	)
+	return i, err
+}
+
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
 	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
