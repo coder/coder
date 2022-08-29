@@ -5,6 +5,7 @@
 # - build-fat: builds all "fat" binaries for all architectures
 # - build-slim: builds all "slim" binaries (no frontend or slim binaries
 #   embedded) for all architectures
+# - release: simulate a release (mostly, does not push images)
 # - build/coder(-slim)?_${os}_${arch}(.exe)?: build a single fat binary
 # - build/coder_${os}_${arch}.(zip|tar.gz): build a release archive
 # - build/coder_linux_${arch}.(apk|deb|rpm): build a release Linux package
@@ -45,7 +46,7 @@ OS_ARCHES := \
 # Archive formats and their corresponding ${OS}_${ARCH} combos.
 ARCHIVE_TAR_GZ := linux_amd64 linux_arm64 linux_armv7
 ARCHIVE_ZIP    := \
-	darwin darwin_arm64 \
+	darwin_amd64 darwin_arm64 \
 	windows_amd64 windows_arm64
 
 # All package formats we build and the ${OS}_${ARCH} combos we build them for.
@@ -86,6 +87,9 @@ build-slim bin: $(CODER_SLIM_BINARIES)
 
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
+
+release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ALL_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
+.PHONY: release
 
 build/coder-slim_$(VERSION)_checksums.sha1: $(CODER_SLIM_BINARIES)
 	pushd ./build
@@ -216,14 +220,18 @@ $(CODER_ALL_ARCHIVES): $(CODER_FAT_BINARIES)
 
 # This task builds all packages. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
-#     build/coder_${version}_${os}_${arch}.${format}
+#     build/coder_${version}_linux_${arch}.${format}
 #
 # Supports apk, deb, rpm for all linux targets.
 #
-# This depends on all fat binaries because it's difficult to do dynamic
-# dependencies due to the extensions in the filenames. These targets are
-# typically only used during release anyways.
-$(CODER_ALL_PACKAGES): $(CODER_FAT_BINARIES)
+# This depends on all Linux fat binaries and archives because it's difficult to
+# do dynamic dependencies due to the extensions in the filenames. These targets
+# are typically only used during release anyways.
+#
+# Packages need to run after the archives are built, otherwise they cause tar
+# errors like "file changed as we read it".
+CODER_PACKAGE_DEPS := $(foreach os_arch, $(PACKAGE_OS_ARCHES), build/coder_$(VERSION)_$(os_arch) build/coder_$(VERSION)_$(os_arch).tar.gz)
+$(CODER_ALL_PACKAGES): $(CODER_PACKAGE_DEPS)
 	$(get-mode-os-arch-ext)
 
 	./scripts/package.sh \
@@ -252,7 +260,16 @@ $(CODER_ALL_NOVERSION_IMAGES_PUSHED): push/build/coder_%: push/build/coder_$(VER
 #     build/coder_${version}_${os}_${arch}.tag
 #
 # Supports linux_amd64, linux_arm64, linux_armv7.
-$(CODER_ALL_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: build/coder_$(VERSION)_%
+#
+# Images need to run after the archives and packages are built, otherwise they
+# cause errors like "file changed as we read it".
+$(CODER_ALL_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
+	build/coder_$(VERSION)_% \
+	build/coder_$(VERSION)_%.apk \
+	build/coder_$(VERSION)_%.deb \
+	build/coder_$(VERSION)_%.rpm \
+	build/coder_$(VERSION)_%.tar.gz
+
 	$(get-mode-os-arch-ext)
 
 	image_tag="$$(./scripts/image_tag.sh --arch "$$arch" --version "$(VERSION)")"
