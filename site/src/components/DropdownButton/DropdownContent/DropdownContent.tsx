@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FC, ReactNode } from "react"
 
 export interface DropdownContentProps {
-  secondaryActions: Array<{ action: string, button: ReactNode }>
+  secondaryActions: Array<{ action: string; button: ReactNode }>
 }
 
 /* secondary workspace CTAs */

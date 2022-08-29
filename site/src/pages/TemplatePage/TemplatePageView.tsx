@@ -46,7 +46,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   activeTemplateVersion,
   templateResources,
   templateVersions,
-  handleDeleteTemplate
+  handleDeleteTemplate,
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -82,10 +82,13 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
                 </Link>
               }
               secondaryActions={[
-                { action: "delete", button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} /> }
+                {
+                  action: "delete",
+                  button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />,
+                },
               ]}
               canCancel={false}
-             />
+            />
           </Stack>
         }
       >

@@ -39,7 +39,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
 }) => {
-
   const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
     workspace.latest_build,
   )
@@ -84,9 +83,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       primaryAction={buttonMapping[actions.primary]}
       canCancel={actions.canCancel}
       handleCancel={handleCancel}
-      secondaryActions={actions.secondary.map((action) => ({ action, button: buttonMapping[action] }))}
+      secondaryActions={actions.secondary.map((action) => ({
+        action,
+        button: buttonMapping[action],
+      }))}
     />
   )
 }
-
-

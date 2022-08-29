@@ -3,17 +3,22 @@ import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { DropdownContent } from "components/DropdownButton/DropdownContent/DropdownContent"
-import { FC, ReactNode, useRef, useState, useEffect } from "react"
+import { FC, ReactNode, useEffect, useRef, useState } from "react"
 import { CancelButton } from "./ActionCtas"
 
 export interface DropdownButtonProps {
   primaryAction: ReactNode
-  secondaryActions: Array<{ action: string, button: ReactNode }>
+  secondaryActions: Array<{ action: string; button: ReactNode }>
   canCancel: boolean
   handleCancel?: () => void
 }
 
-export const DropdownButton: FC<DropdownButtonProps> = ({ primaryAction, secondaryActions, canCancel, handleCancel }) => {
+export const DropdownButton: FC<DropdownButtonProps> = ({
+  primaryAction,
+  secondaryActions,
+  canCancel,
+  handleCancel,
+}) => {
   const styles = useStyles()
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -31,48 +36,48 @@ export const DropdownButton: FC<DropdownButtonProps> = ({ primaryAction, seconda
 
   return (
     <span className={styles.buttonContainer}>
-    {/* primary workspace CTA */}
-    <span data-testid="primary-cta" className={styles.primaryCta}>
-      {primaryAction}
-    </span>
-    {canCancel && handleCancel ? (
-      <CancelButton handleAction={handleCancel} />
-    ) : (
-      <>
-        {/* popover toggle button */}
-        <Button
-          data-testid="workspace-actions-button"
-          aria-controls="workspace-actions-menu"
-          aria-haspopup="true"
-          className={styles.dropdownButton}
-          ref={anchorRef}
-          disabled={!secondaryActions.length}
-          onClick={() => {
-            setIsOpen(true)
-          }}
-        >
-          {isOpen ? <CloseDropdown /> : <OpenDropdown />}
-        </Button>
-        <Popover
-          classes={{ paper: styles.popoverPaper }}
-          id={id}
-          open={isOpen}
-          anchorEl={anchorRef.current}
-          onClose={() => setIsOpen(false)}
-          anchorOrigin={{
-            vertical: "bottom",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "top",
-            horizontal: "right",
-          }}
-        >
-          {/* secondary workspace CTAs */}
-          <DropdownContent secondaryActions={secondaryActions} />
-        </Popover>
-      </>
-    )}
+      {/* primary workspace CTA */}
+      <span data-testid="primary-cta" className={styles.primaryCta}>
+        {primaryAction}
+      </span>
+      {canCancel && handleCancel ? (
+        <CancelButton handleAction={handleCancel} />
+      ) : (
+        <>
+          {/* popover toggle button */}
+          <Button
+            data-testid="workspace-actions-button"
+            aria-controls="workspace-actions-menu"
+            aria-haspopup="true"
+            className={styles.dropdownButton}
+            ref={anchorRef}
+            disabled={!secondaryActions.length}
+            onClick={() => {
+              setIsOpen(true)
+            }}
+          >
+            {isOpen ? <CloseDropdown /> : <OpenDropdown />}
+          </Button>
+          <Popover
+            classes={{ paper: styles.popoverPaper }}
+            id={id}
+            open={isOpen}
+            anchorEl={anchorRef.current}
+            onClose={() => setIsOpen(false)}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+          >
+            {/* secondary workspace CTAs */}
+            <DropdownContent secondaryActions={secondaryActions} />
+          </Popover>
+        </>
+      )}
     </span>
   )
 }
