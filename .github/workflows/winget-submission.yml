@@ -1,0 +1,22 @@
+name: Submit package to Windows Package Manager Community Repository 
+
+on:
+  release:
+    types: [published]
+
+env:
+  packageFileName: coder_${VERSION}_windows_amd64.zip    # Need to get VERSION from latest release to use here
+  packageId: MyPackageIdInWinget  # Need to ge an official Winget Package ID
+  
+jobs:
+  
+  winget:
+    name: Publish winget package
+    runs-on: windows-latest
+    steps:
+      - name: Submit package to Windows Package Manager Community Repository
+        run: |
+          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          $github = Get-Content '${{ github.event_path }}' | ConvertFrom-Json
+          $installerUrl = $github.release.assets | Where-Object -Property name -match ${env:packageFileName} | Select -ExpandProperty browser_download_url -First 1
+          .\wingetcreate.exe update ${env:packageId} -s -v $github.release.tag_name -u $installerUrl -t ${{ secrets.Project_PAT }}
