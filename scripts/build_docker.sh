@@ -101,9 +101,9 @@ log "--- Building Docker image for $arch ($image_tag)"
 # add the coder group and user. We have to do this in a separate step instead of
 # using the RUN directive in the Dockerfile because you can't use RUN if you're
 # building the image for a different architecture than the host.
-docker pull --platform "$arch" alpine:latest 1>&2
+docker pull --platform "$arch" alpine/git:latest 1>&2
 
-temp_container_id="$(docker create --platform "$arch" alpine:latest)"
+temp_container_id="$(docker create --platform "$arch" alpine/git:latest)"
 docker cp "$temp_container_id":/etc/group ./group 1>&2
 docker cp "$temp_container_id":/etc/passwd ./passwd 1>&2
 docker rm "$temp_container_id" 1>&2

@@ -2,7 +2,7 @@
 # cross-compiled, it cannot have ANY "RUN" commands. All binaries are built
 # using the go toolchain on the host and then copied into the build context by
 # scripts/build_docker.sh.
-FROM alpine:latest
+FROM alpine/git:latest
 
 # LABEL doesn't add any real layers so it's fine (and easier) to do it here than
 # in the build script.
