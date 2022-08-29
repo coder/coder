@@ -196,7 +196,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 }
 
 func isEligibleForAutoStartStop(ws database.Workspace) bool {
-	return ws.AutostartSchedule.String != "" || ws.Ttl.Int64 > 0
+	return !ws.Deleted && (ws.AutostartSchedule.String != "" || ws.Ttl.Int64 > 0)
 }
 
 func getNextTransition(
