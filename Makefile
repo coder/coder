@@ -1,3 +1,16 @@
+# This is the Coder Makefile. The build directory for most tasks is `build/`.
+#
+# These are the targets you're probably looking for:
+# - clean
+# - build-fat: builds all "fat" binaries for all architectures
+# - build-slim: builds all "slim" binaries (no frontend or slim binaries
+#   embedded) for all architectures
+# - build/coder(-slim)?_${os}_${arch}(.exe)?: build a single fat binary
+# - build/coder_${os}_${arch}.(zip|tar.gz): build a release archive
+# - build/coder_linux_${arch}.(apk|deb|rpm): build a release Linux package
+# - build/coder_${version}_linux_${arch}.tag: build a release Linux Docker image
+# - build/coder_helm.tgz: build a release Helm chart
+
 .DEFAULT_GOAL := build-fat
 
 # Use a single bash shell for each job, and immediately exit on failure
@@ -208,7 +221,7 @@ $(CODER_ALL_ARCHIVES): $(CODER_FAT_BINARIES)
 # Supports apk, deb, rpm for all linux targets.
 #
 # This depends on all fat binaries because it's difficult to do dynamic
-# dependencies due to the .exe requirement on Windows. These targets are
+# dependencies due to the extensions in the filenames. These targets are
 # typically only used during release anyways.
 $(CODER_ALL_PACKAGES): $(CODER_FAT_BINARIES)
 	$(get-mode-os-arch-ext)
