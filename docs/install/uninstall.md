@@ -18,6 +18,26 @@ rm -rf ~/.cache/coder
 
 ## The Coder server binary and CLI
 
+Debian, Ubuntu:
+
+```sh
+sudo apt remove coder
+```
+
+Fedora, CentOS, RHEL, SUSE:
+
+```sh
+sudo yum remove coder
+```
+
+Alpine:
+
+```sh
+sudo apk del coder
+```
+
+If you installed Coder manually or used the install script on an unsupported operating system, you can remove the binary directly:
+
 ```console
 sudo rm /usr/local/bin/coder
 ```
@@ -33,7 +53,7 @@ sudo rm /etc/coder.d/coder.env
 > There is a `postgres` directory within the `coderv2` directory that has the
 > database engine and database. If you want to reuse the database, consider
 > not performing the following step or copying the directory to another
-> location 
+> location.
 
 ### macOS
 
@@ -50,7 +70,7 @@ rm -rf ~/.config/coderv2
 ### Windows
 
 ```console
-C:\Users\USER\AppData\coderv2
+C:\Users\USER\AppData\Roaming\coderv2
 ```
 
 ## Up Next
