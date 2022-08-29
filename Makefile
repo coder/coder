@@ -111,6 +111,8 @@ build/coder-slim_$(VERSION).tar.zst site/out/coder.tar.zst: build/coder-slim_$(V
 		"build/coder-slim_$(VERSION).tar"
 
 	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/coder.tar.zst"
+	# delete the uncompressed binaries from the embedded dir
+	rm site/out/coder-*
 
 # Redirect from version-less targets to the versioned ones. There is a similar
 # target for slim binaries below.
@@ -120,7 +122,7 @@ build/coder-slim_$(VERSION).tar.zst site/out/coder.tar.zst: build/coder-slim_$(V
 #   make build/coder_windows_amd64.exe
 $(CODER_FAT_NOVERSION_BINARIES): build/coder_%: build/coder_$(VERSION)_%
 	rm -f "$@"
-	ln -s "$$(basename "$<")" "$@"
+	ln "$<" "$@"
 
 # Same as above, but for slim binaries.
 #
@@ -129,7 +131,7 @@ $(CODER_FAT_NOVERSION_BINARIES): build/coder_%: build/coder_$(VERSION)_%
 #   make build/coder-slim_windows_amd64.exe
 $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION)_%
 	rm -f "$@"
-	ln -s "$$(basename "$<")" "$@"
+	ln "$<" "$@"
 
 # "fat" binaries always depend on the site and the compressed slim binaries.
 $(CODER_FAT_BINARIES): site/out/index.html site/out/coder.tar.zst
@@ -215,6 +217,7 @@ $(CODER_ALL_ARCHIVES): $(CODER_FAT_BINARIES)
 
 	./scripts/archive.sh \
 		--format "$$ext" \
+		--os "$$os" \
 		--output "$@" \
 		"build/coder_$(VERSION)_$${os}_$${arch}$${bin_ext}"
 
@@ -301,7 +304,7 @@ $(CODER_ALL_IMAGES_PUSHED): push/%: %
 # Shortcut for Helm chart package.
 build/coder_helm.tgz: build/coder_helm_$(VERSION).tgz
 	rm -f "$@"
-	ln -s "$$(basename "$<")" "$@"
+	ln "$<" "$@"
 
 # Helm chart package.
 build/coder_helm_$(VERSION).tgz:
