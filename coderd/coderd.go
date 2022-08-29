@@ -131,7 +131,13 @@ func New(options *Options) *API {
 			})
 		},
 		httpmw.Prometheus(options.PrometheusRegistry),
-		api.handleSubdomain,
+		// Handle all subdomain requests
+		api.handleSubdomain(
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, false),
+			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+		),
 	)
 
 	apps := func(r chi.Router) {

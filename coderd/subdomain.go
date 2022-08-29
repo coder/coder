@@ -1,16 +1,14 @@
 package coderd
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/coderd/httpmw"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/go-chi/chi/v5"
 
 	"golang.org/x/xerrors"
 )
@@ -34,56 +32,42 @@ type Application struct {
 	Domain string
 }
 
-func (api *API) handleSubdomain(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		app, err := ParseSubdomainAppURL(r)
-		if err != nil {
-			// Not a Dev URL, proceed as usual.
-			// TODO: @emyrk we should probably catch invalid subdomains. Meaning
-			// 	an invalid devurl should not route to the coderd.
-			next.ServeHTTP(rw, r)
-			return
-		}
+func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			app, err := ParseSubdomainAppURL(r)
 
-		user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
-			Username: app.Username,
-		})
-		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw)
+			if err != nil {
+				// Not a Dev URL, proceed as usual.
+				// TODO: @emyrk we should probably catch invalid subdomains. Meaning
+				// 	an invalid devurl should not route to the coderd.
+				next.ServeHTTP(rw, r)
 				return
 			}
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching user.",
-				Detail:  err.Error(),
-			})
-			return
-		}
 
-		workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-			OwnerID: user.ID,
-			Name:    app.WorkspaceName,
-		})
-		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw)
-				return
+			workspaceAgentKey := app.WorkspaceName
+			if app.Agent != "" {
+				workspaceAgentKey += "." + app.Agent
 			}
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+			chiCtx := chi.RouteContext(ctx)
+			chiCtx.URLParams.Add("workspace_and_agent", workspaceAgentKey)
+			chiCtx.URLParams.Add("user", app.Username)
 
-		api.proxyWorkspaceApplication(proxyApplication{
-			Workspace: workspace,
-			// TODO: Fetch workspace agent
-			Agent:   database.WorkspaceAgent{},
-			AppName: app.AppName,
-		}, rw, r)
-	})
+			// Use the passed in app middlewares before passing to the proxy app.
+			mws := chi.Middlewares(middlewares)
+			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				workspace := httpmw.WorkspaceParam(r)
+				agent := httpmw.WorkspaceAgentParam(r)
+
+				api.proxyWorkspaceApplication(proxyApplication{
+					Workspace: workspace,
+					Agent:     agent,
+					AppName:   app.AppName,
+				}, rw, r)
+			})).ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
 }
 
 var (

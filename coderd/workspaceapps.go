@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/coder/coder/coderd/database"
@@ -51,34 +52,43 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
-		AgentID: proxyApp.Agent.ID,
-		Name:    proxyApp.AppName,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-			Message: "Application not found.",
+	var internalURL string
+
+	num, err := strconv.Atoi(proxyApp.AppName)
+	if err == nil && num <= 65535 {
+		// TODO: @emyrk we should probably allow changing the schema?
+		internalURL = "http://localhost:" + proxyApp.AppName
+	} else {
+		app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
+			AgentID: proxyApp.Agent.ID,
+			Name:    proxyApp.AppName,
 		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace application.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !app.Url.Valid {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
-		})
-		return
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+				Message: "Application not found.",
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace application.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !app.Url.Valid {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
+			})
+			return
+		}
+		internalURL = app.Url.String
 	}
 
-	appURL, err := url.Parse(app.Url.String)
+	appURL, err := url.Parse(internalURL)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("App url %q must be a valid url.", app.Url.String),
+			Message: fmt.Sprintf("App url %q must be a valid url.", internalURL),
 			Detail:  err.Error(),
 		})
 		return
