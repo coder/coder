@@ -43,6 +43,12 @@ coder template push docker
 You can also remove images from the validation list. Workspaces using older template versions will continue using
 the removed image until you update the workspace to the latest version.
 
+## code-server
+
+`code-server` is installed via the `startup_script` argument in the `coder_agent`
+resource block. The `coder_app` resource is defined to access `code-server` through
+the dashboard UI over `localhost:13337`.
+
 ## Updating images
 
 To reduce drift, we recommend versioning images in your registry by creating tags. To update the image tag in the template:
