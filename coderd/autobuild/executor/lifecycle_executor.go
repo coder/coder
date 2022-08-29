@@ -104,6 +104,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	eligibleWorkspaces, err := e.db.GetWorkspacesAutostart(e.ctx)
 	if err != nil {
 		e.log.Error(e.ctx, "get eligible workspaces for autostart or autostop", slog.Error(err))
+		return stats
 	}
 
 	// We only use errgroup here for convenience of API, not for early
