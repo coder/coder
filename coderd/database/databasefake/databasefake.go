@@ -592,14 +592,14 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	defer q.mutex.RUnlock()
 
 	var row database.WorkspaceBuild
-	var buildNum int32
+	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
 			row = workspaceBuild
 			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	if buildNum == 0 {
+	if buildNum == -1 {
 		return database.WorkspaceBuild{}, sql.ErrNoRows
 	}
 	return row, nil
@@ -1263,9 +1263,6 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 			workspaceAgents = append(workspaceAgents, agent)
 		}
 	}
-	if len(workspaceAgents) == 0 {
-		return nil, sql.ErrNoRows
-	}
 	return workspaceAgents, nil
 }
 
@@ -1346,9 +1343,6 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 			continue
 		}
 		resources = append(resources, resource)
-	}
-	if len(resources) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return resources, nil
 }
