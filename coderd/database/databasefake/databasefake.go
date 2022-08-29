@@ -246,6 +246,19 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	active := int64(0)
+	for _, u := range q.users {
+		if u.Status == database.UserStatusActive {
+			active++
+		}
+	}
+	return active, nil
+}
+
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2318,6 +2331,21 @@ func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error)
 	defer q.mutex.RUnlock()
 
 	results := append([]database.License{}, q.licenses...)
+	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
+	return results, nil
+}
+
+func (q *fakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	now := time.Now()
+	var results []database.License
+	for _, l := range q.licenses {
+		if l.Exp.After(now) {
+			results = append(results, l)
+		}
+	}
 	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
 	return results, nil
 }

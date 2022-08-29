@@ -1,11 +1,17 @@
 package coderd
 
 import (
+	"context"
+	"os"
+	"strings"
+
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/rbac"
 )
+
+const EnvAuditLogEnable = "CODER_AUDIT_LOG_ENABLE"
 
 func NewEnterprise(options *coderd.Options) *coderd.API {
 	var eOpts = *options
@@ -26,5 +32,18 @@ func NewEnterprise(options *coderd.Options) *coderd.API {
 			Authorizer: eOpts.Authorizer,
 			Logger:     eOpts.Logger,
 		}).handler()
+	en := Enablements{AuditLogs: true}
+	auditLog := os.Getenv(EnvAuditLogEnable)
+	auditLog = strings.ToLower(auditLog)
+	if auditLog == "disable" || auditLog == "false" || auditLog == "0" || auditLog == "no" {
+		en.AuditLogs = false
+	}
+	eOpts.FeaturesService = newFeaturesService(
+		context.Background(),
+		eOpts.Logger,
+		eOpts.Database,
+		eOpts.Pubsub,
+		en,
+	)
 	return coderd.New(&eOpts)
 }

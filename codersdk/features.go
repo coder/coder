@@ -24,8 +24,8 @@ var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog}
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit"`
-	Actual      *int64      `json:"actual"`
+	Limit       *int64      `json:"limit,omitempty"`
+	Actual      *int64      `json:"actual,omitempty"`
 }
 
 type Entitlements struct {
