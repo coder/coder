@@ -21,6 +21,14 @@ jobs:
         id: branch-name
         uses: tj-actions/branch-names@v5.4
 
+      - name: "Branch name to Docker tag name"
+        id: docker-tag-name
+        run: |
+          tag=${{ steps.branch-name.outputs.current_branch }}
+          # Replace / with --, e.g. user/feature => user--feature.
+          tag=${tag//\//--}
+          echo "::set-output name=tag::${tag}"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -38,6 +46,6 @@ jobs:
         with:
           context: "{{defaultContext}}:dogfood"
           push: true
-          tags: "codercom/oss-dogfood:${{ steps.branch-name.outputs.current_branch }},codercom/oss-dogfood:latest"
+          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
