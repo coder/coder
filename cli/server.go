@@ -665,7 +665,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q", url)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
 			return nil
 		},
 	})
