@@ -22,6 +22,7 @@ type querier interface {
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
+	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
@@ -32,6 +33,7 @@ type querier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetDAUsFromAgentStats(ctx context.Context) ([]GetDAUsFromAgentStatsRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetFileByHash(ctx context.Context, hash string) (File, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
@@ -99,6 +101,7 @@ type querier interface {
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error)
 	GetWorkspacesAutostart(ctx context.Context) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
+	InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)

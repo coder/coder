@@ -65,6 +65,7 @@ type Options struct {
 	WebRTCDialer      WebRTCDialer
 	FetchMetadata     FetchMetadata
 
+	StatsReporter          StatsReporter
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
@@ -100,6 +101,10 @@ func New(options Options) io.Closer {
 		envVars:                options.EnvironmentVariables,
 		coordinatorDialer:      options.CoordinatorDialer,
 		fetchMetadata:          options.FetchMetadata,
+		stats: &Stats{
+			ProtocolStats: make(map[string]*ProtocolStats),
+		},
+		statsReporter: options.StatsReporter,
 	}
 	server.init(ctx)
 	return server
@@ -125,6 +130,8 @@ type agent struct {
 
 	network           *tailnet.Conn
 	coordinatorDialer CoordinatorDialer
+	stats             *Stats
+	statsReporter     StatsReporter
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -194,6 +201,12 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
 		return
 	}
+	a.network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
+		if listenerExists {
+			return conn
+		}
+		return &ConnStats{ProtocolStats: &ProtocolStats{}, Conn: conn}
+	})
 	go a.runCoordinator(ctx)
 
 	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSSHPort))
@@ -207,7 +220,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(conn)
+			a.sshServer.HandleConn(a.stats.wrapConn(conn, ProtocolSSH))
 		}
 	}()
 	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
@@ -364,17 +377,17 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	return nil
 }
 
-func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+func (a *agent) handlePeerConn(ctx context.Context, peerConn *peer.Conn) {
 	go func() {
 		select {
 		case <-a.closed:
-		case <-conn.Closed():
+		case <-peerConn.Closed():
 		}
-		_ = conn.Close()
+		_ = peerConn.Close()
 		a.connCloseWait.Done()
 	}()
 	for {
-		channel, err := conn.Accept(ctx)
+		channel, err := peerConn.Accept(ctx)
 		if err != nil {
 			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
 				return
@@ -383,9 +396,11 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			return
 		}
 
+		conn := channel.NetConn()
+
 		switch channel.Protocol() {
 		case ProtocolSSH:
-			go a.sshServer.HandleConn(channel.NetConn())
+			go a.sshServer.HandleConn(a.stats.wrapConn(conn, channel.Protocol()))
 		case ProtocolReconnectingPTY:
 			rawID := channel.Label()
 			// The ID format is referenced in conn.go.
@@ -393,34 +408,34 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			idParts := strings.SplitN(rawID, ":", 4)
 			if len(idParts) != 4 {
 				a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-				continue
+				return
 			}
 			id := idParts[0]
 			// Enforce a consistent format for IDs.
 			_, err := uuid.Parse(id)
 			if err != nil {
 				a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-				continue
+				return
 			}
 			// Parse the initial terminal dimensions.
 			height, err := strconv.Atoi(idParts[1])
 			if err != nil {
 				a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-				continue
+				return
 			}
 			width, err := strconv.Atoi(idParts[2])
 			if err != nil {
 				a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-				continue
+				return
 			}
 			go a.handleReconnectingPTY(ctx, reconnectingPTYInit{
 				ID:      id,
 				Height:  uint16(height),
 				Width:   uint16(width),
 				Command: idParts[3],
-			}, channel.NetConn())
+			}, a.stats.wrapConn(conn, channel.Protocol()))
 		case ProtocolDial:
-			go a.handleDial(ctx, channel.Label(), channel.NetConn())
+			go a.handleDial(ctx, channel.Label(), a.stats.wrapConn(conn, channel.Protocol()))
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
@@ -514,6 +529,21 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.run(ctx)
+	if a.statsReporter != nil {
+		cl, err := a.statsReporter(ctx, a.logger, func() *Stats {
+			return a.stats.Copy()
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+			return
+		}
+		a.connCloseWait.Add(1)
+		go func() {
+			defer a.connCloseWait.Done()
+			<-a.closed
+			cl.Close()
+		}()
+	}
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.

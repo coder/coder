@@ -20,7 +20,7 @@ func TestConnStats(t *testing.T) {
 		c1, c2 := net.Pipe()
 
 		payload := []byte("dogs & cats")
-		statsConn := &agent.ConnStats{Conn: c1}
+		statsConn := &agent.ConnStats{Conn: c1, ProtocolStats: &agent.ProtocolStats{}}
 
 		got := make(chan []byte)
 		go func() {
@@ -44,7 +44,7 @@ func TestConnStats(t *testing.T) {
 		c1, c2 := net.Pipe()
 
 		payload := []byte("cats & dogs")
-		statsConn := &agent.ConnStats{Conn: c1}
+		statsConn := &agent.ConnStats{Conn: c1, ProtocolStats: &agent.ProtocolStats{}}
 
 		go func() {
 			c2.Write(payload)

@@ -5,6 +5,10 @@ import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
 
 export const handlers = [
+  rest.get("/api/v2/metrics/daus", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockGetDAUResponse))
+  }),
+
   // build info
   rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))

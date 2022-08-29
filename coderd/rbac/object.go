@@ -124,6 +124,10 @@ var (
 	ResourceLicense = Object{
 		Type: "license",
 	}
+
+	ResourceMetrics = Object{
+		Type: "metrics",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in

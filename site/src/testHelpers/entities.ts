@@ -2,6 +2,13 @@ import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
+export const MockGetDAUResponse: TypesGen.GetDAUsResponse = {
+  entries: [
+    { date: "2022-08-27T00:00:00Z", daus: 1 },
+    { date: "2022-08-29T00:00:00Z", daus: 2 },
+    { date: "2022-08-30T00:00:00Z", daus: 1 },
+  ],
+}
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
   session_token: "my-session-token",
 }

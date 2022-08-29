@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
@@ -23,6 +24,7 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:             make([]database.APIKey, 0),
+			agentStats:          make([]database.AgentStat, 0),
 			organizationMembers: make([]database.OrganizationMember, 0),
 			organizations:       make([]database.Organization, 0),
 			users:               make([]database.User, 0),
@@ -78,6 +80,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
+	agentStats                     []database.AgentStat
 	auditLogs                      []database.AuditLog
 	files                          []database.File
 	gitSSHKey                      []database.GitSSHKey
@@ -133,6 +136,59 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+func (q *fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+	// no-op
+	return nil
+}
+
+func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	stat := database.AgentStat{
+		ID:          p.ID,
+		CreatedAt:   p.CreatedAt,
+		WorkspaceID: p.WorkspaceID,
+		AgentID:     p.AgentID,
+		UserID:      p.UserID,
+		Payload:     p.Payload,
+	}
+	q.agentStats = append(q.agentStats, stat)
+	return stat, nil
+}
+
+func (q *fakeQuerier) GetDAUsFromAgentStats(_ context.Context) ([]database.GetDAUsFromAgentStatsRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	counts := make(map[time.Time]map[string]struct{})
+
+	for _, as := range q.agentStats {
+		date := as.CreatedAt.Truncate(time.Hour * 24)
+		dateEntry := counts[date]
+		if dateEntry == nil {
+			dateEntry = make(map[string]struct{})
+		}
+		counts[date] = dateEntry
+
+		dateEntry[as.UserID.String()] = struct{}{}
+	}
+
+	countKeys := maps.Keys(counts)
+	sort.Slice(countKeys, func(i, j int) bool {
+		return countKeys[i].Before(countKeys[j])
+	})
+
+	var rs []database.GetDAUsFromAgentStatsRow
+	for _, key := range countKeys {
+		rs = append(rs, database.GetDAUsFromAgentStatsRow{
+			Date: key,
+			Daus: int64(len(counts[key])),
+		})
+	}
+
+	return rs, nil
 }
 
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {

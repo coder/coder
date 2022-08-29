@@ -29,6 +29,14 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/metrics.go
+export interface AgentStatsReportResponse {
+  readonly num_comms: number
+  // Named type "github.com/coder/coder/agent.ProtocolStats" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly protocol_stats: Record<string, any>
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
@@ -175,12 +183,27 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+<<<<<<< HEAD
 // From codersdk/workspaceresources.go
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
 }
 
+||||||| parent of 1150cd02... agent: add StatsReporter
+=======
+// From codersdk/metrics.go
+export interface DAUEntry {
+  readonly date: string
+  readonly daus: number
+}
+
+// From codersdk/metrics.go
+export interface DAUsResponse {
+  readonly entries: DAUEntry[]
+}
+
+>>>>>>> 1150cd02... agent: add StatsReporter
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>

@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -76,6 +77,10 @@ type Options struct {
 	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
+
+	// Metrics related intervals.
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsReportInterval    time.Duration
 }
 
 // New constructs a Coder API handler.
@@ -121,6 +126,12 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
 
+	metricsCache := metricscache.New(
+		options.Database,
+		options.Logger.Named("metrics_cache"),
+		options.MetricsCacheRefreshInterval,
+	)
+
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
@@ -130,6 +141,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
+		metricsCache: metricsCache,
 	}
 	if options.TailscaleEnable {
 		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -147,6 +159,13 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
+		// Build-Version is helpful for debugging.
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Build-Version", buildinfo.Version())
+				next.ServeHTTP(w, r)
+			})
+		},
 	)
 
 	apps := func(r chi.Router) {
@@ -350,6 +369,18 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/metrics", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/report-agent-stats", api.workspaceAgentReportStats)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Get("/daus", api.daus)
+			})
+		})
 		r.Route("/workspaceagents", func(r chi.Router) {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
@@ -359,6 +390,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Get("/listen", api.workspaceAgentListen)
+
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
@@ -452,6 +484,8 @@ type API struct {
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
 	httpAuth            *HTTPAuthorizer
+
+	metricsCache *metricscache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -459,6 +493,8 @@ func (api *API) Close() error {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Wait()
 	api.websocketWaitMutex.Unlock()
+
+	api.metricsCache.Close()
 
 	return api.workspaceAgentCache.Close()
 }

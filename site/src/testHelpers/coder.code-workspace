@@ -1,0 +1,49 @@
+{
+	"folders": [
+		{
+			"name": "coder",
+			"path": "../../.."
+		}
+	],
+	"settings": {
+		"emeraldwalk.runonsave": {
+			"commands": [
+				{
+					"match": "database/queries/*.sql",
+					"cmd": "make gen"
+				},
+				{
+					"match": "provisionerd/proto/provisionerd.proto",
+					"cmd": "make provisionerd/proto/provisionerd.pb.go"
+				}
+			]
+		},
+		"eslint.workingDirectories": [
+			"./site"
+		],
+		"files.exclude": {
+			"**/node_modules": true
+		},
+		"files.insertFinalNewline": true,
+		"go.lintTool": "golangci-lint",
+		"go.lintFlags": [
+			"--fast"
+		],
+		"go.lintOnSave": "package",
+		"go.coverOnSave": true,
+		"go.testFlags": [
+			"-short",
+			"-coverpkg=./..."
+		],
+		"go.coverageDecorator": {
+			"type": "gutter",
+			"coveredHighlightColor": "rgba(64,128,128,0.5)",
+			"uncoveredHighlightColor": "rgba(128,64,64,0.25)",
+			"coveredBorderColor": "rgba(64,128,128,0.5)",
+			"uncoveredBorderColor": "rgba(128,64,64,0.25)",
+			"coveredGutterStyle": "blockgreen",
+			"uncoveredGutterStyle": "blockred"
+		},
+		"typescript.tsdk": "./site/node_modules/typescript/lib"
+	}
+}

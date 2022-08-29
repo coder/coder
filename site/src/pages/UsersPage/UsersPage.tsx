@@ -1,8 +1,9 @@
-import { useActor } from "@xstate/react"
+import { useActor, useMachine } from "@xstate/react"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
+import { userMetricsMachine } from "xServices/userMetrics/userMetricsXService"
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
 import { userFilterQuery } from "../../util/filters"
@@ -44,6 +45,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
 
+  const [metricsState] = useMachine(userMetricsMachine)
+  const { userMetricsData } = metricsState.context
+
   // Is loading if
   // - permissions are loading or
   // - users are loading or
@@ -79,6 +83,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         <title>{pageTitle("Users")}</title>
       </Helmet>
       <UsersPageView
+        userMetricsData={userMetricsData}
         roles={roles}
         users={users}
         openUserCreationDialog={() => {

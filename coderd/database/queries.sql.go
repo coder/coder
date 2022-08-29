@@ -15,6 +15,99 @@ import (
 	"github.com/tabbed/pqtype"
 )
 
+const deleteOldAgentStats = `-- name: DeleteOldAgentStats :exec
+DELETE FROM AGENT_STATS WHERE created_at  < now() - interval '30 days'
+`
+
+func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldAgentStats)
+	return err
+}
+
+const getDAUsFromAgentStats = `-- name: GetDAUsFromAgentStats :many
+select
+	(created_at at TIME ZONE 'UTC')::date as date,
+	count(distinct(user_id)) as daus
+from
+	agent_stats
+group by
+	date
+order by
+	date asc
+`
+
+type GetDAUsFromAgentStatsRow struct {
+	Date time.Time `db:"date" json:"date"`
+	Daus int64     `db:"daus" json:"daus"`
+}
+
+func (q *sqlQuerier) GetDAUsFromAgentStats(ctx context.Context) ([]GetDAUsFromAgentStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDAUsFromAgentStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDAUsFromAgentStatsRow
+	for rows.Next() {
+		var i GetDAUsFromAgentStatsRow
+		if err := rows.Scan(&i.Date, &i.Daus); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAgentStat = `-- name: InsertAgentStat :one
+INSERT INTO
+	agent_stats (
+		id,
+		created_at,
+		user_id,
+		workspace_id,
+		agent_id,
+		payload
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, user_id, agent_id, workspace_id, payload
+`
+
+type InsertAgentStatParams struct {
+	ID          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
+	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	Payload     json.RawMessage `db:"payload" json:"payload"`
+}
+
+func (q *sqlQuerier) InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error) {
+	row := q.db.QueryRowContext(ctx, insertAgentStat,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UserID,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.Payload,
+	)
+	var i AgentStat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.AgentID,
+		&i.WorkspaceID,
+		&i.Payload,
+	)
+	return i, err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE
 FROM

@@ -87,6 +87,15 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE TABLE agent_stats (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    user_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    payload jsonb NOT NULL
+);
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -372,6 +381,9 @@ CREATE TABLE workspaces (
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
 
+ALTER TABLE ONLY agent_stats
+    ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
@@ -467,6 +479,10 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
+
+CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
