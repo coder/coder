@@ -10,10 +10,45 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
+
+func TestInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoError", func(t *testing.T) {
+		t.Parallel()
+		w := httptest.NewRecorder()
+		httpapi.InternalServerError(w, nil)
+
+		var resp codersdk.Response
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.NotEmpty(t, resp.Message)
+		require.Empty(t, resp.Detail)
+	})
+
+	t.Run("WithError", func(t *testing.T) {
+		t.Parallel()
+		var (
+			w       = httptest.NewRecorder()
+			httpErr = xerrors.New("error!")
+		)
+
+		httpapi.InternalServerError(w, httpErr)
+
+		var resp codersdk.Response
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.NotEmpty(t, resp.Message)
+		require.Equal(t, httpErr.Error(), resp.Detail)
+	})
+}
 
 func TestWrite(t *testing.T) {
 	t.Parallel()
