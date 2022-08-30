@@ -61,6 +61,8 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 
   return (
     <Margins>
+      <>
+      {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
       <PageHeader
         actions={
           <Stack direction="row" spacing={1}>
@@ -114,43 +116,40 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         </Stack>
       </PageHeader>
 
-      <>
-        {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
-
-        <Stack spacing={2.5}>
-          <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-          <WorkspaceSection
-            title={Language.resourcesTitle}
-            contentsProps={{ className: styles.resourcesTableContents }}
-          >
-            <TemplateResourcesTable resources={getStartedResources(templateResources)} />
-          </WorkspaceSection>
-          <WorkspaceSection
-            title={Language.readmeTitle}
-            contentsProps={{ className: styles.readmeContents }}
-          >
-            <div className={styles.markdownWrapper}>
-              <ReactMarkdown
-                components={{
-                  a: ({ href, target, children }) => (
-                    <Link href={href} target={target}>
-                      {children}
-                    </Link>
-                  ),
-                }}
-              >
-                {readme.body}
-              </ReactMarkdown>
-            </div>
-          </WorkspaceSection>
-          <WorkspaceSection
-            title={Language.versionsTitle}
-            contentsProps={{ className: styles.versionsTableContents }}
-          >
-            <VersionsTable versions={templateVersions} />
-          </WorkspaceSection>
-        </Stack>
-      </>
+      <Stack spacing={2.5}>
+        <TemplateStats template={template} activeVersion={activeTemplateVersion} />
+        <WorkspaceSection
+          title={Language.resourcesTitle}
+          contentsProps={{ className: styles.resourcesTableContents }}
+        >
+          <TemplateResourcesTable resources={getStartedResources(templateResources)} />
+        </WorkspaceSection>
+        <WorkspaceSection
+          title={Language.readmeTitle}
+          contentsProps={{ className: styles.readmeContents }}
+        >
+          <div className={styles.markdownWrapper}>
+            <ReactMarkdown
+              components={{
+                a: ({ href, target, children }) => (
+                  <Link href={href} target={target}>
+                    {children}
+                  </Link>
+                ),
+              }}
+            >
+              {readme.body}
+            </ReactMarkdown>
+          </div>
+        </WorkspaceSection>
+        <WorkspaceSection
+          title={Language.versionsTitle}
+          contentsProps={{ className: styles.versionsTableContents }}
+        >
+          <VersionsTable versions={templateVersions} />
+        </WorkspaceSection>
+      </Stack>
+    </>
     </Margins>
   )
 }
