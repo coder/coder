@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
@@ -425,11 +427,24 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		if status == database.UserStatusSuspended && user.ID == apiKey.UserID {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "You cannot suspend yourself.",
-			})
-			return
+		if status == database.UserStatusSuspended {
+			// There are some manual protections when suspending a user to
+			// prevent certain situations.
+			switch {
+			case user.ID == apiKey.UserID:
+				// Suspending yourself is not allowed, as you can lock yourself
+				// out of the system.
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: "You cannot suspend yourself.",
+				})
+				return
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+				// You may not suspend an owner
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("You cannot suspend a user with the %q role.", rbac.RoleOwner()),
+				})
+				return
+			}
 		}
 
 		suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
