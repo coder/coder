@@ -1,9 +1,9 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import FolderIcon from "@material-ui/icons/FolderOutlined"
-import WidgetsIcon from "@material-ui/icons/WidgetsOutlined"
 import ImageIcon from "@material-ui/icons/ImageOutlined"
 import MemoryIcon from "@material-ui/icons/MemoryOutlined"
+import WidgetsIcon from "@material-ui/icons/WidgetsOutlined"
 import React from "react"
 
 // For this special case, we need to apply a different style because how this
