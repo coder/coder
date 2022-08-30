@@ -339,13 +339,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Sort templates by WorkspaceOwnerCount DESC
-	templateList := convertTemplates(templates, workspaceCounts, createdByNameMap)
-	sort.SliceStable(templateList, func(i, j int) bool {
-		return templateList[i].WorkspaceOwnerCount > templateList[j].WorkspaceOwnerCount
-	})
-
-	httpapi.Write(rw, http.StatusOK, templateList)
+	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts, createdByNameMap))
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -680,6 +674,7 @@ func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, temp
 
 func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
+
 	for _, template := range templates {
 		found := false
 		for _, workspaceCount := range workspaceCounts {
@@ -694,6 +689,12 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
 		}
 	}
+
+	// Sort templates by WorkspaceOwnerCount DESC
+	sort.SliceStable(apiTemplates, func(i, j int) bool {
+		return apiTemplates[i].WorkspaceOwnerCount > apiTemplates[j].WorkspaceOwnerCount
+	})
+
 	return apiTemplates
 }
 
