@@ -5,6 +5,7 @@ import ImageIcon from "@material-ui/icons/ImageOutlined"
 import MemoryIcon from "@material-ui/icons/MemoryOutlined"
 import WidgetsIcon from "@material-ui/icons/WidgetsOutlined"
 import React from "react"
+import { WorkspaceResource } from "../../api/typesGenerated"
 
 // For this special case, we need to apply a different style because how this
 // particular icon has been designed
@@ -12,7 +13,7 @@ const AdjustedMemoryIcon: typeof MemoryIcon = ({ style, ...props }) => {
   return <MemoryIcon style={{ ...style, fontSize: 24 }} {...props} />
 }
 
-const iconByResource: Record<string, typeof MemoryIcon> = {
+const iconByResource: Record<WorkspaceResource["type"], typeof MemoryIcon | undefined> = {
   docker_volume: FolderIcon,
   docker_container: AdjustedMemoryIcon,
   docker_image: ImageIcon,
@@ -25,7 +26,7 @@ const iconByResource: Record<string, typeof MemoryIcon> = {
   null_resource: WidgetsIcon,
 }
 
-export type ResourceAvatarProps = { type: string }
+export type ResourceAvatarProps = { type: WorkspaceResource["type"] }
 
 export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ type }) => {
   const IconComponent = iconByResource[type] ?? WidgetsIcon
