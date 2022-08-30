@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-type RequstParams struct {
+type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
@@ -21,7 +21,7 @@ type RequstParams struct {
 }
 
 type Request[T Auditable] struct {
-	params *RequstParams
+	params *RequestParams
 
 	Old T
 	New T
@@ -30,7 +30,7 @@ type Request[T Auditable] struct {
 // InitRequest initializes an audit log for a request. It returns a function
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
-func InitRequest[T Auditable](w http.ResponseWriter, p *RequstParams) (*Request[T], func()) {
+func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
 	sw, ok := w.(chimw.WrapResponseWriter)
 	if !ok {
 		panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")

@@ -35,6 +35,8 @@ export interface AssignableRoles extends Role {
 }
 
 // From codersdk/audit.go
+// Embedded anonymous struct, please fix by naming it
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AuditDiff = Record<string, any>
 
 // From codersdk/audit.go
