@@ -466,6 +466,11 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	dir := filepath.Dir(path)
 	name := filepath.Base(path)
 
+	// Ensure that e.g. the ~/.ssh directory exists.
+	if err = os.MkdirAll(dir, 0o700); err != nil {
+		return xerrors.Errorf("create directory: %w", err)
+	}
+
 	// Create a tempfile in the same directory for ensuring write
 	// operation does not fail.
 	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s.", name))
