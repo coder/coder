@@ -26,9 +26,7 @@ type ApplicationURL struct {
 	Agent         string
 	Username      string
 	Path          string
-
-	// Domain is used to output the url to reach the app.
-	Domain string
+	Domain        string
 }
 
 func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
