@@ -527,6 +527,8 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 // See:
 //   - https://github.com/coder/coder/issues/2853
 //   - https://github.com/openssh/openssh-portable/blob/V_9_0_P1/sshconnect.c#L158-L167
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/sshconnect.c#L231-L293
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/contrib/win32/win32compat/w32fd.c#L1075-L1100
 func sshConfigExecEscape(path string) (string, error) {
 	// This is unlikely to ever happen, but newlines are allowed on
 	// certain filesystems, but cannot be used inside ssh config.
