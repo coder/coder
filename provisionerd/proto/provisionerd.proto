@@ -106,6 +106,10 @@ message UpdateJobResponse {
     repeated provisioner.ParameterValue parameter_values = 2;
 }
 
+message ConnectRequest {
+    repeated string supported_provisioners = 1;
+}
+
 service ProvisionerDaemon {
     // AcquireJob requests a job. Implementations should
     // hold a lock on the job until CompleteJob() is
@@ -122,4 +126,8 @@ service ProvisionerDaemon {
 
     // CompleteJob indicates a job has been completed.
     rpc CompleteJob(CompletedJob) returns (Empty);
+
+    // Connect provides metadata about the provisioner. Implementations
+    // should call this method as the first thing they do after connecting.
+    rpc Connect(ConnectRequest) returns (Empty);
 }

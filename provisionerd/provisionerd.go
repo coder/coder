@@ -141,6 +141,9 @@ func (p *Server) connect(ctx context.Context) {
 		if p.isClosed() {
 			return
 		}
+
+		p.sendConnectRequest(ctx)
+
 		ticker := time.NewTicker(p.opts.PollInterval)
 		defer ticker.Stop()
 		for {
@@ -179,6 +182,37 @@ func (p *Server) isRunningJob() bool {
 		return false
 	default:
 		return true
+	}
+}
+
+// sendConnectRequest is called as the first RPC on each connection, and
+// informs the server which provisioners this daemon supports
+func (p *Server) sendConnectRequest(ctx context.Context) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	if p.isClosed() {
+		return
+	}
+	client, ok := p.client()
+	if !ok {
+		return
+	}
+
+	var provisionerNames []string
+	for key := range p.opts.Provisioners {
+		provisionerNames = append(provisionerNames, key)
+	}
+	_, err := client.Connect(ctx, &proto.ConnectRequest{
+		SupportedProvisioners: provisionerNames,
+	})
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, yamux.ErrSessionShutdown) {
+			return
+		}
+		p.opts.Logger.Warn(context.Background(), "initial connect request", slog.Error(err))
 	}
 }
 

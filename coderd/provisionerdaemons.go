@@ -848,6 +848,35 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	return &proto.Empty{}, nil
 }
 
+func (server *provisionerdServer) Connect(ctx context.Context, req *proto.ConnectRequest) (*proto.Empty, error) {
+	if len(req.SupportedProvisioners) == 0 {
+		return nil, xerrors.New("supported provisioners not specified")
+	}
+
+	var provisionerTypes []database.ProvisionerType
+	for _, name := range req.SupportedProvisioners {
+		provisionerType := database.ProvisionerType(name)
+		if provisionerType != database.ProvisionerTypeEcho && provisionerType != database.ProvisionerTypeTerraform {
+			return nil, xerrors.Errorf("unknown provisioner name: %v", name)
+		}
+		provisionerTypes = append(provisionerTypes, provisionerType)
+	}
+
+	err := server.Database.UpdateProvisionerDaemonByID(ctx, database.UpdateProvisionerDaemonByIDParams{
+		ID:           server.ID,
+		UpdatedAt:    sql.NullTime{Time: time.Now(), Valid: true},
+		Provisioners: provisionerTypes,
+	})
+	if err != nil {
+		server.Logger.Error(ctx, "error during provisioner daemon connection", slog.Error(err))
+		return nil, xerrors.Errorf("connect: %w", err)
+	}
+	server.Provisioners = provisionerTypes
+
+	server.Logger.Debug(ctx, "Connect done", slog.F("provisioner_id", server.ID), slog.F("provisioners", provisionerTypes))
+	return &proto.Empty{}, nil
+}
+
 func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),

@@ -51,6 +51,9 @@ func closedWithin(c chan struct{}, d time.Duration) func() bool {
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
 
+	noopAcquireJob := func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+		return &proto.AcquiredJob{}, nil
+	}
 	noopUpdateJob := func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 		return &proto.UpdateJobResponse{}, nil
 	}
@@ -71,6 +74,28 @@ func TestProvisionerd(t *testing.T) {
 			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.NoError(t, closer.Close())
+	})
+
+	t.Run("InitialConnectRequest", func(t *testing.T) {
+		t.Parallel()
+		completeChan := make(chan struct{})
+		var provisioners []string
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: noopAcquireJob,
+				updateJob:  noopUpdateJob,
+				connect: func(ctx context.Context, request *proto.ConnectRequest) (*proto.Empty, error) {
+					defer close(completeChan)
+					provisioners = request.SupportedProvisioners
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{}),
+		})
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.Equal(t, []string{"someprovisioner"}, provisioners)
 		require.NoError(t, closer.Close())
 	})
 
@@ -972,6 +997,12 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 			return &proto.Empty{}, nil
 		}
 	}
+	if server.connect == nil {
+		// Default to no-op
+		server.connect = func(ctx context.Context, request *proto.ConnectRequest) (*proto.Empty, error) {
+			return &proto.Empty{}, nil
+		}
+	}
 	clientPipe, serverPipe := provisionersdk.TransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
@@ -1030,6 +1061,7 @@ type provisionerDaemonTestServer struct {
 	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	failJob     func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
+	connect     func(ctx context.Context, request *proto.ConnectRequest) (*proto.Empty, error)
 }
 
 func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *proto.Empty) (*proto.AcquiredJob, error) {
@@ -1046,4 +1078,8 @@ func (p *provisionerDaemonTestServer) FailJob(ctx context.Context, job *proto.Fa
 
 func (p *provisionerDaemonTestServer) CompleteJob(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 	return p.completeJob(ctx, job)
+}
+
+func (p *provisionerDaemonTestServer) Connect(ctx context.Context, request *proto.ConnectRequest) (*proto.Empty, error) {
+	return p.connect(ctx, request)
 }

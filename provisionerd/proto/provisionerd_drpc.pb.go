@@ -42,6 +42,7 @@ type DRPCProvisionerDaemonClient interface {
 	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
+	Connect(ctx context.Context, in *ConnectRequest) (*Empty, error)
 }
 
 type drpcProvisionerDaemonClient struct {
@@ -90,11 +91,21 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 	return out, nil
 }
 
+func (c *drpcProvisionerDaemonClient) Connect(ctx context.Context, in *ConnectRequest) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/provisionerd.ProvisionerDaemon/Connect", drpcEncoding_File_provisionerd_proto_provisionerd_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
 	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(context.Context, *FailedJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
+	Connect(context.Context, *ConnectRequest) (*Empty, error)
 }
 
 type DRPCProvisionerDaemonUnimplementedServer struct{}
@@ -115,9 +126,13 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJob(context.Context, 
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProvisionerDaemonUnimplementedServer) Connect(context.Context, *ConnectRequest) (*Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCProvisionerDaemonDescription struct{}
 
-func (DRPCProvisionerDaemonDescription) NumMethods() int { return 4 }
+func (DRPCProvisionerDaemonDescription) NumMethods() int { return 5 }
 
 func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -157,6 +172,15 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						in1.(*CompletedJob),
 					)
 			}, DRPCProvisionerDaemonServer.CompleteJob, true
+	case 4:
+		return "/provisionerd.ProvisionerDaemon/Connect", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCProvisionerDaemonServer).
+					Connect(
+						ctx,
+						in1.(*ConnectRequest),
+					)
+			}, DRPCProvisionerDaemonServer.Connect, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -224,6 +248,22 @@ type drpcProvisionerDaemon_CompleteJobStream struct {
 }
 
 func (x *drpcProvisionerDaemon_CompleteJobStream) SendAndClose(m *Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCProvisionerDaemon_ConnectStream interface {
+	drpc.Stream
+	SendAndClose(*Empty) error
+}
+
+type drpcProvisionerDaemon_ConnectStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_ConnectStream) SendAndClose(m *Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return err
 	}

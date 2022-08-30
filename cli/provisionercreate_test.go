@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/coderd/coderdtest"
 )
 
 func TestProvisionerCreate(t *testing.T) {

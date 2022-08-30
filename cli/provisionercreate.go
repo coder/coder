@@ -3,13 +3,14 @@ package cli
 import (
 	"fmt"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func provisionerCreate() *cobra.Command {
-	root := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "create [name]",
 		Short: "Create a provisioner daemon instance",
 		Args:  cobra.ExactArgs(1),
@@ -42,5 +43,5 @@ coder provisioners run --token `+tokenArg)
 			return nil
 		},
 	}
-	return root
+	return cmd
 }
