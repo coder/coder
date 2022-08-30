@@ -15,7 +15,7 @@ type Backend interface {
 	Export(ctx context.Context, alog database.AuditLog) error
 }
 
-// auditor is the enterprise impelentation of the Auditor interface.
+// auditor is the enterprise implementation of the Auditor interface.
 type auditor struct {
 	//nolint:unused
 	filter Filter
