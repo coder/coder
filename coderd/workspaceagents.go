@@ -513,6 +513,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
