@@ -54,28 +54,15 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	var internalURL string
 
-	num, err := strconv.Atoi(proxyApp.AppName)
-	if err == nil && num <= 65535 {
-		// TODO: @emyrk we should probably allow changing the schema?
-		internalURL = "http://localhost:" + proxyApp.AppName
-	} else {
-		app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
-			AgentID: proxyApp.Agent.ID,
-			Name:    proxyApp.AppName,
-		})
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-				Message: "Application not found.",
-			})
-			return
-		}
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace application.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	// Fetch the app from the database. If the app does not exist, check if
+	// the app is a port number
+	num, numError := strconv.Atoi(proxyApp.AppName)
+	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
+		AgentID: proxyApp.Agent.ID,
+		Name:    proxyApp.AppName,
+	})
+	switch {
+	case err == nil:
 		if !app.Url.Valid {
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
@@ -83,6 +70,20 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			return
 		}
 		internalURL = app.Url.String
+	case err != nil && errors.Is(err, sql.ErrNoRows) && numError == nil && num <= 65535:
+		// If the app does not exist, but the app name is a port number, then
+		// route to the port as an anonymous app.
+
+		// Anonymous apps will default to `http`. If the user wants to configure
+		// particular app settings, they will have to name it.
+		internalURL = "http://localhost:" + proxyApp.AppName
+	case err != nil:
+		// All other db errors, return an error.
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace application.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	appURL, err := url.Parse(internalURL)

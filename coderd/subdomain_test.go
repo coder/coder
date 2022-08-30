@@ -14,33 +14,32 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	testCases := []struct {
 		Name          string
 		URL           string
-		Expected      coderd.Application
+		Expected      coderd.ApplicationURL
 		ExpectedError string
 	}{
 		{
 			Name:          "Empty",
 			URL:           "https://example.com",
-			Expected:      coderd.Application{},
+			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Workspace.Agent+App",
 			URL:           "https://workspace.agent--app.coder.com",
-			Expected:      coderd.Application{},
+			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Workspace+App",
 			URL:           "https://workspace--app.coder.com",
-			Expected:      coderd.Application{},
+			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		// Correct
 		{
 			Name: "User+Workspace+App",
 			URL:  "https://user--workspace--app.coder.com",
-			Expected: coderd.Application{
-				AppURL:        "",
+			Expected: coderd.ApplicationURL{
 				AppName:       "app",
 				WorkspaceName: "workspace",
 				Agent:         "",
@@ -52,8 +51,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name: "User+Workspace+Port",
 			URL:  "https://user--workspace--8080.coder.com",
-			Expected: coderd.Application{
-				AppURL:        "",
+			Expected: coderd.ApplicationURL{
 				AppName:       "8080",
 				WorkspaceName: "workspace",
 				Agent:         "",
@@ -65,8 +63,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name: "User+Workspace.Agent+App",
 			URL:  "https://user--workspace--agent--app.coder.com",
-			Expected: coderd.Application{
-				AppURL:        "",
+			Expected: coderd.ApplicationURL{
 				AppName:       "app",
 				WorkspaceName: "workspace",
 				Agent:         "agent",
@@ -78,8 +75,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name: "User+Workspace.Agent+Port",
 			URL:  "https://user--workspace--agent--8080.coder.com",
-			Expected: coderd.Application{
-				AppURL:        "",
+			Expected: coderd.ApplicationURL{
 				AppName:       "8080",
 				WorkspaceName: "workspace",
 				Agent:         "agent",
@@ -91,8 +87,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name: "HyphenatedNames",
 			URL:  "https://admin-user--workspace-thing--agent-thing--app-name.coder.com",
-			Expected: coderd.Application{
-				AppURL:        "",
+			Expected: coderd.ApplicationURL{
 				AppName:       "app-name",
 				WorkspaceName: "workspace-thing",
 				Agent:         "agent-thing",

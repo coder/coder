@@ -17,11 +17,10 @@ const (
 	// XForwardedHostHeader is a header used by proxies to indicate the
 	// original host of the request.
 	XForwardedHostHeader = "X-Forwarded-Host"
-	xForwardedProto      = "X-Forwarded-Proto"
 )
 
-type Application struct {
-	AppURL        string
+// ApplicationURL is a parsed application url into it's components
+type ApplicationURL struct {
 	AppName       string
 	WorkspaceName string
 	Agent         string
@@ -39,9 +38,11 @@ func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) 
 			app, err := ParseSubdomainAppURL(r)
 
 			if err != nil {
-				// Not a Dev URL, proceed as usual.
+				// Subdomain is not a valid application url. Pass through.
 				// TODO: @emyrk we should probably catch invalid subdomains. Meaning
-				// 	an invalid devurl should not route to the coderd.
+				// 	an invalid application should not route to the coderd.
+				//	To do this we would need to know the list of valid access urls
+				//	though?
 				next.ServeHTTP(rw, r)
 				return
 			}
@@ -82,29 +83,28 @@ var (
 // If the application string is not valid, returns a non-nil error.
 //   1) {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT/AppName}}
 //  	(eg. http://admin--myenv--main--8080.cdrdeploy.c8s.io)
-func ParseSubdomainAppURL(r *http.Request) (Application, error) {
+func ParseSubdomainAppURL(r *http.Request) (ApplicationURL, error) {
 	host := RequestHost(r)
 	if host == "" {
-		return Application{}, xerrors.Errorf("no host header")
+		return ApplicationURL{}, xerrors.Errorf("no host header")
 	}
 
 	subdomain, domain, err := SplitSubdomain(host)
 	if err != nil {
-		return Application{}, xerrors.Errorf("split host domain: %w", err)
+		return ApplicationURL{}, xerrors.Errorf("split host domain: %w", err)
 	}
 
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
 	if len(matches) == 0 {
-		return Application{}, xerrors.Errorf("invalid application url format: %q", subdomain)
+		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
 	}
 
 	if len(matches) > 1 {
-		return Application{}, xerrors.Errorf("multiple matches (%d) for application url: %q", len(matches), subdomain)
+		return ApplicationURL{}, xerrors.Errorf("multiple matches (%d) for application url: %q", len(matches), subdomain)
 	}
 	matchGroup := matches[0]
 
-	return Application{
-		AppURL:        "",
+	return ApplicationURL{
 		AppName:       matchGroup[appURL.SubexpIndex("AppName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
 		Agent:         matchGroup[appURL.SubexpIndex("AgentName")],

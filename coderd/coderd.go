@@ -136,6 +136,8 @@ func New(options *Options) *API {
 		api.handleSubdomain(
 			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			// This should extract the application specific API key when we
+			// implement a scoped token.
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, false),
 			httpmw.ExtractUserParam(api.Database),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
