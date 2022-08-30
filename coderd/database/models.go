@@ -536,7 +536,7 @@ type WorkspaceAgent struct {
 	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
 	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
 	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
-	// version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
+	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
 	Version string `db:"version" json:"version"`
 }
 

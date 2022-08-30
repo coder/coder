@@ -165,11 +165,7 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 	}
 
 	var req codersdk.PostWorkspaceAgentVersionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Invalid request to set workspace agent version.",
-			Detail:  err.Error(),
-		})
+	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
