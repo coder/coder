@@ -7,8 +7,9 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC } from "react"
-import { getDisplayAgentStatus, getWorkspaceStatus, WorkspaceStateEnum } from "util/workspace"
+import { getDisplayAgentStatus } from "util/workspace"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
@@ -41,10 +42,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
-
-  const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
-    workspace.latest_build,
-  )
 
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
@@ -103,40 +100,43 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                       )}
 
                       <TableCell className={styles.agentColumn}>
-                        {agent.name}
-                        <div className={styles.agentInfo}>
-                          <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          {WorkspaceStateEnum[workspaceStatus] !==
-                            WorkspaceStateEnum["stopped"] && (
-                            <span style={{ color: agentStatus.color }} className={styles.status}>
+                      <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
+                      <div className={styles.data}>
+                        <div className={styles.dataRow}>
+                          <strong>status: </strong>
+                          <span style={{ color: agentStatus.color }} className={styles.status}>
                               {agentStatus.status}
                             </span>
-                          )}
                         </div>
+                        <div className={styles.dataRow}>
+                          <strong>os: </strong>
+                          {agent.operating_system}
+                        </div>
+                      </div>
                       </TableCell>
                       <TableCell>
-                        <>
-                          {canUpdateWorkspace && agent.status === "connected" && (
-                            <div className={styles.accessLinks}>
-                              <SSHButton workspaceName={workspace.name} agentName={agent.name} />
-                              <TerminalLink
-                                workspaceName={workspace.name}
-                                agentName={agent.name}
-                                userName={workspace.owner_name}
-                              />
-                              {agent.apps.map((app) => (
-                                <AppLink
-                                  key={app.name}
-                                  appIcon={app.icon}
-                                  appName={app.name}
-                                  userName={workspace.owner_name}
-                                  workspaceName={workspace.name}
-                                  agentName={agent.name}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </>
+                          <div className={styles.accessLinks}>
+                              {canUpdateWorkspace && agent.status === "connected" && (
+                                <>
+                                  <SSHButton workspaceName={workspace.name} agentName={agent.name} />
+                                  <TerminalLink
+                                    workspaceName={workspace.name}
+                                    agentName={agent.name}
+                                    userName={workspace.owner_name}
+                                  />
+                                  {agent.apps.map((app) => (
+                                    <AppLink
+                                      key={app.name}
+                                      appIcon={app.icon}
+                                      appName={app.name}
+                                      userName={workspace.owner_name}
+                                      workspaceName={workspace.name}
+                                      agentName={agent.name}
+                                    />
+                                  ))}
+                                </>
+                              )}
+                          </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -203,5 +203,24 @@ const useStyles = makeStyles((theme) => ({
 
   status: {
     whiteSpace: "nowrap",
+  },
+
+  data: {
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+    marginTop: theme.spacing(0.75),
+    display: "grid",
+    gridAutoFlow: "row",
+    whiteSpace: "nowrap",
+    gap: theme.spacing(0.75),
+  },
+
+  dataRow: {
+    display: "flex",
+    alignItems: "center",
+
+    "& strong": {
+      marginRight: theme.spacing(1),
+    },
   },
 }))
