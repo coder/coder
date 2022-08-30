@@ -85,6 +85,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 						Name: "some",
 						Type: "example",
 						Agents: []*proto.Agent{{
+							Name: "agent",
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
 							Apps: []*proto.App{{
@@ -119,22 +120,23 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 	require.NoError(t, err, "create template param")
 
 	urlParameters := map[string]string{
-		"{organization}":       admin.OrganizationID.String(),
-		"{user}":               admin.UserID.String(),
-		"{organizationname}":   organization.Name,
-		"{workspace}":          workspace.ID.String(),
-		"{workspacebuild}":     workspace.LatestBuild.ID.String(),
-		"{workspacename}":      workspace.Name,
-		"{workspacebuildname}": workspace.LatestBuild.Name,
-		"{workspaceagent}":     workspaceResources[0].Agents[0].ID.String(),
-		"{buildnumber}":        strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
-		"{template}":           template.ID.String(),
-		"{hash}":               file.Hash,
-		"{workspaceresource}":  workspaceResources[0].ID.String(),
-		"{workspaceapp}":       workspaceResources[0].Agents[0].Apps[0].Name,
-		"{templateversion}":    version.ID.String(),
-		"{jobID}":              templateVersionDryRun.ID.String(),
-		"{templatename}":       template.Name,
+		"{organization}":        admin.OrganizationID.String(),
+		"{user}":                admin.UserID.String(),
+		"{organizationname}":    organization.Name,
+		"{workspace}":           workspace.ID.String(),
+		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
+		"{workspacename}":       workspace.Name,
+		"{workspacebuildname}":  workspace.LatestBuild.Name,
+		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		"{template}":            template.ID.String(),
+		"{hash}":                file.Hash,
+		"{workspaceresource}":   workspaceResources[0].ID.String(),
+		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{templateversion}":     version.ID.String(),
+		"{jobID}":               templateVersionDryRun.ID.String(),
+		"{templatename}":        template.Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -177,15 +179,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"GET:/api/v2/entitlements":      {NoAuthorize: true},
-
-		"GET:/%40{user}/{workspacename}/apps/{workspaceapp}/*": {
-			AssertAction: rbac.ActionCreate,
-			AssertObject: workspaceExecObj,
-		},
-		"GET:/@{user}/{workspacename}/apps/{workspaceapp}/*": {
-			AssertAction: rbac.ActionCreate,
-			AssertObject: workspaceExecObj,
-		},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -407,6 +400,29 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
+
+	// Routes like proxy routes support all HTTP methods. A helper func to expand
+	// 1 url to all http methods.
+	assertAllHTTPMethods := func(url string, check RouteCheck) {
+		methods := []string{http.MethodGet, http.MethodHead, http.MethodPost,
+			http.MethodPut, http.MethodPatch, http.MethodDelete,
+			http.MethodConnect, http.MethodOptions, http.MethodTrace}
+
+		for _, method := range methods {
+			route := method + ":" + url
+			assertRoute[route] = check
+		}
+	}
+
+	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+		AssertAction: rbac.ActionCreate,
+		AssertObject: workspaceExecObj,
+	})
+	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+		AssertAction: rbac.ActionCreate,
+		AssertObject: workspaceExecObj,
+	})
+
 	return skipRoutes, assertRoute
 }
 
@@ -454,6 +470,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 			a.t.Run(name, func(t *testing.T) {
 				a.authorizer.reset()
 				routeKey := strings.TrimRight(name, "/")
+
 				routeAssertions, ok := assertRoute[routeKey]
 				if !ok {
 					// By default, all omitted routes check for just "authorize" called

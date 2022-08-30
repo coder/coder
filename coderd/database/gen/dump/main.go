@@ -88,7 +88,7 @@ func main() {
 	if !ok {
 		panic("couldn't get caller path")
 	}
-	err = os.WriteFile(filepath.Join(mainPath, "..", "..", "dump.sql"), []byte(dump), 0600)
+	err = os.WriteFile(filepath.Join(mainPath, "..", "..", "..", "dump.sql"), []byte(dump), 0o600)
 	if err != nil {
 		panic(err)
 	}

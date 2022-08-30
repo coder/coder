@@ -496,12 +496,16 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
+
+			// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
+			// websockets over the dev tunnel.
+			// See: https://github.com/coder/coder/pull/3730
+			//nolint:gosec
 			server := &http.Server{
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-				ErrorLog:          log.New(io.Discard, "", 0),
-				Handler:           coderAPI.Handler,
-				ReadHeaderTimeout: time.Minute,
+				ErrorLog: log.New(io.Discard, "", 0),
+				Handler:  coderAPI.Handler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -659,13 +663,13 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := createConfig(cmd)
 			url, err := embeddedPostgresURL(cfg)
 			if err != nil {
 				return err
 			}
-			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
 			return nil
 		},
 	})
@@ -1106,10 +1110,13 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
+	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
+	// websockets over the dev tunnel.
+	// See: https://github.com/coder/coder/pull/3730
+	//nolint:gosec
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: time.Minute,
+		Addr:    addr,
+		Handler: handler,
 	}
 	go func() {
 		err := srv.ListenAndServe()

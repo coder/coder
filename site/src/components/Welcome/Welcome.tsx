@@ -11,7 +11,7 @@ const Language = {
   ),
 }
 
-export const Welcome: FC<PropsWithChildren<{ message?: JSX.Element }>> = ({
+export const Welcome: FC<PropsWithChildren<{ message?: JSX.Element | string }>> = ({
   message = Language.defaultMessage,
 }) => {
   const styles = useStyles()
