@@ -1,8 +1,12 @@
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
+import { rest } from "msw"
+import { server } from "testHelpers/server"
 import * as CreateDayString from "util/createDayString"
 import {
+  MockMemberPermissions,
   MockTemplate,
   MockTemplateVersion,
+  MockUser,
   MockWorkspaceResource,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
@@ -22,5 +26,29 @@ describe("TemplatePage", () => {
     screen.getByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
+  })
+  it("allows an admin to delete a template", async () => {
+    renderWithAuth(<TemplatePage />, {
+      route: `/templates/${MockTemplate.id}`,
+      path: "/templates/:template",
+    })
+    const dropdownButton = await screen.findByLabelText("open-dropdown")
+    fireEvent.click(dropdownButton)
+    const deleteButton = await screen.findByText("Delete")
+    expect(deleteButton).toBeDefined()
+  })
+  it("does not allow a member to delete a template", () => {
+    // get member-level permissions
+    server.use(
+      rest.post(`/api/v2/users/${MockUser.id}/authorization`, async (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockMemberPermissions))
+      })
+    )
+    renderWithAuth(<TemplatePage />, {
+      route: `/templates/${MockTemplate.id}`,
+      path: "/templates/:template",
+    })
+    const dropdownButton = screen.queryByLabelText("open-dropdown")
+    expect(dropdownButton).toBe(null)
   })
 })
