@@ -637,8 +637,8 @@ export const makeMockApiError = ({
   detail,
   validations,
 }: {
-  message?: ""
-  detail?: ""
+  message?: string
+  detail?: string
   validations?: FieldError[]
 }) => ({
   response: {

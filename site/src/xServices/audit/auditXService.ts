@@ -7,7 +7,7 @@ export const auditMachine = createMachine(
   {
     id: "auditMachine",
     schema: {
-      context: {} as { auditLogs: AuditLogs },
+      context: {} as { auditLogs?: AuditLogs },
       services: {} as {
         loadAuditLogs: {
           data: AuditLogs

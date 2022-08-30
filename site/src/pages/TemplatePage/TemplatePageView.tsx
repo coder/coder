@@ -56,7 +56,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
     <Margins>
       <PageHeader
         actions={
-          <Stack direction="row" spacing={1}>
+          <>
             <Link
               underline="none"
               component={RouterLink}
@@ -73,7 +73,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
             >
               <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
             </Link>
-          </Stack>
+          </>
         }
       >
         <Stack direction="row" spacing={3} className={styles.pageTitle}>

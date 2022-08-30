@@ -386,7 +386,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   return response.data
 }
 
-interface AuditLog {
+export interface AuditLog {
   readonly id: string
   readonly request_id: string
   readonly time: string

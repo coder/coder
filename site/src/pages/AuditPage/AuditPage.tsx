@@ -1,9 +1,13 @@
+import { useMachine } from "@xstate/react"
 import { FC } from "react"
+import { auditMachine } from "xServices/audit/auditXService"
 import { AuditPageView } from "./AuditPageView"
 
-// REMARK: This page is in-progress and hidden from users
 const AuditPage: FC = () => {
-  return <AuditPageView />
+  const [auditState] = useMachine(auditMachine)
+  const { auditLogs } = auditState.context
+
+  return <AuditPageView auditLogs={auditLogs} />
 }
 
 export default AuditPage
