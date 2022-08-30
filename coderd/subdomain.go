@@ -138,3 +138,17 @@ func SplitSubdomain(hostname string) (subdomain string, domain string, err error
 
 	return toks[0], toks[1], nil
 }
+
+// applicationCookie is a helper function to copy the auth cookie to also
+// support subdomains. Until we support creating authentication cookies that can
+// only do application authentication, we will just reuse the original token.
+// This code should be temporary and be replaced with something that creates
+// a unique session_token.
+func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
+	appCookie := *authCookie
+	// We only support setting this cookie on the access url subdomains.
+	// This is to ensure we don't accidentally leak the auth cookie to subdomains
+	// on another hostname.
+	appCookie.Domain = "." + api.AccessURL.Hostname()
+	return &appCookie
+}

@@ -796,6 +796,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, cookie)
+	http.SetCookie(rw, api.applicationCookie(cookie))
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
@@ -874,6 +875,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, cookie)
+	http.SetCookie(rw, api.applicationCookie(cookie))
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
