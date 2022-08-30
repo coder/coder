@@ -18,15 +18,15 @@ type Auditable interface {
 		database.GitSSHKey
 }
 
-// Map is a map of changed fields in an audited resource. `any` can be a
-// map[string]any in the case of nested structs, or an OldNew struct
-// representing a changed value.
-type Map map[string]any
+// Map is a map of changed fields in an audited resource. It maps field names to
+// the old and new value for that field.
+type Map map[string]OldNew
 
 // OldNew is a pair of values representing the old value and the new value.
 type OldNew struct {
-	Old any
-	New any
+	Old    any
+	New    any
+	Secret bool
 }
 
 // Empty returns a default value of type T.

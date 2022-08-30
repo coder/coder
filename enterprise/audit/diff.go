@@ -62,20 +62,15 @@ func diffValues[T any](left, right T, table Table) audit.Map {
 			leftI, rightI = leftF.Interface(), rightF.Interface()
 		}
 
-		// Recursively walk up nested structs.
-		if rightF.Kind() == reflect.Struct {
-			baseDiff[diffName] = diffValues(leftI, rightI, table)
-			continue
-		}
-
 		if !reflect.DeepEqual(leftI, rightI) {
 			switch atype {
 			case ActionTrack:
 				baseDiff[diffName] = audit.OldNew{Old: leftI, New: rightI}
 			case ActionSecret:
 				baseDiff[diffName] = audit.OldNew{
-					Old: reflect.Zero(rightF.Type()).Interface(),
-					New: reflect.Zero(rightF.Type()).Interface(),
+					Old:    reflect.Zero(rightF.Type()).Interface(),
+					New:    reflect.Zero(rightF.Type()).Interface(),
+					Secret: true,
 				}
 			}
 		}
@@ -88,18 +83,31 @@ func diffValues[T any](left, right T, table Table) audit.Map {
 //
 //nolint:forcetypeassert
 func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
-	switch typed := left.(type) {
+	switch typedLeft := left.(type) {
 	case uuid.UUID:
-		return typed.String(), right.(uuid.UUID).String(), true
+		typedRight := right.(uuid.UUID)
+
+		// Automatically coerce Nil UUIDs to empty strings.
+		outLeft := typedLeft.String()
+		if typedLeft == uuid.Nil {
+			outLeft = ""
+		}
+
+		outRight := typedRight.String()
+		if typedRight == uuid.Nil {
+			outRight = ""
+		}
+
+		return outLeft, outRight, true
 
 	case uuid.NullUUID:
-		leftStr, _ := typed.MarshalText()
+		leftStr, _ := typedLeft.MarshalText()
 		rightStr, _ := right.(uuid.NullUUID).MarshalText()
 		return string(leftStr), string(rightStr), true
 
 	case sql.NullString:
-		leftStr := typed.String
-		if !typed.Valid {
+		leftStr := typedLeft.String
+		if !typedLeft.Valid {
 			leftStr = "null"
 		}
 
@@ -113,10 +121,10 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 	case sql.NullInt64:
 		var leftInt64Ptr *int64
 		var rightInt64Ptr *int64
-		if !typed.Valid {
+		if !typedLeft.Valid {
 			leftInt64Ptr = nil
 		} else {
-			leftInt64Ptr = ptr(typed.Int64)
+			leftInt64Ptr = ptr(typedLeft.Int64)
 		}
 
 		rightInt64Ptr = ptr(right.(sql.NullInt64).Int64)

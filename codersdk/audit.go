@@ -27,8 +27,9 @@ const (
 )
 
 type AuditDiff map[string]struct {
-	Old any
-	New any
+	Old    any
+	New    any
+	Secret bool
 }
 
 type AuditLog struct {

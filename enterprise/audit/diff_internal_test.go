@@ -23,7 +23,7 @@ func Test_diffValues(t *testing.T) {
 
 		type foo struct {
 			Bar string `json:"bar"`
-			Baz int64  `json:"baz"`
+			Baz int    `json:"baz"`
 		}
 
 		table := auditMap(map[any]map[string]Action{
@@ -95,64 +95,64 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
+	// We currently don't support nested structs.
+	// t.Run("NestedStruct", func(t *testing.T) {
+	// 	t.Parallel()
 
-	t.Run("NestedStruct", func(t *testing.T) {
-		t.Parallel()
+	// 	type bar struct {
+	// 		Baz string `json:"baz"`
+	// 	}
 
-		type bar struct {
-			Baz string `json:"baz"`
-		}
+	// 	type foo struct {
+	// 		Bar *bar `json:"bar"`
+	// 	}
 
-		type foo struct {
-			Bar *bar `json:"bar"`
-		}
+	// 	table := auditMap(map[any]map[string]Action{
+	// 		&foo{}: {
+	// 			"bar": ActionTrack,
+	// 		},
+	// 		&bar{}: {
+	// 			"baz": ActionTrack,
+	// 		},
+	// 	})
 
-		table := auditMap(map[any]map[string]Action{
-			&foo{}: {
-				"bar": ActionTrack,
-			},
-			&bar{}: {
-				"baz": ActionTrack,
-			},
-		})
-
-		runDiffValuesTests(t, table, []diffTest{
-			{
-				name: "LeftEmpty",
-				left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-				exp: audit.Map{
-					"bar": audit.Map{
-						"baz": audit.OldNew{Old: "", New: "baz"},
-					},
-				},
-			},
-			{
-				name: "RightEmpty",
-				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-				exp: audit.Map{
-					"bar": audit.Map{
-						"baz": audit.OldNew{Old: "baz", New: ""},
-					},
-				},
-			},
-			{
-				name: "LeftNil",
-				left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-				exp: audit.Map{
-					"bar": audit.Map{},
-				},
-			},
-			{
-				name: "RightNil",
-				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-				exp: audit.Map{
-					"bar": audit.Map{
-						"baz": audit.OldNew{Old: "baz", New: ""},
-					},
-				},
-			},
-		})
-	})
+	// 	runDiffValuesTests(t, table, []diffTest{
+	// 		{
+	// 			name: "LeftEmpty",
+	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "", New: "baz"},
+	// 				},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "RightEmpty",
+	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "baz", New: ""},
+	// 				},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "LeftNil",
+	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{},
+	// 			},
+	// 		},
+	// 		{
+	// 			name: "RightNil",
+	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
+	// 			exp: audit.Map{
+	// 				"bar": audit.Map{
+	// 					"baz": audit.OldNew{Old: "baz", New: ""},
+	// 				},
+	// 			},
+	// 		},
+	// 	})
+	// })
 }
 
 type diffTest struct {
@@ -189,9 +189,9 @@ func Test_diff(t *testing.T) {
 				PublicKey:  "a very public public key",
 			},
 			exp: audit.Map{
-				"user_id":     uuid.UUID{1}.String(),
-				"private_key": "",
-				"public_key":  "a very public public key",
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"private_key": audit.OldNew{Old: "", New: "", Secret: true},
+				"public_key":  audit.OldNew{Old: "", New: "a very public public key"},
 			},
 		},
 	})
@@ -208,9 +208,9 @@ func Test_diff(t *testing.T) {
 				Roles:          []string{"auditor"},
 			},
 			exp: audit.Map{
-				"user_id":         uuid.UUID{1}.String(),
-				"organization_id": uuid.UUID{2}.String(),
-				"roles":           []string{"auditor"},
+				"user_id":         audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"roles":           audit.OldNew{Old: ([]string)(nil), New: []string{"auditor"}},
 			},
 		},
 	})
@@ -227,9 +227,9 @@ func Test_diff(t *testing.T) {
 				UpdatedAt:   time.Now(),
 			},
 			exp: audit.Map{
-				"id":          uuid.UUID{1}.String(),
-				"name":        "rust developers",
-				"description": "an organization for rust developers",
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"name":        audit.OldNew{Old: "", New: "rust developers"},
+				"description": audit.OldNew{Old: "", New: "an organization for rust developers"},
 			},
 		},
 	})
@@ -252,14 +252,14 @@ func Test_diff(t *testing.T) {
 				CreatedBy:            uuid.UUID{4},
 			},
 			exp: audit.Map{
-				"id":                     uuid.UUID{1}.String(),
-				"organization_id":        uuid.UUID{2}.String(),
-				"name":                   "rust",
-				"provisioner":            database.ProvisionerTypeTerraform,
-				"active_version_id":      uuid.UUID{3}.String(),
-				"max_ttl":                int64(3600000000000),
-				"min_autostart_interval": int64(60000000000),
-				"created_by":             uuid.UUID{4}.String(),
+				"id":                     audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"organization_id":        audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"name":                   audit.OldNew{Old: "", New: "rust"},
+				"provisioner":            audit.OldNew{Old: database.ProvisionerType(""), New: database.ProvisionerTypeTerraform},
+				"active_version_id":      audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"max_ttl":                audit.OldNew{Old: int64(0), New: int64(time.Hour)},
+				"min_autostart_interval": audit.OldNew{Old: int64(0), New: int64(time.Minute)},
+				"created_by":             audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
 			},
 		},
 	})
@@ -278,11 +278,11 @@ func Test_diff(t *testing.T) {
 				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
-				"id":              uuid.UUID{1}.String(),
-				"template_id":     uuid.UUID{2}.String(),
-				"organization_id": uuid.UUID{3}.String(),
-				"name":            "rust",
-				"created_by":      uuid.UUID{4}.String(),
+				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"template_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"created_by":      audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
+				"name":            audit.OldNew{Old: "", New: "rust"},
 			},
 		},
 		{
@@ -298,10 +298,10 @@ func Test_diff(t *testing.T) {
 				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
-				"id":              uuid.UUID{1}.String(),
-				"organization_id": uuid.UUID{3}.String(),
-				"name":            "rust",
-				"created_by":      uuid.UUID{4}.String(),
+				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"created_by":      audit.OldNew{Old: "null", New: uuid.UUID{4}.String()},
+				"name":            audit.OldNew{Old: "", New: "rust"},
 			},
 		},
 	})
@@ -321,12 +321,12 @@ func Test_diff(t *testing.T) {
 				RBACRoles:      []string{"omega admin"},
 			},
 			exp: audit.Map{
-				"id":              uuid.UUID{1}.String(),
-				"email":           "colin@coder.com",
-				"username":        "colin",
-				"hashed_password": ([]byte)(nil),
-				"status":          database.UserStatusActive,
-				"rbac_roles":      []string{"omega admin"},
+				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"email":           audit.OldNew{Old: "", New: "colin@coder.com"},
+				"username":        audit.OldNew{Old: "", New: "colin"},
+				"hashed_password": audit.OldNew{Old: ([]byte)(nil), New: ([]byte)(nil), Secret: true},
+				"status":          audit.OldNew{Old: database.UserStatus(""), New: database.UserStatusActive},
+				"rbac_roles":      audit.OldNew{Old: ([]string)(nil), New: []string{"omega admin"}},
 			},
 		},
 	})
@@ -346,12 +346,12 @@ func Test_diff(t *testing.T) {
 				Ttl:               sql.NullInt64{Int64: int64(8 * time.Hour), Valid: true},
 			},
 			exp: audit.Map{
-				"id":                 uuid.UUID{1}.String(),
-				"owner_id":           uuid.UUID{2}.String(),
-				"template_id":        uuid.UUID{3}.String(),
-				"name":               "rust workspace",
-				"autostart_schedule": "0 12 * * 1-5",
-				"ttl":                int64(28800000000000), // XXX: pq still does not support time.Duration
+				"id":                 audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":           audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"template_id":        audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"name":               audit.OldNew{Old: "", New: "rust workspace"},
+				"autostart_schedule": audit.OldNew{Old: "", New: "0 12 * * 1-5"},
+				"ttl":                audit.OldNew{Old: int64(0), New: int64(8 * time.Hour)}, // XXX: pq still does not support time.Duration
 			},
 		},
 		{
@@ -368,10 +368,10 @@ func Test_diff(t *testing.T) {
 				Ttl:               sql.NullInt64{},
 			},
 			exp: audit.Map{
-				"id":          uuid.UUID{1}.String(),
-				"owner_id":    uuid.UUID{2}.String(),
-				"template_id": uuid.UUID{3}.String(),
-				"name":        "rust workspace",
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"owner_id":    audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"template_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
+				"name":        audit.OldNew{Old: "", New: "rust workspace"},
 			},
 		},
 	})
