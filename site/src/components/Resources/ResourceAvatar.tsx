@@ -1,7 +1,7 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import FolderIcon from "@material-ui/icons/FolderOutlined"
-import HelpIcon from "@material-ui/icons/HelpOutlined"
+import WidgetsIcon from "@material-ui/icons/WidgetsOutlined"
 import ImageIcon from "@material-ui/icons/ImageOutlined"
 import MemoryIcon from "@material-ui/icons/MemoryOutlined"
 import React from "react"
@@ -22,15 +22,13 @@ const iconByResource: Record<string, typeof MemoryIcon> = {
   google_compute_instance: AdjustedMemoryIcon,
   aws_instance: AdjustedMemoryIcon,
   kubernetes_deployment: AdjustedMemoryIcon,
-  null_resource: HelpIcon,
+  null_resource: WidgetsIcon,
 }
 
 export type ResourceAvatarProps = { type: string }
 
 export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ type }) => {
-  // this resource can return undefined
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const IconComponent = iconByResource[type] ?? HelpIcon
+  const IconComponent = iconByResource[type] ?? WidgetsIcon
   const styles = useStyles()
 
   return (
