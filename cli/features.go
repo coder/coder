@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -53,12 +54,14 @@ func featuresList() *cobra.Command {
 					return xerrors.Errorf("render table: %w", err)
 				}
 			case "json":
-				outBytes, err := json.Marshal(entitlements)
+				buf := new(bytes.Buffer)
+				enc := json.NewEncoder(buf)
+				enc.SetIndent("", "  ")
+				err = enc.Encode(entitlements)
 				if err != nil {
 					return xerrors.Errorf("marshal features to JSON: %w", err)
 				}
-
-				out = string(outBytes)
+				out = buf.String()
 			default:
 				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
