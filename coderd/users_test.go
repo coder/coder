@@ -848,7 +848,7 @@ func TestUsersFilter(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		roles := []string{}
 		if i%2 == 0 {
-			roles = append(roles, rbac.RoleOwner())
+			roles = append(roles, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		}
 		if i%3 == 0 {
 			roles = append(roles, "auditor")
