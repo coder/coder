@@ -195,6 +195,12 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
               name: coder-db-url
               key: url
 
+        # This env variable controls whether or not to auto-import the
+        # "kubernetes" template on first startup. This will not work unless
+        # coder.serviceAccount.workspacePerms is true.
+        - name: CODER_TEMPLATE_AUTOIMPORT
+          value: "kubernetes"
+
       tls:
         secretName: my-tls-secret-name
     ```

@@ -116,6 +116,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
+		autoImportTemplates              []string
 		spooky                           bool
 		verbose                          bool
 	)
@@ -303,6 +304,28 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 					URLs: []string{stunServer},
 				})
 			}
+
+			// Validate provided auto-import templates.
+			var (
+				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(autoImportTemplates))
+				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(autoImportTemplates))
+			)
+			for i, autoImportTemplate := range autoImportTemplates {
+				var v coderd.AutoImportTemplate
+				switch autoImportTemplate {
+				case "kubernetes":
+					v = coderd.AutoImportTemplateKubernetes
+				default:
+					return xerrors.Errorf("auto import template %q is not supported", autoImportTemplate)
+				}
+
+				if _, ok := seenValidatedAutoImportTemplates[v]; ok {
+					return xerrors.Errorf("auto import template %q is specified more than once", v)
+				}
+				seenValidatedAutoImportTemplates[v] = struct{}{}
+				validatedAutoImportTemplates[i] = v
+			}
+
 			options := &coderd.Options{
 				AccessURL:  accessURLParsed,
 				ICEServers: iceServers,
@@ -367,6 +390,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
 				Telemetry:            telemetry.NewNoop(),
+				AutoImportTemplates:  validatedAutoImportTemplates,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -542,12 +566,16 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
+
+			// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
+			// websockets over the dev tunnel.
+			// See: https://github.com/coder/coder/pull/3730
+			//nolint:gosec
 			server := &http.Server{
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
-				ErrorLog:          log.New(io.Discard, "", 0),
-				Handler:           coderAPI.Handler,
-				ReadHeaderTimeout: time.Minute,
+				ErrorLog: log.New(io.Discard, "", 0),
+				Handler:  coderAPI.Handler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -705,13 +733,13 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := createConfig(cmd)
 			url, err := embeddedPostgresURL(cfg)
 			if err != nil {
 				return err
 			}
-			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
 			return nil
 		},
 	})
@@ -825,6 +853,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
+	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes")
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
 	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 	_ = root.Flags().MarkHidden("spooky")
@@ -1162,10 +1191,13 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
+	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
+	// websockets over the dev tunnel.
+	// See: https://github.com/coder/coder/pull/3730
+	//nolint:gosec
 	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: time.Minute,
+		Addr:    addr,
+		Handler: handler,
 	}
 	go func() {
 		err := srv.ListenAndServe()

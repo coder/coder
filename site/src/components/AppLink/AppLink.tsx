@@ -13,6 +13,7 @@ export const Language = {
 export interface AppLinkProps {
   userName: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
+  agentName: TypesGen.WorkspaceAgent["name"]
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
 }
@@ -20,11 +21,12 @@ export interface AppLinkProps {
 export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   userName,
   workspaceName,
+  agentName,
   appName,
   appIcon,
 }) => {
   const styles = useStyles()
-  const href = `/@${userName}/${workspaceName}/apps/${appName}`
+  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${appName}`
 
   return (
     <Link

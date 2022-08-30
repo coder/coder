@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -30,15 +29,14 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-func sshConfigFileNames(t *testing.T) (sshConfig string, coderConfig string) {
+func sshConfigFileName(t *testing.T) (sshConfig string) {
 	t.Helper()
 	tmpdir := t.TempDir()
 	dotssh := filepath.Join(tmpdir, ".ssh")
 	err := os.Mkdir(dotssh, 0o700)
 	require.NoError(t, err)
-	n1 := filepath.Join(dotssh, "config")
-	n2 := filepath.Join(dotssh, "coder")
-	return n1, n2
+	n := filepath.Join(dotssh, "config")
+	return n
 }
 
 func sshConfigFileCreate(t *testing.T, name string, data io.Reader) {
@@ -138,7 +136,7 @@ func TestConfigSSH(t *testing.T) {
 		}
 	}()
 
-	sshConfigFile, _ := sshConfigFileNames(t)
+	sshConfigFile := sshConfigFileName(t)
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
@@ -200,12 +198,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	}, "\n")
 
 	type writeConfig struct {
-		ssh   string
-		coder string
+		ssh string
 	}
 	type wantConfig struct {
-		ssh       string
-		coderKept bool
+		ssh string
 	}
 	type match struct {
 		match, write string
@@ -517,120 +513,6 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 			},
 		},
-
-		// Tests for deprecated split coder config.
-		{
-			name: "Do not overwrite unknown coder config",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					baseHeader,
-					"",
-				}, "\n"),
-				coder: strings.Join([]string{
-					"We're no strangers to love",
-					"You know the rules and so do I (do I)",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				coderKept: true,
-			},
-		},
-		{
-			name: "Transfer options from coder to ssh config",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					"Include coder",
-					"",
-				}, "\n"),
-				coder: strings.Join([]string{
-					"# This file is managed by coder. DO NOT EDIT.",
-					"#",
-					"# You should not hand-edit this file, all changes will be lost when running",
-					"# \"coder config-ssh\".",
-					"#",
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
-			},
-			matches: []match{
-				{match: "Use new options?", write: "no"},
-				{match: "Continue?", write: "yes"},
-			},
-		},
-		{
-			name: "Allow overwriting previous options from coder config",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					"Include coder",
-					"",
-				}, "\n"),
-				coder: strings.Join([]string{
-					"# This file is managed by coder. DO NOT EDIT.",
-					"#",
-					"# You should not hand-edit this file, all changes will be lost when running",
-					"# \"coder config-ssh\".",
-					"#",
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					baseHeader,
-					"",
-				}, "\n"),
-			},
-			matches: []match{
-				{match: "Use new options?", write: "yes"},
-				{match: "Continue?", write: "yes"},
-			},
-		},
-		{
-			name: "Allow overwriting previous options from coder config when they differ",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					"Include coder",
-					"",
-				}, "\n"),
-				coder: strings.Join([]string{
-					"# This file is managed by coder. DO NOT EDIT.",
-					"#",
-					"# You should not hand-edit this file, all changes will be lost when running",
-					"# \"coder config-ssh\".",
-					"#",
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=no",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
-			},
-			args: []string{"--ssh-option", "ForwardAgent=no"},
-			matches: []match{
-				{match: "Use new options?", write: "yes"},
-				{match: "Continue?", write: "yes"},
-			},
-		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -648,18 +530,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			)
 
 			// Prepare ssh config files.
-			sshConfigName, coderConfigName := sshConfigFileNames(t)
+			sshConfigName := sshConfigFileName(t)
 			if tt.writeConfig.ssh != "" {
 				sshConfigFileCreate(t, sshConfigName, strings.NewReader(tt.writeConfig.ssh))
-			}
-			if tt.writeConfig.coder != "" {
-				sshConfigFileCreate(t, coderConfigName, strings.NewReader(tt.writeConfig.coder))
 			}
 
 			args := []string{
 				"config-ssh",
 				"--ssh-config-file", sshConfigName,
-				"--test.ssh-coder-config-file", coderConfigName,
 			}
 			args = append(args, tt.args...)
 			cmd, root := clitest.New(t, args...)
@@ -687,10 +565,6 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			if tt.wantConfig.ssh != "" {
 				got := sshConfigFileRead(t, sshConfigName)
 				assert.Equal(t, tt.wantConfig.ssh, got)
-			}
-			if !tt.wantConfig.coderKept {
-				_, err := os.ReadFile(coderConfigName)
-				assert.ErrorIs(t, err, fs.ErrNotExist)
 			}
 		})
 	}
@@ -781,7 +655,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-			sshConfigFile, _ := sshConfigFileNames(t)
+			sshConfigFile := sshConfigFileName(t)
 
 			cmd, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
 			clitest.SetupConfig(t, client, root)

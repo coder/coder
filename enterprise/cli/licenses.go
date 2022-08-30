@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,12 +21,14 @@ var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_
 
 func licenses() *cobra.Command {
 	cmd := &cobra.Command{
-		Short:   "Add, remove, and list licenses",
+		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
 	}
 	cmd.AddCommand(
 		licenseAdd(),
+		licensesList(),
+		licenseDelete(),
 	)
 	return cmd
 }
@@ -111,4 +114,59 @@ func validJWT(s string) error {
 		return nil
 	}
 	return xerrors.New("Invalid license")
+}
+
+func licensesList() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "list",
+		Short:   "List licenses (including expired)",
+		Aliases: []string{"ls"},
+		Args:    cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := agpl.CreateClient(cmd)
+			if err != nil {
+				return err
+			}
+
+			licenses, err := client.Licenses(cmd.Context())
+			if err != nil {
+				return err
+			}
+			// Ensure that we print "[]" instead of "null" when there are no licenses.
+			if licenses == nil {
+				licenses = make([]codersdk.License, 0)
+			}
+
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc.SetIndent("", "  ")
+			return enc.Encode(licenses)
+		},
+	}
+	return cmd
+}
+
+func licenseDelete() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "delete <id>",
+		Short:   "Delete license by ID",
+		Aliases: []string{"del", "rm"},
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := agpl.CreateClient(cmd)
+			if err != nil {
+				return err
+			}
+			id, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return xerrors.Errorf("license ID must be an integer: %s", args[0])
+			}
+			err = client.DeleteLicense(cmd.Context(), int32(id))
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "License with ID %d deleted\n", id)
+			return nil
+		},
+	}
+	return cmd
 }

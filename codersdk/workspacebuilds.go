@@ -50,7 +50,7 @@ type WorkspaceBuild struct {
 	InitiatorID        uuid.UUID           `json:"initiator_id"`
 	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
-	Deadline           time.Time           `json:"deadline"`
+	Deadline           NullTime            `json:"deadline,omitempty"`
 	Reason             BuildReason         `db:"reason" json:"reason"`
 }
 

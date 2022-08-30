@@ -6,7 +6,7 @@ terraform {
     }
     google = {
       source  = "hashicorp/google"
-      version = "~> 4.15"
+      version = "~> 4.34.0"
     }
   }
 }
@@ -39,16 +39,16 @@ resource "google_compute_disk" "root" {
   name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
-  image = "debian-cloud/debian-10"
+  image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [image]
   }
 }
 
 resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "linux"
+  auth  = "google-instance-identity"
+  arch  = "amd64"
+  os    = "linux"
 }
 
 resource "google_compute_instance" "dev" {

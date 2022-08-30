@@ -5,6 +5,7 @@ import InputAdornment from "@material-ui/core/InputAdornment"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import Typography from "@material-ui/core/Typography"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -20,16 +21,25 @@ export const Language = {
   descriptionLabel: "Description",
   maxTtlLabel: "Auto-stop limit",
   iconLabel: "Icon",
-  // This is the same from the CLI on https://github.com/coder/coder/blob/546157b63ef9204658acf58cb653aa9936b70c49/cli/templateedit.go#L59
-  maxTtlHelperText: "Edit the template maximum time before shutdown in seconds",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
+  ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
+  descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
+  ttlHelperText: (ttl: number): string =>
+    `Workspaces created from this template may not remain running longer than ${ttl} hours.`,
 }
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128
+const MAX_TTL_DAYS = 7
+const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
-  description: Yup.string(),
-  max_ttl_ms: Yup.number(),
+  description: Yup.string().max(MAX_DESCRIPTION_CHAR_LIMIT, Language.descriptionMaxError),
+  max_ttl_ms: Yup.number()
+    .integer()
+    .min(0)
+    .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
 })
 
 export interface TemplateSettingsForm {
@@ -55,11 +65,18 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     initialValues: {
       name: template.name,
       description: template.description,
-      max_ttl_ms: template.max_ttl_ms,
+      // on display, convert from ms => hours
+      max_ttl_ms: template.max_ttl_ms / MS_HOUR_CONVERSION,
       icon: template.icon,
     },
     validationSchema,
-    onSubmit,
+    onSubmit: (formData) => {
+      // on submit, convert from hours => ms
+      onSubmit({
+        ...formData,
+        max_ttl_ms: formData.max_ttl_ms ? formData.max_ttl_ms * MS_HOUR_CONVERSION : undefined,
+      })
+    },
     initialTouched,
   })
   const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
@@ -148,19 +165,21 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 
         <TextField
           {...getFieldHelpers("max_ttl_ms")}
-          helperText={Language.maxTtlHelperText}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
           label={Language.maxTtlLabel}
           variant="outlined"
-          // Display seconds from ms
-          value={form.values.max_ttl_ms ? form.values.max_ttl_ms / 1000 : ""}
-          // Convert ms to seconds
-          onChange={(event) =>
-            form.setFieldValue("max_ttl_ms", Number(event.currentTarget.value) * 1000)
-          }
+          type="number"
         />
+        {/* If a value for max_ttl_ms has been entered and
+        there are no validation errors for that field, display helper text.
+        We do not use the MUI helper-text prop because it overrides the validation error */}
+        {form.values.max_ttl_ms && !form.errors.max_ttl_ms && (
+          <Typography variant="subtitle2">
+            {Language.ttlHelperText(form.values.max_ttl_ms)}
+          </Typography>
+        )}
       </Stack>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />

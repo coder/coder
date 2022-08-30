@@ -32,8 +32,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-const workspaceDefaultTTL = 12 * time.Hour
-
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
@@ -145,7 +143,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api, r, rbac.ActionRead, workspaces)
+	workspaces, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -312,28 +310,14 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if !dbTTL.Valid {
-		// Default to min(12 hours, template maximum). Just defaulting to template maximum can be surprising.
-		dbTTL = sql.NullInt64{Valid: true, Int64: min(template.MaxTtl, int64(workspaceDefaultTTL))}
-	}
-
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: apiKey.UserID,
 		Name:    createWorkspace.Name,
 	})
 	if err == nil {
 		// If the workspace already exists, don't allow creation.
-		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Find template for conflicting workspace name %q.", createWorkspace.Name),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q already exists in the %q template.", createWorkspace.Name, template.Name),
+			Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
@@ -486,6 +470,68 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		findUser(apiKey.UserID, users), findUser(workspaceBuild.InitiatorID, users)))
 }
 
+func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.UpdateWorkspaceRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	if req.Name == "" || req.Name == workspace.Name {
+		// Nothing changed, optionally this could be an error.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// The reason we double check here is in case more fields can be
+	// patched in the future, it's enough if one changes.
+	name := workspace.Name
+	if req.Name != "" || req.Name != workspace.Name {
+		name = req.Name
+	}
+
+	_, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
+		ID:   workspace.ID,
+		Name: name,
+	})
+	if err != nil {
+		// The query protects against updating deleted workspaces and
+		// the existence of the workspace is checked in the request,
+		// if we get ErrNoRows it means the workspace was deleted.
+		//
+		// We could do this check earlier but we'd need to start a
+		// transaction.
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusMethodNotAllowed, codersdk.Response{
+				Message: fmt.Sprintf("Workspace %q is deleted and cannot be updated.", workspace.Name),
+			})
+			return
+		}
+		// Check if the name was already in use.
+		if database.IsUniqueViolation(err) {
+			httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Workspace %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+			return
+		}
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
@@ -563,7 +609,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
-
 	if err != nil {
 		resp := codersdk.Response{
 			Message: "Error updating workspace time until shutdown.",
@@ -663,7 +708,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
-
 	if err != nil {
 		api.Logger.Info(r.Context(), "extending workspace", slog.Error(err))
 	}
@@ -868,6 +912,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	}
 	return apiWorkspaces, nil
 }
+
 func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild database.WorkspaceBuild,
@@ -923,7 +968,8 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 		return sql.NullInt64{}, errTTLMax
 	}
 
-	if truncated > max {
+	// template level
+	if max > 0 && truncated > max {
 		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be below template maximum %s", max.String())
 	}
 
@@ -1049,11 +1095,4 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
-}
-
-func min(x, y int64) int64 {
-	if x < y {
-		return x
-	}
-	return y
 }

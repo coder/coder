@@ -28,6 +28,14 @@ SELECT
 FROM
 	users;
 
+-- name: GetActiveUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+    status = 'active'::public.user_status;
+
 -- name: InsertUser :one
 INSERT INTO
 	users (

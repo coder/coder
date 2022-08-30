@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
@@ -103,6 +104,10 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
+
+	// end span so we don't get long lived trace data
+	tracing.EndHTTPSpan(r, 200)
+
 	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
@@ -256,6 +261,9 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// end span so we don't get long lived trace data
+	tracing.EndHTTPSpan(r, 200)
+
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -343,7 +351,8 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
+	defer wsNetConn.Close()     // Also closes conn.
+	tracing.EndHTTPSpan(r, 200) // end span so we don't get long lived trace data
 
 	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {

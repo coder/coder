@@ -474,6 +474,88 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const deleteLicense = `-- name: DeleteLicense :one
+DELETE
+FROM licenses
+WHERE id = $1
+RETURNING id
+`
+
+func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteLicense, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getLicenses = `-- name: GetLicenses :many
+SELECT id, uploaded_at, jwt, exp
+FROM licenses
+ORDER BY (id)
+`
+
+func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
+	rows, err := q.db.QueryContext(ctx, getLicenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []License
+	for rows.Next() {
+		var i License
+		if err := rows.Scan(
+			&i.ID,
+			&i.UploadedAt,
+			&i.JWT,
+			&i.Exp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
+SELECT id, uploaded_at, jwt, exp
+FROM licenses
+WHERE exp > NOW()
+ORDER BY (id)
+`
+
+func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error) {
+	rows, err := q.db.QueryContext(ctx, getUnexpiredLicenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []License
+	for rows.Next() {
+		var i License
+		if err := rows.Scan(
+			&i.ID,
+			&i.UploadedAt,
+			&i.JWT,
+			&i.Exp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertLicense = `-- name: InsertLicense :one
 INSERT INTO
 	licenses (
@@ -2616,6 +2698,22 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const getActiveUserCount = `-- name: GetActiveUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+    status = 'active'::public.user_status
+`
+
+func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username is returned just to help for logging purposes
@@ -4613,6 +4711,40 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.AutostartSchedule,
 		arg.Ttl,
 	)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+	)
+	return i, err
+}
+
+const updateWorkspace = `-- name: UpdateWorkspace :one
+UPDATE
+	workspaces
+SET
+	name = $2
+WHERE
+	id = $1
+	AND deleted = false
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+`
+
+type UpdateWorkspaceParams struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspace, arg.ID, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

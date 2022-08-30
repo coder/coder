@@ -25,7 +25,7 @@ This will:
 
 Once this completes, you can visit `http://localhost:3000` and start creating workspaces!
 
-Alternatively, enter the VM with `limactl shell coder` and run `coder template init` to start creating your own templates!
+Alternatively, enter the VM with `limactl shell coder` and run `coder templates init` to start creating your own templates!
 
 ## Further Information
 

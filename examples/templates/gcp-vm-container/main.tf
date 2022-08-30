@@ -6,7 +6,7 @@ terraform {
     }
     google = {
       source  = "hashicorp/google"
-      version = "~> 4.15"
+      version = "~> 4.34.0"
     }
   }
 }
@@ -46,7 +46,7 @@ module "gce-container" {
   version = "3.0.0"
 
   container = {
-    image   = "mcr.microsoft.com/vscode/devcontainers/go:1"
+    image   = "codercom/enterprise-base:ubuntu"
     command = ["sh"]
     args    = ["-c", coder_agent.main.init_script]
     securityContext = {

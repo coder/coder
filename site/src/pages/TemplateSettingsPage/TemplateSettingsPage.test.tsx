@@ -5,7 +5,7 @@ import { UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
 import { MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import { Language as FormLanguage } from "./TemplateSettingsForm"
+import { Language as FormLanguage, validationSchema } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import { Language as ViewLanguage } from "./TemplateSettingsPageView"
 
@@ -17,6 +17,13 @@ const renderTemplateSettingsPage = async () => {
   // Wait the form to be rendered
   await screen.findAllByLabelText(FormLanguage.nameLabel)
   return renderResult
+}
+
+const validFormValues = {
+  name: "Name",
+  description: "A description",
+  icon: "A string",
+  max_ttl_ms: 1,
 }
 
 const fillAndSubmitForm = async ({
@@ -55,18 +62,82 @@ describe("TemplateSettingsPage", () => {
   it("succeeds", async () => {
     await renderTemplateSettingsPage()
 
-    const newTemplateSettings = {
-      name: "edited-template-name",
-      description: "Edited description",
-      max_ttl_ms: 4000,
-      icon: "/icon/code.svg",
-    }
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
-      ...newTemplateSettings,
+      ...validFormValues,
     })
-    await fillAndSubmitForm(newTemplateSettings)
+    await fillAndSubmitForm(validFormValues)
 
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
+  })
+
+  test("ttl is converted to and from hours", async () => {
+    await renderTemplateSettingsPage()
+
+    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+      ...MockTemplate,
+      ...validFormValues,
+    })
+
+    await fillAndSubmitForm(validFormValues)
+    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the max_ttl_ms
+    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
+
+    await waitFor(() =>
+      expect(API.updateTemplateMeta).toBeCalledWith(
+        "test-template",
+        expect.objectContaining({
+          ...validFormValues,
+          max_ttl_ms: 3600000, // the max_ttl_ms to ms
+        }),
+      ),
+    )
+  })
+
+  it("allows a ttl of 7 days", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 24 * 7,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("allows ttl of 0", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 0,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a ttl of 7 days + 1 hour", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      max_ttl_ms: 24 * 7 + 1,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError(FormLanguage.ttlMaxError)
+  })
+
+  it("allows a description of 128 chars", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      description:
+        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a description of 128 + 1 chars", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      description:
+        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).toThrowError(FormLanguage.descriptionMaxError)
   })
 })
