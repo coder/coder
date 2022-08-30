@@ -1,10 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useActor } from "@xstate/react"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { FC, useContext } from "react"
+import { FC } from "react"
 import { useNavigate } from "react-router-dom"
-import { XServiceContext } from "xServices/StateContext"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
@@ -46,6 +44,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  buildInfo?: TypesGen.BuildInfoResponse
 }
 
 /**
@@ -64,11 +63,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   builds,
   canUpdateWorkspace,
   workspaceErrors,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
-  const xServices = useContext(XServiceContext)
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
 
   return (
     <Margins>
@@ -132,7 +130,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
-              buildInfo={buildInfoState.context.buildInfo}
+              buildInfo={buildInfo}
             />
           )}
 
