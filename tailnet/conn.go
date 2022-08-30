@@ -461,7 +461,11 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 		_, err := io.Copy(conn, server)
 		connClosed <- err
 	}()
-	err = <-connClosed
+	select {
+	case err = <-connClosed:
+	case <-c.closed:
+		return
+	}
 	if err != nil {
 		c.logger.Debug(ctx, "proxy connection closed with error", slog.Error(err))
 	}
