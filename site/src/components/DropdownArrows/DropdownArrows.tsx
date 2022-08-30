@@ -26,5 +26,10 @@ export const OpenDropdown: FC<ArrowProps> = ({ margin = true }) => {
 
 export const CloseDropdown: FC<ArrowProps> = ({ margin = true }) => {
   const styles = useStyles({ margin })
-  return <KeyboardArrowUp aria-label="close-dropdown" className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
+  return (
+    <KeyboardArrowUp
+      aria-label="close-dropdown"
+      className={`${styles.arrowIcon} ${styles.arrowIconUp}`}
+    />
+  )
 }

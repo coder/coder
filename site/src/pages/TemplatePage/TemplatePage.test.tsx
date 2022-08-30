@@ -42,7 +42,7 @@ describe("TemplatePage", () => {
     server.use(
       rest.post(`/api/v2/users/${MockUser.id}/authorization`, async (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockMemberPermissions))
-      })
+      }),
     )
     renderWithAuth(<TemplatePage />, {
       route: `/templates/${MockTemplate.id}`,
