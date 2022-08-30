@@ -18,7 +18,7 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 		r := httptest.NewRequest("GET", "https://example.com/api/v2/entitlements", nil)
 		rw := httptest.NewRecorder()
-		entitlements(rw, r)
+		featuresService{}.EntitlementsAPI(rw, r)
 		resp := rw.Result()
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
