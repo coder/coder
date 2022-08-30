@@ -41,6 +41,7 @@ export interface TemplatePageViewProps {
   templateVersions?: TemplateVersion[]
   handleDeleteTemplate: (templateId: string) => void
   deleteTemplateError: Error | unknown
+  canDeleteTemplate: boolean
 }
 
 export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
@@ -50,6 +51,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   templateVersions,
   handleDeleteTemplate,
   deleteTemplateError,
+  canDeleteTemplate
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -58,6 +60,15 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
   }
+
+  const createWorkspaceButton = (className: string) => <Link
+                  underline="none"
+                  component={RouterLink}
+                  to={`/templates/${template.name}/workspace`}
+                >
+                  <Button className={className} startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+                </Link>
+
 
   return (
     <Margins>
@@ -76,24 +87,20 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
               </Button>
             </Link>
 
-            <DropdownButton
-              primaryAction={
-                <Link
-                  underline="none"
-                  component={RouterLink}
-                  to={`/templates/${template.name}/workspace`}
-                >
-                  <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-                </Link>
-              }
-              secondaryActions={[
-                {
-                  action: "delete",
-                  button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />,
-                },
-              ]}
-              canCancel={false}
-            />
+            {canDeleteTemplate ?
+              <DropdownButton
+                primaryAction={createWorkspaceButton(styles.actionButton)}
+                secondaryActions={[
+                  {
+                    action: "delete",
+                    button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />,
+                  },
+                ]}
+                canCancel={false}
+              />
+            :
+              createWorkspaceButton("")
+            }
           </Stack>
         }
       >
@@ -156,6 +163,10 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 
 export const useStyles = makeStyles((theme) => {
   return {
+    actionButton: {
+      border: "none",
+      borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+    },
     readmeContents: {
       margin: 0,
     },

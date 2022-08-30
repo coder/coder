@@ -1,9 +1,11 @@
-import { useMachine } from "@xstate/react"
+import { useMachine, useSelector } from "@xstate/react"
 import { ConfirmDialog } from "components/ConfirmDialog/ConfirmDialog"
-import { FC } from "react"
+import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useParams } from "react-router-dom"
+import { selectPermissions } from "xServices/auth/authSelectors"
+import { XServiceContext } from "xServices/StateContext"
 import { Loader } from "../../components/Loader/Loader"
 import { useOrganizationId } from "../../hooks/useOrganizationId"
 import { pageTitle } from "../../util/page"
@@ -37,7 +39,9 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     templateVersions,
     deleteTemplateError,
   } = templateState.context
-  const isLoading = !template || !activeTemplateVersion || !templateResources
+  const xServices = useContext(XServiceContext)
+  const permissions = useSelector(xServices.authXService, selectPermissions)
+  const isLoading = !template || !activeTemplateVersion || !templateResources || !permissions
 
   const handleDeleteTemplate = () => {
     templateSend("DELETE")
@@ -61,6 +65,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         activeTemplateVersion={activeTemplateVersion}
         templateResources={templateResources}
         templateVersions={templateVersions}
+        canDeleteTemplate={permissions.deleteTemplates}
         handleDeleteTemplate={handleDeleteTemplate}
         deleteTemplateError={deleteTemplateError}
       />
