@@ -20,18 +20,23 @@ func Test_sshConfigExecEscape(t *testing.T) {
 		name    string
 		path    string
 		wantErr bool
+		windows bool
 	}{
-		{"no spaces", "simple", false},
-		{"spaces", "path with spaces", false},
-		{"quotes", "path with \"quotes\"", false},
-		{"backslashes", "path with \\backslashes", false},
-		{"tabs", "path with \ttabs", false},
-		{"newline fails", "path with \nnewline", true},
+		{"no spaces", "simple", false, true},
+		{"spaces", "path with spaces", false, true},
+		{"quotes", "path with \"quotes\"", false, false},
+		{"backslashes", "path with \\backslashes", false, false},
+		{"tabs", "path with \ttabs", false, false},
+		{"newline fails", "path with \nnewline", true, false},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			if runtime.GOOS == "windows" && !tt.windows {
+				t.SkipNow()
+			}
 
 			dir := filepath.Join(t.TempDir(), tt.path)
 			err := os.MkdirAll(dir, 0o755)
