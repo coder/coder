@@ -441,7 +441,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
 				// You may not suspend an owner
 				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("You cannot suspend a user with the %q role.", rbac.RoleOwner()),
+					Message: fmt.Sprintf("You cannot suspend a user with the %q role. You must remove the role first.", rbac.RoleOwner()),
 				})
 				return
 			}
