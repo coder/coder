@@ -25,6 +25,8 @@ const Language = {
   resourceLabel: "Resource",
   agentsLabel: "Agents",
   agentLabel: "Agent",
+  statusLabel: "status: ",
+  osLabel: "os: ",
 }
 
 interface ResourcesProps {
@@ -100,43 +102,43 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                       )}
 
                       <TableCell className={styles.agentColumn}>
-                      <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
-                      <div className={styles.data}>
-                        <div className={styles.dataRow}>
-                          <strong>status: </strong>
-                          <span style={{ color: agentStatus.color }} className={styles.status}>
+                        <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
+                        <div className={styles.data}>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.statusLabel}</strong>
+                            <span style={{ color: agentStatus.color }} className={styles.status}>
                               {agentStatus.status}
                             </span>
+                          </div>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.osLabel}</strong>
+                            <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                          </div>
                         </div>
-                        <div className={styles.dataRow}>
-                          <strong>os: </strong>
-                          {agent.operating_system}
-                        </div>
-                      </div>
                       </TableCell>
                       <TableCell>
-                          <div className={styles.accessLinks}>
-                              {canUpdateWorkspace && agent.status === "connected" && (
-                                <>
-                                  <SSHButton workspaceName={workspace.name} agentName={agent.name} />
-                                  <TerminalLink
-                                    workspaceName={workspace.name}
-                                    agentName={agent.name}
-                                    userName={workspace.owner_name}
-                                  />
-                                  {agent.apps.map((app) => (
-                                    <AppLink
-                                      key={app.name}
-                                      appIcon={app.icon}
-                                      appName={app.name}
-                                      userName={workspace.owner_name}
-                                      workspaceName={workspace.name}
-                                      agentName={agent.name}
-                                    />
-                                  ))}
-                                </>
-                              )}
-                          </div>
+                        <div className={styles.accessLinks}>
+                          {canUpdateWorkspace && agent.status === "connected" && (
+                            <>
+                              <SSHButton workspaceName={workspace.name} agentName={agent.name} />
+                              <TerminalLink
+                                workspaceName={workspace.name}
+                                agentName={agent.name}
+                                userName={workspace.owner_name}
+                              />
+                              {agent.apps.map((app) => (
+                                <AppLink
+                                  key={app.name}
+                                  appIcon={app.icon}
+                                  appName={app.name}
+                                  userName={workspace.owner_name}
+                                  workspaceName={workspace.name}
+                                  agentName={agent.name}
+                                />
+                              ))}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -179,14 +181,6 @@ const useStyles = makeStyles((theme) => ({
   // Adds some left spacing
   agentColumn: {
     paddingLeft: `${theme.spacing(4)}px !important`,
-  },
-
-  agentInfo: {
-    display: "flex",
-    gap: theme.spacing(1.5),
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
   },
 
   operatingSystem: {
