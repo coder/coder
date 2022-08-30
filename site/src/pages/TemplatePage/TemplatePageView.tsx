@@ -6,6 +6,7 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
@@ -39,6 +40,7 @@ export interface TemplatePageViewProps {
   templateResources: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
   handleDeleteTemplate: (templateId: string) => void
+  deleteTemplateError: Error | unknown
 }
 
 export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
@@ -47,6 +49,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   templateResources,
   templateVersions,
   handleDeleteTemplate,
+  deleteTemplateError
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -111,6 +114,9 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         </Stack>
       </PageHeader>
 
+      <>
+      {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
+
       <Stack spacing={2.5}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
         <WorkspaceSection
@@ -144,6 +150,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
           <VersionsTable versions={templateVersions} />
         </WorkspaceSection>
       </Stack>
+      </>
     </Margins>
   )
 }

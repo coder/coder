@@ -1,3 +1,4 @@
+import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 import {
   deleteTemplate,
@@ -7,6 +8,7 @@ import {
   getTemplateVersions,
 } from "../../api/api"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
+import { t } from "i18next"
 
 interface TemplateContext {
   organizationId: string
@@ -150,6 +152,7 @@ export const templateMachine =
         onDone: [
           {
             target: "deleted",
+            actions: "displayDeleteSuccess"
           },
         ],
         onError: [
@@ -215,6 +218,7 @@ export const templateMachine =
         clearDeleteTemplateError: assign({
           deleteTemplateError: (_) => undefined,
         }),
+        displayDeleteSuccess: () => displaySuccess(t("deleteSuccess", { ns: "templatePage" }))
       },
     },
   )
