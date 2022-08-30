@@ -470,9 +470,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if desc == "" {
 			desc = template.Description
 		}
-		if icon == "" {
-			icon = template.Icon
-		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
