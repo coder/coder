@@ -34,8 +34,8 @@ func Test_sshConfigExecEscape(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if runtime.GOOS == "windows" && !tt.windows {
-				t.SkipNow()
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows doesn't typically execute via /bin/sh or cmd.exe, so this test is not applicable.")
 			}
 
 			dir := filepath.Join(t.TempDir(), tt.path)
@@ -43,9 +43,6 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			require.NoError(t, err)
 			bin := filepath.Join(dir, "coder")
 			contents := []byte("#!/bin/sh\necho yay\n")
-			if runtime.GOOS == "windows" {
-				contents = []byte("cls\r\n@echo off\r\necho \"yay\"\r\n")
-			}
 			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
@@ -56,11 +53,7 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			args := []string{"/bin/sh", "-c", escaped}
-			if runtime.GOOS == "windows" {
-				args = []string{"cmd.exe", "/c", escaped}
-			}
-			b, err := exec.Command(args[0], args[1:]...).CombinedOutput() //nolint:gosec
+			b, err := exec.Command("/bin/sh", "-c", escaped).CombinedOutput() //nolint:gosec
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
