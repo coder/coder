@@ -637,8 +637,8 @@ export const makeMockApiError = ({
   detail,
   validations,
 }: {
-  message?: string
-  detail?: string
+  message?: ""
+  detail?: ""
   validations?: FieldError[]
 }) => ({
   response: {
@@ -683,4 +683,23 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
       entitlement: "entitled",
     },
   },
+}
+
+export const MockAuditLog = {
+  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+  request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  time: "2022-05-19T16:45:57.122Z",
+  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  ip: "127.0.0.1",
+  user_agent: "browser",
+  resource_type: "organization",
+  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
+  resource_target: "Bruno's Org",
+  action: "create",
+  diff: {},
+  status_code: 200,
+  additional_fields: {},
+  description: "Colin Adler updated the organization Bruno's Org",
+  user: MockUser,
+  resource: MockOrganization,
 }
