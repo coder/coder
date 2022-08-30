@@ -24,6 +24,20 @@ data "coder_workspace" "me" {
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
+  startup_script = <<EOT
+    #!/bin/bash
+
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
+    code-server --auth none --port 13337 | tee code-server-install.log &
+  EOT
+}
+
+resource "coder_app" "code-server" {
+  agent_id = coder_agent.main.id
+  name     = "code-server"
+  url      = "http://localhost:13337/?folder=/home/coder"
+  icon     = "/icon/code.svg"
 }
 
 variable "docker_image" {
