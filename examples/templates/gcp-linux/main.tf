@@ -39,7 +39,7 @@ resource "google_compute_disk" "root" {
   name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
-  image = "debian-cloud/debian-10"
+  image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [image]
   }
