@@ -541,7 +541,7 @@ func sshConfigExecEscape(path string) (string, error) {
 	// A space or a tab requires quoting, but tabs must not be escaped
 	// (\t) since OpenSSH interprets it as a literal \t, not a tab.
 	if strings.ContainsAny(path, " \t") {
-		path = fmt.Sprintf("\"%s\"", path)
+		path = fmt.Sprintf("\"%s\"", path) //nolint:gocritic // We don't want %q here.
 	}
 	return path, nil
 }
