@@ -55,7 +55,7 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				args = []string{"cmd.exe", "/c", escaped}
 			}
-			b, err := exec.Command(args[0], args[1:]...).Output() //nolint:gosec
+			b, err := exec.Command(args[0], args[1:]...).CombinedOutput() //nolint:gosec
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
