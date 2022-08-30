@@ -65,6 +65,7 @@ func Test_diffValues(t *testing.T) {
 		})
 	})
 
+	//nolint:revive
 	t.Run("PointerField", func(t *testing.T) {
 		t.Parallel()
 
@@ -95,6 +96,7 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
+
 	// We currently don't support nested structs.
 	// t.Run("NestedStruct", func(t *testing.T) {
 	// 	t.Parallel()
