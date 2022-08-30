@@ -6,8 +6,8 @@ home: https://github.com/coder/coder
 # version and appVersion are injected at release and will always be shown as
 # 0.1.0 in the repository.
 type: application
-version: "0.1.0"
-appVersion: "0.1.0"
+version: "0.8.9"
+appVersion: "0.8.9"
 
 # Coder has a hard requirement on Kubernetes 1.19, as this version introduced
 # the networking.k8s.io/v1 API.
