@@ -130,7 +130,7 @@ func RequestHost(r *http.Request) string {
 //   - "foo.bar.baz.com" becomes "foo", "bar.baz.com"
 //
 // An error is returned if the string doesn't contain a period.
-func SplitSubdomain(hostname string) (string, string, error) {
+func SplitSubdomain(hostname string) (subdomain string, domain string, err error) {
 	toks := strings.SplitN(hostname, ".", 2)
 	if len(toks) < 2 {
 		return "", "", xerrors.Errorf("no domain")
