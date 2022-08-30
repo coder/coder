@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -469,9 +470,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if desc == "" {
 			desc = template.Description
 		}
-		if icon == "" {
-			icon = template.Icon
-		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
@@ -673,6 +671,7 @@ func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, temp
 
 func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
+
 	for _, template := range templates {
 		found := false
 		for _, workspaceCount := range workspaceCounts {
@@ -687,6 +686,12 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
 		}
 	}
+
+	// Sort templates by WorkspaceOwnerCount DESC
+	sort.SliceStable(apiTemplates, func(i, j int) bool {
+		return apiTemplates[i].WorkspaceOwnerCount > apiTemplates[j].WorkspaceOwnerCount
+	})
+
 	return apiTemplates
 }
 

@@ -131,19 +131,6 @@ describe("util > workspace", () => {
   })
 
   describe("getDisplayVersionStatus", () => {
-    const mockTheme = {
-      palette: {
-        text: {
-          secondary: "palette.text.secondary",
-        },
-        primary: {
-          main: "palette.primary.main",
-        },
-        success: {
-          main: "palette.secondary.main",
-        },
-      },
-    }
     it.each<[string, string, string]>([
       ["", "", "(unknown)"],
       ["", "v1.2.3", "(unknown)"],
@@ -155,7 +142,7 @@ describe("util > workspace", () => {
     ])(
       `getDisplayVersionStatus(theme, %p, %p) returns %p`,
       (agentVersion, serverVersion, expectedVersion) => {
-        const { version } = getDisplayVersionStatus(mockTheme, agentVersion, serverVersion)
+        const version = getDisplayVersionStatus(agentVersion, serverVersion)
         expect(version).toEqual(expectedVersion)
       },
     )
