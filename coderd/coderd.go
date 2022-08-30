@@ -131,8 +131,10 @@ func New(options *Options) *API {
 			})
 		},
 		httpmw.Prometheus(options.PrometheusRegistry),
-		// Handle all subdomain requests
+		// handleSubdomain checks if the first subdomain is a valid app url.
+		// If it is, it will serve that application.
 		api.handleSubdomain(
+			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, false),
 			httpmw.ExtractUserParam(api.Database),

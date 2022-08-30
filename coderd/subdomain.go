@@ -78,6 +78,10 @@ var (
 		nameRegex))
 )
 
+// ParseSubdomainAppURL parses an application from the subdomain of r's Host header.
+// If the application string is not valid, returns a non-nil error.
+//   1) {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT/AppName}}
+//  	(eg. http://admin--myenv--main--8080.cdrdeploy.c8s.io)
 func ParseSubdomainAppURL(r *http.Request) (Application, error) {
 	host := RequestHost(r)
 	if host == "" {
@@ -109,21 +113,6 @@ func ParseSubdomainAppURL(r *http.Request) (Application, error) {
 		Domain:        domain,
 	}, nil
 }
-
-// Parse parses a DevURL from the subdomain of r's Host header.
-// If DevURL is not valid, returns a non-nil error.
-//
-// devurls can be in two forms, each field separate by 2 hypthens:
-//   1) port-envname-user (eg. http://8080--myenv--johndoe.cdrdeploy.c8s.io)
-//   2) name-user         (eg. http://demosvc--johndoe.cdrdeploy.c8s.io)
-//
-// Note that envname itself can contain hyphens.
-// If subdomain begins with a sequence of numbers, form 1 is assumed.
-// Otherwise, form 2 is assumed.
-//func Parse(r *http.Request, devurlSuffix string) (Application, error) {
-//
-//	return d, nil
-//}
 
 // RequestHost returns the name of the host from the request.  It prioritizes
 // 'X-Forwarded-Host' over r.Host since most requests are being proxied.
