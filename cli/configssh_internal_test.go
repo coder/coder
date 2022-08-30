@@ -4,12 +4,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+// This test tries to mimic the behavior of OpenSSH
+// when executing e.g. a ProxyCommand.
 func Test_sshConfigExecEscape(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +37,11 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			err := os.MkdirAll(dir, 0o755)
 			require.NoError(t, err)
 			bin := filepath.Join(dir, "coder")
-			err = os.WriteFile(bin, []byte("#!/bin/sh\necho yay\n"), 0o755) //nolint:gosec
+			contents := []byte("#!/bin/sh\necho yay\n")
+			if runtime.GOOS == "windows" {
+				contents = []byte("cls\r\n@echo off\r\necho \"yay\"\r\n")
+			}
+			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
 			escaped, err := sshConfigExecEscape(bin)
@@ -44,7 +51,11 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			b, err := exec.Command("/bin/sh", "-c", escaped).Output()
+			args := []string{"/bin/sh", "-c", escaped}
+			if runtime.GOOS == "windows" {
+				args = []string{"cmd.exe", "/c", escaped}
+			}
+			b, err := exec.Command(args[0], args[1:]...).Output() //nolint:gosec
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
