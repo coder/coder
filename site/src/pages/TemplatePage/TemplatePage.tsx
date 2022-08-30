@@ -30,8 +30,13 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
       organizationId,
     },
   })
-  const { template, activeTemplateVersion, templateResources, templateVersions, deleteTemplateError } =
-    templateState.context
+  const {
+    template,
+    activeTemplateVersion,
+    templateResources,
+    templateVersions,
+    deleteTemplateError,
+  } = templateState.context
   const isLoading = !template || !activeTemplateVersion || !templateResources
 
   const handleDeleteTemplate = () => {
@@ -73,11 +78,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         onClose={() => {
           templateSend("CANCEL_DELETE")
         }}
-        description={
-          <>
-            {t("deleteDialog.message")}
-          </>
-        }
+        description={<>{t("deleteDialog.message")}</>}
       />
     </>
   )
