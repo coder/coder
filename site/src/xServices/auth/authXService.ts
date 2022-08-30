@@ -45,9 +45,9 @@ export const permissionsToCheck = {
   },
   [checks.deleteTemplates]: {
     object: {
-      resource_type: "template"
+      resource_type: "template",
     },
-    action: "delete"
+    action: "delete",
   },
   [checks.viewAuditLog]: {
     object: {

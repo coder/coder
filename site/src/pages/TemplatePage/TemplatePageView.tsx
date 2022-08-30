@@ -51,7 +51,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   templateVersions,
   handleDeleteTemplate,
   deleteTemplateError,
-  canDeleteTemplate
+  canDeleteTemplate,
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
@@ -61,102 +61,103 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
     return resources.filter((resource) => resource.workspace_transition === "start")
   }
 
-  const createWorkspaceButton = (className: string) => <Link
-                  underline="none"
-                  component={RouterLink}
-                  to={`/templates/${template.name}/workspace`}
-                >
-                  <Button className={className} startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-                </Link>
-
+  const createWorkspaceButton = (className: string) => (
+    <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
+      <Button className={className} startIcon={<AddCircleOutline />}>
+        {Language.createButton}
+      </Button>
+    </Link>
+  )
 
   return (
     <Margins>
       <>
-      {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
-      <PageHeader
-        actions={
-          <Stack direction="row" spacing={1}>
-            <Link
-              underline="none"
-              component={RouterLink}
-              to={`/templates/${template.name}/settings`}
-            >
-              <Button variant="outlined" startIcon={<SettingsOutlined />}>
-                {Language.settingsButton}
-              </Button>
-            </Link>
+        {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
+        <PageHeader
+          actions={
+            <Stack direction="row" spacing={1}>
+              <Link
+                underline="none"
+                component={RouterLink}
+                to={`/templates/${template.name}/settings`}
+              >
+                <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                  {Language.settingsButton}
+                </Button>
+              </Link>
 
-            {canDeleteTemplate ?
-              <DropdownButton
-                primaryAction={createWorkspaceButton(styles.actionButton)}
-                secondaryActions={[
-                  {
-                    action: "delete",
-                    button: <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />,
-                  },
-                ]}
-                canCancel={false}
-              />
-            :
-              createWorkspaceButton("")
-            }
+              {canDeleteTemplate ? (
+                <DropdownButton
+                  primaryAction={createWorkspaceButton(styles.actionButton)}
+                  secondaryActions={[
+                    {
+                      action: "delete",
+                      button: (
+                        <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />
+                      ),
+                    },
+                  ]}
+                  canCancel={false}
+                />
+              ) : (
+                createWorkspaceButton("")
+              )}
+            </Stack>
+          }
+        >
+          <Stack direction="row" spacing={3} className={styles.pageTitle}>
+            <div>
+              {hasIcon ? (
+                <div className={styles.iconWrapper}>
+                  <img src={template.icon} alt="" />
+                </div>
+              ) : (
+                <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
+              )}
+            </div>
+            <div>
+              <PageHeaderTitle>{template.name}</PageHeaderTitle>
+              <PageHeaderSubtitle>
+                {template.description === "" ? Language.noDescription : template.description}
+              </PageHeaderSubtitle>
+            </div>
           </Stack>
-        }
-      >
-        <Stack direction="row" spacing={3} className={styles.pageTitle}>
-          <div>
-            {hasIcon ? (
-              <div className={styles.iconWrapper}>
-                <img src={template.icon} alt="" />
-              </div>
-            ) : (
-              <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
-            )}
-          </div>
-          <div>
-            <PageHeaderTitle>{template.name}</PageHeaderTitle>
-            <PageHeaderSubtitle>
-              {template.description === "" ? Language.noDescription : template.description}
-            </PageHeaderSubtitle>
-          </div>
-        </Stack>
-      </PageHeader>
+        </PageHeader>
 
-      <Stack spacing={2.5}>
-        <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-        <WorkspaceSection
-          title={Language.resourcesTitle}
-          contentsProps={{ className: styles.resourcesTableContents }}
-        >
-          <TemplateResourcesTable resources={getStartedResources(templateResources)} />
-        </WorkspaceSection>
-        <WorkspaceSection
-          title={Language.readmeTitle}
-          contentsProps={{ className: styles.readmeContents }}
-        >
-          <div className={styles.markdownWrapper}>
-            <ReactMarkdown
-              components={{
-                a: ({ href, target, children }) => (
-                  <Link href={href} target={target}>
-                    {children}
-                  </Link>
-                ),
-              }}
-            >
-              {readme.body}
-            </ReactMarkdown>
-          </div>
-        </WorkspaceSection>
-        <WorkspaceSection
-          title={Language.versionsTitle}
-          contentsProps={{ className: styles.versionsTableContents }}
-        >
-          <VersionsTable versions={templateVersions} />
-        </WorkspaceSection>
-      </Stack>
-    </>
+        <Stack spacing={2.5}>
+          <TemplateStats template={template} activeVersion={activeTemplateVersion} />
+          <WorkspaceSection
+            title={Language.resourcesTitle}
+            contentsProps={{ className: styles.resourcesTableContents }}
+          >
+            <TemplateResourcesTable resources={getStartedResources(templateResources)} />
+          </WorkspaceSection>
+          <WorkspaceSection
+            title={Language.readmeTitle}
+            contentsProps={{ className: styles.readmeContents }}
+          >
+            <div className={styles.markdownWrapper}>
+              <ReactMarkdown
+                components={{
+                  a: ({ href, target, children }) => (
+                    <Link href={href} target={target}>
+                      {children}
+                    </Link>
+                  ),
+                }}
+              >
+                {readme.body}
+              </ReactMarkdown>
+            </div>
+          </WorkspaceSection>
+          <WorkspaceSection
+            title={Language.versionsTitle}
+            contentsProps={{ className: styles.versionsTableContents }}
+          >
+            <VersionsTable versions={templateVersions} />
+          </WorkspaceSection>
+        </Stack>
+      </>
     </Margins>
   )
 }
