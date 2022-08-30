@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/coder/coder/coderd/httpapi"
+
 	"github.com/coder/coder/coderd/httpmw"
 
 	"github.com/go-chi/chi/v5"
@@ -70,7 +72,8 @@ func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) 
 }
 
 var (
-	nameRegex = `[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*`
+	// Remove the "starts with" and "ends with" regex components.
+	nameRegex = strings.Trim(httpapi.UsernameValidRegexString(), "^$")
 	appURL    = regexp.MustCompile(fmt.Sprintf(
 		// {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT}}
 		`^(?P<UserName>%[1]s)--(?P<WorkspaceName>%[1]s)(--(?P<AgentName>%[1]s))?--(?P<AppName>%[1]s)$`,

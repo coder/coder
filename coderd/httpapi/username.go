@@ -12,6 +12,10 @@ var (
 	usernameReplace = regexp.MustCompile("[^a-zA-Z0-9-]*")
 )
 
+func UsernameValidRegexString() string {
+	return usernameValid.String()
+}
+
 // UsernameValid returns whether the input string is a valid username.
 func UsernameValid(str string) bool {
 	if len(str) > 32 {
