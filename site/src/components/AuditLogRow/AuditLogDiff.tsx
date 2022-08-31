@@ -11,7 +11,7 @@ const getDiffValue = (value: number | string | boolean) => {
   return value.toString()
 }
 
-export const AuditDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
+export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
   const styles = useStyles()
   const diffEntries = Object.entries(diff)
 

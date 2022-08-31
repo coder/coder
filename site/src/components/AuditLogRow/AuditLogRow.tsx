@@ -11,14 +11,14 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { ComponentProps, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
-import { AuditDiff } from "./AuditLogDiff"
+import { AuditLogDiff } from "./AuditLogDiff"
 
 const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["type"] => {
   if (httpStatus >= 300 && httpStatus < 500) {
     return "warning"
   }
 
-  if (httpStatus > 500) {
+  if (httpStatus >= 500) {
     return "error"
   }
 
@@ -171,7 +171,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 
         {shouldDisplayDiff && (
           <Collapse in={isDiffOpen}>
-            <AuditDiff diff={auditLog.diff} />
+            <AuditLogDiff diff={auditLog.diff} />
           </Collapse>
         )}
       </TableCell>
