@@ -26,21 +26,24 @@ const (
 	AuditActionDelete AuditAction = "delete"
 )
 
-type AuditDiff map[string]struct {
+type AuditDiff map[string]AuditDiffField
+
+type AuditDiffField struct {
 	Old    any
 	New    any
 	Secret bool
 }
 
 type AuditLog struct {
-	ID               uuid.UUID       `json:"id"`
-	RequestID        uuid.UUID       `json:"request_id"`
-	Time             time.Time       `json:"time"`
-	OrganizationID   uuid.UUID       `json:"organization_id"`
-	IP               netip.Addr      `json:"ip"`
-	UserAgent        string          `json:"user_agent"`
-	ResourceType     ResourceType    `json:"resource_type"`
-	ResourceID       uuid.UUID       `json:"resource_id"`
+	ID             uuid.UUID    `json:"id"`
+	RequestID      uuid.UUID    `json:"request_id"`
+	Time           time.Time    `json:"time"`
+	OrganizationID uuid.UUID    `json:"organization_id"`
+	IP             netip.Addr   `json:"ip"`
+	UserAgent      string       `json:"user_agent"`
+	ResourceType   ResourceType `json:"resource_type"`
+	ResourceID     uuid.UUID    `json:"resource_id"`
+	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	Action           AuditAction     `json:"action"`
 	Diff             AuditDiff       `json:"diff"`
@@ -48,6 +51,7 @@ type AuditLog struct {
 	AdditionalFields json.RawMessage `json:"additional_fields"`
 	Description      string          `json:"description"`
 
-	User     *User           `json:"user"`
+	User *User `json:"user"`
+	// Resource is the full object of the resource the audit log is for.
 	Resource json.RawMessage `json:"resource"`
 }
