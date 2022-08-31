@@ -192,7 +192,7 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogsBefore = `-- name: GetAuditLogsBefore :many
 SELECT
-	id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id
+	id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 FROM
 	audit_logs
 WHERE
@@ -235,6 +235,7 @@ func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBef
 			&i.StatusCode,
 			&i.AdditionalFields,
 			&i.RequestID,
+			&i.ResourceIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -265,10 +266,11 @@ INSERT INTO
         diff,
         status_code,
         additional_fields,
-        request_id
+        request_id,
+        resource_icon
     )
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {
@@ -286,6 +288,7 @@ type InsertAuditLogParams struct {
 	StatusCode       int32           `db:"status_code" json:"status_code"`
 	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
 	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
 func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error) {
@@ -304,6 +307,7 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		arg.StatusCode,
 		arg.AdditionalFields,
 		arg.RequestID,
+		arg.ResourceIcon,
 	)
 	var i AuditLog
 	err := row.Scan(
@@ -321,6 +325,7 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		&i.StatusCode,
 		&i.AdditionalFields,
 		&i.RequestID,
+		&i.ResourceIcon,
 	)
 	return i, err
 }

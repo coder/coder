@@ -45,6 +45,7 @@ type AuditLog struct {
 	ResourceID     uuid.UUID    `json:"resource_id"`
 	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
+	ResourceIcon     string          `json:"resource_icon"`
 	Action           AuditAction     `json:"action"`
 	Diff             AuditDiff       `json:"diff"`
 	StatusCode       int32           `json:"status_code"`
@@ -52,6 +53,4 @@ type AuditLog struct {
 	Description      string          `json:"description"`
 
 	User *User `json:"user"`
-	// Resource is the full object of the resource the audit log is for.
-	Resource json.RawMessage `json:"resource"`
 }

@@ -59,6 +59,7 @@ export interface AuditLog {
   readonly resource_type: ResourceType
   readonly resource_id: string
   readonly resource_target: string
+  readonly resource_icon: string
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
@@ -66,8 +67,6 @@ export interface AuditLog {
   readonly additional_fields: string
   readonly description: string
   readonly user?: User
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly resource: string
 }
 
 // From codersdk/users.go

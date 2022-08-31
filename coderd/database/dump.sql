@@ -114,7 +114,8 @@ CREATE TABLE audit_logs (
     diff jsonb NOT NULL,
     status_code integer NOT NULL,
     additional_fields jsonb NOT NULL,
-    request_id uuid NOT NULL
+    request_id uuid NOT NULL,
+    resource_icon text NOT NULL
 );
 
 CREATE TABLE files (

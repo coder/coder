@@ -340,6 +340,7 @@ type AuditLog struct {
 	StatusCode       int32           `db:"status_code" json:"status_code"`
 	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
 	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
 type File struct {
