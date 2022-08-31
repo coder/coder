@@ -311,8 +311,11 @@ CREATE TABLE workspace_agents (
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     wireguard_node_ipv6 inet DEFAULT '::'::inet NOT NULL,
     wireguard_node_public_key character varying(128) DEFAULT 'nodekey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
-    wireguard_disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL
+    wireguard_disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

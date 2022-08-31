@@ -86,7 +86,7 @@ func TestFeaturesService_EntitlementsAPI(t *testing.T) {
 				auditLogs: entitlement{entitled},
 			},
 		}
-		_, err = db.InsertUser(ctx, database.InsertUserParams{
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
 			ID:             uuid.UUID{},
 			Email:          "",
 			Username:       "",
@@ -136,7 +136,7 @@ func TestFeaturesService_EntitlementsAPI(t *testing.T) {
 			},
 		}
 		for i := byte(0); i < 5; i++ {
-			_, err = db.InsertUser(ctx, database.InsertUserParams{
+			_, err := db.InsertUser(ctx, database.InsertUserParams{
 				ID:             uuid.UUID{i},
 				Email:          "",
 				Username:       "",
