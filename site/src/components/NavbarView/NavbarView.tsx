@@ -4,6 +4,8 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import MenuIcon from "@material-ui/icons/Menu"
+import { Stack } from "components/Stack/Stack"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
 import { colors } from "theme/colors"
@@ -102,12 +104,26 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}
         </div>
       </div>
+      <Stack direction="row" className={styles.profileButton}>
+        <div className={styles.quota} >
+          <WorkspaceQuota loading={false} count={1} limit={3}/>
+        </div>
+
+          <div className={styles.profileButton}>
+            {user && <UserDropdown user={user} onSignOut={onSignOut} />}
+          </div>
+      </Stack>
     </nav>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
   root: {
+    position: "relative",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    alignContent: 'center',
     height: navHeight,
     background: theme.palette.background.paper,
     "@media (display-mode: standalone)": {
@@ -144,6 +160,12 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.up("md")]: {
       display: "flex",
     },
+  },
+  quota: {
+    [theme.breakpoints.up("md")]: {
+      marginLeft: "auto",
+    },
+    paddingTop: theme.spacing(1),
   },
   profileButton: {
     [theme.breakpoints.up("md")]: {
