@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/util/slice"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
@@ -23,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -31,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/examples"
