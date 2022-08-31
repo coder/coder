@@ -44,6 +44,9 @@ replace github.com/pion/udp => github.com/mafredri/udp v0.1.2-0.20220805105907-b
 // https://github.com/hashicorp/hc-install/pull/68
 replace github.com/hashicorp/hc-install => github.com/mafredri/hc-install v0.4.1-0.20220727132613-e91868e28445
 
+// https://github.com/tcnksm/go-httpstat/pull/29
+replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0-20220831233600-c91452099472
+
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220831012541-a77bda274fd6
