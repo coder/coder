@@ -667,27 +667,3 @@ export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"
-
-// TODO: Remove this when the generated types work for AuditLogs
-export interface AuditLog {
-  readonly id: string
-  readonly request_id: string
-  readonly time: string
-  readonly organization_id: string
-  // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ip: any
-  readonly user_agent: string
-  readonly resource_type: "organization" | "template" | "template_version" | "user" | "workspace"
-  readonly resource_id: string
-  readonly resource_target: string
-  readonly action: "write" | "create" | "delete"
-  readonly diff: Record<string, { old: number | string | boolean; new: number | string | boolean }>
-  readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: Record<string, string>
-  readonly description: string
-  readonly user?: User
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly resource: Organization | Template | TemplateVersion | User | Workspace
-}

@@ -1,16 +1,14 @@
 import Collapse from "@material-ui/core/Collapse"
-import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
-import { AuditLog, Template, Workspace } from "api/typesGenerated"
+import { AuditLog } from "api/typesGenerated"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { t } from "i18next"
 import { ComponentProps, useState } from "react"
-import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
 import { AuditLogDiff } from "./AuditLogDiff"
 
@@ -24,48 +22,6 @@ const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["
   }
 
   return "success"
-}
-
-const getResourceLabel = (resource: AuditLog["resource"]): string => {
-  if ("name" in resource) {
-    return resource.name
-  }
-
-  return resource.username
-}
-
-const getResourceHref = (
-  resource: AuditLog["resource"],
-  resourceType: AuditLog["resource_type"],
-): string | undefined => {
-  switch (resourceType) {
-    case "user":
-      return `/users`
-    case "template":
-      return `/templates/${(resource as Template).name}`
-    case "workspace":
-      return `/workspaces/@${(resource as Workspace).owner_name}/${(resource as Workspace).name}`
-    case "organization":
-      return
-  }
-}
-
-const ResourceLink: React.FC<{
-  resource: AuditLog["resource"]
-  resourceType: AuditLog["resource_type"]
-}> = ({ resource, resourceType }) => {
-  const href = getResourceHref(resource, resourceType)
-  const label = <strong>{getResourceLabel(resource)}</strong>
-
-  if (!href) {
-    return label
-  }
-
-  return (
-    <Link component={RouterLink} to={href}>
-      {label}
-    </Link>
-  )
 }
 
 const actionLabelByAction: Record<AuditLog["action"], string> = {
@@ -140,10 +96,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               <div>
                 <span className={styles.auditLogResume}>
                   <strong>{auditLog.user?.username}</strong> {readableActionMessage(auditLog)}{" "}
-                  <ResourceLink
-                    resource={auditLog.resource}
-                    resourceType={auditLog.resource_type}
-                  />
+                  <strong>{auditLog.resource_target}</strong>
                 </span>
                 <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
               </div>
