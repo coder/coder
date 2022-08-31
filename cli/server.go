@@ -355,6 +355,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				GoogleTokenValidator: googleTokenValidator,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
+				TailscaleEnable:      tailscaleEnable,
 				TURNServer:           turnServer,
 				TracerProvider:       tracerProvider,
 				Telemetry:            telemetry.NewNoop(),

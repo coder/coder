@@ -140,6 +140,12 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
+}
+
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>
@@ -470,8 +476,7 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly directory?: string
   readonly apps: WorkspaceApp[]
-  readonly preferred_derp: number
-  readonly latency: Record<string, number>
+  readonly latency: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go

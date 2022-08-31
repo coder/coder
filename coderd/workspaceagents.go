@@ -26,7 +26,9 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -443,6 +445,74 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wsNetConn, ptNetConn)
 	}()
 	_, _ = io.Copy(ptNetConn, wsNetConn)
+}
+
+// dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
+// r.Context() for cancellation if it's use is safe or r.Hijack() has
+// not been performed.
+func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
+	client, server := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go func() {
+		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
+			ChannelID: agentID.String(),
+			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
+			Pubsub:    api.Pubsub,
+		})
+		_ = client.Close()
+		_ = server.Close()
+	}()
+
+	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
+	stream, err := peerClient.NegotiateConnection(ctx)
+	if err != nil {
+		cancelFunc()
+		return nil, xerrors.Errorf("negotiate: %w", err)
+	}
+	options := &peer.ConnOptions{
+		Logger: api.Logger.Named("agent-dialer"),
+	}
+	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
+	options.SettingEngine.SetRelayAcceptanceMinWait(0)
+	// Use the ProxyDialer for the TURN server.
+	// This is required for connections where P2P is not enabled.
+	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
+		clientPipe, serverPipe := net.Pipe()
+		go func() {
+			<-ctx.Done()
+			_ = clientPipe.Close()
+			_ = serverPipe.Close()
+		}()
+		localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+		remoteAddress := &net.TCPAddr{
+			IP: net.ParseIP(r.RemoteAddr),
+		}
+		// By default requests have the remote address and port.
+		host, port, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return nil, xerrors.Errorf("split remote address: %w", err)
+		}
+		remoteAddress.IP = net.ParseIP(host)
+		remoteAddress.Port, err = strconv.Atoi(port)
+		if err != nil {
+			return nil, xerrors.Errorf("convert remote port: %w", err)
+		}
+		api.TURNServer.Accept(clientPipe, remoteAddress, localAddress)
+		return serverPipe, nil
+	}))
+	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
+	if err != nil {
+		cancelFunc()
+		return nil, xerrors.Errorf("dial: %w", err)
+	}
+	go func() {
+		<-peerConn.Closed()
+		cancelFunc()
+	}()
+	return &agent.WebRTCConn{
+		Negotiator: peerClient,
+		Conn:       peerConn,
+	}, nil
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {

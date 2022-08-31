@@ -73,6 +73,7 @@ type Options struct {
 	LicenseHandler       http.Handler
 	FeaturesService      FeaturesService
 
+	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 }
@@ -130,7 +131,11 @@ func New(options *Options) *API {
 			Logger:     options.Logger,
 		},
 	}
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
+	if options.TailscaleEnable {
+		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
+	} else {
+		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
+	}
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
