@@ -139,6 +139,7 @@ func (c *WebRTCConn) Close() error {
 
 type TailnetConn struct {
 	*tailnet.Conn
+	CloseFunc func()
 }
 
 func (c *TailnetConn) Ping() (time.Duration, error) {
@@ -161,6 +162,13 @@ func (c *TailnetConn) Ping() (time.Duration, error) {
 
 func (c *TailnetConn) CloseWithError(_ error) error {
 	return c.Close()
+}
+
+func (c *TailnetConn) Close() error {
+	if c.CloseFunc != nil {
+		c.CloseFunc()
+	}
+	return c.Conn.Close()
 }
 
 type reconnectingPTYInit struct {

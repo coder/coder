@@ -319,18 +319,6 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-			logger.Info(ctx, "ipn", slog.F("status", conn.Status()))
-		}
-	}()
 
 	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
 	if err != nil {
@@ -347,7 +335,10 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	httpClient := &http.Client{
 		Jar: jar,
 	}
+	ctx, cancelFunc := context.WithCancel(ctx)
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
@@ -380,6 +371,10 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	}()
 	return &agent.TailnetConn{
 		Conn: conn,
+		CloseFunc: func() {
+			cancelFunc()
+			<-closed
+		},
 	}, nil
 }
 
