@@ -1,3 +1,4 @@
+import Collapse from "@material-ui/core/Collapse"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
@@ -7,6 +8,7 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/api"
 import { CodeExample } from "components/CodeExample/CodeExample"
+import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { Pill } from "components/Pill/Pill"
@@ -14,8 +16,93 @@ import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { FC } from "react"
+import { FC, useState } from "react"
 import { createDayString } from "util/createDayString"
+
+const AuditDiff = () => {
+  const styles = useStyles()
+
+  return (
+    <div className={styles.diff}>
+      <div className={styles.diffOld}>
+        <div className={styles.diffRow}>
+          <div className={styles.diffLine}>1</div>
+          <div className={styles.diffIcon}>-</div>
+          <div className={styles.diffContent}>
+            workspace_name: <span>alice-workspace</span>
+          </div>
+        </div>
+      </div>
+      <div className={styles.diffNew}>
+        <div className={styles.diffRow}>
+          <div className={styles.diffLine}>1</div>
+          <div className={styles.diffIcon}>+</div>
+          <div className={styles.diffContent}>
+            workspace_name: <span>bruno-workspace</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const AuditLogRow: React.FC<{ auditLog: AuditLog }> = ({ auditLog }) => {
+  const styles = useStyles()
+  const [isDiffOpen, setIsDiffOpen] = useState(false)
+
+  return (
+    <>
+      <Stack
+        direction="row"
+        alignItems="center"
+        className={styles.auditLogRow}
+        tabIndex={0}
+        onClick={() => setIsDiffOpen((v) => !v)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            setIsDiffOpen((v) => !v)
+          }
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          className={styles.auditLogRowInfo}
+        >
+          <Stack direction="row" alignItems="center">
+            <UserAvatar username={auditLog.user?.username ?? ""} />
+            <div>
+              <span className={styles.auditLogResume}>
+                <strong>{auditLog.user?.username}</strong> {auditLog.action}{" "}
+                <strong>{auditLog.resource.name}</strong>
+              </span>
+              <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
+            </div>
+          </Stack>
+
+          <Stack direction="column" alignItems="flex-end" spacing={1}>
+            <Pill type="success" text={auditLog.status_code.toString()} />
+            <Stack direction="row" alignItems="center" className={styles.auditLogExtraInfo}>
+              <div>
+                <strong>IP</strong> {auditLog.ip}
+              </div>
+              <div>
+                <strong>Agent</strong> {auditLog.user_agent}
+              </div>
+            </Stack>
+          </Stack>
+        </Stack>
+
+        {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}
+      </Stack>
+
+      <Collapse in={isDiffOpen}>
+        <AuditDiff />
+      </Collapse>
+    </>
+  )
+}
 
 export const Language = {
   title: "Audit",
@@ -51,37 +138,10 @@ export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => 
           </TableHead>
           <TableBody>
             {auditLogs ? (
-              auditLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between">
-                      <Stack direction="row" alignItems="center">
-                        <UserAvatar username={log.user?.username ?? ""} />
-                        <div>
-                          <span className={styles.auditLogResume}>
-                            <strong>{log.user?.username}</strong> {log.action}{" "}
-                            <strong>{log.resource.name}</strong>
-                          </span>
-                          <span className={styles.auditLogTime}>{createDayString(log.time)}</span>
-                        </div>
-                      </Stack>
-
-                      <Stack direction="column" alignItems="flex-end" spacing={1}>
-                        <Pill type="success" text={log.status_code.toString()} />
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          className={styles.auditLogExtraInfo}
-                        >
-                          <div>
-                            <strong>IP</strong> {log.ip}
-                          </div>
-                          <div>
-                            <strong>Agent</strong> {log.user_agent}
-                          </div>
-                        </Stack>
-                      </Stack>
-                    </Stack>
+              auditLogs.map((auditLog) => (
+                <TableRow key={auditLog.id} hover>
+                  <TableCell className={styles.auditLogCell}>
+                    <AuditLogRow auditLog={auditLog} />
                   </TableCell>
                 </TableRow>
               ))
@@ -96,6 +156,19 @@ export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => 
 }
 
 const useStyles = makeStyles((theme) => ({
+  auditLogCell: {
+    padding: "0 !important",
+  },
+
+  auditLogRow: {
+    padding: theme.spacing(2, 4),
+    cursor: "pointer",
+  },
+
+  auditLogRowInfo: {
+    flex: 1,
+  },
+
   auditLogResume: {
     ...theme.typography.body1,
     fontFamily: "inherit",
@@ -113,5 +186,49 @@ const useStyles = makeStyles((theme) => ({
     ...theme.typography.body2,
     fontFamily: "inherit",
     color: theme.palette.text.secondary,
+  },
+
+  diff: {
+    display: "flex",
+    alignItems: "flex-start",
+    fontSize: theme.typography.body2.fontSize,
+    borderTop: `1px solid ${theme.palette.divider}`,
+  },
+
+  diffOld: {
+    backgroundColor: theme.palette.error.dark,
+    color: theme.palette.error.contrastText,
+    flex: 1,
+    paddingTop: theme.spacing(1),
+    paddingBottom: theme.spacing(1),
+  },
+
+  diffRow: {
+    display: "flex",
+    alignItems: "baseline",
+  },
+
+  diffLine: {
+    opacity: 0.5,
+    padding: theme.spacing(1),
+    width: theme.spacing(8),
+    textAlign: "right",
+  },
+
+  diffIcon: {
+    padding: theme.spacing(1),
+    width: theme.spacing(4),
+    textAlign: "center",
+    fontSize: theme.typography.body1.fontSize,
+  },
+
+  diffContent: {},
+
+  diffNew: {
+    backgroundColor: theme.palette.success.dark,
+    color: theme.palette.success.contrastText,
+    flex: 1,
+    paddingTop: theme.spacing(1),
+    paddingBottom: theme.spacing(1),
   },
 }))
