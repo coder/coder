@@ -344,12 +344,12 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 								HostName: "stun.l.google.com",
 								STUNPort: 19302,
 							}, {
-								Name:         "1b",
-								RegionID:     derpServerRegionID,
-								HostName:     accessURLParsed.Hostname(),
-								DERPPort:     accessURLPort,
-								STUNPort:     -1,
-								HTTPForTests: accessURLParsed.Scheme == "http",
+								Name:      "1b",
+								RegionID:  derpServerRegionID,
+								HostName:  accessURLParsed.Hostname(),
+								DERPPort:  accessURLPort,
+								STUNPort:  -1,
+								ForceHTTP: accessURLParsed.Scheme == "http",
 							}},
 						},
 						2: {

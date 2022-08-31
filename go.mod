@@ -14,8 +14,6 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // Required until https://github.com/briandowns/spinner/pull/136 is merged.
 replace github.com/briandowns/spinner => github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e
 
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220802200410-cba8e836c5f1
-
 // Required until https://github.com/fergusstrange/embedded-postgres/pull/75 is merged.
 replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embedded-postgres v1.17.1-0.20220615202325-461532cecd3a
 
@@ -45,6 +43,10 @@ replace github.com/pion/udp => github.com/mafredri/udp v0.1.2-0.20220805105907-b
 
 // https://github.com/hashicorp/hc-install/pull/68
 replace github.com/hashicorp/hc-install => github.com/mafredri/hc-install v0.4.1-0.20220727132613-e91868e28445
+
+// There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
+// https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220831012541-a77bda274fd6
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
@@ -131,12 +133,12 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220517005047-85d78b3ac167
-	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
+	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220708085239-5a0f0661e09d
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.11
@@ -270,7 +272,7 @@ require (
 	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
 	github.com/tdewolff/parse/v2 v2.6.0 // indirect
-	github.com/u-root/uio v0.0.0-20210528151154-e40b768296a7 // indirect
+	github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.4 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect

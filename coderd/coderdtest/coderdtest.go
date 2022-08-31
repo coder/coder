@@ -229,7 +229,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 						DERPPort:         derpPort,
 						STUNPort:         -1,
 						InsecureForTests: true,
-						HTTPForTests:     true,
+						ForceHTTP:        true,
 					}},
 				},
 			},
