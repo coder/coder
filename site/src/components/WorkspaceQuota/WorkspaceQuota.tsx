@@ -6,60 +6,64 @@ import Skeleton from '@material-ui/lab/Skeleton';
 import { Stack } from 'components/Stack/Stack';
 import Box from "@material-ui/core/Box";
 
+export const Language = {
+  of: "of",
+  workspaceUsed: "workspace used",
+  workspacesUsed: "workspaces used",
+}
+
 export interface WorkspaceQuotaProps {
-  loading: boolean
   count?: number
   limit?: number
 }
 
-export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ loading, count, limit }) => {
+export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
   const styles = useStyles()
 
-  const safeCount = count ? count : 0;
-  const safeLimit = limit ? limit : 100;
-  let value = Math.round((safeCount / safeLimit) * 100)
+  // loading state
+  if (count === undefined || limit === undefined) {
+    return (
+      <Box>
+        <Stack spacing={1} className={styles.stack}>
+          <LinearProgress
+              color="primary"
+          />
+          <div className={styles.label}>
+            <Skeleton className={styles.skeleton}/>
+          </div>
+        </Stack>
+      </Box>
+    )
+  }
+
+  let value = Math.round((count / limit) * 100)
   // we don't want to round down to zero if the count is > 0
-  if (safeCount > 0 && value === 0) {
+  if (count > 0 && value === 0) {
     value = 1
   }
-  const limitLanguage = limit ? limit : (<span className={styles.infinity}>∞</span>)
 
   return (
     <Box>
-      <Stack spacing={1} className={styles.schedule}>
-        {loading ? (
-          <>
-            <LinearProgress
-              value={value}
-              color="primary"
-            />
-            <div className={styles.scheduleLabel}>
-              <Skeleton className={styles.skeleton}/>
-            </div>
-          </>
-        ) : (
-          <>
-            <LinearProgress
-                value={value}
-                variant="determinate"
-                color="primary"
-            />
-            <div className={styles.scheduleLabel}>
-              {safeCount} of {limitLanguage} workspaces used
-            </div>
-          </>
-        )}
+      <Stack spacing={1} className={styles.stack}>
+        <LinearProgress
+            value={value}
+            variant="determinate"
+            color="primary"
+        />
+        <div className={styles.label}>
+          {count} {Language.of} {limit} {limit === 1 ? Language.workspaceUsed : Language.workspacesUsed }
+        </div>
       </Stack>
     </Box>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  schedule: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
+  stack: {
     display: 'inline-flex',
   },
-  scheduleLabel: {
+  label: {
+    fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 12,
     textTransform: "uppercase",
     display: "block",
@@ -68,8 +72,5 @@ const useStyles = makeStyles((theme) => ({
   },
   skeleton: {
     minWidth: "150px",
-  },
-  infinity: {
-    fontSize: 18,
   },
 }))
