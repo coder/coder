@@ -49,58 +49,73 @@ const AuditDiff = () => {
 const AuditLogRow: React.FC<{ auditLog: AuditLog }> = ({ auditLog }) => {
   const styles = useStyles()
   const [isDiffOpen, setIsDiffOpen] = useState(false)
+  const diffs = Object.entries(auditLog.diff)
+  const shouldDisplayDiff = diffs.length > 1
+
+  const toggle = () => {
+    if (shouldDisplayDiff) {
+      setIsDiffOpen((v) => !v)
+    }
+  }
 
   return (
-    <>
-      <Stack
-        direction="row"
-        alignItems="center"
-        className={styles.auditLogRow}
-        tabIndex={0}
-        onClick={() => setIsDiffOpen((v) => !v)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            setIsDiffOpen((v) => !v)
-          }
-        }}
-      >
+    <TableRow key={auditLog.id} hover={shouldDisplayDiff}>
+      <TableCell className={styles.auditLogCell}>
         <Stack
+          style={{ cursor: shouldDisplayDiff ? "pointer" : undefined }}
           direction="row"
           alignItems="center"
-          justifyContent="space-between"
-          className={styles.auditLogRowInfo}
+          className={styles.auditLogRow}
+          tabIndex={0}
+          onClick={toggle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              toggle()
+            }
+          }}
         >
-          <Stack direction="row" alignItems="center">
-            <UserAvatar username={auditLog.user?.username ?? ""} />
-            <div>
-              <span className={styles.auditLogResume}>
-                <strong>{auditLog.user?.username}</strong> {auditLog.action}{" "}
-                <strong>{auditLog.resource.name}</strong>
-              </span>
-              <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
-            </div>
-          </Stack>
-
-          <Stack direction="column" alignItems="flex-end" spacing={1}>
-            <Pill type="success" text={auditLog.status_code.toString()} />
-            <Stack direction="row" alignItems="center" className={styles.auditLogExtraInfo}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            className={styles.auditLogRowInfo}
+          >
+            <Stack direction="row" alignItems="center">
+              <UserAvatar username={auditLog.user?.username ?? ""} />
               <div>
-                <strong>IP</strong> {auditLog.ip}
-              </div>
-              <div>
-                <strong>Agent</strong> {auditLog.user_agent}
+                <span className={styles.auditLogResume}>
+                  <strong>{auditLog.user?.username}</strong> {auditLog.action}{" "}
+                  <strong>{auditLog.resource.name}</strong>
+                </span>
+                <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
               </div>
             </Stack>
+
+            <Stack direction="column" alignItems="flex-end" spacing={1}>
+              <Pill type="success" text={auditLog.status_code.toString()} />
+              <Stack direction="row" alignItems="center" className={styles.auditLogExtraInfo}>
+                <div>
+                  <strong>IP</strong> {auditLog.ip}
+                </div>
+                <div>
+                  <strong>Agent</strong> {auditLog.user_agent}
+                </div>
+              </Stack>
+            </Stack>
           </Stack>
+
+          <div className={shouldDisplayDiff ? undefined : styles.disabledDropdownIcon}>
+            {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}
+          </div>
         </Stack>
 
-        {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}
-      </Stack>
-
-      <Collapse in={isDiffOpen}>
-        <AuditDiff />
-      </Collapse>
-    </>
+        {shouldDisplayDiff && (
+          <Collapse in={isDiffOpen}>
+            <AuditDiff />
+          </Collapse>
+        )}
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -111,8 +126,6 @@ export const Language = {
 }
 
 export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => {
-  const styles = useStyles()
-
   return (
     <Margins>
       <PageHeader
@@ -138,13 +151,7 @@ export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => 
           </TableHead>
           <TableBody>
             {auditLogs ? (
-              auditLogs.map((auditLog) => (
-                <TableRow key={auditLog.id} hover>
-                  <TableCell className={styles.auditLogCell}>
-                    <AuditLogRow auditLog={auditLog} />
-                  </TableCell>
-                </TableRow>
-              ))
+              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)
             ) : (
               <TableLoader />
             )}
@@ -162,7 +169,6 @@ const useStyles = makeStyles((theme) => ({
 
   auditLogRow: {
     padding: theme.spacing(2, 4),
-    cursor: "pointer",
   },
 
   auditLogRowInfo: {
@@ -186,6 +192,10 @@ const useStyles = makeStyles((theme) => ({
     ...theme.typography.body2,
     fontFamily: "inherit",
     color: theme.palette.text.secondary,
+  },
+
+  disabledDropdownIcon: {
+    opacity: 0.5,
   },
 
   diff: {
