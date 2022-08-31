@@ -22,7 +22,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ loading, count, limit 
   if (safeCount > 0 && value === 0) {
     value = 1
   }
-  const limitLanguage = limit ? limit : `∞`
+  const limitLanguage = limit ? limit : (<span className={styles.infinity}>∞</span>)
 
   return (
     <Box>
@@ -68,5 +68,8 @@ const useStyles = makeStyles((theme) => ({
   },
   skeleton: {
     minWidth: "150px",
-  }
+  },
+  infinity: {
+    fontSize: 18,
+  },
 }))
