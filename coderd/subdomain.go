@@ -73,7 +73,7 @@ func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) 
 
 var (
 	// Remove the "starts with" and "ends with" regex components.
-	nameRegex = strings.Trim(httpapi.UsernameValidRegexString(), "^$")
+	nameRegex = strings.Trim(httpapi.UsernameValidRegex.String(), "^$")
 	appURL    = regexp.MustCompile(fmt.Sprintf(
 		// {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT}}
 		`^(?P<UserName>%[1]s)--(?P<WorkspaceName>%[1]s)(--(?P<AgentName>%[1]s))?--(?P<AppName>%[1]s)$`,

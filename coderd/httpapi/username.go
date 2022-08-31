@@ -8,13 +8,9 @@ import (
 )
 
 var (
-	usernameValid   = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
-	usernameReplace = regexp.MustCompile("[^a-zA-Z0-9-]*")
+	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
+	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
 )
-
-func UsernameValidRegexString() string {
-	return usernameValid.String()
-}
 
 // UsernameValid returns whether the input string is a valid username.
 func UsernameValid(str string) bool {
@@ -24,7 +20,7 @@ func UsernameValid(str string) bool {
 	if len(str) < 1 {
 		return false
 	}
-	return usernameValid.MatchString(str)
+	return UsernameValidRegex.MatchString(str)
 }
 
 // UsernameFrom returns a best-effort username from the provided string.
