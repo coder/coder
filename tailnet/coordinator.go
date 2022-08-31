@@ -5,11 +5,26 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 )
+
+// Node represents a node in the network.
+type Node struct {
+	ID            tailcfg.NodeID     `json:"id"`
+	Key           key.NodePublic     `json:"key"`
+	DiscoKey      key.DiscoPublic    `json:"disco"`
+	PreferredDERP int                `json:"preferred_derp"`
+	DERPLatency   map[string]float64 `json:"derp_latency"`
+	Addresses     []netip.Prefix     `json:"addresses"`
+	AllowedIPs    []netip.Prefix     `json:"allowed_ips"`
+	Endpoints     []string           `json:"endpoints"`
+}
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
 func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {

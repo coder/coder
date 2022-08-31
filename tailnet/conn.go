@@ -370,18 +370,6 @@ func (c *Conn) Close() error {
 	return nil
 }
 
-// Node represents a node in the network.
-type Node struct {
-	ID            tailcfg.NodeID     `json:"id"`
-	Key           key.NodePublic     `json:"key"`
-	DiscoKey      key.DiscoPublic    `json:"disco"`
-	PreferredDERP int                `json:"preferred_derp"`
-	DERPLatency   map[string]float64 `json:"derp_latency"`
-	Addresses     []netip.Prefix     `json:"addresses"`
-	AllowedIPs    []netip.Prefix     `json:"allowed_ips"`
-	Endpoints     []string           `json:"endpoints"`
-}
-
 // This and below is taken _mostly_ verbatim from Tailscale:
 // https://github.com/tailscale/tailscale/blob/c88bd53b1b7b2fcf7ba302f2e53dd1ce8c32dad4/tsnet/tsnet.go#L459-L494
 
