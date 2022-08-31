@@ -6,19 +6,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// Auditable is mostly a marker interface. It contains a definitive list of all
-// auditable types. If you want to audit a new type, first define it in
-// AuditableResources, then add it to this interface.
-type Auditable interface {
-	database.GitSSHKey |
-		database.OrganizationMember |
-		database.Organization |
-		database.Template |
-		database.TemplateVersion |
-		database.User |
-		database.Workspace
-}
-
 type Action string
 
 const (

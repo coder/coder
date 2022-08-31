@@ -1,4 +1,5 @@
 import FormControlLabel from "@material-ui/core/FormControlLabel"
+import MenuItem from "@material-ui/core/MenuItem"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
@@ -53,23 +54,23 @@ const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = (
 }) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
-      <RadioGroup
+      <TextField
         id={schema.name}
+        size="small"
         defaultValue={schema.default_source_value}
+        disabled={disabled}
         onChange={(event) => {
           onChange(event.target.value)
         }}
+        select
+        fullWidth
       >
         {schema.validation_contains.map((item) => (
-          <FormControlLabel
-            disabled={disabled}
-            key={item}
-            value={item}
-            control={<Radio color="primary" size="small" disableRipple />}
-            label={item}
-          />
+          <MenuItem key={item} value={item}>
+            {item}
+          </MenuItem>
         ))}
-      </RadioGroup>
+      </TextField>
     )
   }
 
