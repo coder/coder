@@ -57,6 +57,12 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   const readme = frontMatter(activeTemplateVersion.readme)
   const hasIcon = template.icon && template.icon !== ""
 
+  const deleteError = deleteTemplateError ? (
+    <ErrorSummary error={deleteTemplateError} dismissible />
+  ) : (
+    <></>
+  )
+
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
   }
@@ -72,7 +78,6 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   return (
     <Margins>
       <>
-        {deleteTemplateError && <ErrorSummary error={deleteTemplateError} dismissible />}
         <PageHeader
           actions={
             <Stack direction="row" spacing={1}>
@@ -125,6 +130,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         </PageHeader>
 
         <Stack spacing={2.5}>
+          {deleteError}
           <TemplateStats template={template} activeVersion={activeTemplateVersion} />
           <WorkspaceSection
             title={Language.resourcesTitle}
