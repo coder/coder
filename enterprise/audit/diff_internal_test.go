@@ -389,7 +389,7 @@ func runDiffTests(t *testing.T, tests []diffTest) {
 			t.Parallel()
 			require.Equal(t,
 				test.exp,
-				(&auditor{}).diff(test.left, test.right),
+				diffValues(test.left, test.right, AuditableResources),
 			)
 		})
 	}

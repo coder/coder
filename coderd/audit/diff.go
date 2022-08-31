@@ -38,3 +38,11 @@ func Empty[T Auditable]() T {
 // Diff compares two auditable resources and produces a Map of the changed
 // values.
 func Diff[T Auditable](a Auditor, left, right T) Map { return a.diff(left, right) }
+
+type Differ struct {
+	DiffFn func(old, new any) Map
+}
+
+func (d Differ) diff(old, new any) Map {
+	return d.DiffFn(old, new)
+}

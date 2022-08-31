@@ -14,7 +14,7 @@ func structName(t reflect.Type) string {
 	return t.PkgPath() + "." + t.Name()
 }
 
-func diffValues[T any](left, right T, table Table) audit.Map {
+func diffValues(left, right any, table Table) audit.Map {
 	var (
 		baseDiff = audit.Map{}
 

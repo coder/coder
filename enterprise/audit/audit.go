@@ -15,20 +15,25 @@ type Backend interface {
 	Export(ctx context.Context, alog database.AuditLog) error
 }
 
+func NewAuditor() audit.Auditor {
+	return &auditor{
+		Differ: audit.Differ{DiffFn: func(old, new any) audit.Map {
+			return diffValues(old, new, AuditableResources)
+		}},
+	}
+}
+
 // auditor is the enterprise implementation of the Auditor interface.
 type auditor struct {
 	//nolint:unused
 	filter Filter
 	//nolint:unused
 	backends []Backend
+
+	audit.Differ
 }
 
 //nolint:unused
 func (*auditor) Export(context.Context, database.AuditLog) error {
 	panic("not implemented") // TODO: Implement
-}
-
-//nolint:unused
-func (*auditor) diff(left any, right any) audit.Map {
-	return diffValues(left, right, AuditableResources)
 }
