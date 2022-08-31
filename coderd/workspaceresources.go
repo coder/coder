@@ -70,7 +70,7 @@ func (api *API) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		convertedAgent, err := convertWorkspaceAgent(api.TailnetCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+		convertedAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error reading workspace agent.",

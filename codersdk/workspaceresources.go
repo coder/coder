@@ -35,6 +35,11 @@ type WorkspaceResourceMetadata struct {
 	Sensitive bool   `json:"sensitive"`
 }
 
+type DERPRegion struct {
+	Preferred           bool    `json:"preferred"`
+	LatencyMilliseconds float64 `json:"latency_ms"`
+}
+
 type WorkspaceAgent struct {
 	ID                   uuid.UUID            `json:"id"`
 	CreatedAt            time.Time            `json:"created_at"`
@@ -52,11 +57,8 @@ type WorkspaceAgent struct {
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
 	Apps                 []WorkspaceApp       `json:"apps"`
-	// PreferredDERP represents the connected region.
-	PreferredDERP int `json:"preferred_derp"`
-	// Maps DERP region to MS latency.
-	// Fetch the DERP mapping to extract region names!
-	DERPLatency map[string]float64 `json:"latency"`
+	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
+	DERPLatency map[string]DERPRegion `json:"latency"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

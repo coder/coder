@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
@@ -46,7 +48,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.TailnetCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -70,7 +72,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -121,7 +123,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -376,7 +378,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -554,7 +556,7 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
-func convertWorkspaceAgent(coordinator *tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -578,8 +580,22 @@ func convertWorkspaceAgent(coordinator *tailnet.Coordinator, dbAgent database.Wo
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
-		workspaceAgent.PreferredDERP = node.PreferredDERP
-		workspaceAgent.DERPLatency = node.DERPLatency
+		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
+		for rawRegion, latency := range node.DERPLatency {
+			regionParts := strings.SplitN(rawRegion, "-", 2)
+			regionID, err := strconv.Atoi(regionParts[0])
+			if err != nil {
+				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+			}
+			region, found := derpMap.Regions[regionID]
+			if !found {
+				return codersdk.WorkspaceAgent{}, xerrors.Errorf("region %d not found in derpmap", regionID)
+			}
+			workspaceAgent.DERPLatency[region.RegionName] = codersdk.DERPRegion{
+				Preferred:           node.PreferredDERP == regionID,
+				LatencyMilliseconds: latency * 1000,
+			}
+		}
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {
