@@ -1,4 +1,3 @@
-import { AuditLog } from "api/api"
 import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
@@ -686,14 +685,14 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   },
 }
 
-export const MockAuditLog: AuditLog = {
+export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",
   organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   ip: "127.0.0.1",
   user_agent: "browser",
-  resource_type: "organization",
+  resource_type: "workspace",
   resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
   resource_target: "Bruno's Org",
   action: "create",
@@ -702,24 +701,16 @@ export const MockAuditLog: AuditLog = {
   additional_fields: {},
   description: "Colin Adler updated the organization Bruno's Org",
   user: MockUser,
-  resource: MockOrganization,
+  resource: MockWorkspace,
 }
 
-export const MockAuditLogWithDiff = {
-  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
-  request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
-  time: "2022-05-19T16:45:57.122Z",
-  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  ip: "127.0.0.1",
-  user_agent: "browser",
-  resource_type: "organization",
-  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
-  resource_target: "Bruno's Org",
+export const MockAuditLog2: TypesGen.AuditLog = {
+  ...MockAuditLog,
   action: "write",
   diff: {
     workspace_name: {
-      old: "alice-workspace",
-      new: "aharvey",
+      old: "old-workspace-name",
+      new: MockWorkspace.name,
     },
     workspace_auto_off: {
       old: true,
@@ -730,9 +721,4 @@ export const MockAuditLogWithDiff = {
       new: "53bded77-7b9d-4e82-8771-991a34d759f9",
     },
   },
-  status_code: 200,
-  additional_fields: {},
-  description: "Colin Adler updated the organization Bruno's Org",
-  user: MockUser,
-  resource: MockOrganization,
 }

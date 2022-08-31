@@ -7,8 +7,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { AuditLog } from "api/api"
-import { Template, Workspace } from "api/typesGenerated"
+import { AuditLog, Template, Workspace } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { Margins } from "components/Margins/Margins"
@@ -113,7 +112,7 @@ const ResourceLink: React.FC<{
 }
 
 const actionLabelByAction: Record<AuditLog["action"], string> = {
-  create: "created",
+  create: "created a new",
   write: "updated",
   delete: "deleted",
 }
