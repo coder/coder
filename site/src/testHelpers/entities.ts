@@ -302,7 +302,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
-  preferred_derp: 0,
+  version: MockBuildInfo.version,
   latency: {},
 }
 
@@ -311,10 +311,19 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-2",
   name: "another-workspace-agent",
   status: "disconnected",
+  version: "",
+}
+
+export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-3",
+  name: "an-outdated-workspace-agent",
+  version: "v99.999.9998+abcdef",
+  operating_system: "Windows",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",

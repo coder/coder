@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -73,7 +74,12 @@ func workspaceAgent() *cobra.Command {
 				return nil
 			}
 
-			logger.Info(cmd.Context(), "starting agent", slog.F("url", coderURL), slog.F("auth", auth))
+			version := buildinfo.Version()
+			logger.Info(cmd.Context(), "starting agent",
+				slog.F("url", coderURL),
+				slog.F("auth", auth),
+				slog.F("version", version),
+			)
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -170,6 +176,10 @@ func workspaceAgent() *cobra.Command {
 			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 			if err != nil {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
+			}
+
+			if err := client.PostWorkspaceAgentVersion(cmd.Context(), version); err != nil {
+				logger.Error(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
 			}
 
 			closer := agent.New(agent.Options{

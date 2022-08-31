@@ -305,8 +305,11 @@ CREATE TABLE workspace_agents (
     startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
-    directory character varying(4096) DEFAULT ''::character varying NOT NULL
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

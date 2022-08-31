@@ -351,6 +351,7 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)

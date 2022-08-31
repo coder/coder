@@ -56,6 +56,7 @@ type WorkspaceAgent struct {
 	OperatingSystem      string               `json:"operating_system"`
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
+	Version              string               `json:"version"`
 	Apps                 []WorkspaceApp       `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency map[string]DERPRegion `json:"latency"`

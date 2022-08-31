@@ -2,7 +2,35 @@
 
 ## Requirements
 
-You'll need the following tools:
+We recommend using the [Nix](https://nix.dev/) package manager as it makes any pain related to maintaining dependency versions [just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once nix [has been installed](https://nixos.org/download.html) the development environment can be _manually instantiated_ through the `nix-shell` command:
+
+```
+$ cd ~/code/coder
+
+# https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
+$ nix-shell
+
+...
+copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
+copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://cache.nixos.org'...
+copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.nixos.org'...
+...
+```
+
+If [direnv](https://direnv.net/) is installed and the [hooks are configured](https://direnv.net/docs/hook.html) then the development environment can be _automatically instantiated_ thus removing the need to run `nix-shell` by hand!
+
+```
+$ cd ~/code/coder
+
+# https://direnv.net/docs/hook.html
+direnv: loading ~/code/coder/.envrc
+direnv: using nix
+direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_BINTOOLS +NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_BUILD_CORES +NIX_BUILD_TOP +NIX_CC +NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_CFLAGS_COMPILE +NIX_ENFORCE_NO_NATIVE +NIX_HARDENING_ENABLE +NIX_INDENT_MAKE +NIX_LDFLAGS +NIX_STORE +NM +NODE_PATH +OBJCOPY +OBJDUMP +RANLIB +READELF +SIZE +SOURCE_DATE_EPOCH +STRINGS +STRIP +TEMP +TEMPDIR +TMP +TMPDIR +XDG_DATA_DIRS +buildInputs +buildPhase +builder +cmakeFlags +configureFlags +depsBuildBuild +depsBuildBuildPropagated +depsBuildTarget +depsBuildTargetPropagated +depsHostHost +depsHostHostPropagated +depsTargetTarget +depsTargetTargetPropagated +doCheck +doInstallCheck +mesonFlags +name +nativeBuildInputs +out +outputs +patches +phases +propagatedBuildInputs +propagatedNativeBuildInputs +shell +shellHook +stdenv +strictDeps +system ~PATH
+
+🎉
+```
+
+Alternatively if you do not want to use nix then you'll need to install the need the following tools by hand:
 - Go 1.18+
 - Node 14+
 - GNU Make
@@ -12,8 +40,6 @@ You'll need the following tools:
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
 
-> **Note**:
-> Use [Nix](https://nix.dev/) for a one-command setup: `nix-shell`
 
 ### Development workflow
 

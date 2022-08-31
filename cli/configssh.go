@@ -170,9 +170,19 @@ func configSSH() *cobra.Command {
 				// that it's possible to capture the diff.
 				out = cmd.OutOrStderr()
 			}
-			binaryFile, err := currentBinPath(out)
+			coderBinary, err := currentBinPath(out)
 			if err != nil {
 				return err
+			}
+			escapedCoderBinary, err := sshConfigExecEscape(coderBinary)
+			if err != nil {
+				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
+			}
+
+			root := createConfig(cmd)
+			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
+			if err != nil {
+				return xerrors.Errorf("escape global config for ssh failed: %w", err)
 			}
 
 			homedir, err := os.UserHomeDir()
@@ -238,7 +248,6 @@ func configSSH() *cobra.Command {
 			}
 
 			configModified := configRaw
-			root := createConfig(cmd)
 
 			buf := &bytes.Buffer{}
 			before, after := sshConfigSplitOnCoderSection(configModified)
@@ -280,11 +289,17 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						if !wireguard {
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
-						} else {
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --wireguard --stdio %s", binaryFile, root, hostname))
+						wgArg := ""
+						if wireguard {
+							wgArg = "--wireguard "
 						}
+						configOptions = append(
+							configOptions,
+							fmt.Sprintf(
+								"\tProxyCommand %s --global-config %s ssh %s--stdio %s",
+								escapedCoderBinary, escapedGlobalConfig, wgArg, hostname,
+							),
+						)
 					}
 
 					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
@@ -451,6 +466,11 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	dir := filepath.Dir(path)
 	name := filepath.Base(path)
 
+	// Ensure that e.g. the ~/.ssh directory exists.
+	if err = os.MkdirAll(dir, 0o700); err != nil {
+		return xerrors.Errorf("create directory: %w", err)
+	}
+
 	// Create a tempfile in the same directory for ensuring write
 	// operation does not fail.
 	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s.", name))
@@ -480,6 +500,52 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	}
 
 	return nil
+}
+
+// sshConfigExecEscape quotes the string if it contains spaces, as per
+// `man 5 ssh_config`. However, OpenSSH uses exec in the users shell to
+// run the command, and as such the formatting/escape requirements
+// cannot simply be covered by `fmt.Sprintf("%q", path)`.
+//
+// Always escaping the path with `fmt.Sprintf("%q", path)` usually works
+// on most platforms, but double quotes sometimes break on Windows 10
+// (see #2853). This function takes a best-effort approach to improving
+// compatibility and covering edge cases.
+//
+// Given the following ProxyCommand:
+//
+//	ProxyCommand "/path/with space/coder" ssh --stdio work
+//
+// This is ~what OpenSSH would execute:
+//
+//	/bin/bash -c '"/path/with space/to/coder" ssh --stdio workspace'
+//
+// However, since it's actually an arg in C, the contents inside the
+// single quotes are interpreted as is, e.g. if there was a '\t', it
+// would be the literal string '\t', not a tab.
+//
+// See:
+//   - https://github.com/coder/coder/issues/2853
+//   - https://github.com/openssh/openssh-portable/blob/V_9_0_P1/sshconnect.c#L158-L167
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/sshconnect.c#L231-L293
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/contrib/win32/win32compat/w32fd.c#L1075-L1100
+func sshConfigExecEscape(path string) (string, error) {
+	// This is unlikely to ever happen, but newlines are allowed on
+	// certain filesystems, but cannot be used inside ssh config.
+	if strings.ContainsAny(path, "\n") {
+		return "", xerrors.Errorf("invalid path: %s", path)
+	}
+	// In the unlikely even that a path contains quotes, they must be
+	// escaped so that they are not interpreted as shell quotes.
+	if strings.Contains(path, "\"") {
+		path = strings.ReplaceAll(path, "\"", "\\\"")
+	}
+	// A space or a tab requires quoting, but tabs must not be escaped
+	// (\t) since OpenSSH interprets it as a literal \t, not a tab.
+	if strings.ContainsAny(path, " \t") {
+		path = fmt.Sprintf("\"%s\"", path) //nolint:gocritic // We don't want %q here.
+	}
+	return path, nil
 }
 
 // currentBinPath returns the path to the coder binary suitable for use in ssh

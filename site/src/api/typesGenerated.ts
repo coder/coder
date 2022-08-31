@@ -255,6 +255,11 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
+// From codersdk/workspaceagents.go
+export interface PostWorkspaceAgentVersionRequest {
+  readonly version: string
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -475,6 +480,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency: Record<string, DERPRegion>
 }

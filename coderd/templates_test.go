@@ -481,6 +481,27 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
+
+	t.Run("RemoveIcon", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Icon = "/icons/code.png"
+		})
+		req := codersdk.UpdateTemplateMeta{
+			Icon: "",
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Equal(t, updated.Icon, "")
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {

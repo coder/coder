@@ -532,6 +532,8 @@ type WorkspaceAgent struct {
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory            string                `db:"directory" json:"directory"`
+	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
+	Version string `db:"version" json:"version"`
 }
 
 type WorkspaceApp struct {

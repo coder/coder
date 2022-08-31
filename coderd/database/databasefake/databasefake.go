@@ -2026,6 +2026,22 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.provisionerJobAgents {
+		if agent.ID != arg.ID {
+			continue
+		}
+
+		agent.Version = arg.Version
+		q.provisionerJobAgents[index] = agent
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

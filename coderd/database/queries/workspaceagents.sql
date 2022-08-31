@@ -68,3 +68,11 @@ SET
 	updated_at = $5
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceAgentVersionByID :exec
+UPDATE
+	workspace_agents
+SET
+	version = $2
+WHERE
+	id = $1;
