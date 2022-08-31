@@ -130,9 +130,9 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
-		// handleSubdomain checks if the first subdomain is a valid app url.
+		// handleSubdomainApplications checks if the first subdomain is a valid app url.
 		// If it is, it will serve that application.
-		api.handleSubdomain(
+		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			// This should extract the application specific API key when we

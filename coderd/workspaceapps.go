@@ -41,7 +41,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	}, rw, r)
 }
 
-func (api *API) handleSubdomain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

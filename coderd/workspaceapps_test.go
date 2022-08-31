@@ -197,7 +197,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		// Correct
 		{
 			Name: "User+Workspace+App",
-			URL:  "https://user--workspace--app.coder.com",
+			URL:  "https://app--workspace--user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app",
 				WorkspaceName: "workspace",
@@ -209,7 +209,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name: "User+Workspace+Port",
-			URL:  "https://user--workspace--8080.coder.com",
+			URL:  "https://8080--workspace--user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "8080",
 				WorkspaceName: "workspace",
@@ -221,7 +221,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name: "User+Workspace.Agent+App",
-			URL:  "https://user--workspace--agent--app.coder.com",
+			URL:  "https://app--workspace--agent--user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app",
 				WorkspaceName: "workspace",
@@ -233,7 +233,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name: "User+Workspace.Agent+Port",
-			URL:  "https://user--workspace--agent--8080.coder.com",
+			URL:  "https://8080--workspace--agent--user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "8080",
 				WorkspaceName: "workspace",
@@ -245,7 +245,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name: "HyphenatedNames",
-			URL:  "https://admin-user--workspace-thing--agent-thing--app-name.coder.com",
+			URL:  "https://app-name--workspace-thing--agent-thing--admin-user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app-name",
 				WorkspaceName: "workspace-thing",
