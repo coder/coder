@@ -5,7 +5,7 @@ import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 // Always attach CSRF token to all requests
-let token = document.head.querySelector('meta[property="csrf-token"]')
+const token = document.head.querySelector('meta[property="csrf-token"]')
 if (token) {
   axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content")!
 } else {
