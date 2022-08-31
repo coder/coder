@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"inet.af/netaddr"
 	"nhooyr.io/websocket"
@@ -150,6 +151,46 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
 	})
+}
+
+func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.PostWorkspaceAgentVersionRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	api.Logger.Info(r.Context(), "post workspace agent version", slog.F("agent_id", apiAgent.ID), slog.F("agent_version", req.Version))
+
+	if !semver.IsValid(req.Version) {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid workspace agent version provided.",
+			Detail:  fmt.Sprintf("invalid semver version: %q", req.Version),
+		})
+		return
+	}
+
+	if err := api.Database.UpdateWorkspaceAgentVersionByID(r.Context(), database.UpdateWorkspaceAgentVersionByIDParams{
+		ID:      apiAgent.ID,
+		Version: req.Version,
+	}); err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error setting agent version",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, nil)
 }
 
 func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
@@ -707,6 +748,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
 		WireguardPublicKey:   key.NodePublic(dbAgent.WireguardNodePublicKey),
 		DiscoPublicKey:       key.DiscoPublic(dbAgent.WireguardDiscoPublicKey),
+		Version:              dbAgent.Version,
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

@@ -44,6 +44,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  buildInfo?: TypesGen.BuildInfoResponse
 }
 
 /**
@@ -62,6 +63,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   builds,
   canUpdateWorkspace,
   workspaceErrors,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -128,6 +130,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
               workspace={workspace}
               canUpdateWorkspace={canUpdateWorkspace}
+              buildInfo={buildInfo}
             />
           )}
 

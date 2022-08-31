@@ -9,14 +9,15 @@ import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC } from "react"
-import { getDisplayAgentStatus } from "util/workspace"
-import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
+import { BuildInfoResponse, Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
+import { AgentOutdatedTooltip } from "../Tooltips/AgentOutdatedTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 
@@ -26,6 +27,7 @@ const Language = {
   agentsLabel: "Agents",
   agentLabel: "Agent",
   statusLabel: "status: ",
+  versionLabel: "version: ",
   osLabel: "os: ",
 }
 
@@ -34,6 +36,7 @@ interface ResourcesProps {
   getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
+  buildInfo?: BuildInfoResponse | undefined
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -41,9 +44,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   getResourcesError,
   workspace,
   canUpdateWorkspace,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
+  const serverVersion = buildInfo?.version || ""
 
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
@@ -90,6 +95,10 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     )
                   }
 
+                  const { displayVersion, outdated } = getDisplayVersionStatus(
+                    agent.version,
+                    serverVersion,
+                  )
                   const agentStatus = getDisplayAgentStatus(theme, agent)
                   return (
                     <TableRow key={`${resource.id}-${agent.id}`}>
@@ -113,6 +122,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                           <div className={styles.dataRow}>
                             <strong>{Language.osLabel}</strong>
                             <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                          </div>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.versionLabel}</strong>
+                            <span className={styles.agentVersion}>{displayVersion}</span>
+                            <AgentOutdatedTooltip outdated={outdated} />
                           </div>
                         </div>
                       </TableCell>
@@ -186,6 +200,10 @@ const useStyles = makeStyles((theme) => ({
   operatingSystem: {
     display: "block",
     textTransform: "capitalize",
+  },
+
+  agentVersion: {
+    display: "block",
   },
 
   accessLinks: {

@@ -305,6 +305,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   wireguard_public_key: "",
   disco_public_key: "",
   ipv6: "",
+  version: MockBuildInfo.version,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -312,10 +313,19 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-2",
   name: "another-workspace-agent",
   status: "disconnected",
+  version: "",
+}
+
+export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-3",
+  name: "an-outdated-workspace-agent",
+  version: "v99.999.9998+abcdef",
+  operating_system: "Windows",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
