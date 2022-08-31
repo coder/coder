@@ -1,6 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
