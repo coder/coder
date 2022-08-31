@@ -752,6 +752,15 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &derpServerSTUNAddrs, "derp-server-stun-addresses", "", "CODER_DERP_SERVER_STUN_ADDRESSES", []string{
 		"stun.l.google.com:19302",
 	}, "Specify addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections entirely.")
+
+	// Mark hidden while this feature is in testing!
+	_ = root.Flags().MarkHidden("derp-config-url")
+	_ = root.Flags().MarkHidden("derp-server-enable")
+	_ = root.Flags().MarkHidden("derp-server-region-id")
+	_ = root.Flags().MarkHidden("derp-server-region-code")
+	_ = root.Flags().MarkHidden("derp-server-region-name")
+	_ = root.Flags().MarkHidden("derp-server-stun-addresses")
+
 	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
 	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
 	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
