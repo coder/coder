@@ -217,13 +217,25 @@ export const getDisplayAgentStatus = (
   }
 }
 
-export const getDisplayVersionStatus = (agentVersion: string, serverVersion: string): string => {
+export const getDisplayVersionStatus = (
+  agentVersion: string,
+  serverVersion: string,
+): { displayVersion: string; outdated: boolean } => {
   if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
-    return `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`
+    return {
+      displayVersion: `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      outdated: false,
+    }
   } else if (semver.lt(agentVersion, serverVersion)) {
-    return `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`
+    return {
+      displayVersion: `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`,
+      outdated: true,
+    }
   } else {
-    return agentVersion
+    return {
+      displayVersion: agentVersion,
+      outdated: false,
+    }
   }
 }
 

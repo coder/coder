@@ -131,19 +131,20 @@ describe("util > workspace", () => {
   })
 
   describe("getDisplayVersionStatus", () => {
-    it.each<[string, string, string]>([
-      ["", "", "(unknown)"],
-      ["", "v1.2.3", "(unknown)"],
-      ["v1.2.3", "", "v1.2.3"],
-      ["v1.2.3", "v1.2.3", "v1.2.3"],
-      ["v1.2.3", "v1.2.4", "v1.2.3 (outdated)"],
-      ["v1.2.4", "v1.2.3", "v1.2.4"],
-      ["foo", "bar", "foo"],
+    it.each<[string, string, string, boolean]>([
+      ["", "", "(unknown)", false],
+      ["", "v1.2.3", "(unknown)", false],
+      ["v1.2.3", "", "v1.2.3", false],
+      ["v1.2.3", "v1.2.3", "v1.2.3", false],
+      ["v1.2.3", "v1.2.4", "v1.2.3 (outdated)", true],
+      ["v1.2.4", "v1.2.3", "v1.2.4", false],
+      ["foo", "bar", "foo", false],
     ])(
-      `getDisplayVersionStatus(theme, %p, %p) returns %p`,
-      (agentVersion, serverVersion, expectedVersion) => {
-        const version = getDisplayVersionStatus(agentVersion, serverVersion)
-        expect(version).toEqual(expectedVersion)
+      `getDisplayVersionStatus(theme, %p, %p) returns (%p, %p)`,
+      (agentVersion, serverVersion, expectedVersion, expectedOutdated) => {
+        const { displayVersion, outdated } = getDisplayVersionStatus(agentVersion, serverVersion)
+        expect(displayVersion).toEqual(expectedVersion)
+        expect(expectedOutdated).toEqual(outdated)
       },
     )
   })

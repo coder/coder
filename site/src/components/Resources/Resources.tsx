@@ -17,6 +17,7 @@ import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
+import { AgentOutdatedTooltip } from "../Tooltips/AgentOutdatedTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 
@@ -47,6 +48,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
+  const serverVersion = buildInfo?.version || ""
 
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
@@ -93,9 +95,9 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     )
                   }
 
-                  const versionStatus = getDisplayVersionStatus(
+                  const { displayVersion, outdated } = getDisplayVersionStatus(
                     agent.version,
-                    buildInfo?.version || "",
+                    serverVersion,
                   )
                   const agentStatus = getDisplayAgentStatus(theme, agent)
                   return (
@@ -123,7 +125,8 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                           </div>
                           <div className={styles.dataRow}>
                             <strong>{Language.versionLabel}</strong>
-                            <span className={styles.agentVersion}>{versionStatus}</span>
+                            <span className={styles.agentVersion}>{displayVersion}</span>
+                            <AgentOutdatedTooltip outdated={outdated} />
                           </div>
                         </div>
                       </TableCell>
