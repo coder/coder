@@ -15,6 +15,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker/proto"
@@ -139,8 +141,22 @@ type TailnetConn struct {
 	*tailnet.Conn
 }
 
-func (*TailnetConn) Ping() (time.Duration, error) {
-	return 0, nil
+func (c *TailnetConn) Ping() (time.Duration, error) {
+	errCh := make(chan error, 1)
+	durCh := make(chan time.Duration, 1)
+	c.Conn.Ping(tailnetIP, tailcfg.PingICMP, func(pr *ipnstate.PingResult) {
+		if pr.Err != "" {
+			errCh <- xerrors.New(pr.Err)
+			return
+		}
+		durCh <- time.Duration(pr.LatencySeconds * float64(time.Second))
+	})
+	select {
+	case err := <-errCh:
+		return 0, err
+	case dur := <-durCh:
+		return dur, nil
+	}
 }
 
 func (c *TailnetConn) CloseWithError(_ error) error {

@@ -473,13 +473,14 @@ func TestAgent(t *testing.T) {
 	t.Run("Tailnet", func(t *testing.T) {
 		t.Parallel()
 		derpMap := tailnettest.RunDERPAndSTUN(t)
-		conn := setupSSHSession(t, agent.Metadata{
+		conn := setupAgent(t, agent.Metadata{
 			DERPMap: derpMap,
-		})
+		}, 0)
 		defer conn.Close()
-		output, err := conn.CombinedOutput("echo test")
-		require.NoError(t, err)
-		t.Log(string(output))
+		require.Eventually(t, func() bool {
+			_, err := conn.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 }
 
