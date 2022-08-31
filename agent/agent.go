@@ -181,6 +181,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		return
 	}
 	if a.network != nil {
+		a.network.SetDERPMap(derpMap)
 		return
 	}
 	var err error

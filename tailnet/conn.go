@@ -285,6 +285,13 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 	})
 }
 
+// SetDERPMap updates the DERPMap of a connection.
+func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.wireguardEngine.SetDERPMap(derpMap)
+}
+
 // UpdateNodes connects with a set of peers. This can be constantly updated,
 // and peers will continually be reconnected as necessary.
 func (c *Conn) UpdateNodes(nodes []*Node) error {
