@@ -102,7 +102,12 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               </div>
             </Stack>
 
-            <Stack direction="column" alignItems="flex-end" spacing={1}>
+            <Stack
+              direction="column"
+              alignItems="flex-end"
+              spacing={1}
+              className={styles.auditLogRight}
+            >
               <Pill
                 type={pillTypeByHttpStatus(auditLog.status_code)}
                 text={auditLog.status_code.toString()}
@@ -159,10 +164,15 @@ const useStyles = makeStyles((theme) => ({
     display: "block",
   },
 
+  auditLogRight: {
+    width: "auto",
+  },
+
   auditLogExtraInfo: {
     ...theme.typography.body2,
     fontFamily: "inherit",
     color: theme.palette.text.secondary,
+    whiteSpace: "nowrap",
   },
 
   disabledDropdownIcon: {

@@ -22,7 +22,7 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => 
           <div key={attrName} className={styles.diffRow}>
             <div className={styles.diffLine}>{index + 1}</div>
             <div className={styles.diffIcon}>-</div>
-            <div className={styles.diffContent}>
+            <div>
               {attrName}:{" "}
               <span className={combineClasses([styles.diffValue, styles.diffValueOld])}>
                 {getDiffValue(valueDiff.old)}
@@ -36,7 +36,7 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => 
           <div key={attrName} className={styles.diffRow}>
             <div className={styles.diffLine}>{index + 1}</div>
             <div className={styles.diffIcon}>+</div>
-            <div className={styles.diffContent}>
+            <div>
               {attrName}:{" "}
               <span className={combineClasses([styles.diffValue, styles.diffValueNew])}>
                 {getDiffValue(valueDiff.new)}
@@ -76,9 +76,9 @@ const useStyles = makeStyles((theme) => ({
 
   diffLine: {
     opacity: 0.5,
-
     width: theme.spacing(8),
     textAlign: "right",
+    flexShrink: 0,
   },
 
   diffIcon: {
@@ -86,8 +86,6 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "center",
     fontSize: theme.typography.body1.fontSize,
   },
-
-  diffContent: {},
 
   diffNew: {
     backgroundColor: theme.palette.success.dark,

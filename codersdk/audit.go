@@ -29,9 +29,9 @@ const (
 type AuditDiff map[string]AuditDiffField
 
 type AuditDiffField struct {
-	Old    any
-	New    any
-	Secret bool
+	Old    any  `json:"old"`
+	New    any  `json:"new"`
+	Secret bool `json:"secret"`
 }
 
 type AuditLog struct {
