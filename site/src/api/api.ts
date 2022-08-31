@@ -4,6 +4,15 @@ import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
+
+// Always attach CSRF token to all requests
+let token = document.head.querySelector('meta[property="csrf-token"]');
+if (token) {
+  axios.defaults.headers.common['X-CSRF-TOKEN'] = token.getAttribute("content")!;
+} else {
+  console.error('CSRF token not found: https://laravel.com/docs/csrf#csrf-x-csrf-token');
+}
+
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
 }

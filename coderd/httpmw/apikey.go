@@ -82,12 +82,29 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			}
 
 			var cookieValue string
+			// Find the session token from:
+			// 1: The cookie
+			// 2: The old cookie
+			// 3. The coder_session_token query parameter
+			// 4. The custom auth header
 			cookie, err := r.Cookie(codersdk.SessionTokenKey)
 			if err != nil {
-				cookieValue = r.URL.Query().Get(codersdk.SessionTokenKey)
+				// TODO: @emyrk in October 2022, remove this oldCookie check.
+				//	This is just to support the old cli for 1 release. Then everyone
+				//	must update.
+				oldCookie, err := r.Cookie("session_token")
+				if err != nil {
+					cookieValue = r.URL.Query().Get(codersdk.SessionTokenKey)
+					if cookieValue == "" {
+						cookieValue = r.Header.Get(codersdk.SessionCustomHeader)
+					}
+				} else {
+					cookieValue = oldCookie.Value
+				}
 			} else {
 				cookieValue = cookie.Value
 			}
+
 			if cookieValue == "" {
 				write(http.StatusUnauthorized, codersdk.Response{
 					Message: signedOutErrorMessage,

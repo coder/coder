@@ -93,10 +93,7 @@ func TestExtractUserRoles(t *testing.T) {
 			})
 
 			req := httptest.NewRequest("GET", "/", nil)
-			req.AddCookie(&http.Cookie{
-				Name:  codersdk.SessionTokenKey,
-				Value: token,
-			})
+			req.Header.Set(codersdk.SessionCustomHeader, token)
 
 			rtr.ServeHTTP(rw, req)
 			resp := rw.Result()

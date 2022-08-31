@@ -130,6 +130,7 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
+		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
 	apps := func(r chi.Router) {
