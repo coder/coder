@@ -11,7 +11,7 @@ coder:
     repo: "ghcr.io/coder/coder"
     # coder.image.tag -- The tag of the image, defaults to {{.Chart.AppVersion}}
     # if not set.
-    tag: "latest"
+    tag: ""
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
