@@ -118,22 +118,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
         />
 
-          <WorkspaceDeletedBanner
+        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
+
+        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {!!resources && !!resources.length && (
+          <Resources
+            resources={resources}
+            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
             workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
+            canUpdateWorkspace={canUpdateWorkspace}
+            buildInfo={buildInfo}
           />
-
-          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
-
-          {!!resources && !!resources.length && (
-            <Resources
-              resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
-              workspace={workspace}
-              canUpdateWorkspace={canUpdateWorkspace}
-              buildInfo={buildInfo}
-            />
-          )}
+        )}
 
         <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
