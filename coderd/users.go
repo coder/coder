@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/examples"
@@ -425,11 +425,24 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		if status == database.UserStatusSuspended && user.ID == apiKey.UserID {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "You cannot suspend yourself.",
-			})
-			return
+		if status == database.UserStatusSuspended {
+			// There are some manual protections when suspending a user to
+			// prevent certain situations.
+			switch {
+			case user.ID == apiKey.UserID:
+				// Suspending yourself is not allowed, as you can lock yourself
+				// out of the system.
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: "You cannot suspend yourself.",
+				})
+				return
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+				// You may not suspend an owner
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("You cannot suspend a user with the %q role. You must remove the role first.", rbac.RoleOwner()),
+				})
+				return
+			}
 		}
 
 		suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{

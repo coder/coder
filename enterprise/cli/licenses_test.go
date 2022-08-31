@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd"
@@ -28,6 +29,7 @@ import (
 )
 
 const fakeLicenseJWT = "test.jwt.sig"
+const testWarning = "This is a test warning"
 
 func TestLicensesAddFake(t *testing.T) {
 	t.Parallel()
@@ -179,6 +181,8 @@ func TestLicensesListReal(t *testing.T) {
 			"licenses", "list")
 		stdout := new(bytes.Buffer)
 		cmd.SetOut(stdout)
+		stderr := new(bytes.Buffer)
+		cmd.SetErr(stderr)
 		clitest.SetupConfig(t, client, root)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -188,6 +192,7 @@ func TestLicensesListReal(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		assert.Equal(t, "[]\n", stdout.String())
+		assert.Contains(t, testWarning, stderr.String())
 	})
 }
 
@@ -260,6 +265,7 @@ func newFakeLicenseAPI(t *testing.T) http.Handler {
 	r.Get("/api/v2/licenses", a.licenses)
 	r.Get("/api/v2/buildinfo", a.noop)
 	r.Delete("/api/v2/licenses/{id}", a.deleteLicense)
+	r.Get("/api/v2/entitlements", a.entitlements)
 	return r
 }
 
@@ -329,4 +335,19 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 func (s *fakeLicenseAPI) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	assert.Equal(s.t, "55", chi.URLParam(r, "id"))
 	rw.WriteHeader(200)
+}
+
+func (*fakeLicenseAPI) entitlements(rw http.ResponseWriter, _ *http.Request) {
+	features := make(map[string]codersdk.Feature)
+	for _, f := range codersdk.FeatureNames {
+		features[f] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
+		}
+	}
+	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
+		Features:   features,
+		Warnings:   []string{testWarning},
+		HasLicense: true,
+	})
 }
