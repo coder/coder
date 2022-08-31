@@ -1,3 +1,4 @@
+import { AuditLog } from "api/api"
 import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
@@ -685,7 +686,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   },
 }
 
-export const MockAuditLog = {
+export const MockAuditLog: AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",

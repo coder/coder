@@ -395,18 +395,23 @@ export interface AuditLog {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly ip: any
   readonly user_agent: string
-  readonly resource_type: any
+  readonly resource_type: "organization" | "template" | "template_version" | "user" | "workspace"
   readonly resource_id: string
   readonly resource_target: string
   readonly action: any
-  readonly diff: any
+  readonly diff: Record<string, { old: string; new: string }>
   readonly status_code: number
   // This is likely an enum in an external package ("encoding/json.RawMessage")
   readonly additional_fields: any
   readonly description: string
   readonly user?: User
   // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly resource: any
+  readonly resource:
+    | TypesGen.Organization
+    | TypesGen.Template
+    | TypesGen.TemplateVersion
+    | TypesGen.User
+    | TypesGen.Workspace
 }
 
 export const getAuditLogs = async (): Promise<AuditLog[]> => {
