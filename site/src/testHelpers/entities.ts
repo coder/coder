@@ -706,6 +706,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
 
 export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
+  id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
   diff: {
     workspace_name: {

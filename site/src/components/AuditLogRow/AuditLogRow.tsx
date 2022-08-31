@@ -109,7 +109,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   }
 
   return (
-    <TableRow key={auditLog.id} hover={shouldDisplayDiff}>
+    <TableRow
+      key={auditLog.id}
+      hover={shouldDisplayDiff}
+      data-testid={`audit-log-row-${auditLog.id}`}
+    >
       <TableCell className={styles.auditLogCell}>
         <Stack
           style={{ cursor: shouldDisplayDiff ? "pointer" : undefined }}

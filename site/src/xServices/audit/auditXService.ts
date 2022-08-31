@@ -15,6 +15,7 @@ export const auditMachine = createMachine(
       },
     },
     tsTypes: {} as import("./auditXService.typegen").Typegen0,
+    initial: "loadingLogs",
     states: {
       loadingLogs: {
         invoke: {

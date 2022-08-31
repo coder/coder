@@ -150,6 +150,6 @@ export const handlers = [
 
   // Audit
   rest.get("/api/v2/audit", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockAuditLog))
+    return res(ctx.status(200), ctx.json([M.MockAuditLog, M.MockAuditLog2]))
   }),
 ]

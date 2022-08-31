@@ -1,6 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import dayjs from "dayjs"
-import { MockAuditLog } from "testHelpers/entities"
 import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
@@ -386,8 +385,6 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
 }
 
 export const getAuditLogs = async (): Promise<TypesGen.AuditLog[]> => {
-  return [MockAuditLog]
-  // TODO: Uncomment this to get the data from the API instead of mock
-  // const response = await axios.get("/api/v2/audit")
-  // return response.data
+  const response = await axios.get("/api/v2/audit")
+  return response.data
 }
