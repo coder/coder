@@ -8,6 +8,7 @@ import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownA
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { t } from "i18next"
 import { ComponentProps, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
@@ -68,9 +69,9 @@ const ResourceLink: React.FC<{
 }
 
 const actionLabelByAction: Record<AuditLog["action"], string> = {
-  create: "created a new",
-  write: "updated",
-  delete: "deleted",
+  create: t("actions.create", { ns: "auditLog" }),
+  write: t("actions.write", { ns: "auditLog" }),
+  delete: t("actions.delete", { ns: "auditLog" }),
 }
 
 const resourceLabelByResourceType: Record<AuditLog["resource_type"], string> = {
