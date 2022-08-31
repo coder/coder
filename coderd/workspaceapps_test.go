@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"fmt"
-	"github.com/coder/coder/coderd"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"

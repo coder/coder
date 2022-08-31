@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -20,7 +21,6 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
-	"github.com/go-chi/chi/v5"
 )
 
 // workspaceAppsProxyPath proxies requests to a workspace application
