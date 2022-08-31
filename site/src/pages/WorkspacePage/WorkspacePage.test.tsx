@@ -204,7 +204,7 @@ describe("WorkspacePage", () => {
       const agent1Status = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
       )
-      expect(agent1Status.length).toEqual(2)
+      expect(agent1Status.length).toEqual(4)
       const agent2Status = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )

@@ -17,7 +17,7 @@ Coder.
 
 1. For the Host, enter `coder.<workspace name>`
 1. For the Port, enter `22` (this is ignored by Coder)
-1. For the Username, enter `coder`
+1. For the Username, enter your workspace username
 1. For the Authentication Type, select "OpenSSH config and authentication
    agent"
 1. Make sure the checkbox for "Parse config file ~/.ssh/config" is checked.

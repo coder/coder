@@ -6,7 +6,7 @@ terraform {
     }
     google = {
       source  = "hashicorp/google"
-      version = "~> 4.15"
+      version = "~> 4.34.0"
     }
   }
 }
@@ -39,7 +39,7 @@ resource "google_compute_disk" "root" {
   name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
   zone  = var.zone
-  image = "debian-cloud/debian-10"
+  image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [image]
   }
@@ -49,6 +49,22 @@ resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"
+  startup_script = <<EOT
+    #!/bin/bash
+
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
+    code-server --auth none --port 13337 | tee code-server-install.log &
+  EOT
+}
+
+# code-server
+resource "coder_app" "code-server" {
+  agent_id      = coder_agent.main.id
+  name          = "code-server"
+  icon          = "/icon/code.svg"
+  url           = "http://localhost:13337?folder=/home/coder"
+  relative_path = true
 }
 
 resource "google_compute_instance" "dev" {

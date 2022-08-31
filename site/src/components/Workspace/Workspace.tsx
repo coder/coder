@@ -44,6 +44,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  buildInfo?: TypesGen.BuildInfoResponse
 }
 
 /**
@@ -62,6 +63,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   builds,
   canUpdateWorkspace,
   workspaceErrors,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -116,18 +118,22 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
         />
 
-        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
-
-        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
-
-        {!!resources && !!resources.length && (
-          <Resources
-            resources={resources}
-            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
+          <WorkspaceDeletedBanner
             workspace={workspace}
-            canUpdateWorkspace={canUpdateWorkspace}
+            handleClick={() => navigate(`/templates`)}
           />
-        )}
+
+          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+          {!!resources && !!resources.length && (
+            <Resources
+              resources={resources}
+              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
+              workspace={workspace}
+              canUpdateWorkspace={canUpdateWorkspace}
+              buildInfo={buildInfo}
+            />
+          )}
 
         <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (

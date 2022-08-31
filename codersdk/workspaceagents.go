@@ -48,6 +48,10 @@ type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
+type PostWorkspaceAgentVersionRequest struct {
+	Version string `json:"version"`
+}
+
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
 // fetch a signed JWT, and exchange it for a session token for a workspace agent.
 //
@@ -240,6 +244,8 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	if err != nil {
 		return agent.Metadata{}, nil, xerrors.Errorf("listen peerbroker: %w", err)
 	}
+
+	// Fetch updated agent metadata
 	res, err = c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
 	if err != nil {
 		return agent.Metadata{}, nil, err
@@ -427,6 +433,19 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
+func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
+	// Phone home and tell the mothership what version we're on.
+	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
+	if err != nil {
+		return readBodyAsError(res)
+	}
+	// Discord the response
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
+	return nil
 }
 
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.

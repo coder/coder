@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 // HTTPMW adds tracing to http routes.
@@ -25,13 +26,15 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 			defer span.End()
 			r = r.WithContext(ctx)
 
-			wrw := middleware.NewWrapResponseWriter(rw, r.ProtoMajor)
+			sw, ok := rw.(*httpapi.StatusWriter)
+			if !ok {
+				panic(fmt.Sprintf("ResponseWriter not a *httpapi.StatusWriter; got %T", rw))
+			}
 
 			// pass the span through the request context and serve the request to the next middleware
-			next.ServeHTTP(wrw, r)
-
+			next.ServeHTTP(sw, r)
 			// capture response data
-			EndHTTPSpan(r, wrw.Status())
+			EndHTTPSpan(r, sw.Status)
 		})
 	}
 }

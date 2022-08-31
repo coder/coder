@@ -246,6 +246,19 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	active := int64(0)
+	for _, u := range q.users {
+		if u.Status == database.UserStatusActive {
+			active++
+		}
+	}
+	return active, nil
+}
+
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -592,14 +605,14 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	defer q.mutex.RUnlock()
 
 	var row database.WorkspaceBuild
-	var buildNum int32
+	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
 			row = workspaceBuild
 			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	if buildNum == 0 {
+	if buildNum == -1 {
 		return database.WorkspaceBuild{}, sql.ErrNoRows
 	}
 	return row, nil
@@ -1263,9 +1276,6 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourc
 			workspaceAgents = append(workspaceAgents, agent)
 		}
 	}
-	if len(workspaceAgents) == 0 {
-		return nil, sql.ErrNoRows
-	}
 	return workspaceAgents, nil
 }
 
@@ -1346,9 +1356,6 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 			continue
 		}
 		resources = append(resources, resource)
-	}
-	if len(resources) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return resources, nil
 }
@@ -2040,6 +2047,22 @@ func (q *fakeQuerier) UpdateWorkspaceAgentKeysByID(_ context.Context, arg databa
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.provisionerJobAgents {
+		if agent.ID != arg.ID {
+			continue
+		}
+
+		agent.Version = arg.Version
+		q.provisionerJobAgents[index] = agent
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2324,6 +2347,21 @@ func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error)
 	defer q.mutex.RUnlock()
 
 	results := append([]database.License{}, q.licenses...)
+	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
+	return results, nil
+}
+
+func (q *fakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	now := time.Now()
+	var results []database.License
+	for _, l := range q.licenses {
+		if l.Exp.After(now) {
+			results = append(results, l)
+		}
+	}
 	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
 	return results, nil
 }

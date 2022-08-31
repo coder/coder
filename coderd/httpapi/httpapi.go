@@ -59,6 +59,18 @@ func Forbidden(rw http.ResponseWriter) {
 	})
 }
 
+func InternalServerError(rw http.ResponseWriter, err error) {
+	var details string
+	if err != nil {
+		details = err.Error()
+	}
+
+	Write(rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "An internal server error occurred.",
+		Detail:  details,
+	})
+}
+
 // Write outputs a standardized format to an HTTP response body.
 func Write(rw http.ResponseWriter, status int, response interface{}) {
 	buf := &bytes.Buffer{}
