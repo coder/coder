@@ -73,7 +73,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	# rather than leaving things in an inconsistent state.
 	trap 'kill -TERM -$$' ERR
 	cdroot
-	"${CODER_DEV_SHIM}" server --address 127.0.0.1:3000 --in-memory --tunnel || kill -INT -$$ &
+	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 --in-memory --tunnel || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
 	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
