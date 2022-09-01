@@ -40,7 +40,10 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 			}
 			err = updateNodes(nodes)
 			if err != nil {
-				errChan <- xerrors.Errorf("update nodes: %w", err)
+				select {
+				case errChan <- xerrors.Errorf("update nodes: %w", err):
+				default:
+				}
 			}
 		}
 	}()
@@ -53,7 +56,10 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			errChan <- xerrors.Errorf("write: %w", err)
+			select {
+			case errChan <- xerrors.Errorf("write: %w", err):
+			default:
+			}
 		}
 	}, errChan
 }
