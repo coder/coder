@@ -25,7 +25,7 @@ describe("DAUChart", () => {
     render(
       <DAUChart
         templateDAUs={{
-          entries: [{ date: "2020-01-01", daus: 1 }],
+          entries: [{ date: "2020-01-01", amount: 1 }],
         }}
       />,
     )

@@ -627,8 +627,8 @@ func TestTemplateDAUs(t *testing.T) {
 		Entries: []codersdk.DAUEntry{
 			{
 
-				Date: time.Now().UTC().Truncate(time.Hour * 24),
-				DAUs: 1,
+				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Amount: 1,
 			},
 		},
 	}

@@ -59,7 +59,7 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
   })
 
   const data = templateMetricsData.entries.map((val) => {
-    return val.daus
+    return val.amount
   })
 
   defaults.font.family = theme.typography.fontFamily

@@ -194,10 +194,13 @@ jobs:
         run: ./scripts/yarn_install.sh
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          # This must be in lockstep with our dogfood Dockerfile
-          version: "3.21.5"
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile
+          # or the version in the comments will differ.
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          docker run --rm --entrypoint cat protoc  /tmp/bin/protoc > /usr/bin/protoc
+          chmod +x /usr/bin/protoc
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"

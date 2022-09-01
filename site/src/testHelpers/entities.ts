@@ -4,9 +4,9 @@ import * as TypesGen from "../api/typesGenerated"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
-    { date: "2022-08-27T00:00:00Z", daus: 1 },
-    { date: "2022-08-29T00:00:00Z", daus: 2 },
-    { date: "2022-08-30T00:00:00Z", daus: 1 },
+    { date: "2022-08-27T00:00:00Z", amount: 1 },
+    { date: "2022-08-29T00:00:00Z", amount: 2 },
+    { date: "2022-08-30T00:00:00Z", amount: 1 },
   ],
 }
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {

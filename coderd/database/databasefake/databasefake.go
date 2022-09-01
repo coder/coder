@@ -188,8 +188,8 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	var rs []database.GetTemplateDAUsRow
 	for _, key := range countKeys {
 		rs = append(rs, database.GetTemplateDAUsRow{
-			Date: key,
-			Daus: int64(len(counts[key])),
+			Date:   key,
+			Amount: int64(len(counts[key])),
 		})
 	}
 

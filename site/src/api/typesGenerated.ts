@@ -185,7 +185,7 @@ export interface CreateWorkspaceRequest {
 // From codersdk/templates.go
 export interface DAUEntry {
   readonly date: string
-  readonly daus: number
+  readonly amount: number
 }
 
 // From codersdk/workspaceresources.go

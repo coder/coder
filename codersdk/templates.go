@@ -135,8 +135,8 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 }
 
 type DAUEntry struct {
-	Date time.Time `json:"date"`
-	DAUs int       `json:"daus"`
+	Date   time.Time `json:"date"`
+	Amount int       `json:"amount"`
 }
 
 type TemplateDAUsResponse struct {
@@ -158,10 +158,9 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*Templ
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// @typescript-ignore AgentStatsReportRequest
-
 // AgentStatsReportRequest is a WebSocket request by coderd
 // to the agent for stats.
+// @typescript-ignore AgentStatsReportRequest
 type AgentStatsReportRequest struct {
 }
 

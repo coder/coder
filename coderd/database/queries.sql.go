@@ -27,7 +27,7 @@ func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
-	count(distinct(user_id)) as daus
+	count(distinct(user_id)) as amount
 from
 	agent_stats
 where template_id = $1
@@ -38,8 +38,8 @@ order by
 `
 
 type GetTemplateDAUsRow struct {
-	Date time.Time `db:"date" json:"date"`
-	Daus int64     `db:"daus" json:"daus"`
+	Date   time.Time `db:"date" json:"date"`
+	Amount int64     `db:"amount" json:"amount"`
 }
 
 func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
@@ -51,7 +51,7 @@ func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) 
 	var items []GetTemplateDAUsRow
 	for rows.Next() {
 		var i GetTemplateDAUsRow
-		if err := rows.Scan(&i.Date, &i.Daus); err != nil {
+		if err := rows.Scan(&i.Date, &i.Amount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -67,7 +67,7 @@ func fillEmptyDays(rows []database.GetTemplateDAUsRow) []database.GetTemplateDAU
 				break
 			}
 			last.Date = last.Date.Add(day)
-			last.Daus = 0
+			last.Amount = 0
 			newRows = append(newRows, last)
 			diff -= day
 		}
@@ -101,8 +101,8 @@ func (c *Cache) refresh(ctx context.Context) error {
 		var resp codersdk.TemplateDAUsResponse
 		for _, ent := range fillEmptyDays(daus) {
 			resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-				Date: ent.Date,
-				DAUs: int(ent.Daus),
+				Date:   ent.Date,
+				Amount: int(ent.Amount),
 			})
 		}
 		templateDAUs[template.ID.String()] = resp

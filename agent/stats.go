@@ -9,27 +9,27 @@ import (
 	"cdr.dev/slog"
 )
 
-// StatsConn wraps a net.Conn with statistics.
-type StatsConn struct {
+// statsConn wraps a net.Conn with statistics.
+type statsConn struct {
 	*Stats
 	net.Conn `json:"-"`
 }
 
-var _ net.Conn = new(StatsConn)
+var _ net.Conn = new(statsConn)
 
-func (c *StatsConn) Read(b []byte) (n int, err error) {
+func (c *statsConn) Read(b []byte) (n int, err error) {
 	n, err = c.Conn.Read(b)
 	atomic.AddInt64(&c.RxBytes, int64(n))
 	return n, err
 }
 
-func (c *StatsConn) Write(b []byte) (n int, err error) {
+func (c *statsConn) Write(b []byte) (n int, err error) {
 	n, err = c.Conn.Write(b)
 	atomic.AddInt64(&c.TxBytes, int64(n))
 	return n, err
 }
 
-var _ net.Conn = new(StatsConn)
+var _ net.Conn = new(statsConn)
 
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
@@ -51,7 +51,7 @@ func (s *Stats) Copy() *Stats {
 // wrapConn returns a new connection that records statistics.
 func (s *Stats) wrapConn(conn net.Conn) net.Conn {
 	atomic.AddInt64(&s.NumConns, 1)
-	cs := &StatsConn{
+	cs := &statsConn{
 		Stats: s,
 		Conn:  conn,
 	}

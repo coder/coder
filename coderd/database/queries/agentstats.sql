@@ -15,7 +15,7 @@ VALUES
 -- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
-	count(distinct(user_id)) as daus
+	count(distinct(user_id)) as amount
 from
 	agent_stats
 where template_id = $1
