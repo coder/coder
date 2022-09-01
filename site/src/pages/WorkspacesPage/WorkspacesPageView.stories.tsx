@@ -1,4 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import dayjs from "dayjs"
 import { spawn } from "xstate"
 import { ProvisionerJobStatus, WorkspaceTransition } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
@@ -13,6 +14,7 @@ const createWorkspaceItemRef = (
   status: ProvisionerJobStatus,
   transition: WorkspaceTransition = "start",
   outdated = false,
+  lastUsedAt = "0001-01-01",
 ): WorkspaceItemMachineRef => {
   return spawn(
     workspaceItemMachine.withContext({
@@ -27,6 +29,7 @@ const createWorkspaceItemRef = (
             status: status,
           },
         },
+        last_used_at: lastUsedAt,
       },
     }),
   )
@@ -48,6 +51,14 @@ const additionalWorkspaces: Record<string, WorkspaceItemMachineRef> = {
   succeededAndStop: createWorkspaceItemRef("succeeded", "stop"),
   runningAndDelete: createWorkspaceItemRef("running", "delete"),
   outdated: createWorkspaceItemRef("running", "delete", true),
+  active: createWorkspaceItemRef("running", undefined, true, dayjs().toString()),
+  old: createWorkspaceItemRef("running", undefined, true, dayjs().subtract(1, "week").toString()),
+  veryOld: createWorkspaceItemRef(
+    "running",
+    undefined,
+    true,
+    dayjs().subtract(1, "month").subtract(4, "day").toString(),
+  ),
 }
 
 export default {

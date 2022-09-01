@@ -514,6 +514,7 @@ export interface Workspace {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
+  readonly last_used_at: string
 }
 
 // From codersdk/workspaceresources.go
