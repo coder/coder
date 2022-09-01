@@ -137,7 +137,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
-func (q *fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (_ *fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }

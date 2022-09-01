@@ -80,7 +80,7 @@ type Options struct {
 
 	// Metrics related intervals.
 	MetricsCacheRefreshInterval time.Duration
-	AgentStatsReportInterval    time.Duration
+	AgentStatsRefreshInterval   time.Duration
 }
 
 // New constructs a Coder API handler.
@@ -378,7 +378,7 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 				)
-				r.Get("/daus", api.daus)
+				r.Get("/daus", api.metricsDAUs)
 			})
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {

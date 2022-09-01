@@ -17,12 +17,6 @@ import (
 	"github.com/coder/retry"
 )
 
-type CloseFunc func() error
-
-func (c CloseFunc) Close() error {
-	return c()
-}
-
 // AgentReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
 func (c *Client) AgentReportStats(

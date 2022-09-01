@@ -13,8 +13,8 @@ import (
 	"github.com/coder/retry"
 )
 
-// Cache holds the DAU cache and, later, the
-// user activity cache. The aggregation queries responsible for these values
+// Cache holds the DAU cache.
+// The aggregation queries responsible for these values
 // can take up to a minute on large deployments, but the cache has near zero
 // effect on most deployments.
 type Cache struct {
@@ -110,6 +110,9 @@ func (c *Cache) run(ctx context.Context) {
 			start := time.Now()
 			err := c.refresh(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				c.log.Error(ctx, "refresh", slog.Error(err))
 				continue
 			}

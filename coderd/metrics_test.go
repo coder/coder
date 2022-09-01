@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -95,14 +96,7 @@ func TestMetrics(t *testing.T) {
 	_, err = session.Output("echo hello")
 	require.NoError(t, err)
 
-	// Give enough time for stats to hit DB
-	// and metrics cache to refresh.
-	time.Sleep(time.Second * 5)
-
-	daus, err = client.GetDAUsFromAgentStats(context.Background())
-	require.NoError(t, err)
-
-	require.Equal(t, &codersdk.DAUsResponse{
+	want := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 
@@ -110,5 +104,14 @@ func TestMetrics(t *testing.T) {
 				DAUs: 1,
 			},
 		},
-	}, daus)
+	}
+	require.Eventuallyf(t, func() bool {
+		daus, err = client.GetDAUsFromAgentStats(context.Background())
+		require.NoError(t, err)
+
+		return assert.ObjectsAreEqual(want, daus)
+	},
+		testutil.WaitShort, testutil.IntervalFast,
+		"got %+v != %+v", daus, want,
+	)
 }

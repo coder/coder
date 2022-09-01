@@ -236,7 +236,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		},
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
-		AgentStatsReportInterval:    time.Millisecond * 100,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()

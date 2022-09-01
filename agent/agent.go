@@ -201,6 +201,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	}
 	a.network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
 		if listenerExists {
+			// If a listener already exists, we would double-wrap the conn.
 			return conn
 		}
 		return a.stats.wrapConn(conn)

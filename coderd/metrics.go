@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *API) daus(rw http.ResponseWriter, r *http.Request) {
+func (api *API) metricsDAUs(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.Forbidden(rw)
 		return
@@ -78,7 +78,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	// Allow overriding the stat interval for debugging and testing purposes.
 	ctx := r.Context()
-	timer := time.NewTicker(api.AgentStatsReportInterval)
+	timer := time.NewTicker(api.AgentStatsRefreshInterval)
 	var lastReport codersdk.AgentStatsReportResponse
 	for {
 		err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
@@ -113,7 +113,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		var insert = !reflect.DeepEqual(lastReport, rep)
 
 		api.Logger.Debug(ctx, "read stats report",
-			slog.F("interval", api.AgentStatsReportInterval),
+			slog.F("interval", api.AgentStatsRefreshInterval),
 			slog.F("agent", workspaceAgent.ID),
 			slog.F("resource", resource.ID),
 			slog.F("workspace", workspace.ID),

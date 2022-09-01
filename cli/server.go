@@ -121,7 +121,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		spooky                           bool
 		verbose                          bool
 		metricsCacheRefreshInterval      time.Duration
-		agentStatReportInterval          time.Duration
+		agentStatRefreshInterval         time.Duration
 	)
 
 	root := &cobra.Command{
@@ -363,7 +363,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				Telemetry:                   telemetry.NewNoop(),
 				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
-				AgentStatsReportInterval:    agentStatReportInterval,
+				AgentStatsRefreshInterval:   agentStatRefreshInterval,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -843,7 +843,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 	cliflag.DurationVarP(root.Flags(), &metricsCacheRefreshInterval, "metrics-cache-refresh-interval", "", "CODER_METRICS_CACHE_REFRESH_INTERVAL", time.Hour, "How frequently metrics are refreshed")
 	_ = root.Flags().MarkHidden("metrics-cache-refresh-interval")
-	cliflag.DurationVarP(root.Flags(), &agentStatReportInterval, "agent-stats-report-interval", "", "CODER_AGENT_STATS_REPORT_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")
+	cliflag.DurationVarP(root.Flags(), &agentStatRefreshInterval, "agent-stats-refresh-interval", "", "CODER_AGENT_STATS_REFRESH_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")
 	_ = root.Flags().MarkHidden("agent-stats-report-interval")
 
 	return root

@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func date(year, month, day int) time.Time {
@@ -164,12 +166,14 @@ func TestCache(t *testing.T) {
 				db.InsertAgentStat(context.Background(), row)
 			}
 
-			// Wait for value to refresh..
-			time.Sleep(time.Second)
+			var got codersdk.DAUsResponse
 
-			if got := cache.DAUs(); !reflect.DeepEqual(got.Entries, tt.want) {
-				t.Errorf("GetDAUs() = %v, want %v", got, tt.want)
-			}
+			require.Eventuallyf(t, func() bool {
+				got = cache.DAUs()
+				return reflect.DeepEqual(got.Entries, tt.want)
+			}, testutil.WaitShort, testutil.IntervalFast,
+				"GetDAUs() = %v, want %v", got, tt.want,
+			)
 		})
 	}
 }
