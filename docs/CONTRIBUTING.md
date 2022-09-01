@@ -17,7 +17,15 @@ copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from
 ...
 ```
 
-If [direnv](https://direnv.net/) is installed and the [hooks are configured](https://direnv.net/docs/hook.html) then the development environment can be _automatically instantiated_ thus removing the need to run `nix-shell` by hand!
+If [direnv](https://direnv.net/) is installed and the [hooks are configured](https://direnv.net/docs/hook.html) then the development environment can be _automatically instantiated_ by creating the following `.envrc`, thus removing the need to run `nix-shell` by hand!
+
+```
+$ cd ~/code/coder
+$ echo "use nix" >.envrc
+$ direnv allow
+```
+
+Now, whenever you enter the project folder, `direnv` will prepare the environment for you:
 
 ```
 $ cd ~/code/coder
