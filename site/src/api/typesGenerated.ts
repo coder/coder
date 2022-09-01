@@ -32,9 +32,8 @@ export interface AgentGitSSHKey {
 // From codersdk/metrics.go
 export interface AgentStatsReportResponse {
   readonly num_comms: number
-  // Named type "github.com/coder/coder/agent.ProtocolStats" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly protocol_stats: Record<string, any>
+  readonly rx_bytes: number
+  readonly tx_bytes: number
 }
 
 // From codersdk/roles.go

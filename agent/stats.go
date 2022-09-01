@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"sync"
 	"sync/atomic"
 
 	"cdr.dev/slog"
@@ -12,7 +11,7 @@ import (
 
 // StatsConn wraps a net.Conn with statistics.
 type StatsConn struct {
-	*ProtocolStats
+	*Stats
 	net.Conn `json:"-"`
 }
 
@@ -30,53 +29,32 @@ func (c *StatsConn) Write(b []byte) (n int, err error) {
 	return n, err
 }
 
-type ProtocolStats struct {
-	NumConns int64 `json:"num_comms"`
-
-	// RxBytes must be read with atomic.
-	RxBytes int64 `json:"rx_bytes"`
-
-	// TxBytes must be read with atomic.
-	TxBytes int64 `json:"tx_bytes"`
-}
-
 var _ net.Conn = new(StatsConn)
 
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	sync.RWMutex  `json:"-"`
-	ProtocolStats map[string]*ProtocolStats `json:"conn_stats,omitempty"`
+	NumConns int64 `json:"num_comms"`
+	// RxBytes must be read with atomic.
+	RxBytes int64 `json:"rx_bytes"`
+	// TxBytes must be read with atomic.
+	TxBytes int64 `json:"tx_bytes"`
 }
 
 func (s *Stats) Copy() *Stats {
-	s.RLock()
-	ss := Stats{ProtocolStats: make(map[string]*ProtocolStats, len(s.ProtocolStats))}
-	for k, cs := range s.ProtocolStats {
-		ss.ProtocolStats[k] = &ProtocolStats{
-			NumConns: atomic.LoadInt64(&cs.NumConns),
-			RxBytes:  atomic.LoadInt64(&cs.RxBytes),
-			TxBytes:  atomic.LoadInt64(&cs.TxBytes),
-		}
+	return &Stats{
+		NumConns: atomic.LoadInt64(&s.NumConns),
+		RxBytes:  atomic.LoadInt64(&s.RxBytes),
+		TxBytes:  atomic.LoadInt64(&s.TxBytes),
 	}
-	s.RUnlock()
-	return &ss
 }
 
 // wrapConn returns a new connection that records statistics.
-func (s *Stats) wrapConn(conn net.Conn, protocol string) net.Conn {
-	s.Lock()
-	ps, ok := s.ProtocolStats[protocol]
-	if !ok {
-		ps = &ProtocolStats{}
-		s.ProtocolStats[protocol] = ps
-	}
-	s.Unlock()
-
-	atomic.AddInt64(&ps.NumConns, 1)
+func (s *Stats) wrapConn(conn net.Conn) net.Conn {
+	atomic.AddInt64(&s.NumConns, 1)
 	cs := &StatsConn{
-		ProtocolStats: ps,
-		Conn:          conn,
+		Stats: s,
+		Conn:  conn,
 	}
 
 	return cs

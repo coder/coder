@@ -81,14 +81,11 @@ func (c *Client) AgentReportStats(
 					}
 
 					s := stats()
-					var numComms int
-					for _, ps := range s.ProtocolStats {
-						numComms += int(ps.NumConns)
-					}
 
 					resp := AgentStatsReportResponse{
-						NumComms:      numComms,
-						ProtocolStats: s.ProtocolStats,
+						NumConns: s.NumConns,
+						RxBytes:  s.RxBytes,
+						TxBytes:  s.TxBytes,
 					}
 
 					err = wsjson.Write(ctx, conn, resp)
@@ -144,6 +141,7 @@ type AgentStatsReportRequest struct {
 // AgentStatsReportResponse is returned for each report
 // request by the agent.
 type AgentStatsReportResponse struct {
-	NumComms      int                             `json:"num_comms"`
-	ProtocolStats map[string]*agent.ProtocolStats `json:"protocol_stats"`
+	NumConns int64 `json:"num_comms"`
+	RxBytes  int64 `json:"rx_bytes"`
+	TxBytes  int64 `json:"tx_bytes"`
 }

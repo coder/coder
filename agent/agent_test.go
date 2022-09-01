@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -51,6 +52,33 @@ func TestMain(m *testing.M) {
 
 func TestAgent(t *testing.T) {
 	t.Parallel()
+	t.Run("Stats", func(t *testing.T) {
+		for _, tailscale := range []bool{true, false} {
+			t.Run(fmt.Sprintf("tailscale=%v", tailscale), func(t *testing.T) {
+				t.Parallel()
+
+				var derpMap *tailcfg.DERPMap
+				if tailscale {
+					derpMap = tailnettest.RunDERPAndSTUN(t)
+				}
+				conn, stats := setupAgent(t, agent.Metadata{
+					DERPMap: derpMap,
+				}, 0)
+				assert.Empty(t, <-stats)
+
+				sshClient, err := conn.SSHClient()
+				require.NoError(t, err)
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				defer session.Close()
+
+				assert.EqualValues(t, 1, (<-stats).NumConns)
+				assert.Greater(t, (<-stats).RxBytes, int64(0))
+				assert.Greater(t, (<-stats).TxBytes, int64(0))
+			})
+		}
+	})
+
 	t.Run("SessionExec", func(t *testing.T) {
 		t.Parallel()
 		session := setupSSHSession(t, agent.Metadata{})
@@ -169,7 +197,8 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
-		sshClient, err := setupAgent(t, agent.Metadata{}, 0).SSHClient()
+		conn, _ := setupAgent(t, agent.Metadata{}, 0)
+		sshClient, err := conn.SSHClient()
 		require.NoError(t, err)
 		client, err := sftp.NewClient(sshClient)
 		require.NoError(t, err)
@@ -184,7 +213,9 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SCP", func(t *testing.T) {
 		t.Parallel()
-		sshClient, err := setupAgent(t, agent.Metadata{}, 0).SSHClient()
+
+		conn, _ := setupAgent(t, agent.Metadata{}, 0)
+		sshClient, err := conn.SSHClient()
 		require.NoError(t, err)
 		scpClient, err := scp.NewClientBySSH(sshClient)
 		require.NoError(t, err)
@@ -318,7 +349,7 @@ func TestAgent(t *testing.T) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		conn := setupAgent(t, agent.Metadata{
+		conn, _ := setupAgent(t, agent.Metadata{
 			DERPMap: tailnettest.RunDERPAndSTUN(t),
 		}, 0)
 		id := uuid.NewString()
@@ -431,7 +462,7 @@ func TestAgent(t *testing.T) {
 				}()
 
 				// Dial the listener over WebRTC twice and test out of order
-				conn := setupAgent(t, agent.Metadata{}, 0)
+				conn, _ := setupAgent(t, agent.Metadata{}, 0)
 				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
 				defer conn1.Close()
@@ -462,7 +493,7 @@ func TestAgent(t *testing.T) {
 		})
 
 		// Try to dial the non-existent Unix socket over WebRTC
-		conn := setupAgent(t, agent.Metadata{}, 0)
+		conn, _ := setupAgent(t, agent.Metadata{}, 0)
 		netConn, err := conn.DialContext(context.Background(), "unix", filepath.Join(tmpDir, "test.sock"))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "remote dial error")
@@ -473,7 +504,7 @@ func TestAgent(t *testing.T) {
 	t.Run("Tailnet", func(t *testing.T) {
 		t.Parallel()
 		derpMap := tailnettest.RunDERPAndSTUN(t)
-		conn := setupAgent(t, agent.Metadata{
+		conn, _ := setupAgent(t, agent.Metadata{
 			DERPMap: derpMap,
 		}, 0)
 		defer conn.Close()
@@ -485,7 +516,7 @@ func TestAgent(t *testing.T) {
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
-	agentConn := setupAgent(t, agent.Metadata{}, 0)
+	agentConn, _ := setupAgent(t, agent.Metadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	waitGroup := sync.WaitGroup{}
@@ -523,7 +554,8 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 }
 
 func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
-	sshClient, err := setupAgent(t, options, 0).SSHClient()
+	conn, _ := setupAgent(t, options, 0)
+	sshClient, err := conn.SSHClient()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sshClient.Close()
@@ -533,11 +565,21 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
+type closeFunc func() error
+
+func (c closeFunc) Close() error {
+	return c()
+}
+
+func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) (
+	agent.Conn,
+	<-chan *agent.Stats,
+) {
 	client, server := provisionersdk.TransportPipe()
 	tailscale := metadata.DERPMap != nil
 	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
+	statsCh := make(chan *agent.Stats)
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
 			return metadata, nil
@@ -557,6 +599,38 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		},
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
+		StatsReporter: func(ctx context.Context, log slog.Logger, statsFn func() *agent.Stats) (io.Closer, error) {
+			doneCh := make(chan struct{})
+			ctx, cancel := context.WithCancel(ctx)
+
+			go func() {
+				defer close(doneCh)
+
+				t := time.NewTicker(time.Millisecond * 100)
+				defer t.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-t.C:
+					}
+					select {
+					case statsCh <- statsFn():
+					case <-ctx.Done():
+						return
+					default:
+						// We don't want to send old stats.
+						continue
+					}
+				}
+			}()
+			return closeFunc(func() error {
+				cancel()
+				<-doneCh
+				close(statsCh)
+				return nil
+			}), nil
+		},
 	})
 	t.Cleanup(func() {
 		_ = client.Close()
@@ -586,7 +660,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		conn.SetNodeCallback(sendNode)
 		return &agent.TailnetConn{
 			Conn: conn,
-		}
+		}, statsCh
 	}
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil),
@@ -599,7 +673,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	return &agent.WebRTCConn{
 		Negotiator: api,
 		Conn:       conn,
-	}
+	}, statsCh
 }
 
 var dialTestPayload = []byte("dean-was-here123")
