@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
@@ -89,8 +88,11 @@ func TestSSH(t *testing.T) {
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -108,8 +110,11 @@ func TestSSH(t *testing.T) {
 			// the build and agent to connect!
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
-			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			agentCloser := agent.New(agent.Options{
+				FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+				WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+				CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+				Logger:            slogtest.Make(t, nil).Named("agent"),
 			})
 			<-ctx.Done()
 			_ = agentCloser.Close()
@@ -174,8 +179,11 @@ func TestSSH(t *testing.T) {
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer agentCloser.Close()
 

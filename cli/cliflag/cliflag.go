@@ -90,6 +90,23 @@ func Uint8VarP(flagset *pflag.FlagSet, ptr *uint8, name string, shorthand string
 	flagset.Uint8VarP(ptr, name, shorthand, uint8(vi64), fmtUsage(usage, env))
 }
 
+// IntVarP sets a uint8 flag on the given flag set.
+func IntVarP(flagset *pflag.FlagSet, ptr *int, name string, shorthand string, env string, def int, usage string) {
+	val, ok := os.LookupEnv(env)
+	if !ok || val == "" {
+		flagset.IntVarP(ptr, name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	vi64, err := strconv.ParseUint(val, 10, 8)
+	if err != nil {
+		flagset.IntVarP(ptr, name, shorthand, def, fmtUsage(usage, env))
+		return
+	}
+
+	flagset.IntVarP(ptr, name, shorthand, int(vi64), fmtUsage(usage, env))
+}
+
 func Bool(flagset *pflag.FlagSet, name, shorthand, env string, def bool, usage string) {
 	val, ok := os.LookupEnv(env)
 	if !ok || val == "" {

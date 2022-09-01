@@ -8,22 +8,21 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"github.com/tabbed/pqtype"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
 	"nhooyr.io/websocket"
-	"tailscale.com/types/key"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -31,10 +30,10 @@ import (
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/tailnet"
 )
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
@@ -52,7 +51,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -76,7 +75,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -127,7 +126,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -136,17 +135,8 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ipp, ok := netaddr.FromStdIPNet(&workspaceAgent.WireguardNodeIPv6.IPNet)
-	if !ok {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Workspace agent has an invalid ipv6 address.",
-			Detail:  workspaceAgent.WireguardNodeIPv6.IPNet.String(),
-		})
-		return
-	}
-
 	httpapi.Write(rw, http.StatusOK, agent.Metadata{
-		WireguardAddresses:   []netaddr.IPPrefix{ipp},
+		DERPMap:              api.DERPMap,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
@@ -155,7 +145,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 
 func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -431,7 +421,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -498,141 +488,10 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-func (*API) derpMap(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusOK, peerwg.DerpMap)
-}
-
-type WorkspaceKeysRequest struct {
-	Public key.NodePublic  `json:"public"`
-	Disco  key.DiscoPublic `json:"disco"`
-}
-
-func (api *API) postWorkspaceAgentKeys(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx            = r.Context()
-		workspaceAgent = httpmw.WorkspaceAgent(r)
-		keys           WorkspaceKeysRequest
-	)
-	if !httpapi.Read(rw, r, &keys) {
-		return
-	}
-
-	err := api.Database.UpdateWorkspaceAgentKeysByID(ctx, database.UpdateWorkspaceAgentKeysByIDParams{
-		ID:                      workspaceAgent.ID,
-		WireguardNodePublicKey:  dbtypes.NodePublic(keys.Public),
-		WireguardDiscoPublicKey: dbtypes.DiscoPublic(keys.Disco),
-		UpdatedAt:               database.Now(),
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error setting agent keys.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) postWorkspaceAgentWireguardPeer(rw http.ResponseWriter, r *http.Request) {
-	var (
-		req            peerwg.Handshake
-		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
-	)
-
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	if !httpapi.Read(rw, r, &req) {
-		return
-	}
-
-	if req.Recipient != workspaceAgent.ID {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid recipient.",
-		})
-		return
-	}
-
-	raw, err := req.MarshalText()
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error marshaling wireguard peer message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	err = api.Pubsub.Publish("wireguard_peers", raw)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error publishing wireguard peer message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) workspaceAgentWireguardListener(rw http.ResponseWriter, r *http.Request) {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
-
-	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
-
-	agentIDBytes, _ := workspaceAgent.ID.MarshalText()
-	subCancel, err := api.Pubsub.Subscribe("wireguard_peers", func(ctx context.Context, message []byte) {
-		// Since we subscribe to all peer broadcasts, we do a light check to
-		// make sure we're the intended recipient without fully decoding the
-		// message.
-		hint, err := peerwg.HandshakeRecipientHint(agentIDBytes, message)
-		if err != nil {
-			api.Logger.Error(ctx, "invalid wireguard peer message", slog.Error(err))
-			return
-		}
-
-		// We aren't the intended recipient.
-		if !hint {
-			return
-		}
-
-		_ = conn.Write(ctx, websocket.MessageBinary, message)
-	})
-	if err != nil {
-		api.Logger.Error(ctx, "pubsub listen", slog.Error(err))
-		return
-	}
-	defer subCancel()
-
-	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
-
-	// Wait for the connection to close or the client to send a message.
-	//nolint:dogsled
-	_, _, _ = conn.Reader(ctx)
-}
-
 // dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
 // r.Context() for cancellation if it's use is safe or r.Hijack() has
 // not been performed.
-func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
@@ -691,10 +550,108 @@ func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 		<-peerConn.Closed()
 		cancelFunc()
 	}()
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: peerClient,
 		Conn:       peerConn,
 	}, nil
+}
+
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
+	clientConn, serverConn := net.Pipe()
+	go func() {
+		<-r.Context().Done()
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+	}()
+
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   api.DERPMap,
+		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create tailnet conn: %w", err)
+	}
+
+	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
+		return conn.UpdateNodes(node)
+	})
+	conn.SetNodeCallback(sendNodes)
+	go func() {
+		err := api.TailnetCoordinator.ServeClient(serverConn, uuid.New(), agentID)
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+	return &agent.TailnetConn{
+		Conn: conn,
+	}, nil
+}
+
+func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
+		DERPMap: api.DERPMap,
+	})
+}
+
+func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+	err = api.TailnetCoordinator.ServeAgent(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), workspaceAgent.ID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		return
+	}
+}
+
+// workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
+// After accept a PubSub starts listening for new connection node updates
+// which are written to the WebSocket.
+func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+	err = api.TailnetCoordinator.ServeClient(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		return
+	}
 }
 
 func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
@@ -710,28 +667,14 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
-func inetToNetaddr(inet pqtype.Inet) netaddr.IPPrefix {
-	if !inet.Valid {
-		return netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 128)
-	}
-
-	ipp, ok := netaddr.FromStdIPNet(&inet.IPNet)
-	if !ok {
-		return netaddr.IPPrefixFrom(netaddr.IPv6Unspecified(), 128)
-	}
-
-	return ipp
-}
-
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
 		}
 	}
-
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                   dbAgent.ID,
 		CreatedAt:            dbAgent.CreatedAt,
@@ -742,13 +685,29 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.Work
 		Architecture:         dbAgent.Architecture,
 		OperatingSystem:      dbAgent.OperatingSystem,
 		StartupScript:        dbAgent.StartupScript.String,
+		Version:              dbAgent.Version,
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
-		IPv6:                 inetToNetaddr(dbAgent.WireguardNodeIPv6),
-		WireguardPublicKey:   key.NodePublic(dbAgent.WireguardNodePublicKey),
-		DiscoPublicKey:       key.DiscoPublic(dbAgent.WireguardDiscoPublicKey),
-		Version:              dbAgent.Version,
+	}
+	node := coordinator.Node(dbAgent.ID)
+	if node != nil {
+		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
+		for rawRegion, latency := range node.DERPLatency {
+			regionParts := strings.SplitN(rawRegion, "-", 2)
+			regionID, err := strconv.Atoi(regionParts[0])
+			if err != nil {
+				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+			}
+			region, found := derpMap.Regions[regionID]
+			if !found {
+				return codersdk.WorkspaceAgent{}, xerrors.Errorf("region %d not found in derpmap", regionID)
+			}
+			workspaceAgent.DERPLatency[region.RegionName] = codersdk.DERPRegion{
+				Preferred:           node.PreferredDERP == regionID,
+				LatencyMilliseconds: latency * 1000,
+			}
+		}
 	}
 
 	if dbAgent.FirstConnectedAt.Valid {

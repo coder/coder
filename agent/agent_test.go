@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,6 +40,8 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/tailnet/tailnettest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -314,7 +318,9 @@ func TestAgent(t *testing.T) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		conn := setupAgent(t, agent.Metadata{}, 0)
+		conn := setupAgent(t, agent.Metadata{
+			DERPMap: tailnettest.RunDERPAndSTUN(t),
+		}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
@@ -463,12 +469,26 @@ func TestAgent(t *testing.T) {
 		require.ErrorContains(t, err, "no such file")
 		require.Nil(t, netConn)
 	})
+
+	t.Run("Tailnet", func(t *testing.T) {
+		t.Parallel()
+		derpMap := tailnettest.RunDERPAndSTUN(t)
+		conn := setupAgent(t, agent.Metadata{
+			DERPMap: derpMap,
+		}, 0)
+		defer conn.Close()
+		require.Eventually(t, func() bool {
+			_, err := conn.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
 	agentConn := setupAgent(t, agent.Metadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	waitGroup := sync.WaitGroup{}
 	go func() {
 		defer listener.Close()
 		for {
@@ -481,11 +501,16 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 				_ = conn.Close()
 				return
 			}
-			go agent.Bicopy(context.Background(), conn, ssh)
+			waitGroup.Add(1)
+			go func() {
+				agent.Bicopy(context.Background(), conn, ssh)
+				waitGroup.Done()
+			}()
 		}
 	}()
 	t.Cleanup(func() {
 		_ = listener.Close()
+		waitGroup.Wait()
 	})
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
@@ -500,17 +525,36 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 	sshClient, err := setupAgent(t, options, 0).SSHClient()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sshClient.Close()
+	})
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
+func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) agent.Conn {
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
-		listener, err := peerbroker.Listen(server, nil)
-		return metadata, listener, err
-	}, &agent.Options{
+	tailscale := metadata.DERPMap != nil
+	coordinator := tailnet.NewCoordinator()
+	agentID := uuid.New()
+	closer := agent.New(agent.Options{
+		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
+			return metadata, nil
+		},
+		WebRTCDialer: func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
+			listener, err := peerbroker.Listen(server, nil)
+			return listener, err
+		},
+		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
+			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() {
+				_ = serverConn.Close()
+				_ = clientConn.Close()
+			})
+			go coordinator.ServeAgent(serverConn, agentID)
+			return clientConn, nil
+		},
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
@@ -522,6 +566,28 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 	stream, err := api.NegotiateConnection(context.Background())
 	assert.NoError(t, err)
+	if tailscale {
+		conn, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			DERPMap:   metadata.DERPMap,
+			Logger:    slogtest.Make(t, nil).Named("tailnet"),
+		})
+		require.NoError(t, err)
+		clientConn, serverConn := net.Pipe()
+		t.Cleanup(func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+			_ = conn.Close()
+		})
+		go coordinator.ServeClient(serverConn, uuid.New(), agentID)
+		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
+			return conn.UpdateNodes(node)
+		})
+		conn.SetNodeCallback(sendNode)
+		return &agent.TailnetConn{
+			Conn: conn,
+		}
+	}
 	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil),
 	})
@@ -530,7 +596,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		_ = conn.Close()
 	})
 
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: api,
 		Conn:       conn,
 	}

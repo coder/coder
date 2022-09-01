@@ -302,10 +302,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
-  wireguard_public_key: "",
-  disco_public_key: "",
-  ipv6: "",
   version: MockBuildInfo.version,
+  latency: {},
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

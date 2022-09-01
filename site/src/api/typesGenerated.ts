@@ -175,6 +175,12 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
+}
+
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>
@@ -509,22 +515,21 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
-  readonly apps: WorkspaceApp[]
-  // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly wireguard_public_key: any
-  // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly disco_public_key: any
-  // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ipv6: any
   readonly version: string
+  readonly apps: WorkspaceApp[]
+  readonly latency: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentConnectionInfo {
+  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go
