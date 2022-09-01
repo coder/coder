@@ -139,6 +139,8 @@ type AgentStatsReportRequest struct {
 // request by the agent.
 type AgentStatsReportResponse struct {
 	NumConns int64 `json:"num_comms"`
-	RxBytes  int64 `json:"rx_bytes"`
-	TxBytes  int64 `json:"tx_bytes"`
+	// RxBytes is the number of received bytes.
+	RxBytes int64 `json:"rx_bytes"`
+	// TxBytes is the number of received bytes.
+	TxBytes int64 `json:"tx_bytes"`
 }

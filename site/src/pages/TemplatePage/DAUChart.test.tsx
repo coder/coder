@@ -4,6 +4,7 @@ import { DAUChart, Language } from "./DAUChart"
 import { screen } from "@testing-library/react"
 import { ResizeObserver } from "resize-observer"
 
+// The Chart performs dynamic resizes which fail in tests without this.
 Object.defineProperty(window, "ResizeObserver", {
   value: ResizeObserver,
 })

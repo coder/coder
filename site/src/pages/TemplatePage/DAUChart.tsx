@@ -17,7 +17,7 @@ import {
 import { Stack } from "components/Stack/Stack"
 import { HelpTooltip, HelpTooltipText, HelpTooltipTitle } from "components/Tooltips/HelpTooltip"
 import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
-import moment from "moment"
+import dayjs from "dayjs"
 import { FC } from "react"
 import { Line } from "react-chartjs-2"
 import * as TypesGen from "../../api/typesGenerated"
@@ -55,7 +55,7 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
   }
 
   const labels = templateMetricsData.entries.map((val) => {
-    return moment(val.date).format("l")
+    return dayjs(val.date).format("YYYY-MM-DD")
   })
 
   const data = templateMetricsData.entries.map((val) => {
