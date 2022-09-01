@@ -3,7 +3,7 @@ import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { DropdownContent } from "components/DropdownButton/DropdownContent/DropdownContent"
-import { FC, ReactNode, useEffect, useRef, useState } from "react"
+import { FC, ReactNode, useRef, useState } from "react"
 import { CancelButton } from "./ActionCtas"
 
 export interface DropdownButtonProps {
