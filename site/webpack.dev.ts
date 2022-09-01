@@ -51,6 +51,7 @@ const config: Configuration = {
     },
     devMiddleware: {
       publicPath: "/",
+      headers: {"Set-Cookie":"csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax"}
     },
     headers: {
       "Access-Control-Allow-Origin": "*",
