@@ -286,8 +286,8 @@ func TestPostLogout(t *testing.T) {
 		var found bool
 		for _, cookie := range cookies {
 			if cookie.Name == codersdk.SessionTokenKey {
-				require.Equal(t, codersdk.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
-				require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+				require.Equal(t, codersdk.SessionTokenKey, cookie.Name, "Cookie should be the auth cookie")
+				require.Equal(t, -1, cookie.MaxAge, "Cookie should be set to delete")
 				found = true
 			}
 		}
