@@ -241,6 +241,25 @@ func TestTemplateCreate(t *testing.T) {
 		err = create()
 		require.NoError(t, err, "Template must be recreated without error")
 	})
+
+	t.Run("WithParameterExceedingCharLimit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		coderdtest.CreateFirstUser(t, client)
+		// Template name "1234567890123456789012345678901234567890" exceeds 32 char limit
+		cmd, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567890", "--test.provisioner", string(database.ProvisionerTypeEcho))
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
+
+		require.EqualError(t, <-execDone, "template name must be less than 32 characters")
+	})
 }
 
 func createTestParseResponse() []*proto.Parse_Response {
