@@ -10,7 +10,8 @@ export const hardCodedCSRFCookie = (): string => {
   // each document request. For local development, we don't use the Go webserver for static files,
   // so this is the 'hack' to make local development work with remote apis.
   // The CSRF cookie for this token is "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
-  const csrfToken = "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
+  const csrfToken =
+    "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
   axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken
   return csrfToken
 }
@@ -18,7 +19,7 @@ export const hardCodedCSRFCookie = (): string => {
 // Always attach CSRF token to all requests
 const token = document.head.querySelector('meta[property="csrf-token"]')
 if (token !== null && token.getAttribute("content") !== null) {
-  if(process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV === "development") {
     // Development mode uses a hard-coded CSRF token
     axios.defaults.headers.common["X-CSRF-TOKEN"] = hardCodedCSRFCookie()
     token.setAttribute("content", hardCodedCSRFCookie())
@@ -27,7 +28,7 @@ if (token !== null && token.getAttribute("content") !== null) {
   }
 } else {
   // Do not write error logs if we are in a FE unit test.
-  if(process.env.JEST_WORKER_ID === undefined) {
+  if (process.env.JEST_WORKER_ID === undefined) {
     console.error("CSRF token not found")
   }
 }
