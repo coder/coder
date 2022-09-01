@@ -1156,7 +1156,7 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@discoveryjs/json-ext@^0.5.0", "@discoveryjs/json-ext@^0.5.3":
+"@discoveryjs/json-ext@^0.5.0", "@discoveryjs/json-ext@^0.5.3", "@discoveryjs/json-ext@^0.5.7":
   version "0.5.7"
   resolved "https://registry.yarnpkg.com/@discoveryjs/json-ext/-/json-ext-0.5.7.tgz#1d572bfbbe14b7704e0ba0f39b74815b84870d70"
   integrity sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==
@@ -5249,11 +5249,12 @@ chownr@^2.0.0:
   resolved "https://registry.yarnpkg.com/chownr/-/chownr-2.0.0.tgz#15bfbe53d2eab4cf70f18a8cd68ebe5b3cb1dece"
   integrity sha512-bIomtDF5KGpdogkLd9VspvFzk9KfpyyGlS8YFVZl7TGPBHL5snIOnxeshwVgPteQ9b4Eydl+pVbIyE1DcvCWgQ==
 
-chromatic@6.7.1:
-  version "6.7.1"
-  resolved "https://registry.yarnpkg.com/chromatic/-/chromatic-6.7.1.tgz#6548e51121269832709a203a55ce09e3bcfdda6d"
-  integrity sha512-iDVYnB24zPrMROvVBblIxlOaj5+vO1uDI0wRXObi5DVrkvCjDvHzsFfPwUoIHGiXE7f6tmw38ZZRI+LGarM9Ow==
+chromatic@6.8.1:
+  version "6.8.1"
+  resolved "https://registry.yarnpkg.com/chromatic/-/chromatic-6.8.1.tgz#936e00129abf26a80d76f8817c82f3e5443b85ff"
+  integrity sha512-Bwl1boq+yxbsOYDKB3OTk+R1T4aB6kg8vWD1nwpkL7FeYOeVNXQ/f9Sh+5rrsHjpzn5GxZtWtHOIB/wtGFb8Gw==
   dependencies:
+    "@discoveryjs/json-ext" "^0.5.7"
     "@types/webpack-env" "^1.17.0"
 
 chrome-trace-event@^1.0.2:
