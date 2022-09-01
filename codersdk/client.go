@@ -219,8 +219,8 @@ func (e *Error) Error() string {
 	return builder.String()
 }
 
-type CloseFunc func() error
+type closeFunc func() error
 
-func (c CloseFunc) Close() error {
+func (c closeFunc) Close() error {
 	return c()
 }

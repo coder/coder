@@ -78,7 +78,6 @@ type Options struct {
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 
-	// Metrics related intervals.
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 }

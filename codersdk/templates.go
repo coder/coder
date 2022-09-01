@@ -133,3 +133,44 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	var templateVersion TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
+
+type DAUEntry struct {
+	Date time.Time `json:"date"`
+	DAUs int       `json:"daus"`
+}
+
+type TemplateDAUsResponse struct {
+	Entries []DAUEntry `json:"entries"`
+}
+
+func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*TemplateDAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var resp TemplateDAUsResponse
+	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// @typescript-ignore AgentStatsReportRequest
+
+// AgentStatsReportRequest is a WebSocket request by coderd
+// to the agent for stats.
+type AgentStatsReportRequest struct {
+}
+
+// AgentStatsReportResponse is returned for each report
+// request by the agent.
+type AgentStatsReportResponse struct {
+	NumConns int64 `json:"num_comms"`
+	// RxBytes is the number of received bytes.
+	RxBytes int64 `json:"rx_bytes"`
+	// TxBytes is the number of received bytes.
+	TxBytes int64 `json:"tx_bytes"`
+}

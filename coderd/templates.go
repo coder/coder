@@ -524,7 +524,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := api.metricsCache.DAUs(template.ID)
+	resp := api.metricsCache.TemplateDAUs(template.ID)
 	if resp.Entries == nil {
 		resp.Entries = []codersdk.DAUEntry{}
 	}

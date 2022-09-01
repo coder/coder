@@ -821,6 +821,9 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		}
 
 		// Avoid inserting duplicate rows to preserve DB space.
+		// We will see duplicate reports when on idle connections
+		// (e.g. web terminal left open) or when there are no connections at
+		// all.
 		var insert = !reflect.DeepEqual(lastReport, rep)
 
 		api.Logger.Debug(ctx, "read stats report",

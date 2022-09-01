@@ -175,7 +175,7 @@ func TestCache(t *testing.T) {
 			var got codersdk.TemplateDAUsResponse
 
 			require.Eventuallyf(t, func() bool {
-				got = cache.DAUs(templateID)
+				got = cache.TemplateDAUs(templateID)
 				return reflect.DeepEqual(got.Entries, tt.want)
 			}, testutil.WaitShort, testutil.IntervalFast,
 				"GetDAUs() = %v, want %v", got, tt.want,

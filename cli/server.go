@@ -841,6 +841,9 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	_ = root.Flags().MarkHidden("spooky")
 	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 
+	// These metrics flags are for manually testing the metric system.
+	// The defaults should be acceptable for any Coder deployment of any
+	// reasonable size.
 	cliflag.DurationVarP(root.Flags(), &metricsCacheRefreshInterval, "metrics-cache-refresh-interval", "", "CODER_METRICS_CACHE_REFRESH_INTERVAL", time.Hour, "How frequently metrics are refreshed")
 	_ = root.Flags().MarkHidden("metrics-cache-refresh-interval")
 	cliflag.DurationVarP(root.Flags(), &agentStatRefreshInterval, "agent-stats-refresh-interval", "", "CODER_AGENT_STATS_REFRESH_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")

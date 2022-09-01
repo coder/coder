@@ -15,10 +15,11 @@ import (
 	"github.com/coder/retry"
 )
 
-// Cache holds the DAU cache.
-// The aggregation queries responsible for these values
-// can take up to a minute on large deployments, but the cache has near zero
-// effect on most deployments.
+// Cache holds the template DAU cache.
+// The aggregation queries responsible for these values can take up to a minute
+// on large deployments. Even in small deployments, aggregation queries can
+// take a few hundred milliseconds, which would ruin page load times and
+// database performance if in the hot path.
 type Cache struct {
 	database database.Store
 	log      slog.Logger
@@ -153,8 +154,9 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-// DAUs returns the DAUs or nil if they aren't ready yet.
-func (c *Cache) DAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
+// TemplateDAUs returns an empty response if the template doesn't have users
+// or is loading for the first time.
+func (c *Cache) TemplateDAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.

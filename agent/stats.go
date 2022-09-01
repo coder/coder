@@ -33,12 +33,11 @@ var _ net.Conn = new(StatsConn)
 
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
+// Each member value must be written and read with atomic.
 type Stats struct {
 	NumConns int64 `json:"num_comms"`
-	// RxBytes must be read with atomic.
-	RxBytes int64 `json:"rx_bytes"`
-	// TxBytes must be read with atomic.
-	TxBytes int64 `json:"tx_bytes"`
+	RxBytes  int64 `json:"rx_bytes"`
+	TxBytes  int64 `json:"tx_bytes"`
 }
 
 func (s *Stats) Copy() *Stats {
