@@ -24,16 +24,6 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "action-popover" : undefined
 
-  /**
-   * Ensures we close the popover before calling any action handler
-   */
-  useEffect(() => {
-    setIsOpen(false)
-    return () => {
-      setIsOpen(false)
-    }
-  }, [])
-
   return (
     <span className={styles.buttonContainer}>
       {/* primary workspace CTA */}
@@ -64,6 +54,7 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
             open={isOpen}
             anchorEl={anchorRef.current}
             onClose={() => setIsOpen(false)}
+            onBlur={() => setIsOpen(false)}
             anchorOrigin={{
               vertical: "bottom",
               horizontal: "right",
