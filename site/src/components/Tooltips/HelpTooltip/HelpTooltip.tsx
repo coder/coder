@@ -226,8 +226,9 @@ const useStyles = makeStyles((theme) => ({
   },
 
   link: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
+    width: "fit-content",
   },
 
   linkIcon: {
