@@ -4,7 +4,7 @@ import { RequirePermission } from "components/RequirePermission/RequirePermissio
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import { FC, lazy, Suspense, useContext } from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
@@ -139,19 +139,15 @@ export const AppRouter: FC = () => {
           <Route
             index
             element={
-              process.env.NODE_ENV === "production" ? (
-                <Navigate to="/workspaces" />
-              ) : (
-                <AuthAndFrame>
-                  <RequirePermission
-                    isFeatureVisible={
-                      featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog
-                    }
-                  >
-                    <AuditPage />
-                  </RequirePermission>
-                </AuthAndFrame>
-              )
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={
+                    featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog
+                  }
+                >
+                  <AuditPage />
+                </RequirePermission>
+              </AuthAndFrame>
             }
           ></Route>
         </Route>

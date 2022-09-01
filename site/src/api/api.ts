@@ -384,7 +384,17 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   return response.data
 }
 
-export const getAuditLogs = async (): Promise<TypesGen.AuditLog[]> => {
-  const response = await axios.get("/api/v2/audit")
+interface GetAuditLogsOptions {
+  limit: number
+  offset: number
+}
+
+export const getAuditLogs = async (options: GetAuditLogsOptions): Promise<TypesGen.AuditLog[]> => {
+  const response = await axios.get(`/api/v2/audit?limit=${options}&offset=${options.offset}`)
+  return response.data
+}
+
+export const getAuditLogsCount = async (): Promise<number> => {
+  const response = await axios.get(`/api/v2/audit/count`)
   return response.data
 }

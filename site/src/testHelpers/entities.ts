@@ -704,14 +704,14 @@ export const MockAuditLog: TypesGen.AuditLog = {
   user_agent: "browser",
   resource_type: "workspace",
   resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
-  resource_target: "Bruno's Org",
+  resource_target: "bruno-dev",
+  resource_icon: "",
   action: "create",
   diff: {},
   status_code: 200,
-  additional_fields: {},
-  description: "Colin Adler updated the organization Bruno's Org",
+  additional_fields: "",
+  description: "Colin Adler updated the workspace bruno-dev",
   user: MockUser,
-  resource: MockWorkspace,
 }
 
 export const MockAuditLog2: TypesGen.AuditLog = {
@@ -722,14 +722,17 @@ export const MockAuditLog2: TypesGen.AuditLog = {
     workspace_name: {
       old: "old-workspace-name",
       new: MockWorkspace.name,
+      secret: false,
     },
     workspace_auto_off: {
       old: true,
       new: false,
+      secret: false,
     },
     template_version_id: {
       old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
       new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
     },
   },
 }

@@ -13,7 +13,7 @@ export const darkPalette: PaletteOptions = {
     dark: colors.blue[9],
   },
   secondary: {
-    main: colors.green[11],
+    main: colors.gray[11],
     contrastText: colors.gray[3],
     dark: colors.indigo[7],
   },

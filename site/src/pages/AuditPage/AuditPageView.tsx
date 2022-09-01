@@ -9,6 +9,7 @@ import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
@@ -20,7 +21,27 @@ export const Language = {
   tooltipTitle: "Copy to clipboard and try the Coder CLI",
 }
 
-export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => {
+export interface AuditPageViewProps {
+  auditLogs?: AuditLog[]
+  count?: number
+  page: number
+  limit: number
+  onNext: () => void
+  onPrevious: () => void
+  onGoToPage: (page: number) => void
+}
+
+export const AuditPageView: FC<AuditPageViewProps> = ({
+  auditLogs,
+  count,
+  page,
+  limit,
+  onNext,
+  onPrevious,
+  onGoToPage,
+}) => {
+  const isReady = auditLogs && count
+
   return (
     <Margins>
       <PageHeader
@@ -45,7 +66,7 @@ export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => 
             </TableRow>
           </TableHead>
           <TableBody>
-            {auditLogs ? (
+            {isReady ? (
               auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)
             ) : (
               <TableLoader />
@@ -53,6 +74,19 @@ export const AuditPageView: FC<{ auditLogs?: AuditLog[] }> = ({ auditLogs }) => 
           </TableBody>
         </Table>
       </TableContainer>
+
+      {isReady && count > limit && (
+        <PaginationWidget
+          prevLabel=""
+          nextLabel=""
+          onPrevClick={onPrevious}
+          onNextClick={onNext}
+          onPageClick={onGoToPage}
+          numRecords={count}
+          activePage={page}
+          numRecordsPerPage={limit}
+        />
+      )}
     </Margins>
   )
 }
