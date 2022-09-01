@@ -27,6 +27,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
       organizationId,
     },
   })
+
   const { template, activeTemplateVersion, templateResources, templateVersions } =
     templateState.context
   const isLoading = !template || !activeTemplateVersion || !templateResources

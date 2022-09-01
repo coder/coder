@@ -8,6 +8,10 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { TemplatePage } from "./TemplatePage"
 
+Object.defineProperty(window, "ResizeObserver", {
+  value: ResizeObserver,
+})
+
 describe("TemplatePage", () => {
   it("shows the template name, readme and resources", async () => {
     // Mocking the dayjs module within the createDayString file

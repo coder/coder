@@ -24,17 +24,17 @@ import * as TypesGen from "../../api/typesGenerated"
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export interface DAUChartProps {
-  userMetricsData: TypesGen.DAUsResponse
+  templateMetricsData: TypesGen.TemplateDAUsResponse
 }
 export const Language = {
   loadingText: "DAU stats are loading. Check back later.",
   chartTitle: "Daily Active Users",
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
+export const DAUChart: FC<DAUChartProps> = ({ templateMetricsData }) => {
   const theme: Theme = useTheme()
 
-  if (userMetricsData.entries.length === 0) {
+  if (templateMetricsData.entries.length === 0) {
     return (
       <div style={{ marginTop: "-20px" }}>
         <p>{Language.loadingText}</p>
@@ -42,11 +42,11 @@ export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
     )
   }
 
-  const labels = userMetricsData.entries.map((val) => {
+  const labels = templateMetricsData.entries.map((val) => {
     return moment(val.date).format("l")
   })
 
-  const data = userMetricsData.entries.map((val) => {
+  const data = templateMetricsData.entries.map((val) => {
     return val.daus
   })
 
@@ -70,7 +70,7 @@ export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
         ticks: {},
       },
     },
-    aspectRatio: 6 / 1,
+    aspectRatio: 10 / 1,
   } as ChartOptions
 
   return (

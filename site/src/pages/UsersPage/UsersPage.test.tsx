@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { rest } from "msw"
-import { ResizeObserver } from "resize-observer"
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
@@ -20,10 +19,6 @@ import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 import { Language as UsersViewLanguage } from "./UsersPageView"
-
-Object.defineProperty(window, "ResizeObserver", {
-  value: ResizeObserver,
-})
 
 const suspendUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table

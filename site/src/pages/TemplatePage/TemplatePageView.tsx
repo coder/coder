@@ -4,11 +4,13 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import { useMachine } from "@xstate/react"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "util/firstLetter"
+import { templateMetricsMachine } from "xServices/templateMetrics/templateMetricsXService"
 import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import {
@@ -21,6 +23,7 @@ import { TemplateResourcesTable } from "../../components/TemplateResourcesTable/
 import { TemplateStats } from "../../components/TemplateStats/TemplateStats"
 import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
+import { DAUChart } from "./DAUCharts"
 
 const Language = {
   settingsButton: "Settings",
@@ -47,6 +50,13 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
   const hasIcon = template.icon && template.icon !== ""
+
+  const [metricsState] = useMachine(templateMetricsMachine, {
+    context: {
+      templateId: template.id,
+    },
+  })
+  const { templateMetricsData } = metricsState.context
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
@@ -94,6 +104,8 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
           </div>
         </Stack>
       </PageHeader>
+
+      {templateMetricsData && <DAUChart templateMetricsData={templateMetricsData} />}
 
       <Stack spacing={2.5}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />

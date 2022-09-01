@@ -7,7 +7,6 @@ import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHea
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../util/filters"
-import { DAUChart } from "./DAUCharts"
 
 export const Language = {
   pageTitle: "Users",
@@ -16,7 +15,6 @@ export const Language = {
   allUsersFilterName: "All users",
 }
 export interface UsersPageViewProps {
-  userMetricsData?: TypesGen.DAUsResponse
   users?: TypesGen.User[]
   roles?: TypesGen.AssignableRoles[]
   filter?: string
@@ -34,7 +32,6 @@ export interface UsersPageViewProps {
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
-  userMetricsData,
   users,
   roles,
   openUserCreationDialog,
@@ -68,8 +65,6 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
       >
         <PageHeaderTitle>{Language.pageTitle}</PageHeaderTitle>
       </PageHeader>
-
-      {userMetricsData && <DAUChart userMetricsData={userMetricsData} />}
 
       <div style={{ marginTop: "15px" }}>
         <SearchBarWithFilter

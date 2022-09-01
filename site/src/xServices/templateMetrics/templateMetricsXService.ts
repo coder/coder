@@ -1,23 +1,24 @@
-import { DAUsResponse } from "api/typesGenerated"
+import { TemplateDAUsResponse } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 
-export interface UserMetricsContext {
-  userMetricsData: DAUsResponse
+export interface TemplateMetricsContext {
+  templateId: string
+  templateMetricsData: TemplateDAUsResponse
 }
 
-export const userMetricsMachine = createMachine(
+export const templateMetricsMachine = createMachine(
   {
-    id: "userMetrics",
+    id: "templateMetrics",
     schema: {
-      context: {} as UserMetricsContext,
+      context: {} as TemplateMetricsContext,
       services: {} as {
         loadMetrics: {
-          data: DAUsResponse
+          data: TemplateDAUsResponse
         }
       },
     },
-    tsTypes: {} as import("./userMetricsXService.typegen").Typegen0,
+    tsTypes: {} as import("./templateMetricsXService.typegen").Typegen0,
     initial: "loadingMetrics",
     states: {
       loadingMetrics: {
@@ -37,11 +38,11 @@ export const userMetricsMachine = createMachine(
   {
     actions: {
       assignDataMetrics: assign({
-        userMetricsData: (_, event) => event.data,
+        templateMetricsData: (_, event) => event.data,
       }),
     },
     services: {
-      loadMetrics: () => API.getDAUs,
+      loadMetrics: (context) => API.getTemplateDAUs(context.templateId),
     },
   },
 )

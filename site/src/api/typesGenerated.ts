@@ -188,11 +188,6 @@ export interface DAUEntry {
   readonly daus: number
 }
 
-// From codersdk/metrics.go
-export interface DAUsResponse {
-  readonly entries: DAUEntry[]
-}
-
 // From codersdk/workspaceresources.go
 export interface DERPRegion {
   readonly preferred: boolean
@@ -378,6 +373,11 @@ export interface Template {
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+}
+
+// From codersdk/metrics.go
+export interface TemplateDAUsResponse {
+  readonly entries: DAUEntry[]
 }
 
 // From codersdk/templateversions.go

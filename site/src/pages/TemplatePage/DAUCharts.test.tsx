@@ -12,7 +12,7 @@ describe("DAUChart", () => {
   it("renders a helpful paragraph on empty state", async () => {
     render(
       <DAUChart
-        userMetricsData={{
+        templateMetricsData={{
           entries: [],
         }}
       />,
@@ -23,7 +23,7 @@ describe("DAUChart", () => {
   it("renders a graph", async () => {
     render(
       <DAUChart
-        userMetricsData={{
+        templateMetricsData={{
           entries: [{ date: "2020-01-01", daus: 1 }],
         }}
       />,

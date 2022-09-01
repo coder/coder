@@ -2,7 +2,7 @@ import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
-export const MockGetDAUResponse: TypesGen.DAUsResponse = {
+export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
     { date: "2022-08-27T00:00:00Z", daus: 1 },
     { date: "2022-08-29T00:00:00Z", daus: 2 },
