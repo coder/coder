@@ -4,7 +4,7 @@ import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceActions/ActionCtas"
+import { Language } from "../../components/DropdownButton/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,

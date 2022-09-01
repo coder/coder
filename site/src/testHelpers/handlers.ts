@@ -44,6 +44,9 @@ export const handlers = [
   rest.get("/api/v2/templateversions/:templateVersionId/resources", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]))
   }),
+  rest.delete("/api/v2/templates/:templateId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplate))
+  }),
 
   // users
   rest.get("/api/v2/users", async (req, res, ctx) => {

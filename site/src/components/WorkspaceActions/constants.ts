@@ -3,20 +3,20 @@ import { WorkspaceStateEnum } from "util/workspace"
 
 // the button types we have
 export enum ButtonTypesEnum {
-  start,
-  starting,
-  stop,
-  stopping,
-  delete,
-  deleting,
-  update,
-  cancel,
-  error,
+  start = "start",
+  starting = "starting",
+  stop = "stop",
+  stopping = "stopping",
+  delete = "delete",
+  deleting = "deleting",
+  update = "update",
+  cancel = "cancel",
+  error = "error",
   // disabled buttons
-  canceling,
-  disabled,
-  queued,
-  loading,
+  canceling = "canceling",
+  disabled = "disabled",
+  queued = "queued",
+  loading = "loading",
 }
 
 export type ButtonMapping = {
