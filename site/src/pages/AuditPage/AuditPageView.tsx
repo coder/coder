@@ -62,7 +62,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Logs</TableCell>
+              <TableCell style={{ paddingLeft: 32 }}>Logs</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

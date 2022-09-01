@@ -126,10 +126,10 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         padding: "12px 8px",
         // This targets the first+last td elements, and also the first+last elements
         // of a TableCellLink.
-        "&:first-child, &:first-child > a": {
+        "&:not(:only-child):first-child, &:not(:only-child):first-child > a": {
           paddingLeft: 32,
         },
-        "&:last-child, &:last-child > a": {
+        "&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
           paddingRight: 32,
         },
       },
