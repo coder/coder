@@ -168,6 +168,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
 		"GET:/derp":                 "This requires a WebSocket upgrade!",
+		"GET:/derp/latency-check":   "This always returns a 200!",
 	}
 
 	assertRoute := map[string]RouteCheck{
