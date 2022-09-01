@@ -100,15 +100,14 @@ func TestAgent(t *testing.T) {
 					_, err = ptyConn.Write(data)
 					require.NoError(t, err)
 
-					require.Eventually(t, func() bool {
-						s, ok := (<-stats)
-						return ok && s.NumConns > 0
+					var s *agent.Stats
+					require.Eventuallyf(t, func() bool {
+						var ok bool
+						s, ok = (<-stats)
+						return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
 					}, testutil.WaitShort, testutil.IntervalFast,
-						"never saw conn",
+						"never saw stats: %+v", s,
 					)
-					assert.EqualValues(t, 1, (<-stats).NumConns)
-					assert.Greater(t, (<-stats).RxBytes, int64(0))
-					assert.Greater(t, (<-stats).TxBytes, int64(0))
 				})
 			})
 		}

@@ -29,7 +29,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/metrics.go
+// From codersdk/templates.go
 export interface AgentStatsReportResponse {
   readonly num_comms: number
   readonly rx_bytes: number
@@ -182,7 +182,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/metrics.go
+// From codersdk/templates.go
 export interface DAUEntry {
   readonly date: string
   readonly daus: number
@@ -375,7 +375,7 @@ export interface Template {
   readonly created_by_name: string
 }
 
-// From codersdk/metrics.go
+// From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
 }

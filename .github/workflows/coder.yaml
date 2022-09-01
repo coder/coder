@@ -196,7 +196,8 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
-          version: "3.20.0"
+          # This must be in lockstep with our dogfood Dockerfile
+          version: "3.21.5"
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"

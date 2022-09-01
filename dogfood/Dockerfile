@@ -32,7 +32,7 @@ RUN mkdir --parents "$GOPATH" && \
     # goimports for updating imports
     go install golang.org/x/tools/cmd/goimports@v0.1.7 && \
     # protoc-gen-go is needed to build sysbox from source
-    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26 && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
     # drpc support for v2
     go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26 && \
     # migrate for migration support for v2
@@ -69,6 +69,12 @@ RUN mkdir --parents "$GOPATH" && \
     go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
     # nfpm is used with `make build` to make release packages
     go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+
+FROM alpine:3.16 as proto
+WORKDIR /tmp
+RUN apk add curl unzip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+RUN unzip protoc.zip
 
 # Ubuntu 20.04 LTS (Focal Fossa)
 FROM ubuntu:focal
@@ -119,7 +125,6 @@ RUN apt-get update --quiet && apt-get install --yes \
       openssh-server \
       openssl \
       pkg-config \
-      protobuf-compiler \
       python3 \
       python3-pip \
       rsync \
@@ -156,6 +161,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       skopeo \
       fish \
       gh \
+			unzip \
       zstd && \
     # Delete package cache to avoid consuming space in layer
     apt-get clean && \
@@ -300,6 +306,7 @@ RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/g
 
 COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/bin /usr/local/bin
 
 USER coder
 
