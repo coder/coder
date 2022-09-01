@@ -9,7 +9,7 @@ const token = document.head.querySelector('meta[property="csrf-token"]')
 if (token) {
   axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content") ?? ""
 } else {
-  console.error("CSRF token not found: https://laravel.com/docs/csrf#csrf-x-csrf-token")
+  console.error("CSRF token not found")
 }
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
