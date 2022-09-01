@@ -17,13 +17,13 @@ func TestStripCoderCookies(t *testing.T) {
 		"testing=hello; wow=test",
 		"testing=hello; wow=test",
 	}, {
-		"session_token=moo; wow=test",
+		"coder_session_token=moo; wow=test",
 		"wow=test",
 	}, {
-		"another_token=wow; session_token=ok",
+		"another_token=wow; coder_session_token=ok",
 		"another_token=wow",
 	}, {
-		"session_token=ok; oauth_state=wow; oauth_redirect=/",
+		"coder_session_token=ok; oauth_state=wow; oauth_redirect=/",
 		"",
 	}} {
 		tc := tc
