@@ -10,10 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -538,4 +544,101 @@ func TestDeleteTemplate(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
+}
+
+func TestTemplateDAUs(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerD: true,
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		Logger:            slogtest.Make(t, nil),
+		StatsReporter:     agentClient.AgentReportStats,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	opts := &peer.ConnOptions{
+		Logger: slogtest.Make(t, nil).Named("client"),
+	}
+
+	daus, err := client.TemplateDAUs(context.Background(), template.ID)
+	require.NoError(t, err)
+
+	require.Equal(t, &codersdk.TemplateDAUsResponse{
+		Entries: []codersdk.DAUEntry{},
+	}, daus, "no DAUs when stats are empty")
+
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
+	require.NoError(t, err)
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	sshConn, err := conn.SSHClient()
+	require.NoError(t, err)
+
+	session, err := sshConn.NewSession()
+	require.NoError(t, err)
+
+	_, err = session.Output("echo hello")
+	require.NoError(t, err)
+
+	want := &codersdk.TemplateDAUsResponse{
+		Entries: []codersdk.DAUEntry{
+			{
+
+				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Amount: 1,
+			},
+		},
+	}
+	require.Eventuallyf(t, func() bool {
+		daus, err = client.TemplateDAUs(ctx, template.ID)
+		require.NoError(t, err)
+
+		return assert.ObjectsAreEqual(want, daus)
+	},
+		testutil.WaitShort, testutil.IntervalFast,
+		"got %+v != %+v", daus, want,
+	)
 }

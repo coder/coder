@@ -32,16 +32,19 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
       organizationId,
     },
   })
+
   const {
     template,
     activeTemplateVersion,
     templateResources,
     templateVersions,
     deleteTemplateError,
+    templateDAUs,
   } = templateState.context
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-  const isLoading = !template || !activeTemplateVersion || !templateResources || !permissions
+  const isLoading =
+    !template || !activeTemplateVersion || !templateResources || !permissions || !templateDAUs
 
   const handleDeleteTemplate = () => {
     templateSend("DELETE")
@@ -65,6 +68,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         activeTemplateVersion={activeTemplateVersion}
         templateResources={templateResources}
         templateVersions={templateVersions}
+        templateDAUs={templateDAUs}
         canDeleteTemplate={permissions.deleteTemplates}
         handleDeleteTemplate={handleDeleteTemplate}
         deleteTemplateError={deleteTemplateError}

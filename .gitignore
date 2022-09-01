@@ -42,3 +42,4 @@ site/out/
 .vscode/*.log
 **/*.swp
 .coderv2/*
+**/__debug_bin

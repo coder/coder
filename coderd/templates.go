@@ -517,6 +517,20 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
 }
 
+func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	resp := api.metricsCache.TemplateDAUs(template.ID)
+	if resp.Entries == nil {
+		resp.Entries = []codersdk.DAUEntry{}
+	}
+	httpapi.Write(rw, http.StatusOK, resp)
+}
+
 type autoImportTemplateOpts struct {
 	name    string
 	archive []byte

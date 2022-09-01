@@ -12,7 +12,12 @@ import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "util/firstLetter"
-import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
+import {
+  Template,
+  TemplateDAUsResponse,
+  TemplateVersion,
+  WorkspaceResource,
+} from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -24,6 +29,7 @@ import { TemplateResourcesTable } from "../../components/TemplateResourcesTable/
 import { TemplateStats } from "../../components/TemplateStats/TemplateStats"
 import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
+import { DAUChart } from "./DAUChart"
 
 const Language = {
   settingsButton: "Settings",
@@ -39,6 +45,7 @@ export interface TemplatePageViewProps {
   activeTemplateVersion: TemplateVersion
   templateResources: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
+  templateDAUs?: TemplateDAUsResponse
   handleDeleteTemplate: (templateId: string) => void
   deleteTemplateError: Error | unknown
   canDeleteTemplate: boolean
@@ -49,6 +56,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   activeTemplateVersion,
   templateResources,
   templateVersions,
+  templateDAUs,
   handleDeleteTemplate,
   deleteTemplateError,
   canDeleteTemplate,
@@ -131,6 +139,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 
         <Stack spacing={2.5}>
           {deleteError}
+          {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
           <TemplateStats template={template} activeVersion={activeTemplateVersion} />
           <WorkspaceSection
             title={Language.resourcesTitle}

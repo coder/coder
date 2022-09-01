@@ -1,5 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react"
 import { rest } from "msw"
+import { ResizeObserver } from "resize-observer"
 import { server } from "testHelpers/server"
 import * as CreateDayString from "util/createDayString"
 import {
@@ -11,6 +12,10 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { TemplatePage } from "./TemplatePage"
+
+Object.defineProperty(window, "ResizeObserver", {
+  value: ResizeObserver,
+})
 
 describe("TemplatePage", () => {
   it("shows the template name, readme and resources", async () => {

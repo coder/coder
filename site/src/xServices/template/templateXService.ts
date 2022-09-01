@@ -4,11 +4,17 @@ import { assign, createMachine } from "xstate"
 import {
   deleteTemplate,
   getTemplateByName,
+  getTemplateDAUs,
   getTemplateVersion,
   getTemplateVersionResources,
   getTemplateVersions,
 } from "../../api/api"
-import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
+import {
+  Template,
+  TemplateDAUsResponse,
+  TemplateVersion,
+  WorkspaceResource,
+} from "../../api/typesGenerated"
 
 interface TemplateContext {
   organizationId: string
@@ -17,6 +23,7 @@ interface TemplateContext {
   activeTemplateVersion?: TemplateVersion
   templateResources?: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
+  templateDAUs: TemplateDAUsResponse
   deleteTemplateError?: Error | unknown
 }
 
@@ -45,6 +52,9 @@ export const templateMachine =
           }
           deleteTemplate: {
             data: Template
+          }
+          getTemplateDAUs: {
+            data: TemplateDAUsResponse
           }
         },
       },
@@ -122,6 +132,25 @@ export const templateMachine =
                 },
               },
             },
+            templateDAUs: {
+              initial: "gettingTemplateDAUs",
+              states: {
+                gettingTemplateDAUs: {
+                  invoke: {
+                    src: "getTemplateDAUs",
+                    onDone: [
+                      {
+                        actions: "assignTemplateDAUs",
+                        target: "success",
+                      },
+                    ],
+                  },
+                },
+                success: {
+                  type: "final",
+                },
+              },
+            },
           },
           onDone: {
             target: "loaded",
@@ -132,6 +161,9 @@ export const templateMachine =
             DELETE: {
               target: "confirmingDelete",
             },
+          },
+          onDone: {
+            target: "loaded",
           },
         },
         confirmingDelete: {
@@ -198,6 +230,12 @@ export const templateMachine =
           }
           return deleteTemplate(ctx.template.id)
         },
+        getTemplateDAUs: (ctx) => {
+          if (!ctx.template) {
+            throw new Error("Template not loaded")
+          }
+          return getTemplateDAUs(ctx.template.id)
+        },
       },
       actions: {
         assignTemplate: assign({
@@ -211,6 +249,9 @@ export const templateMachine =
         }),
         assignTemplateVersions: assign({
           templateVersions: (_, event) => event.data,
+        }),
+        assignTemplateDAUs: assign({
+          templateDAUs: (_, event) => event.data,
         }),
         assignDeleteTemplateError: assign({
           deleteTemplateError: (_, event) => event.data,

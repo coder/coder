@@ -214,15 +214,16 @@ type Conn struct {
 	closed chan struct{}
 	logger slog.Logger
 
-	dialer           *tsdial.Dialer
-	tunDevice        *tstun.Wrapper
-	netMap           *netmap.NetworkMap
-	netStack         *netstack.Impl
-	magicConn        *magicsock.Conn
-	wireguardMonitor *monitor.Mon
-	wireguardRouter  *router.Config
-	wireguardEngine  wgengine.Engine
-	listeners        map[listenKey]*listener
+	dialer             *tsdial.Dialer
+	tunDevice          *tstun.Wrapper
+	netMap             *netmap.NetworkMap
+	netStack           *netstack.Impl
+	magicConn          *magicsock.Conn
+	wireguardMonitor   *monitor.Mon
+	wireguardRouter    *router.Config
+	wireguardEngine    wgengine.Engine
+	listeners          map[listenKey]*listener
+	forwardTCPCallback func(conn net.Conn, listenerExists bool) net.Conn
 
 	lastMutex sync.Mutex
 	// It's only possible to store these values via status functions,
@@ -230,6 +231,17 @@ type Conn struct {
 	lastEndpoints     []string
 	lastPreferredDERP int
 	lastDERPLatency   map[string]float64
+}
+
+// SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
+// listenerExists is true if a listener is registered for the target port. If there
+// isn't one, traffic is forwarded to the local listening port.
+//
+// This allows wrapping a Conn to track reads and writes.
+func (c *Conn) SetForwardTCPCallback(callback func(conn net.Conn, listenerExists bool) net.Conn) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.forwardTCPCallback = callback
 }
 
 // SetNodeCallback is triggered when a network change occurs and peer
@@ -411,6 +423,9 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	c.mutex.Lock()
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	if c.forwardTCPCallback != nil {
+		conn = c.forwardTCPCallback(conn, ok)
+	}
 	c.mutex.Unlock()
 	if !ok {
 		c.forwardTCPToLocal(conn, port)

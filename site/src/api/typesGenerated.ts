@@ -29,6 +29,13 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/templates.go
+export interface AgentStatsReportResponse {
+  readonly num_comms: number
+  readonly rx_bytes: number
+  readonly tx_bytes: number
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
@@ -173,6 +180,12 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/templates.go
+export interface DAUEntry {
+  readonly date: string
+  readonly amount: number
 }
 
 // From codersdk/workspaceresources.go
@@ -360,6 +373,11 @@ export interface Template {
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+}
+
+// From codersdk/templates.go
+export interface TemplateDAUsResponse {
+  readonly entries: DAUEntry[]
 }
 
 // From codersdk/templateversions.go
