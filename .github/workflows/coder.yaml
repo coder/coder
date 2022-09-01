@@ -197,6 +197,7 @@ jobs:
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile
           # or the version in the comments will differ.
+          set -x
           cd dogfood
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
           docker run --rm --entrypoint cat protoc  /tmp/bin/protoc > /usr/bin/protoc
