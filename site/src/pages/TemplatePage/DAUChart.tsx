@@ -24,19 +24,21 @@ import * as TypesGen from "../../api/typesGenerated"
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export interface DAUChartProps {
-  templateMetricsData: TypesGen.TemplateDAUsResponse
+  templateDAUs: TypesGen.TemplateDAUsResponse
 }
 export const Language = {
   loadingText: "DAU stats are loading. Check back later.",
   chartTitle: "Daily Active Users",
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ templateMetricsData }) => {
+export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData }) => {
   const theme: Theme = useTheme()
 
   if (templateMetricsData.entries.length === 0) {
     return (
-      <div style={{ marginTop: "-20px" }}>
+      // We generate hidden element to prove this path is taken in the test
+      // and through site inspection.
+      <div style={{ display: "none" }}>
         <p>{Language.loadingText}</p>
       </div>
     )

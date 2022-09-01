@@ -28,9 +28,9 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     },
   })
 
-  const { template, activeTemplateVersion, templateResources, templateVersions } =
+  const { template, activeTemplateVersion, templateResources, templateVersions, templateDAUs } =
     templateState.context
-  const isLoading = !template || !activeTemplateVersion || !templateResources
+  const isLoading = !template || !activeTemplateVersion || !templateResources || !template
 
   if (isLoading) {
     return <Loader />
@@ -46,6 +46,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         activeTemplateVersion={activeTemplateVersion}
         templateResources={templateResources}
         templateVersions={templateVersions}
+        templateDAUs={templateDAUs}
       />
     </>
   )

@@ -4,14 +4,17 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import { useMachine } from "@xstate/react"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "util/firstLetter"
-import { templateMetricsMachine } from "xServices/templateMetrics/templateMetricsXService"
-import { Template, TemplateVersion, WorkspaceResource } from "../../api/typesGenerated"
+import {
+  Template,
+  TemplateDAUsResponse,
+  TemplateVersion,
+  WorkspaceResource,
+} from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -23,7 +26,7 @@ import { TemplateResourcesTable } from "../../components/TemplateResourcesTable/
 import { TemplateStats } from "../../components/TemplateStats/TemplateStats"
 import { VersionsTable } from "../../components/VersionsTable/VersionsTable"
 import { WorkspaceSection } from "../../components/WorkspaceSection/WorkspaceSection"
-import { DAUChart } from "./DAUCharts"
+import { DAUChart } from "./DAUChart"
 
 const Language = {
   settingsButton: "Settings",
@@ -39,6 +42,7 @@ export interface TemplatePageViewProps {
   activeTemplateVersion: TemplateVersion
   templateResources: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
+  templateDAUs?: TemplateDAUsResponse
 }
 
 export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
@@ -46,17 +50,11 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   activeTemplateVersion,
   templateResources,
   templateVersions,
+  templateDAUs,
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
   const hasIcon = template.icon && template.icon !== ""
-
-  const [metricsState] = useMachine(templateMetricsMachine, {
-    context: {
-      templateId: template.id,
-    },
-  })
-  const { templateMetricsData } = metricsState.context
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter((resource) => resource.workspace_transition === "start")
@@ -105,7 +103,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         </Stack>
       </PageHeader>
 
-      {templateMetricsData && <DAUChart templateMetricsData={templateMetricsData} />}
+      {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
 
       <Stack spacing={2.5}>
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
