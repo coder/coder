@@ -23,8 +23,6 @@ export const WorkspaceLastUsed: FC<WorkspaceLastUsedProps> = ({ lastUsedAt }) =>
     color = theme.palette.success.main
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
-    // we default to "Today" instead of showing a
-    // potentially inaccurate value.
     message = "Last Hour"
   } else if (t.isAfter(now.subtract(1, "day"))) {
     color = theme.palette.primary.main
