@@ -39,7 +39,7 @@
     "axios": "0.26.1",
     "can-ndjson-stream": "1.0.2",
     "chart.js": "^3.5.0",
-    "cron-parser": "4.5.0",
+    "cron-parser": "4.6.0",
     "cronstrue": "2.11.0",
     "dayjs": "1.11.4",
     "emoji-mart": "^5.2.1",
