@@ -701,7 +701,13 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 			}
 			region, found := derpMap.Regions[regionID]
 			if !found {
-				return codersdk.WorkspaceAgent{}, xerrors.Errorf("region %d not found in derpmap", regionID)
+				// It's possible that a workspace agent is using an old DERPMap
+				// and reports regions that do not exist. If that's the case,
+				// report the region as unknown!
+				region = &tailcfg.DERPRegion{
+					RegionID:   regionID,
+					RegionName: fmt.Sprintf("Unnamed %d", regionID),
+				}
 			}
 			workspaceAgent.DERPLatency[region.RegionName] = codersdk.DERPRegion{
 				Preferred:           node.PreferredDERP == regionID,
