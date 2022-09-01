@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -244,7 +245,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = resp.Cookies()[0].Value
+		client.SessionToken = authCookieValue(resp.Cookies())
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
@@ -374,7 +375,7 @@ func TestUserOIDC(t *testing.T) {
 			defer cancel()
 
 			if tc.Username != "" {
-				client.SessionToken = resp.Cookies()[0].Value
+				client.SessionToken = authCookieValue(resp.Cookies())
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
@@ -502,4 +503,13 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 
 func i64ptr(i int64) *int64 {
 	return &i
+}
+
+func authCookieValue(cookies []*http.Cookie) string {
+	for _, cookie := range cookies {
+		if strings.Contains(cookie.Name, "token") {
+			return cookie.Value
+		}
+	}
+	return ""
 }
