@@ -200,8 +200,9 @@ jobs:
           set -x
           cd dogfood
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          docker run --rm --entrypoint cat protoc  /tmp/bin/protoc > /usr/bin/protoc
-          chmod +x /usr/bin/protoc
+          protoc_dir=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_dir
+          chmod +x $protoc_dir
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
