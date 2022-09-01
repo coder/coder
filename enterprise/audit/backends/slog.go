@@ -6,8 +6,8 @@ import (
 	"github.com/fatih/structs"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/enterprise/audit"
 )
 
 type slogBackend struct {

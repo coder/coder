@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/audit/backends"
+	"github.com/coder/coder/enterprise/audit/audittest"
+	"github.com/coder/coder/enterprise/audit/backends"
 )
 
 func TestSlogBackend(t *testing.T) {
@@ -23,7 +24,7 @@ func TestSlogBackend(t *testing.T) {
 			logger  = slog.Make(sink)
 			backend = backends.NewSlog(logger)
 
-			alog = randomAuditLog()
+			alog = audittest.RandomAuditLog()
 		)
 		defer cancel()
 

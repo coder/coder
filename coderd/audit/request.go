@@ -2,22 +2,28 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
+	"net"
 	"net/http"
 
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	Action       database.AuditAction
-	ResourceType database.ResourceType
-	Actor        uuid.UUID
+	Request        *http.Request
+	ResourceID     uuid.UUID
+	ResourceTarget string
+	Action         database.AuditAction
+	ResourceType   database.ResourceType
+	Actor          uuid.UUID
 }
 
 type Request[T Auditable] struct {
@@ -31,9 +37,9 @@ type Request[T Auditable] struct {
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
 func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
-	sw, ok := w.(chimw.WrapResponseWriter)
+	sw, ok := w.(*httpapi.StatusWriter)
 	if !ok {
-		panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")
+		panic("dev error: http.ResponseWriter is not *httpapi.StatusWriter")
 	}
 
 	req := &Request[T]{
@@ -42,11 +48,54 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 	return req, func() {
 		ctx := context.Background()
-		code := sw.Status()
 
-		err := p.Audit.Export(ctx, database.AuditLog{StatusCode: int32(code)})
+		diff := Diff(p.Audit, req.Old, req.New)
+		diffRaw, _ := json.Marshal(diff)
+
+		ip, err := parseIP(p.Request.RemoteAddr)
+		if err != nil {
+			p.Log.Warn(ctx, "parse ip", slog.Error(err))
+		}
+
+		err = p.Audit.Export(ctx, database.AuditLog{
+			ID:             uuid.New(),
+			Time:           database.Now(),
+			UserID:         p.Actor,
+			Ip:             ip,
+			UserAgent:      p.Request.UserAgent(),
+			ResourceType:   p.ResourceType,
+			ResourceID:     p.ResourceID,
+			ResourceTarget: p.ResourceTarget,
+			Action:         p.Action,
+			Diff:           diffRaw,
+			StatusCode:     int32(sw.Status),
+		})
 		if err != nil {
 			p.Log.Error(ctx, "export audit log", slog.Error(err))
 		}
 	}
+}
+
+func parseIP(ipStr string) (pqtype.Inet, error) {
+	var err error
+
+	ipStr, _, err = net.SplitHostPort(ipStr)
+	if err != nil {
+		return pqtype.Inet{}, err
+	}
+
+	ip := net.ParseIP(ipStr)
+
+	ipNet := net.IPNet{}
+	if ip != nil {
+		ipNet = net.IPNet{
+			IP:   ip,
+			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
+		}
+	}
+
+	return pqtype.Inet{
+		IPNet: ipNet,
+		Valid: ip != nil,
+	}, nil
 }

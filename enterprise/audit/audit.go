@@ -3,6 +3,8 @@ package audit
 import (
 	"context"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 )
@@ -15,8 +17,10 @@ type Backend interface {
 	Export(ctx context.Context, alog database.AuditLog) error
 }
 
-func NewAuditor() audit.Auditor {
+func NewAuditor(filter Filter, backends ...Backend) audit.Auditor {
 	return &auditor{
+		filter:   filter,
+		backends: backends,
 		Differ: audit.Differ{DiffFn: func(old, new any) audit.Map {
 			return diffValues(old, new, AuditableResources)
 		}},
@@ -25,15 +29,31 @@ func NewAuditor() audit.Auditor {
 
 // auditor is the enterprise implementation of the Auditor interface.
 type auditor struct {
-	//nolint:unused
-	filter Filter
-	//nolint:unused
+	filter   Filter
 	backends []Backend
 
 	audit.Differ
 }
 
 //nolint:unused
-func (*auditor) Export(context.Context, database.AuditLog) error {
-	panic("not implemented") // TODO: Implement
+func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
+	decision, err := a.filter.Check(ctx, alog)
+	if err != nil {
+		return xerrors.Errorf("filter check: %w", err)
+	}
+
+	for _, backend := range a.backends {
+		if decision&backend.Decision() != backend.Decision() {
+			continue
+		}
+
+		err = backend.Export(ctx, alog)
+		if err != nil {
+			// naively return the first error. should probably make this smarter
+			// by returning multiple errors.
+			return xerrors.Errorf("export audit log to backend: %w", err)
+		}
+	}
+
+	return nil
 }

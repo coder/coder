@@ -2,26 +2,25 @@ package audit_test
 
 import (
 	"context"
-	"net"
-	"net/http"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/tabbed/pqtype"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/audit/audittest"
 )
 
-func TestExporter(t *testing.T) {
+func TestAuditor(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
 		name            string
 		filterDecision  audit.FilterDecision
+		filterError     error
 		backendDecision audit.FilterDecision
+		backendError    error
 		shouldExport    bool
 	}{
 		{
@@ -60,11 +59,22 @@ func TestExporter(t *testing.T) {
 			backendDecision: audit.FilterDecisionExport,
 			shouldExport:    true,
 		},
+		{
+			name:            "FilterError",
+			filterError:     xerrors.New("filter errored"),
+			backendDecision: audit.FilterDecisionExport,
+			shouldExport:    false,
+		},
+		{
+			name:         "BackendError",
+			backendError: xerrors.New("backend errored"),
+			shouldExport: false,
+		},
 		// When more filters are written they should have their own tests.
 		{
 			name: "DefaultFilter",
 			filterDecision: func() audit.FilterDecision {
-				decision, _ := audit.DefaultFilter.Check(context.Background(), randomAuditLog())
+				decision, _ := audit.DefaultFilter.Check(context.Background(), audittest.RandomAuditLog())
 				return decision
 			}(),
 			backendDecision: audit.FilterDecisionExport,
@@ -78,45 +88,30 @@ func TestExporter(t *testing.T) {
 			t.Parallel()
 
 			var (
-				backend  = &testBackend{decision: test.backendDecision}
-				exporter = audit.NewExporter(
+				backend  = &testBackend{decision: test.backendDecision, err: test.backendError}
+				exporter = audit.NewAuditor(
 					audit.FilterFunc(func(_ context.Context, _ database.AuditLog) (audit.FilterDecision, error) {
-						return test.filterDecision, nil
+						return test.filterDecision, test.filterError
 					}),
 					backend,
 				)
 			)
 
-			err := exporter.Export(context.Background(), randomAuditLog())
-			require.NoError(t, err)
+			err := exporter.Export(context.Background(), audittest.RandomAuditLog())
+			if test.filterError != nil {
+				require.ErrorIs(t, err, test.filterError)
+			} else if test.backendError != nil {
+				require.ErrorIs(t, err, test.backendError)
+			}
+
 			require.Equal(t, len(backend.alogs) > 0, test.shouldExport)
 		})
 	}
 }
 
-func randomAuditLog() database.AuditLog {
-	_, inet, _ := net.ParseCIDR("127.0.0.1/32")
-	return database.AuditLog{
-		ID:             uuid.New(),
-		Time:           time.Now(),
-		UserID:         uuid.New(),
-		OrganizationID: uuid.New(),
-		Ip: pqtype.Inet{
-			IPNet: *inet,
-			Valid: true,
-		},
-		UserAgent:      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36",
-		ResourceType:   database.ResourceTypeOrganization,
-		ResourceID:     uuid.New(),
-		ResourceTarget: "colin's organization",
-		Action:         database.AuditActionDelete,
-		Diff:           []byte{},
-		StatusCode:     http.StatusNoContent,
-	}
-}
-
 type testBackend struct {
 	decision audit.FilterDecision
+	err      error
 
 	alogs []database.AuditLog
 }
@@ -126,6 +121,10 @@ func (t *testBackend) Decision() audit.FilterDecision {
 }
 
 func (t *testBackend) Export(_ context.Context, alog database.AuditLog) error {
+	if t.err != nil {
+		return t.err
+	}
+
 	t.alogs = append(t.alogs, alog)
 	return nil
 }
