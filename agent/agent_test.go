@@ -57,24 +57,59 @@ func TestAgent(t *testing.T) {
 			t.Run(fmt.Sprintf("tailscale=%v", tailscale), func(t *testing.T) {
 				t.Parallel()
 
-				var derpMap *tailcfg.DERPMap
-				if tailscale {
-					derpMap = tailnettest.RunDERPAndSTUN(t)
+				setupAgent := func(t *testing.T) (agent.Conn, <-chan *agent.Stats) {
+					var derpMap *tailcfg.DERPMap
+					if tailscale {
+						derpMap = tailnettest.RunDERPAndSTUN(t)
+					}
+					conn, stats := setupAgent(t, agent.Metadata{
+						DERPMap: derpMap,
+					}, 0)
+					assert.Empty(t, <-stats)
+					return conn, stats
 				}
-				conn, stats := setupAgent(t, agent.Metadata{
-					DERPMap: derpMap,
-				}, 0)
-				assert.Empty(t, <-stats)
 
-				sshClient, err := conn.SSHClient()
-				require.NoError(t, err)
-				session, err := sshClient.NewSession()
-				require.NoError(t, err)
-				defer session.Close()
+				t.Run("SSH", func(t *testing.T) {
+					t.Parallel()
+					conn, stats := setupAgent(t)
 
-				assert.EqualValues(t, 1, (<-stats).NumConns)
-				assert.Greater(t, (<-stats).RxBytes, int64(0))
-				assert.Greater(t, (<-stats).TxBytes, int64(0))
+					sshClient, err := conn.SSHClient()
+					require.NoError(t, err)
+					session, err := sshClient.NewSession()
+					require.NoError(t, err)
+					defer session.Close()
+
+					assert.EqualValues(t, 1, (<-stats).NumConns)
+					assert.Greater(t, (<-stats).RxBytes, int64(0))
+					assert.Greater(t, (<-stats).TxBytes, int64(0))
+				})
+
+				t.Run("ReconnectingPTY", func(t *testing.T) {
+					t.Parallel()
+
+					conn, stats := setupAgent(t)
+
+					ptyConn, err := conn.ReconnectingPTY(uuid.NewString(), 128, 128, "/bin/bash")
+					require.NoError(t, err)
+					defer ptyConn.Close()
+
+					data, err := json.Marshal(agent.ReconnectingPTYRequest{
+						Data: "echo test\r\n",
+					})
+					require.NoError(t, err)
+					_, err = ptyConn.Write(data)
+					require.NoError(t, err)
+
+					require.Eventually(t, func() bool {
+						s, ok := (<-stats)
+						return ok && s.NumConns > 0
+					}, testutil.WaitShort, testutil.IntervalFast,
+						"never saw conn",
+					)
+					assert.EqualValues(t, 1, (<-stats).NumConns)
+					assert.Greater(t, (<-stats).RxBytes, int64(0))
+					assert.Greater(t, (<-stats).TxBytes, int64(0))
+				})
 			})
 		}
 	})

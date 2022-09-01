@@ -231,8 +231,10 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
+				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
+			conn = a.stats.wrapConn(conn)
 			// This cannot use a JSON decoder, since that can
 			// buffer additional data that is required for the PTY.
 			rawLen := make([]byte, 2)
@@ -251,7 +253,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				continue
 			}
-			go a.handleReconnectingPTY(ctx, msg, a.stats.wrapConn(conn))
+			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}()
 }
