@@ -137,3 +137,11 @@ SET
 	ttl = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = $2
+WHERE
+	id = $1;

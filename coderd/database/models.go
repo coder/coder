@@ -525,6 +525,7 @@ type Workspace struct {
 	Name              string         `db:"name" json:"name"`
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
 }
 
 type WorkspaceAgent struct {
