@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react"
+import { ResizeObserver } from "resize-observer"
 import * as CreateDayString from "util/createDayString"
 import {
   MockTemplate,
