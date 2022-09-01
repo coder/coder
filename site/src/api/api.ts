@@ -153,6 +153,11 @@ export const updateTemplateMeta = async (
   return response.data
 }
 
+export const deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
+  const response = await axios.delete<TypesGen.Template>(`/api/v2/templates/${templateId}`)
+  return response.data
+}
+
 export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,

@@ -2,7 +2,7 @@ import { fireEvent, screen } from "@testing-library/react"
 import { WorkspaceStateEnum } from "util/workspace"
 import * as Mocks from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
-import { Language } from "./ActionCtas"
+import { Language } from "../DropdownButton/ActionCtas"
 import { WorkspaceActions, WorkspaceActionsProps } from "./WorkspaceActions"
 
 const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
