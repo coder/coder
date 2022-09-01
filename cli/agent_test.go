@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -59,6 +60,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
+		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
+			assert.NotEmpty(t, resources[0].Agents[0].Version)
+		}
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
@@ -114,6 +118,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
+		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
+			assert.NotEmpty(t, resources[0].Agents[0].Version)
+		}
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
@@ -169,6 +176,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
+		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
+			assert.NotEmpty(t, resources[0].Agents[0].Version)
+		}
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()

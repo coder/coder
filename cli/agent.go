@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -73,7 +74,12 @@ func workspaceAgent() *cobra.Command {
 				return nil
 			}
 
-			logger.Info(cmd.Context(), "starting agent", slog.F("url", coderURL), slog.F("auth", auth))
+			version := buildinfo.Version()
+			logger.Info(cmd.Context(), "starting agent",
+				slog.F("url", coderURL),
+				slog.F("auth", auth),
+				slog.F("version", version),
+			)
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -172,16 +178,20 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
-				Logger: logger,
+			if err := client.PostWorkspaceAgentVersion(cmd.Context(), version); err != nil {
+				logger.Error(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
+			}
+
+			closer := agent.New(agent.Options{
+				FetchMetadata: client.WorkspaceAgentMetadata,
+				WebRTCDialer:  client.ListenWorkspaceAgent,
+				Logger:        logger,
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				EnableWireguard:      wireguard,
-				UploadWireguardKeys:  client.UploadWorkspaceAgentKeys,
-				ListenWireguardPeers: client.WireguardPeerListener,
+				CoordinatorDialer: client.ListenWorkspaceAgentTailnet,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

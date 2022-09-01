@@ -34,6 +34,41 @@ export interface AssignableRoles extends Role {
   readonly assignable: boolean
 }
 
+// From codersdk/audit.go
+export type AuditDiff = Record<string, AuditDiffField>
+
+// From codersdk/audit.go
+export interface AuditDiffField {
+  // eslint-disable-next-line
+  readonly Old: any
+  // eslint-disable-next-line
+  readonly New: any
+  readonly Secret: boolean
+}
+
+// From codersdk/audit.go
+export interface AuditLog {
+  readonly id: string
+  readonly request_id: string
+  readonly time: string
+  readonly organization_id: string
+  // Named type "net/netip.Addr" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly ip: any
+  readonly user_agent: string
+  readonly resource_type: ResourceType
+  readonly resource_id: string
+  readonly resource_target: string
+  readonly resource_icon: string
+  readonly action: AuditAction
+  readonly diff: AuditDiff
+  readonly status_code: number
+  // This is likely an enum in an external package ("encoding/json.RawMessage")
+  readonly additional_fields: string
+  readonly description: string
+  readonly user?: User
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
@@ -138,6 +173,12 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
 }
 
 // From codersdk/features.go
@@ -247,6 +288,11 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
+}
+
+// From codersdk/workspaceagents.go
+export interface PostWorkspaceAgentVersionRequest {
+  readonly version: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -371,6 +417,11 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceRequest {
+  readonly name?: string
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
 }
@@ -464,21 +515,21 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly version: string
   readonly apps: WorkspaceApp[]
-  // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly wireguard_public_key: any
-  // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly disco_public_key: any
-  // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ipv6: any
+  readonly latency: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentConnectionInfo {
+  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go
@@ -565,6 +616,9 @@ export interface WorkspaceResourceMetadata {
   readonly sensitive: boolean
 }
 
+// From codersdk/audit.go
+export type AuditAction = "create" | "delete" | "write"
+
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
@@ -606,6 +660,9 @@ export type ProvisionerStorageMethod = "file"
 
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
+
+// From codersdk/audit.go
+export type ResourceType = "organization" | "template" | "template_version" | "user" | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

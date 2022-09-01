@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -63,8 +63,9 @@ type Claims struct {
 }
 
 var (
-	ErrInvalidVersion = xerrors.New("license must be version 3")
-	ErrMissingKeyID   = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrInvalidVersion        = xerrors.New("license must be version 3")
+	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
 )
 
 // parseLicense parses the license and returns the claims. If the license's signature is invalid or
@@ -85,6 +86,30 @@ func parseLicense(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, e
 		}
 		if int64(version) != CurrentVersion {
 			return nil, ErrInvalidVersion
+		}
+		return claims, nil
+	}
+	return nil, xerrors.New("unable to parse Claims")
+}
+
+// validateDBLicense validates a database.License record, and if valid, returns the claims.  If
+// unparsable or invalid, it returns an error
+func validateDBLicense(l database.License, keys map[string]ed25519.PublicKey) (*Claims, error) {
+	tok, err := jwt.ParseWithClaims(
+		l.JWT,
+		&Claims{},
+		keyFunc(keys),
+		jwt.WithValidMethods(ValidMethods),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if claims, ok := tok.Claims.(*Claims); ok && tok.Valid {
+		if claims.Version != uint64(CurrentVersion) {
+			return nil, ErrInvalidVersion
+		}
+		if claims.LicenseExpires == nil {
+			return nil, ErrMissingLicenseExpires
 		}
 		return claims, nil
 	}
@@ -125,6 +150,7 @@ func newLicenseAPI(
 	a := &licenseAPI{router: r, logger: l, database: db, pubsub: ps, auth: auth}
 	r.Post("/", a.postLicense)
 	r.Get("/", a.licenses)
+	r.Delete("/{id}", a.delete)
 	return a
 }
 
@@ -264,4 +290,42 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
+}
+
+func (a *licenseAPI) delete(rw http.ResponseWriter, r *http.Request) {
+	if !a.auth.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "License ID must be an integer",
+		})
+		return
+	}
+
+	_, err = a.database.DeleteLicense(r.Context(), int32(id))
+	if xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "Unknown license ID",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = a.pubsub.Publish(PubSubEventLicenses, []byte("delete"))
+	if err != nil {
+		a.logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
+		// don't fail the HTTP request, since we did write it successfully to the database
+	}
+	rw.WriteHeader(http.StatusOK)
 }

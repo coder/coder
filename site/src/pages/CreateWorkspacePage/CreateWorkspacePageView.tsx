@@ -72,7 +72,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           createRequests.push({
             name: schema.name,
             destination_scheme: schema.default_destination_scheme,
-            source_scheme: schema.default_source_scheme,
+            source_scheme: "data",
             source_value: value,
           })
         })

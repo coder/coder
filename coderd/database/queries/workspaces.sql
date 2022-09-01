@@ -112,6 +112,16 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspace :one
+UPDATE
+	workspaces
+SET
+	name = $2
+WHERE
+	id = $1
+	AND deleted = false
+RETURNING *;
+
 -- name: UpdateWorkspaceAutostart :exec
 UPDATE
 	workspaces

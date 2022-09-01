@@ -109,8 +109,11 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -199,7 +202,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 
-		_, _, err = agentClient.ListenWorkspaceAgent(ctx, slogtest.Make(t, nil))
+		_, err = agentClient.ListenWorkspaceAgent(ctx, slogtest.Make(t, nil))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "build is outdated")
 	})
@@ -240,8 +243,11 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()
@@ -263,6 +269,65 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	}()
 	_, err = conn.Ping()
 	require.NoError(t, err)
+}
+
+func TestWorkspaceAgentTailnet(t *testing.T) {
+	t.Parallel()
+	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer agentCloser.Close()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug), resources[0].Agents[0].ID)
+	require.NoError(t, err)
+	defer conn.Close()
+	sshClient, err := conn.SSHClient()
+	require.NoError(t, err)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	output, err := session.CombinedOutput("echo test")
+	require.NoError(t, err)
+	_ = session.Close()
+	_ = sshClient.Close()
+	_ = conn.Close()
+	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
 func TestWorkspaceAgentPTY(t *testing.T) {
@@ -305,8 +370,11 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()

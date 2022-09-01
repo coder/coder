@@ -2,6 +2,7 @@ package coderdtest
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -43,6 +44,7 @@ type AuthTester struct {
 	File                  codersdk.UploadResponse
 	TemplateVersionDryRun codersdk.ProvisionerJob
 	TemplateParam         codersdk.Parameter
+	URLParams             map[string]string
 }
 
 func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTester {
@@ -83,10 +85,11 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 						Name: "some",
 						Type: "example",
 						Agents: []*proto.Agent{{
+							Name: "agent",
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
 							Apps: []*proto.App{{
-								Name: "app",
+								Name: "testapp",
 								Url:  "http://localhost:3000",
 							}},
 						}},
@@ -116,6 +119,29 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 	})
 	require.NoError(t, err, "create template param")
 
+	urlParameters := map[string]string{
+		"{organization}":        admin.OrganizationID.String(),
+		"{user}":                admin.UserID.String(),
+		"{organizationname}":    organization.Name,
+		"{workspace}":           workspace.ID.String(),
+		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
+		"{workspacename}":       workspace.Name,
+		"{workspacebuildname}":  workspace.LatestBuild.Name,
+		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		"{template}":            template.ID.String(),
+		"{hash}":                file.Hash,
+		"{workspaceresource}":   workspaceResources[0].ID.String(),
+		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{templateversion}":     version.ID.String(),
+		"{jobID}":               templateVersionDryRun.ID.String(),
+		"{templatename}":        template.Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		// Only checking template scoped params here
+		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
+			string(templateParam.Scope), templateParam.ScopeID.String()),
+	}
+
 	return &AuthTester{
 		t:                     t,
 		api:                   api,
@@ -130,6 +156,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 		File:                  file,
 		TemplateVersionDryRun: templateVersionDryRun,
 		TemplateParam:         templateParam,
+		URLParams:             urlParameters,
 	}
 }
 
@@ -140,6 +167,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
+		"GET:/derp":                 "This requires a WebSocket upgrade!",
 	}
 
 	assertRoute := map[string]RouteCheck{
@@ -152,15 +180,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"GET:/api/v2/entitlements":      {NoAuthorize: true},
-
-		"GET:/%40{user}/{workspacename}/apps/{application}/*": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
-		"GET:/@{user}/{workspacename}/apps/{application}/*": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -175,11 +194,9 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/derp":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/wireguardlisten":          {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/version":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
@@ -188,7 +205,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
 		},
-		"GET:/api/v2/users/me/workspace/{workspacename}/builds/{buildnumber}": {
+		"GET:/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
 		},
@@ -216,7 +233,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
-		"PUT:/api/v2/workspaces/{workspace}/autostop": {
+		"PUT:/api/v2/workspaces/{workspace}/ttl": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
@@ -252,6 +269,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/coordinate": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
+		},
 		"GET:/api/v2/workspaces/": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
@@ -275,7 +296,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{fileHash}": {
+		"GET:/api/v2/files/{hash}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceFile.WithOwner(a.Admin.UserID.String()),
 		},
@@ -320,19 +341,19 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
-		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}": {
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
-		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/resources": {
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
-		"GET:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/logs": {
+		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
-		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{templateversiondryrun}/cancel": {
+		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
@@ -366,10 +387,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"POST:/api/v2/users/{user}/organizations": {
-			AssertAction: rbac.ActionCreate,
-			AssertObject: rbac.ResourceOrganization,
-		},
 		"GET:/api/v2/users": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
@@ -378,6 +395,29 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
+
+	// Routes like proxy routes support all HTTP methods. A helper func to expand
+	// 1 url to all http methods.
+	assertAllHTTPMethods := func(url string, check RouteCheck) {
+		methods := []string{http.MethodGet, http.MethodHead, http.MethodPost,
+			http.MethodPut, http.MethodPatch, http.MethodDelete,
+			http.MethodConnect, http.MethodOptions, http.MethodTrace}
+
+		for _, method := range methods {
+			route := method + ":" + url
+			assertRoute[route] = check
+		}
+	}
+
+	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+		AssertAction: rbac.ActionCreate,
+		AssertObject: workspaceExecObj,
+	})
+	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+		AssertAction: rbac.ActionCreate,
+		AssertObject: workspaceExecObj,
+	})
+
 	return skipRoutes, assertRoute
 }
 
@@ -385,6 +425,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 	// Always fail auth from this point forward
 	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
+	routeMissing := make(map[string]bool)
 	for k, v := range assertRoute {
 		noTrailSlash := strings.TrimRight(k, "/")
 		if _, ok := assertRoute[noTrailSlash]; ok && noTrailSlash != k {
@@ -392,6 +433,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 			a.t.FailNow()
 		}
 		assertRoute[noTrailSlash] = v
+		routeMissing[noTrailSlash] = true
 	}
 
 	for k, v := range skipRoutes {
@@ -422,32 +464,19 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 			}
 			a.t.Run(name, func(t *testing.T) {
 				a.authorizer.reset()
-				routeAssertions, ok := assertRoute[strings.TrimRight(name, "/")]
+				routeKey := strings.TrimRight(name, "/")
+
+				routeAssertions, ok := assertRoute[routeKey]
 				if !ok {
 					// By default, all omitted routes check for just "authorize" called
 					routeAssertions = RouteCheck{}
 				}
+				delete(routeMissing, routeKey)
 
 				// Replace all url params with known values
-				route = strings.ReplaceAll(route, "{organization}", a.Admin.OrganizationID.String())
-				route = strings.ReplaceAll(route, "{user}", a.Admin.UserID.String())
-				route = strings.ReplaceAll(route, "{organizationname}", a.Organization.Name)
-				route = strings.ReplaceAll(route, "{workspace}", a.Workspace.ID.String())
-				route = strings.ReplaceAll(route, "{workspacebuild}", a.Workspace.LatestBuild.ID.String())
-				route = strings.ReplaceAll(route, "{workspacename}", a.Workspace.Name)
-				route = strings.ReplaceAll(route, "{workspacebuildname}", a.Workspace.LatestBuild.Name)
-				route = strings.ReplaceAll(route, "{workspaceagent}", a.WorkspaceResource.Agents[0].ID.String())
-				route = strings.ReplaceAll(route, "{buildnumber}", strconv.FormatInt(int64(a.Workspace.LatestBuild.BuildNumber), 10))
-				route = strings.ReplaceAll(route, "{template}", a.Template.ID.String())
-				route = strings.ReplaceAll(route, "{hash}", a.File.Hash)
-				route = strings.ReplaceAll(route, "{workspaceresource}", a.WorkspaceResource.ID.String())
-				route = strings.ReplaceAll(route, "{workspaceapp}", a.WorkspaceResource.Agents[0].Apps[0].Name)
-				route = strings.ReplaceAll(route, "{templateversion}", a.Version.ID.String())
-				route = strings.ReplaceAll(route, "{templateversiondryrun}", a.TemplateVersionDryRun.ID.String())
-				route = strings.ReplaceAll(route, "{templatename}", a.Template.Name)
-				// Only checking template scoped params here
-				route = strings.ReplaceAll(route, "{scope}", string(a.TemplateParam.Scope))
-				route = strings.ReplaceAll(route, "{id}", a.TemplateParam.ScopeID.String())
+				for k, v := range a.URLParams {
+					route = strings.ReplaceAll(route, k, v)
+				}
 
 				resp, err := a.Client.Request(ctx, method, route, nil)
 				require.NoError(t, err, "do req")
@@ -486,6 +515,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 			return nil
 		})
 	require.NoError(a.t, err)
+	require.Len(a.t, routeMissing, 0, "didn't walk some asserted routes: %v", routeMissing)
 }
 
 type authCall struct {

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -192,7 +191,7 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogsBefore = `-- name: GetAuditLogsBefore :many
 SELECT
-	id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code
+	id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 FROM
 	audit_logs
 WHERE
@@ -233,6 +232,9 @@ func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBef
 			&i.Action,
 			&i.Diff,
 			&i.StatusCode,
+			&i.AdditionalFields,
+			&i.RequestID,
+			&i.ResourceIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -261,25 +263,31 @@ INSERT INTO
         resource_target,
         action,
         diff,
-        status_code
+        status_code,
+        additional_fields,
+        request_id,
+        resource_icon
     )
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	Time           time.Time       `db:"time" json:"time"`
-	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent      string          `db:"user_agent" json:"user_agent"`
-	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget string          `db:"resource_target" json:"resource_target"`
-	Action         AuditAction     `db:"action" json:"action"`
-	Diff           json.RawMessage `db:"diff" json:"diff"`
-	StatusCode     int32           `db:"status_code" json:"status_code"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	Time             time.Time       `db:"time" json:"time"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip               pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
+	Action           AuditAction     `db:"action" json:"action"`
+	Diff             json.RawMessage `db:"diff" json:"diff"`
+	StatusCode       int32           `db:"status_code" json:"status_code"`
+	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
 func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error) {
@@ -296,6 +304,9 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		arg.Action,
 		arg.Diff,
 		arg.StatusCode,
+		arg.AdditionalFields,
+		arg.RequestID,
+		arg.ResourceIcon,
 	)
 	var i AuditLog
 	err := row.Scan(
@@ -311,6 +322,9 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		&i.Action,
 		&i.Diff,
 		&i.StatusCode,
+		&i.AdditionalFields,
+		&i.RequestID,
+		&i.ResourceIcon,
 	)
 	return i, err
 }
@@ -475,6 +489,19 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const deleteLicense = `-- name: DeleteLicense :one
+DELETE
+FROM licenses
+WHERE id = $1
+RETURNING id
+`
+
+func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteLicense, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp
 FROM licenses
@@ -483,6 +510,41 @@ ORDER BY (id)
 
 func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	rows, err := q.db.QueryContext(ctx, getLicenses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []License
+	for rows.Next() {
+		var i License
+		if err := rows.Scan(
+			&i.ID,
+			&i.UploadedAt,
+			&i.JWT,
+			&i.Exp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
+SELECT id, uploaded_at, jwt, exp
+FROM licenses
+WHERE exp > NOW()
+ORDER BY (id)
+`
+
+func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error) {
+	rows, err := q.db.QueryContext(ctx, getUnexpiredLicenses)
 	if err != nil {
 		return nil, err
 	}
@@ -2651,6 +2713,22 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const getActiveUserCount = `-- name: GetActiveUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+    status = 'active'::public.user_status
+`
+
+func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAuthorizationUserRoles = `-- name: GetAuthorizationUserRoles :one
 SELECT
 	-- username is returned just to help for logging purposes
@@ -3094,7 +3172,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
 FROM
 	workspace_agents
 WHERE
@@ -3124,16 +3202,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
 FROM
 	workspace_agents
 WHERE
@@ -3161,16 +3237,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
 FROM
 	workspace_agents
 WHERE
@@ -3200,16 +3274,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
 FROM
 	workspace_agents
 WHERE
@@ -3243,9 +3315,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
-			&i.WireguardNodeIPv6,
-			&i.WireguardNodePublicKey,
-			&i.WireguardDiscoPublicKey,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3261,7 +3331,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -3291,9 +3361,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
 			&i.Directory,
-			&i.WireguardNodeIPv6,
-			&i.WireguardNodePublicKey,
-			&i.WireguardDiscoPublicKey,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -3324,33 +3392,27 @@ INSERT INTO
 		startup_script,
 		directory,
 		instance_metadata,
-		resource_metadata,
-		wireguard_node_ipv6,
-		wireguard_node_public_key,
-		wireguard_disco_public_key
+		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, wireguard_node_ipv6, wireguard_node_public_key, wireguard_disco_public_key
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
 `
 
 type InsertWorkspaceAgentParams struct {
-	ID                      uuid.UUID             `db:"id" json:"id"`
-	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
-	Name                    string                `db:"name" json:"name"`
-	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture            string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
-	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
-	Directory               string                `db:"directory" json:"directory"`
-	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	Name                 string                `db:"name" json:"name"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture         string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	Directory            string                `db:"directory" json:"directory"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -3369,9 +3431,6 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.Directory,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
-		arg.WireguardNodeIPv6,
-		arg.WireguardNodePublicKey,
-		arg.WireguardDiscoPublicKey,
 	)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -3392,9 +3451,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
 		&i.Directory,
-		&i.WireguardNodeIPv6,
-		&i.WireguardNodePublicKey,
-		&i.WireguardDiscoPublicKey,
+		&i.Version,
 	)
 	return i, err
 }
@@ -3430,31 +3487,22 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
-const updateWorkspaceAgentKeysByID = `-- name: UpdateWorkspaceAgentKeysByID :exec
+const updateWorkspaceAgentVersionByID = `-- name: UpdateWorkspaceAgentVersionByID :exec
 UPDATE
 	workspace_agents
 SET
-	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3,
-	updated_at = $4
+	version = $2
 WHERE
 	id = $1
 `
 
-type UpdateWorkspaceAgentKeysByIDParams struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	WireguardNodePublicKey  dbtypes.NodePublic  `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
-	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+type UpdateWorkspaceAgentVersionByIDParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	Version string    `db:"version" json:"version"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAgentKeysByID(ctx context.Context, arg UpdateWorkspaceAgentKeysByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentKeysByID,
-		arg.ID,
-		arg.WireguardNodePublicKey,
-		arg.WireguardDiscoPublicKey,
-		arg.UpdatedAt,
-	)
+func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg UpdateWorkspaceAgentVersionByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentVersionByID, arg.ID, arg.Version)
 	return err
 }
 
@@ -4703,6 +4751,40 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.AutostartSchedule,
 		arg.Ttl,
 	)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+	)
+	return i, err
+}
+
+const updateWorkspace = `-- name: UpdateWorkspace :one
+UPDATE
+	workspaces
+SET
+	name = $2
+WHERE
+	id = $1
+	AND deleted = false
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+`
+
+type UpdateWorkspaceParams struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspace, arg.ID, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

@@ -356,7 +356,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			if firstUser.CreatedAt.IsZero() {
 				firstUser = dbUser
 			}
-			if dbUser.CreatedAt.After(firstUser.CreatedAt) {
+			if dbUser.CreatedAt.Before(firstUser.CreatedAt) {
 				firstUser = dbUser
 			}
 		}

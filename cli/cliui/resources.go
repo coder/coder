@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/mod/semver"
 
 	"github.com/coder/coder/coderd/database"
 
@@ -18,6 +19,7 @@ type WorkspaceResourcesOptions struct {
 	HideAgentState bool
 	HideAccess     bool
 	Title          string
+	ServerVersion  string
 }
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
@@ -48,6 +50,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	row := table.Row{"Resource"}
 	if !options.HideAgentState {
 		row = append(row, "Status")
+		row = append(row, "Version")
 	}
 	if !options.HideAccess {
 		row = append(row, "Access")
@@ -91,21 +94,12 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 			}
 			if !options.HideAgentState {
 				var agentStatus string
+				var agentVersion string
 				if !options.HideAgentState {
-					switch agent.Status {
-					case codersdk.WorkspaceAgentConnecting:
-						since := database.Now().Sub(agent.CreatedAt)
-						agentStatus = Styles.Warn.Render("⦾ connecting") + " " +
-							Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
-					case codersdk.WorkspaceAgentDisconnected:
-						since := database.Now().Sub(*agent.DisconnectedAt)
-						agentStatus = Styles.Error.Render("⦾ disconnected") + " " +
-							Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
-					case codersdk.WorkspaceAgentConnected:
-						agentStatus = Styles.Keyword.Render("⦿ connected")
-					}
+					agentStatus = renderAgentStatus(agent)
+					agentVersion = renderAgentVersion(agent.Version, options.ServerVersion)
 				}
-				row = append(row, agentStatus)
+				row = append(row, agentStatus, agentVersion)
 			}
 			if !options.HideAccess {
 				sshCommand := "coder ssh " + options.WorkspaceName
@@ -121,4 +115,35 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	}
 	_, err := fmt.Fprintln(writer, tableWriter.Render())
 	return err
+}
+
+func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
+	switch agent.Status {
+	case codersdk.WorkspaceAgentConnecting:
+		since := database.Now().Sub(agent.CreatedAt)
+		return Styles.Warn.Render("⦾ connecting") + " " +
+			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+	case codersdk.WorkspaceAgentDisconnected:
+		since := database.Now().Sub(*agent.DisconnectedAt)
+		return Styles.Error.Render("⦾ disconnected") + " " +
+			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+	case codersdk.WorkspaceAgentConnected:
+		return Styles.Keyword.Render("⦿ connected")
+	default:
+		return Styles.Warn.Render("○ unknown")
+	}
+}
+
+func renderAgentVersion(agentVersion, serverVersion string) string {
+	if agentVersion == "" {
+		agentVersion = "(unknown)"
+	}
+	if !semver.IsValid(serverVersion) || !semver.IsValid(agentVersion) {
+		return Styles.Placeholder.Render(agentVersion)
+	}
+	outdated := semver.Compare(agentVersion, serverVersion) < 0
+	if outdated {
+		return Styles.Warn.Render(agentVersion + " (outdated)")
+	}
+	return Styles.Keyword.Render(agentVersion)
 }

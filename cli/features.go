@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
-
-var featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 
 func features() *cobra.Command {
 	cmd := &cobra.Command{
@@ -28,8 +27,9 @@ func features() *cobra.Command {
 
 func featuresList() *cobra.Command {
 	var (
-		columns      []string
-		outputFormat string
+		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
+		columns        []string
+		outputFormat   string
 	)
 
 	cmd := &cobra.Command{
@@ -53,12 +53,14 @@ func featuresList() *cobra.Command {
 					return xerrors.Errorf("render table: %w", err)
 				}
 			case "json":
-				outBytes, err := json.Marshal(entitlements)
+				buf := new(bytes.Buffer)
+				enc := json.NewEncoder(buf)
+				enc.SetIndent("", "  ")
+				err = enc.Encode(entitlements)
 				if err != nil {
 					return xerrors.Errorf("marshal features to JSON: %w", err)
 				}
-
-				out = string(outBytes)
+				out = buf.String()
 			default:
 				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}

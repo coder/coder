@@ -31,3 +31,43 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
+
+{{/*
+Coder listen port (must be > 1024)
+*/}}
+{{- define "coder.port" }}
+{{- if .Values.coder.tls.secretName -}}
+8443
+{{- else -}}
+8080
+{{- end -}}
+{{- end }}
+
+{{/*
+Coder service port
+*/}}
+{{- define "coder.servicePort" }}
+{{- if .Values.coder.tls.secretName -}}
+443
+{{- else -}}
+80
+{{- end -}}
+{{- end }}
+
+{{/*
+Port name
+*/}}
+{{- define "coder.portName" }}
+{{- if .Values.coder.tls.secretName -}}
+https
+{{- else -}}
+http
+{{- end -}}
+{{- end }}
+
+{{/*
+Scheme
+*/}}
+{{- define "coder.scheme" }}
+{{- include "coder.portName" . | upper -}}
+{{- end }}

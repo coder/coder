@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 )
@@ -326,18 +325,21 @@ type APIKey struct {
 }
 
 type AuditLog struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	Time           time.Time       `db:"time" json:"time"`
-	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent      string          `db:"user_agent" json:"user_agent"`
-	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget string          `db:"resource_target" json:"resource_target"`
-	Action         AuditAction     `db:"action" json:"action"`
-	Diff           json.RawMessage `db:"diff" json:"diff"`
-	StatusCode     int32           `db:"status_code" json:"status_code"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	Time             time.Time       `db:"time" json:"time"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip               pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
+	Action           AuditAction     `db:"action" json:"action"`
+	Diff             json.RawMessage `db:"diff" json:"diff"`
+	StatusCode       int32           `db:"status_code" json:"status_code"`
+	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
 type File struct {
@@ -516,26 +518,25 @@ type Workspace struct {
 }
 
 type WorkspaceAgent struct {
-	ID                      uuid.UUID             `db:"id" json:"id"`
-	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
-	Name                    string                `db:"name" json:"name"`
-	FirstConnectedAt        sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt         sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt          sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
-	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture            string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
-	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	Directory               string                `db:"directory" json:"directory"`
-	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	Name                 string                `db:"name" json:"name"`
+	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture         string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Directory            string                `db:"directory" json:"directory"`
+	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
+	Version string `db:"version" json:"version"`
 }
 
 type WorkspaceApp struct {

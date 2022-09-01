@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -49,4 +50,16 @@ func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	d := json.NewDecoder(res.Body)
 	d.UseNumber()
 	return licenses, d.Decode(&licenses)
+}
+
+func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/licenses/%d", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }

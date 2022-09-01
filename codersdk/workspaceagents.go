@@ -3,11 +3,14 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/netip"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
@@ -16,16 +19,18 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/tailnet"
+	"github.com/coder/retry"
 )
 
 type GoogleInstanceIdentityToken struct {
@@ -46,6 +51,16 @@ type AzureInstanceIdentityToken struct {
 // has been exchanged for a session token.
 type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
+}
+
+// WorkspaceAgentConnectionInfo returns required information for establishing
+// a connection with a workspace.
+type WorkspaceAgentConnectionInfo struct {
+	DERPMap *tailcfg.DERPMap `json:"derp_map"`
+}
+
+type PostWorkspaceAgentVersionRequest struct {
+	Version string `json:"version"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
@@ -176,16 +191,30 @@ func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (Worksp
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// WorkspaceAgentMetadata fetches metadata for the currently authenticated workspace agent.
+func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (agent.Metadata, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+	if err != nil {
+		return agent.Metadata{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return agent.Metadata{}, readBodyAsError(res)
+	}
+	var agentMetadata agent.Metadata
+	return agentMetadata, json.NewDecoder(res.Body).Decode(&agentMetadata)
+}
+
 // ListenWorkspaceAgent connects as a workspace agent identifying with the session token.
 // On each inbound connection request, connection info is fetched.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
+func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/listen")
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("parse url: %w", err)
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
@@ -201,17 +230,17 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	})
 	if err != nil {
 		if res == nil {
-			return agent.Metadata{}, nil, err
+			return nil, err
 		}
-		return agent.Metadata{}, nil, readBodyAsError(res)
+		return nil, readBodyAsError(res)
 	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("multiplex client: %w", err)
+		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	listener, err := peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
 		// This can be cached if it adds to latency too much.
 		res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
 		if err != nil {
@@ -237,114 +266,120 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 			Logger:        logger,
 		}, nil
 	})
-	if err != nil {
-		return agent.Metadata{}, nil, xerrors.Errorf("listen peerbroker: %w", err)
-	}
-	res, err = c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
-	if err != nil {
-		return agent.Metadata{}, nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return agent.Metadata{}, nil, readBodyAsError(res)
-	}
-	var agentMetadata agent.Metadata
-	return agentMetadata, listener, json.NewDecoder(res.Body).Decode(&agentMetadata)
 }
 
-// PostWireguardPeer announces your public keys and IPv6 address to the
-// specified recipient.
-func (c *Client) PostWireguardPeer(ctx context.Context, workspaceID uuid.UUID, peerMsg peerwg.Handshake) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/peer?workspace=%s",
-		peerMsg.Recipient,
-		workspaceID.String(),
-	), peerMsg)
+func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
+	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
-	}
-
-	_, _ = io.Copy(io.Discard, res.Body)
-	return nil
-}
-
-// WireguardPeerListener listens for wireguard peer messages. Peer messages are
-// sent when a new client wants to connect. Once receiving a peer message, the
-// peer should be added to the NetworkMap of the wireguard interface.
-func (c *Client) WireguardPeerListener(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/wireguardlisten")
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse url: %w", err)
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
+	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
 		Jar: jar,
 	}
-
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+	// nolint:bodyclose
+	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		if res == nil {
-			return nil, nil, xerrors.Errorf("websocket dial: %w", err)
-		}
-		return nil, nil, readBodyAsError(res)
+		return nil, err
 	}
 
-	ch := make(chan peerwg.Handshake, 1)
-	go func() {
-		defer conn.Close(websocket.StatusGoingAway, "")
-		defer close(ch)
-
-		for {
-			_, message, err := conn.Read(ctx)
-			if err != nil {
-				break
-			}
-
-			var msg peerwg.Handshake
-			err = msg.UnmarshalText(message)
-			if err != nil {
-				logger.Error(ctx, "unmarshal wireguard peer message", slog.Error(err))
-				continue
-			}
-
-			ch <- msg
-		}
-	}()
-
-	return ch, func() { _ = conn.Close(websocket.StatusGoingAway, "") }, nil
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-// UploadWorkspaceAgentKeys uploads the public keys of the workspace agent that
-// were generated on startup. These keys are used by clients to communicate with
-// the workspace agent over the wireguard interface.
-func (c *Client) UploadWorkspaceAgentKeys(ctx context.Context, keys agent.WireguardPublicKeys) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/keys", keys)
+func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (agent.Conn, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
 	}
-	return nil
+	var connInfo WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&connInfo)
+	if err != nil {
+		return nil, xerrors.Errorf("decode conn info: %w", err)
+	}
+
+	ip := tailnet.IP()
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:   connInfo.DERPMap,
+		Logger:    logger,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create tailnet: %w", err)
+	}
+
+	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(coordinateURL, []*http.Cookie{{
+		Name:  SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	ctx, cancelFunc := context.WithCancel(ctx)
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			logger.Debug(ctx, "connecting")
+			// nolint:bodyclose
+			ws, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+				HTTPClient: httpClient,
+				// Need to disable compression to avoid a data-race.
+				CompressionMode: websocket.CompressionDisabled,
+			})
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				continue
+			}
+			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
+				return conn.UpdateNodes(node)
+			})
+			conn.SetNodeCallback(sendNode)
+			logger.Debug(ctx, "serving coordinator")
+			err = <-errChan
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
+				continue
+			}
+		}
+	}()
+	return &agent.TailnetConn{
+		Conn: conn,
+		CloseFunc: func() {
+			cancelFunc()
+			<-closed
+		},
+	}, nil
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (*agent.Conn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -409,7 +444,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("dial peer: %w", err)
 	}
-	return &agent.Conn{
+	return &agent.WebRTCConn{
 		Negotiator: client,
 		Conn:       peerConn,
 	}, nil
@@ -427,6 +462,19 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
+func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
+	// Phone home and tell the mothership what version we're on.
+	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
+	if err != nil {
+		return readBodyAsError(res)
+	}
+	// Discord the response
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
+	return nil
 }
 
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.

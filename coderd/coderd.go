@@ -1,9 +1,7 @@
 package coderd
 
 import (
-	"context"
 	"crypto/x509"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,6 +18,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
+	"tailscale.com/derp"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -35,6 +37,7 @@ import (
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
+	"github.com/coder/coder/tailnet"
 )
 
 // Options are requires parameters for Coder to start.
@@ -68,6 +71,11 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
+	FeaturesService      FeaturesService
+
+	TailscaleEnable    bool
+	TailnetCoordinator *tailnet.Coordinator
+	DERPMap            *tailcfg.DERPMap
 }
 
 // New constructs a Coder API handler.
@@ -94,8 +102,14 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
+	if options.TailnetCoordinator == nil {
+		options.TailnetCoordinator = tailnet.NewCoordinator()
+	}
 	if options.LicenseHandler == nil {
 		options.LicenseHandler = licenses()
+	}
+	if options.FeaturesService == nil {
+		options.FeaturesService = featuresService{}
 	}
 
 	siteCacheDir := options.CacheDir
@@ -117,7 +131,12 @@ func New(options *Options) *API {
 			Logger:     options.Logger,
 		},
 	}
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
+	if options.TailscaleEnable {
+		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
+	} else {
+		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
+	}
+	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -125,28 +144,28 @@ func New(options *Options) *API {
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	r.Use(
-		func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
-			})
-		},
+		httpmw.Recover(api.Logger),
+		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
 	)
 
 	apps := func(r chi.Router) {
 		r.Use(
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
-			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
+			// Extracts the <workspace.agent> from the url
+			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
 	// not handle character encoding properly, so it's safe to assume
 	// other applications might not as well.
-	r.Route("/%40{user}/{workspacename}/apps/{workspaceapp}", apps)
-	r.Route("/@{user}/{workspacename}/apps/{workspaceapp}", apps)
+	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
+	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
+	r.Get("/derp", derphttp.Handler(api.derpServer).ServeHTTP)
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -157,7 +176,6 @@ func New(options *Options) *API {
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			debugLogRequest(api.Logger),
 			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -333,13 +351,13 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
-				r.Get("/wireguardlisten", api.workspaceAgentWireguardListener)
-				r.Post("/keys", api.postWorkspaceAgentKeys)
-				r.Get("/derp", api.derpMap)
+
+				r.Get("/coordinate", api.workspaceAgentCoordinate)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -348,12 +366,13 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
-				r.Get("/derp", api.derpMap)
+
+				r.Get("/connection", api.workspaceAgentConnection)
+				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
@@ -374,6 +393,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspace)
+				r.Patch("/", api.patchWorkspace)
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
@@ -403,7 +423,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/entitlements", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/", entitlements)
+			r.Get("/", api.FeaturesService.EntitlementsAPI)
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -417,6 +437,8 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+
+	derpServer *derp.Server
 
 	Handler             chi.Router
 	siteHandler         http.Handler
@@ -433,15 +455,6 @@ func (api *API) Close() error {
 	api.websocketWaitMutex.Unlock()
 
 	return api.workspaceAgentCache.Close()
-}
-
-func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			log.Debug(context.Background(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
-			next.ServeHTTP(rw, r)
-		})
-	}
 }
 
 func compressHandler(h http.Handler) http.Handler {

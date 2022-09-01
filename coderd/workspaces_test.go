@@ -77,6 +77,37 @@ func TestWorkspace(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "410") // gone
 	})
+
+	t.Run("Rename", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		ws1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		ws2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, ws1.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, ws2.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		want := ws1.Name + "-test"
+		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
+			Name: want,
+		})
+		require.NoError(t, err, "workspace rename failed")
+
+		ws, err := client.Workspace(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.Equal(t, want, ws.Name, "workspace name not updated")
+
+		err = client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
+			Name: ws2.Name,
+		})
+		require.Error(t, err, "workspace rename should have failed")
+	})
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {

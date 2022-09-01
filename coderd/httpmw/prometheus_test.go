@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 )
 
@@ -20,7 +20,7 @@ func TestPrometheus(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/", nil)
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
-		res := chimw.NewWrapResponseWriter(httptest.NewRecorder(), 0)
+		res := &httpapi.StatusWriter{ResponseWriter: httptest.NewRecorder()}
 		reg := prometheus.NewRegistry()
 		httpmw.Prometheus(reg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)

@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useMachine, useSelector } from "@xstate/react"
+import { useActor, useMachine, useSelector } from "@xstate/react"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
@@ -51,6 +51,7 @@ export const WorkspacePage: FC = () => {
   const canUpdateWorkspace = !!permissions?.updateWorkspace
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
+  const [buildInfoState] = useActor(xServices.buildInfoXService)
 
   const styles = useStyles()
 
@@ -133,6 +134,7 @@ export const WorkspacePage: FC = () => {
             [WorkspaceErrors.BUILD_ERROR]: buildError,
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
+          buildInfo={buildInfoState.context.buildInfo}
         />
         <DeleteWorkspaceDialog
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}

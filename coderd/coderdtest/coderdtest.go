@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -178,6 +180,9 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
+	derpPort, err := strconv.Atoi(serverURL.Port())
+	require.NoError(t, err)
+
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
@@ -211,7 +216,25 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
-		AutoImportTemplates:  options.AutoImportTemplates,
+		DERPMap: &tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {
+					RegionID:   1,
+					RegionCode: "coder",
+					RegionName: "Coder",
+					Nodes: []*tailcfg.DERPNode{{
+						Name:             "1a",
+						RegionID:         1,
+						IPv4:             "127.0.0.1",
+						DERPPort:         derpPort,
+						STUNPort:         -1,
+						InsecureForTests: true,
+						ForceHTTP:        true,
+					}},
+				},
+			},
+		},
+		AutoImportTemplates: options.AutoImportTemplates,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()

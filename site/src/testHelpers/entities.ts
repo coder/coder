@@ -51,6 +51,10 @@ export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesG
   }
 }
 
+export const MockMemberPermissions = {
+  viewAuditLog: false,
+}
+
 export const MockUser: TypesGen.User = {
   id: "test-user",
   username: "TestUser",
@@ -298,9 +302,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
-  wireguard_public_key: "",
-  disco_public_key: "",
-  ipv6: "",
+  version: MockBuildInfo.version,
+  latency: {},
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -308,10 +311,19 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-2",
   name: "another-workspace-agent",
   status: "disconnected",
+  version: "",
+}
+
+export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-3",
+  name: "an-outdated-workspace-agent",
+  version: "v99.999.9998+abcdef",
+  operating_system: "Windows",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
@@ -657,11 +669,26 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   features: {
-    activeUsers: {
+    user_limit: {
       enabled: true,
-      entitlement: "entitled",
+      entitlement: "grace_period",
       limit: 100,
       actual: 102,
+    },
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  },
+}
+
+export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  warnings: [],
+  has_license: true,
+  features: {
+    audit_log: {
+      enabled: true,
+      entitlement: "entitled",
     },
   },
 }
