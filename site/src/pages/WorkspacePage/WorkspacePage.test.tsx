@@ -19,8 +19,8 @@ import {
   MockTemplate,
   MockWorkspace,
   MockWorkspaceAgent,
-  MockWorkspaceAgentDisconnected,
   MockWorkspaceAgentConnecting,
+  MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
