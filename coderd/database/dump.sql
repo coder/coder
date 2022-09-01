@@ -93,6 +93,7 @@ CREATE TABLE agent_stats (
     user_id uuid NOT NULL,
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
     payload jsonb NOT NULL
 );
 

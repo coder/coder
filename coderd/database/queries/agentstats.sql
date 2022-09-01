@@ -5,18 +5,20 @@ INSERT INTO
 		created_at,
 		user_id,
 		workspace_id,
+		template_id,
 		agent_id,
 		payload
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
--- name: GetDAUsFromAgentStats :many
+-- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
 	count(distinct(user_id)) as daus
 from
 	agent_stats
+where template_id = $1
 group by
 	date
 order by

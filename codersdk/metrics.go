@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -11,6 +12,8 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
+
+	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
@@ -106,12 +109,12 @@ type DAUEntry struct {
 	DAUs int       `json:"daus"`
 }
 
-type DAUsResponse struct {
+type TemplateDAUsResponse struct {
 	Entries []DAUEntry `json:"entries"`
 }
 
-func (c *Client) GetDAUsFromAgentStats(ctx context.Context) (*DAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/metrics/daus", nil)
+func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*TemplateDAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -121,7 +124,7 @@ func (c *Client) GetDAUsFromAgentStats(ctx context.Context) (*DAUsResponse, erro
 		return nil, readBodyAsError(res)
 	}
 
-	var resp DAUsResponse
+	var resp TemplateDAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

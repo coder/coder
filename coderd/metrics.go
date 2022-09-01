@@ -14,21 +14,8 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
-
-func (api *API) metricsDAUs(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
-		httpapi.Forbidden(rw)
-		return
-	}
-	resp := api.metricsCache.DAUs()
-	if resp.Entries == nil {
-		resp.Entries = []codersdk.DAUEntry{}
-	}
-	httpapi.Write(rw, http.StatusOK, resp)
-}
 
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
@@ -130,6 +117,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				AgentID:     workspaceAgent.ID,
 				WorkspaceID: build.WorkspaceID,
 				UserID:      workspace.OwnerID,
+				TemplateID:  workspace.TemplateID,
 				Payload:     json.RawMessage(repJSON),
 			})
 			if err != nil {

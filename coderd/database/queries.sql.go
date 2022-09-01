@@ -24,32 +24,33 @@ func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	return err
 }
 
-const getDAUsFromAgentStats = `-- name: GetDAUsFromAgentStats :many
+const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
 	count(distinct(user_id)) as daus
 from
 	agent_stats
+where template_id = $1
 group by
 	date
 order by
 	date asc
 `
 
-type GetDAUsFromAgentStatsRow struct {
+type GetTemplateDAUsRow struct {
 	Date time.Time `db:"date" json:"date"`
 	Daus int64     `db:"daus" json:"daus"`
 }
 
-func (q *sqlQuerier) GetDAUsFromAgentStats(ctx context.Context) ([]GetDAUsFromAgentStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDAUsFromAgentStats)
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetDAUsFromAgentStatsRow
+	var items []GetTemplateDAUsRow
 	for rows.Next() {
-		var i GetDAUsFromAgentStatsRow
+		var i GetTemplateDAUsRow
 		if err := rows.Scan(&i.Date, &i.Daus); err != nil {
 			return nil, err
 		}
@@ -71,11 +72,12 @@ INSERT INTO
 		created_at,
 		user_id,
 		workspace_id,
+		template_id,
 		agent_id,
 		payload
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, user_id, agent_id, workspace_id, payload
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, payload
 `
 
 type InsertAgentStatParams struct {
@@ -83,6 +85,7 @@ type InsertAgentStatParams struct {
 	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
 	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
 	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
 	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
 	Payload     json.RawMessage `db:"payload" json:"payload"`
 }
@@ -93,6 +96,7 @@ func (q *sqlQuerier) InsertAgentStat(ctx context.Context, arg InsertAgentStatPar
 		arg.CreatedAt,
 		arg.UserID,
 		arg.WorkspaceID,
+		arg.TemplateID,
 		arg.AgentID,
 		arg.Payload,
 	)
@@ -103,6 +107,7 @@ func (q *sqlQuerier) InsertAgentStat(ctx context.Context, arg InsertAgentStatPar
 		&i.UserID,
 		&i.AgentID,
 		&i.WorkspaceID,
+		&i.TemplateID,
 		&i.Payload,
 	)
 	return i, err

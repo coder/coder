@@ -162,14 +162,20 @@ func TestCache(t *testing.T) {
 
 			defer cache.Close()
 
+			templateID := uuid.New()
+			db.InsertTemplate(context.Background(), database.InsertTemplateParams{
+				ID: templateID,
+			})
+
 			for _, row := range tt.args.rows {
+				row.TemplateID = templateID
 				db.InsertAgentStat(context.Background(), row)
 			}
 
-			var got codersdk.DAUsResponse
+			var got codersdk.TemplateDAUsResponse
 
 			require.Eventuallyf(t, func() bool {
-				got = cache.DAUs()
+				got = cache.DAUs(templateID)
 				return reflect.DeepEqual(got.Entries, tt.want)
 			}, testutil.WaitShort, testutil.IntervalFast,
 				"GetDAUs() = %v, want %v", got, tt.want,

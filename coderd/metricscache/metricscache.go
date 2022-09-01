@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -21,7 +23,7 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	dausResponse atomic.Pointer[codersdk.DAUsResponse]
+	templateDAUResponses atomic.Pointer[map[string]codersdk.TemplateDAUsResponse]
 
 	doneCh chan struct{}
 	cancel func()
@@ -46,8 +48,8 @@ func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
 	return c
 }
 
-func fillEmptyDAUDays(rows []database.GetDAUsFromAgentStatsRow) []database.GetDAUsFromAgentStatsRow {
-	var newRows []database.GetDAUsFromAgentStatsRow
+func fillEmptyDays(rows []database.GetTemplateDAUsRow) []database.GetTemplateDAUsRow {
+	var newRows []database.GetTemplateDAUsRow
 
 	for i, row := range rows {
 		if i == 0 {
@@ -82,20 +84,30 @@ func (c *Cache) refresh(ctx context.Context) error {
 		return xerrors.Errorf("delete old stats: %w", err)
 	}
 
-	daus, err := c.database.GetDAUsFromAgentStats(ctx)
+	templates, err := c.database.GetTemplates(ctx)
 	if err != nil {
 		return err
 	}
 
-	var resp codersdk.DAUsResponse
-	for _, ent := range fillEmptyDAUDays(daus) {
-		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-			Date: ent.Date,
-			DAUs: int(ent.Daus),
-		})
+	templateDAUs := make(map[string]codersdk.TemplateDAUsResponse, len(templates))
+
+	for _, template := range templates {
+		daus, err := c.database.GetTemplateDAUs(ctx, template.ID)
+		if err != nil {
+			return err
+		}
+
+		var resp codersdk.TemplateDAUsResponse
+		for _, ent := range fillEmptyDays(daus) {
+			resp.Entries = append(resp.Entries, codersdk.DAUEntry{
+				Date: ent.Date,
+				DAUs: int(ent.Daus),
+			})
+		}
+		templateDAUs[template.ID.String()] = resp
 	}
 
-	c.dausResponse.Store(&resp)
+	c.templateDAUResponses.Store(&templateDAUs)
 	return nil
 }
 
@@ -142,10 +154,17 @@ func (c *Cache) Close() error {
 }
 
 // DAUs returns the DAUs or nil if they aren't ready yet.
-func (c *Cache) DAUs() codersdk.DAUsResponse {
-	r := c.dausResponse.Load()
-	if r == nil {
-		return codersdk.DAUsResponse{}
+func (c *Cache) DAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
+	m := c.templateDAUResponses.Load()
+	if m == nil {
+		// Data loading.
+		return codersdk.TemplateDAUsResponse{}
 	}
-	return *r
+
+	resp, ok := (*m)[id.String()]
+	if !ok {
+		// Probably no data.
+		return codersdk.TemplateDAUsResponse{}
+	}
+	return resp
 }

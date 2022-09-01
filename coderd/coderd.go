@@ -278,7 +278,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 			)
-
+			r.Get("/daus", api.templateDAUs)
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)
@@ -373,12 +373,6 @@ func New(options *Options) *API {
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/report-agent-stats", api.workspaceAgentReportStats)
-			})
-			r.Group(func(r chi.Router) {
-				r.Use(
-					apiKeyMiddleware,
-				)
-				r.Get("/daus", api.metricsDAUs)
 			})
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {

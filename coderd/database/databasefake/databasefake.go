@@ -137,7 +137,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
-func (_ *fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
@@ -153,18 +153,23 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 		AgentID:     p.AgentID,
 		UserID:      p.UserID,
 		Payload:     p.Payload,
+		TemplateID:  p.TemplateID,
 	}
 	q.agentStats = append(q.agentStats, stat)
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetDAUsFromAgentStats(_ context.Context) ([]database.GetDAUsFromAgentStatsRow, error) {
+func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	counts := make(map[time.Time]map[string]struct{})
 
 	for _, as := range q.agentStats {
+		if as.TemplateID != templateID {
+			continue
+		}
+
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 		dateEntry := counts[date]
 		if dateEntry == nil {
@@ -180,9 +185,9 @@ func (q *fakeQuerier) GetDAUsFromAgentStats(_ context.Context) ([]database.GetDA
 		return countKeys[i].Before(countKeys[j])
 	})
 
-	var rs []database.GetDAUsFromAgentStatsRow
+	var rs []database.GetTemplateDAUsRow
 	for _, key := range countKeys {
-		rs = append(rs, database.GetDAUsFromAgentStatsRow{
+		rs = append(rs, database.GetTemplateDAUsRow{
 			Date: key,
 			Daus: int64(len(counts[key])),
 		})
