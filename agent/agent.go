@@ -205,7 +205,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		if listenerExists {
 			return conn
 		}
-		return &ConnStats{ProtocolStats: &ProtocolStats{}, Conn: conn}
+		return &StatsConn{ProtocolStats: &ProtocolStats{}, Conn: conn}
 	})
 	go a.runCoordinator(ctx)
 
