@@ -283,12 +283,15 @@ func TestPostLogout(t *testing.T) {
 		cookies := res.Cookies()
 		require.Len(t, cookies, 2, "Exactly one cookie should be returned")
 
+		var found bool
 		for _, cookie := range cookies {
 			if cookie.Name == codersdk.SessionTokenKey {
 				require.Equal(t, codersdk.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
 				require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+				found = true
 			}
 		}
+		require.True(t, found, "auth cookie should be returned")
 
 		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
