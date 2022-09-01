@@ -19,17 +19,22 @@ export const WorkspaceLastUsed: FC<WorkspaceLastUsedProps> = ({ lastUsedAt }) =>
   let color = theme.palette.text.secondary
   let message = t.fromNow()
 
-  if (t.isBefore(now.subtract(100, "year"))) {
-    color = theme.palette.error.main
-    message = "Never"
-  } else if (t.isBefore(now.subtract(1, "month"))) {
-    color = theme.palette.warning.light
-  } else if (t.isAfter(now.subtract(24, "hour"))) {
-    // Since the agent reports on a regular interval,
+  if (t.isAfter(now.subtract(1, "hour"))) {
+    color = theme.palette.success.main
+    // Since the agent reports on a 10m interval,
+    // the last_used_at can be inaccurate when recent.
     // we default to "Today" instead of showing a
     // potentially inaccurate value.
-    color = theme.palette.success.main
-    message = "Today"
+    message = "Last Hour"
+  } else if (t.isAfter(now.subtract(1, "day"))) {
+    color = theme.palette.primary.main
+  } else if (t.isAfter(now.subtract(1, "month"))) {
+    color = theme.palette.text.secondary
+  } else if (t.isAfter(now.subtract(100, "year"))) {
+    color = theme.palette.warning.light
+  } else {
+    color = theme.palette.error.light
+    message = "Never"
   }
 
   return <span style={{ color: color }}>{message}</span>

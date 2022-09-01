@@ -52,6 +52,7 @@ const additionalWorkspaces: Record<string, WorkspaceItemMachineRef> = {
   runningAndDelete: createWorkspaceItemRef("running", "delete"),
   outdated: createWorkspaceItemRef("running", "delete", true),
   active: createWorkspaceItemRef("running", undefined, true, dayjs().toString()),
+  today: createWorkspaceItemRef("running", undefined, true, dayjs().subtract(3, "hour").toString()),
   old: createWorkspaceItemRef("running", undefined, true, dayjs().subtract(1, "week").toString()),
   veryOld: createWorkspaceItemRef(
     "running",
