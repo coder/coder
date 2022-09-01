@@ -384,7 +384,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   return response.data
 }
 
-export const getDAUs = async (): Promise<TypesGen.GetDAUsResponse> => {
+export const getDAUs = async (): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get("/api/v2/metrics/daus")
   return response.data
 }

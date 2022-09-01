@@ -1,9 +1,9 @@
-import { GetDAUsResponse } from "api/typesGenerated"
+import { DAUsResponse } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 
 export interface UserMetricsContext {
-  userMetricsData: GetDAUsResponse
+  userMetricsData: DAUsResponse
 }
 
 export const userMetricsMachine = createMachine(
@@ -13,7 +13,7 @@ export const userMetricsMachine = createMachine(
       context: {} as UserMetricsContext,
       services: {} as {
         loadMetrics: {
-          data: any
+          data: DAUsResponse
         }
       },
     },
