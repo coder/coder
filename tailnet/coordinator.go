@@ -28,22 +28,25 @@ type Node struct {
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
 func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
-	errChan := make(chan error, 3)
+	errChan := make(chan error, 1)
+	sendErr := func(err error) {
+		select {
+		case errChan <- err:
+		default:
+		}
+	}
 	go func() {
 		decoder := json.NewDecoder(conn)
 		for {
 			var nodes []*Node
 			err := decoder.Decode(&nodes)
 			if err != nil {
-				errChan <- xerrors.Errorf("read: %w", err)
+				sendErr(xerrors.Errorf("read: %w", err))
 				return
 			}
 			err = updateNodes(nodes)
 			if err != nil {
-				select {
-				case errChan <- xerrors.Errorf("update nodes: %w", err):
-				default:
-				}
+				sendErr(xerrors.Errorf("update nodes: %w", err))
 			}
 		}
 	}()
@@ -51,15 +54,12 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 	return func(node *Node) {
 		data, err := json.Marshal(node)
 		if err != nil {
-			errChan <- xerrors.Errorf("marshal node: %w", err)
+			sendErr(xerrors.Errorf("marshal node: %w", err))
 			return
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			select {
-			case errChan <- xerrors.Errorf("write: %w", err):
-			default:
-			}
+			sendErr(xerrors.Errorf("write: %w", err))
 		}
 	}, errChan
 }
