@@ -183,15 +183,6 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-<<<<<<< HEAD
-// From codersdk/workspaceresources.go
-export interface DERPRegion {
-  readonly preferred: boolean
-  readonly latency_ms: number
-}
-
-||||||| parent of 1150cd02... agent: add StatsReporter
-=======
 // From codersdk/metrics.go
 export interface DAUEntry {
   readonly date: string
@@ -203,7 +194,12 @@ export interface DAUsResponse {
   readonly entries: DAUEntry[]
 }
 
->>>>>>> 1150cd02... agent: add StatsReporter
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
+}
+
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>
