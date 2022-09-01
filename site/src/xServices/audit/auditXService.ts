@@ -1,4 +1,6 @@
 import { getAuditLogs } from "api/api"
+import { getErrorMessage } from "api/errors"
+import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 
 type AuditLogs = Awaited<ReturnType<typeof getAuditLogs>>
@@ -24,9 +26,16 @@ export const auditMachine = createMachine(
             target: "success",
             actions: ["assignAuditLogs"],
           },
+          onError: {
+            target: "error",
+            actions: ["displayLoadAuditLogsError"],
+          },
         },
       },
       success: {
+        type: "final",
+      },
+      error: {
         type: "final",
       },
     },
@@ -36,6 +45,10 @@ export const auditMachine = createMachine(
       assignAuditLogs: assign({
         auditLogs: (_, event) => event.data,
       }),
+      displayLoadAuditLogsError: (_, event) => {
+        const message = getErrorMessage(event.data, "Error on loading audit logs.")
+        displayError(message)
+      },
     },
     services: {
       loadAuditLogs: () => getAuditLogs(),
