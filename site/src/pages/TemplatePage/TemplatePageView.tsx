@@ -67,9 +67,9 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
     return resources.filter((resource) => resource.workspace_transition === "start")
   }
 
-  const createWorkspaceButton = (className: string) => (
+  const createWorkspaceButton = (className?: string) => (
     <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
-      <Button className={className} startIcon={<AddCircleOutline />}>
+      <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
         {Language.createButton}
       </Button>
     </Link>
@@ -105,7 +105,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
                   canCancel={false}
                 />
               ) : (
-                createWorkspaceButton("")
+                createWorkspaceButton()
               )}
             </Stack>
           }
