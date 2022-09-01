@@ -390,7 +390,7 @@ interface GetAuditLogsOptions {
 }
 
 export const getAuditLogs = async (options: GetAuditLogsOptions): Promise<TypesGen.AuditLog[]> => {
-  const response = await axios.get(`/api/v2/audit?limit=${options}&offset=${options.offset}`)
+  const response = await axios.get(`/api/v2/audit?limit=${options.limit}&offset=${options.offset}`)
   return response.data
 }
 

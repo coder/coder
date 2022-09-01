@@ -152,4 +152,8 @@ export const handlers = [
   rest.get("/api/v2/audit", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockAuditLog, M.MockAuditLog2]))
   }),
+
+  rest.get("/api/v2/audit/count", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(1000))
+  }),
 ]
