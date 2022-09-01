@@ -2,6 +2,7 @@ import useTheme from "@material-ui/styles/useTheme"
 
 import { Theme } from "@material-ui/core/styles"
 import {
+  BarElement,
   CategoryScale,
   Chart as ChartJS,
   ChartOptions,
@@ -21,7 +22,16 @@ import { FC } from "react"
 import { Line } from "react-chartjs-2"
 import * as TypesGen from "../../api/typesGenerated"
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  BarElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+)
 
 export interface DAUChartProps {
   templateDAUs: TypesGen.TemplateDAUsResponse
@@ -82,7 +92,9 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
           <h3>{Language.chartTitle}</h3>
           <HelpTooltip size="small">
             <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-            <HelpTooltipText>We use workspace connection traffic to compute DAUs.</HelpTooltipText>
+            <HelpTooltipText>
+              We use all workspace connection traffic to calculate DAUs.
+            </HelpTooltipText>
           </HelpTooltip>
         </Stack>
         <Line

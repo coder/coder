@@ -103,9 +103,8 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         </Stack>
       </PageHeader>
 
-      {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
-
       <Stack spacing={2.5}>
+        {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
         <TemplateStats template={template} activeVersion={activeTemplateVersion} />
         <WorkspaceSection
           title={Language.resourcesTitle}

@@ -369,12 +369,6 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/metrics", func(r chi.Router) {
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/report-agent-stats", api.workspaceAgentReportStats)
-			})
-		})
 		r.Route("/workspaceagents", func(r chi.Router) {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
@@ -390,6 +384,8 @@ func New(options *Options) *API {
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
+
+				r.Get("/report-stats", api.workspaceAgentReportStats)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
