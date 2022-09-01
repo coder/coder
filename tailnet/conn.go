@@ -161,21 +161,6 @@ func NewConn(options *Options) (*Conn, error) {
 		return nil, xerrors.Errorf("start netstack: %w", err)
 	}
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
-
-	// Update the wireguard configuration to allow traffic to flow.
-	wireguardConfig, err := nmcfg.WGCfg(netMap, Logger(options.Logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
-	if err != nil {
-		return nil, xerrors.Errorf("create wgcfg: %w", err)
-	}
-
-	wireguardRouter := &router.Config{
-		LocalAddrs: wireguardConfig.Addresses,
-	}
-	err = wireguardEngine.Reconfig(wireguardConfig, wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
-	if err != nil {
-		return nil, xerrors.Errorf("reconfig: %w", err)
-	}
-
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
 	wireguardEngine.SetNetworkMap(&netMapCopy)
@@ -198,8 +183,10 @@ func NewConn(options *Options) (*Conn, error) {
 		netMap:           netMap,
 		netStack:         netStack,
 		wireguardMonitor: wireguardMonitor,
-		wireguardRouter:  wireguardRouter,
-		wireguardEngine:  wireguardEngine,
+		wireguardRouter: &router.Config{
+			LocalAddrs: netMap.Addresses,
+		},
+		wireguardEngine: wireguardEngine,
 	}
 	netStack.ForwardTCPIn = server.forwardTCP
 	return server, nil
@@ -261,7 +248,7 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			DERPLatency:   c.lastDERPLatency,
 		}
 	}
-	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+	c.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
@@ -309,6 +296,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		peerMap[peer.ID] = peer
 	}
 	for _, node := range nodes {
+		peerStatus, ok := status.Peer[node.Key]
 		peerMap[node.ID] = &tailcfg.Node{
 			ID:         node.ID,
 			Key:        node.Key,
@@ -318,12 +306,18 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
+			// Starting KeepAlive messages at the initialization
+			// of a connection cause it to hang for an unknown
+			// reason. TODO: @kylecarbs debug this!
+			KeepAlive: ok && peerStatus.Active,
 		}
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
 	for _, peer := range peerMap {
 		c.netMap.Peers = append(c.netMap.Peers, peer)
 	}
+	netMapCopy := *c.netMap
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
@@ -332,15 +326,13 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	if err != nil {
 		return xerrors.Errorf("reconfig: %w", err)
 	}
-	netMapCopy := *c.netMap
-	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	return nil
 }
 
 // Status returns the current ipnstate of a connection.
 func (c *Conn) Status() *ipnstate.Status {
 	sb := &ipnstate.StatusBuilder{}
-	c.magicConn.UpdateStatus(sb)
+	c.wireguardEngine.UpdateStatus(sb)
 	return sb.Status()
 }
 

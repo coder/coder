@@ -165,7 +165,13 @@ func New(options *Options) *API {
 	// other applications might not as well.
 	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
-	r.Get("/derp", derphttp.Handler(api.derpServer).ServeHTTP)
+	r.Route("/derp", func(r chi.Router) {
+		r.Get("/", derphttp.Handler(api.derpServer).ServeHTTP)
+		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+	})
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
