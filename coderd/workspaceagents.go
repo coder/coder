@@ -830,18 +830,20 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		// We will see duplicate reports when on idle connections
 		// (e.g. web terminal left open) or when there are no connections at
 		// all.
-		var insert = !reflect.DeepEqual(lastReport, rep)
+		// We also don't want to update the workspace last used at on duplicate
+		// reports.
+		var updateDB = !reflect.DeepEqual(lastReport, rep)
 
 		api.Logger.Debug(ctx, "read stats report",
 			slog.F("interval", api.AgentStatsRefreshInterval),
 			slog.F("agent", workspaceAgent.ID),
 			slog.F("resource", resource.ID),
 			slog.F("workspace", workspace.ID),
-			slog.F("insert", insert),
+			slog.F("update_db", updateDB),
 			slog.F("payload", rep),
 		)
 
-		if insert {
+		if updateDB {
 			lastReport = rep
 
 			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
@@ -856,6 +858,18 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Failed to insert agent stat.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         build.WorkspaceID,
+				LastUsedAt: time.Now(),
+			})
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to update workspace last used at.",
 					Detail:  err.Error(),
 				})
 				return
