@@ -23,22 +23,27 @@
       "title": "Installation",
       "description": "How to install and deploy Coder",
       "icon_path": "./images/icons/wrench.svg",
-      "path": "./install.md",
+      "path": "./install/index.md",
       "children": [
         {
-          "title": "Authentication",
-          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
-          "path": "./install/auth.md"
+          "title": "Install script",
+          "description": "One-line install script for macOS and Linux.",
+          "path": "./install/install.sh.md"
         },
         {
-          "title": "Configuration",
-          "description": "Learn how to configure Coder",
-          "path": "./install/configure.md"
+          "title": "Docker",
+          "description": "Install Coder with Docker / docker-compose",
+          "path": "./install/docker.md"
         },
         {
-          "title": "Upgrading",
-          "description": "Learn how to upgrade Coder.",
-          "path": "./install/upgrade.md"
+          "title": "System packages",
+          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine.",
+          "path": "./install/packages.md"
+        },
+        {
+          "title": "Standalone binaries",
+          "description": "Download the binary for Mac, Windows, or Linux.",
+          "path": "./install/manual.md"
         }
       ]
     },
@@ -127,6 +132,29 @@
       "description": "Learn how to use secrets in your worskpace",
       "icon_path": "./images/icons/secrets.svg",
       "path": "./secrets.md"
+    },
+    {
+      "title": "Administration",
+      "description": "How to install and deploy Coder",
+      "icon_path": "./images/icons/wrench.svg",
+      "path": "./admin/index.md",
+      "children": [
+        {
+          "title": "Authentication",
+          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "path": "./admin/auth.md"
+        },
+        {
+          "title": "Configuration",
+          "description": "Learn how to configure Coder",
+          "path": "./admin/configure.md"
+        },
+        {
+          "title": "Upgrading",
+          "description": "Learn how to upgrade Coder.",
+          "path": "./admin/upgrade.md"
+        }
+      ]
     },
     {
       "title": "Users",
