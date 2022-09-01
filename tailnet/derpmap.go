@@ -24,13 +24,13 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		if err != nil {
 			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
 		}
-		region.Nodes = append(region.Nodes, &tailcfg.DERPNode{
+		region.Nodes = append([]*tailcfg.DERPNode{{
 			Name:     fmt.Sprintf("%dstun%d", region.RegionID, index),
 			RegionID: region.RegionID,
 			HostName: host,
 			STUNOnly: true,
 			STUNPort: port,
-		})
+		}}, region.Nodes...)
 	}
 
 	derpMap := &tailcfg.DERPMap{
