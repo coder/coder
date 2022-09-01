@@ -6,7 +6,7 @@ import * as TypesGen from "./typesGenerated"
 
 // Always attach CSRF token to all requests
 const token = document.head.querySelector('meta[property="csrf-token"]')
-if (token) {
+if (token !== null && token.getAttribute("content") !== null) {
   axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content") ?? ""
 } else {
   console.error("CSRF token not found: https://laravel.com/docs/csrf#csrf-x-csrf-token")
