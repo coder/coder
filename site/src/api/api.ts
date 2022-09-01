@@ -26,7 +26,10 @@ if (token !== null && token.getAttribute("content") !== null) {
     axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content") ?? ""
   }
 } else {
-  console.error("CSRF token not found")
+  // Do not write error logs if we are in a FE unit test.
+  if(process.env.JEST_WORKER_ID === undefined) {
+    console.error("CSRF token not found")
+  }
 }
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
