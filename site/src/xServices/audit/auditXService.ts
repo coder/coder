@@ -101,7 +101,7 @@ export const auditMachine = createMachine(
         displayError(message)
       },
       displayLoadAuditLogsCountError: (_, event) => {
-        const message = getErrorMessage(event.data, "Error on loading audit logs count.")
+        const message = getErrorMessage(event.data, "Error on loading number of audit log entries.")
         displayError(message)
       },
     },
