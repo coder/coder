@@ -408,25 +408,25 @@ func (a *agent) handlePeerConn(ctx context.Context, peerConn *peer.Conn) {
 			idParts := strings.SplitN(rawID, ":", 4)
 			if len(idParts) != 4 {
 				a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-				return
+				continue
 			}
 			id := idParts[0]
 			// Enforce a consistent format for IDs.
 			_, err := uuid.Parse(id)
 			if err != nil {
 				a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-				return
+				continue
 			}
 			// Parse the initial terminal dimensions.
 			height, err := strconv.Atoi(idParts[1])
 			if err != nil {
 				a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-				return
+				continue
 			}
 			width, err := strconv.Atoi(idParts[2])
 			if err != nil {
 				a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-				return
+				continue
 			}
 			go a.handleReconnectingPTY(ctx, reconnectingPTYInit{
 				ID:      id,
