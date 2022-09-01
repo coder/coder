@@ -82,8 +82,8 @@ clean:
 	git restore site/out
 .PHONY: clean
 
-build-slim bin: $(CODER_SLIM_BINARIES)
-.PHONY: build-slim bin
+build-slim: $(CODER_SLIM_BINARIES)
+.PHONY: build-slim
 
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
