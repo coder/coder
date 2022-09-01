@@ -26,6 +26,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 export interface DAUChartProps {
   userMetricsData: TypesGen.DAUsResponse
 }
+export const Language = {
+  loadingText: "DAU stats are loading. Check back later.",
+  chartTitle: "Daily Active Users",
+}
 
 export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
   const theme: Theme = useTheme()
@@ -33,7 +37,7 @@ export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
   if (userMetricsData.entries.length === 0) {
     return (
       <div style={{ marginTop: "-20px" }}>
-        <p>DAU stats are loading. Check back later.</p>
+        <p>{Language.loadingText}</p>
       </div>
     )
   }
@@ -73,12 +77,10 @@ export const DAUChart: FC<DAUChartProps> = ({ userMetricsData }) => {
     <>
       <WorkspaceSection>
         <Stack direction="row" spacing={1} alignItems="center">
-          <h3>Daily Active Users</h3>
+          <h3>{Language.chartTitle}</h3>
           <HelpTooltip size="small">
             <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-            <HelpTooltipText>
-              We use daily, unique workspace connection traffic to compute DAUs.
-            </HelpTooltipText>
+            <HelpTooltipText>We use workspace connection traffic to compute DAUs.</HelpTooltipText>
           </HelpTooltip>
         </Stack>
         <Line
