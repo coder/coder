@@ -54,9 +54,10 @@ func TestMetrics(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+	agentCloser := agent.New(agent.Options{
 		Logger:        slogtest.Make(t, nil),
 		StatsReporter: agentClient.AgentReportStats,
+		WebRTCDialer:  agentClient.ListenWorkspaceAgent,
 	})
 	defer func() {
 		_ = agentCloser.Close()
