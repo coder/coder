@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -507,7 +506,7 @@ func i64ptr(i int64) *int64 {
 
 func authCookieValue(cookies []*http.Cookie) string {
 	for _, cookie := range cookies {
-		if strings.Contains(cookie.Name, "token") {
+		if cookie.Name == codersdk.SessionTokenKey {
 			return cookie.Value
 		}
 	}
