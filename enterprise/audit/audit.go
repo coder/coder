@@ -35,7 +35,6 @@ type auditor struct {
 	audit.Differ
 }
 
-//nolint:unused
 func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 	decision, err := a.filter.Check(ctx, alog)
 	if err != nil {
