@@ -105,7 +105,7 @@ func TestAgent(t *testing.T) {
 						var ok bool
 						s, ok = (<-stats)
 						return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
-					}, testutil.WaitShort, testutil.IntervalFast,
+					}, testutil.WaitLong, testutil.IntervalFast,
 						"never saw stats: %+v", s,
 					)
 				})

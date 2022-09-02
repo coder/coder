@@ -30,6 +30,7 @@ type Workspace struct {
 	Name              string         `json:"name"`
 	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.

@@ -608,6 +608,10 @@ func TestTemplateDAUs(t *testing.T) {
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
+	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	assert.Zero(t, workspaces[0].LastUsedAt)
+
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
 	require.NoError(t, err)
 	defer func() {
@@ -640,5 +644,11 @@ func TestTemplateDAUs(t *testing.T) {
 	},
 		testutil.WaitShort, testutil.IntervalFast,
 		"got %+v != %+v", daus, want,
+	)
+
+	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	assert.WithinDuration(t,
+		time.Now(), workspaces[0].LastUsedAt, time.Minute,
 	)
 }

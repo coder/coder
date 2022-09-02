@@ -4562,7 +4562,7 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 FROM
 	workspaces
 WHERE
@@ -4585,13 +4585,14 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.Name,
 		&i.AutostartSchedule,
 		&i.Ttl,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 FROM
 	workspaces
 WHERE
@@ -4621,6 +4622,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.Name,
 		&i.AutostartSchedule,
 		&i.Ttl,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -4669,7 +4671,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-    id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+    id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 FROM
     workspaces
 WHERE
@@ -4745,6 +4747,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.Name,
 			&i.AutostartSchedule,
 			&i.Ttl,
+			&i.LastUsedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4761,7 +4764,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 
 const getWorkspacesAutostart = `-- name: GetWorkspacesAutostart :many
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 FROM
 	workspaces
 WHERE
@@ -4794,6 +4797,7 @@ func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, e
 			&i.Name,
 			&i.AutostartSchedule,
 			&i.Ttl,
+			&i.LastUsedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4822,7 +4826,7 @@ INSERT INTO
 		ttl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 `
 
 type InsertWorkspaceParams struct {
@@ -4861,6 +4865,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.Name,
 		&i.AutostartSchedule,
 		&i.Ttl,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -4873,7 +4878,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 `
 
 type UpdateWorkspaceParams struct {
@@ -4895,6 +4900,7 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.Name,
 		&i.AutostartSchedule,
 		&i.Ttl,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -4934,6 +4940,25 @@ type UpdateWorkspaceDeletedByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceDeletedByID, arg.ID, arg.Deleted)
+	return err
+}
+
+const updateWorkspaceLastUsedAt = `-- name: UpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceLastUsedAtParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LastUsedAt time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceLastUsedAt, arg.ID, arg.LastUsedAt)
 	return err
 }
 
