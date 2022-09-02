@@ -45,7 +45,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         backgroundColor: colors.gray[17],
         "&:hover": {
           boxShadow: "none",
-          backgroundColor: "#000000",
+          backgroundColor: colors.gray[16]
         },
       },
       sizeSmall: {
