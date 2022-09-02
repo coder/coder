@@ -1,30 +1,28 @@
 #!/bin/bash
 
 set -euo pipefail
+# shellcheck source=scripts/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+cdroot
 
-SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
-PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
+FILES="$(git ls-files --other --modified --exclude-standard)"
+if [[ "$FILES" != "" ]]; then
+	mapfile -t files <<<"$FILES"
 
-(
-	cd "${PROJECT_ROOT}"
+	log
+	log "The following files contain unstaged changes:"
+	log
+	for file in "${files[@]}"; do
+		log "  - $file"
+	done
 
-	FILES="$(git ls-files --other --modified --exclude-standard)"
-	if [[ "$FILES" != "" ]]; then
-		mapfile -t files <<<"$FILES"
+	log
+	log "These are the changes:"
+	log
+	for file in "${files[@]}"; do
+		git --no-pager diff "$file" 1>&2
+	done
 
-		echo "The following files contain unstaged changes:"
-		echo
-		for file in "${files[@]}"; do
-			echo "  - $file"
-		done
-		echo
-
-		echo "These are the changes:"
-		echo
-		for file in "${files[@]}"; do
-			git --no-pager diff "$file"
-		done
-		exit 1
-	fi
-)
-exit 0
+	log
+	error "Unstaged changes, see above for details."
+fi

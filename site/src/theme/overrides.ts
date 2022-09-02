@@ -145,7 +145,8 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
-        "&:hover .MuiOutlinedInput-notchedOutline": {
+
+        "&:hover:not(.Mui-focused) .MuiOutlinedInput-notchedOutline": {
           borderColor: palette.divider,
         },
       },

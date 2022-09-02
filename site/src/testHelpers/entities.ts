@@ -236,6 +236,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
+  last_used_at: "",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -329,8 +330,16 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
   operating_system: "Windows",
 }
 
+export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-2",
+  name: "another-workspace-agent",
+  status: "connecting",
+  version: "",
+}
+
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentConnecting, MockWorkspaceAgentOutdated],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
@@ -343,10 +352,14 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   ],
 }
 
-export const MockWorkspaceResource2 = {
-  ...MockWorkspaceResource,
+export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  created_at: "",
   id: "test-workspace-resource-2",
+  job_id: "",
   name: "another-workspace-resource",
+  type: "google_compute_disk",
+  workspace_transition: "start",
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },

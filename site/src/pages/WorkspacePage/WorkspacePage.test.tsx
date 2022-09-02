@@ -19,6 +19,7 @@ import {
   MockTemplate,
   MockWorkspace,
   MockWorkspaceAgent,
+  MockWorkspaceAgentConnecting,
   MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
   renderWithAuth,
@@ -205,10 +206,14 @@ describe("WorkspacePage", () => {
         DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
       )
       expect(agent1Status.length).toEqual(4)
-      const agent2Status = await screen.findAllByText(
+      const agentDisconnected = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
-      expect(agent2Status.length).toEqual(2)
+      expect(agentDisconnected.length).toEqual(1)
+      const agentConnecting = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgentConnecting.status],
+      )
+      expect(agentConnecting.length).toEqual(1)
       expect(getTemplateMock).toBeCalled()
     })
   })
