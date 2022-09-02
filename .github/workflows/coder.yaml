@@ -490,6 +490,8 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
