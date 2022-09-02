@@ -246,16 +246,7 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		coderdtest.CreateFirstUser(t, client)
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:           createTestParseResponse(),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-		})
-		tempDir := t.TempDir()
-		removeTmpDirUntilSuccessAfterTest(t, tempDir)
-		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
-		_, _ = parameterFile.WriteString("zone: \"bananas\"")
-		cmd, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567890", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
+		cmd, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567891", "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -266,18 +257,7 @@ func TestTemplateCreate(t *testing.T) {
 			execDone <- cmd.Execute()
 		}()
 
-		matches := []struct {
-			match string
-			write string
-		}{
-			{match: "Create and upload", write: "yes"},
-		}
-		for _, m := range matches {
-			pty.ExpectMatch(m.match)
-			pty.WriteLine(m.write)
-		}
-
-		require.EqualError(t, <-execDone, "template name must be less than 32 characters")
+		require.EqualError(t, <-execDone, "Template name must be less than 32 characters")
 	})
 }
 
