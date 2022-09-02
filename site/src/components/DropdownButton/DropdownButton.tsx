@@ -1,6 +1,6 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@material-ui/core/styles"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { DropdownContent } from "components/DropdownButton/DropdownContent/DropdownContent"
 import { FC, ReactNode, useRef, useState } from "react"
@@ -20,9 +20,11 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
   handleCancel,
 }) => {
   const styles = useStyles()
+  const theme = useTheme()
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "action-popover" : undefined
+  const canOpen = secondaryActions.length > 0
 
   return (
     <span className={styles.buttonContainer}>
@@ -41,12 +43,16 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
             aria-haspopup="true"
             className={styles.dropdownButton}
             ref={anchorRef}
-            disabled={!secondaryActions.length}
+            disabled={!canOpen}
             onClick={() => {
               setIsOpen(true)
             }}
           >
-            {isOpen ? <CloseDropdown /> : <OpenDropdown />}
+            {isOpen ? (
+              <CloseDropdown />
+            ) : (
+              <OpenDropdown color={canOpen ? undefined : theme.palette.action.disabled} />
+            )}
           </Button>
           <Popover
             classes={{ paper: styles.popoverPaper }}
