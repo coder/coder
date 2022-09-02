@@ -248,9 +248,6 @@ func TestTemplateCreate(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		cmd, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567891", "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
 
 		execDone := make(chan error)
 		go func() {
