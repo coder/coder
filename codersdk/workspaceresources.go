@@ -59,7 +59,7 @@ type WorkspaceAgent struct {
 	Version              string               `json:"version"`
 	Apps                 []WorkspaceApp       `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency map[string]DERPRegion `json:"latency"`
+	DERPLatency map[string]DERPRegion `json:"latency,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

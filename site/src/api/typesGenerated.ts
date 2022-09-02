@@ -536,7 +536,7 @@ export interface WorkspaceAgent {
   readonly directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
-  readonly latency: Record<string, DERPRegion>
+  readonly latency?: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go

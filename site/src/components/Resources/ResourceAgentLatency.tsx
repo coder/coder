@@ -10,9 +10,13 @@ export interface ResourceAgentLatencyProps {
 
 export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (props) => {
   const styles = useStyles()
+  if (!props.latency) {
+    return null
+  }
   if (Object.keys(props.latency).length === 0) {
     return null
   }
+  const latency = props.latency
   return (
     <div className={styles.root}>
       <div className={styles.title}>
@@ -24,10 +28,10 @@ export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (props)
           </HelpTooltipText>
         </HelpTooltip>
       </div>
-      {Object.keys(props.latency)
+      {Object.keys(latency)
         .sort()
         .map((region) => {
-          const value = props.latency[region]
+          const value = latency[region]
           return (
             <div key={region} className={styles.region}>
               <b>{region}:</b>&nbsp;{Math.round(value.latency_ms * 100) / 100} ms
