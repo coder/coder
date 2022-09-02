@@ -193,17 +193,6 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: Install Protoc
-        run: |
-          # protoc must be in lockstep with our dogfood Dockerfile
-          # or the version in the comments will differ.
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
@@ -235,6 +224,18 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile
+          # or the version in the comments will differ.
+          set -x
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
 
       - name: make gen
         run: "make --output-sync -j -B gen"
