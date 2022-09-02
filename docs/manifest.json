@@ -31,14 +31,19 @@
           "path": "./install/install.sh.md"
         },
         {
-          "title": "Docker",
-          "description": "Install Coder with Docker / docker-compose",
-          "path": "./install/docker.md"
-        },
-        {
           "title": "System packages",
           "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine.",
           "path": "./install/packages.md"
+        },
+        {
+          "title": "Kubernetes",
+          "description": "Install Coder with Kubernetes via Helm",
+          "path": "./install/kubernetes.md"
+        },
+        {
+          "title": "Docker",
+          "description": "Install Coder with Docker / docker-compose",
+          "path": "./install/docker.md"
         },
         {
           "title": "Standalone binaries",
