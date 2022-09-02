@@ -170,6 +170,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
 }
 
