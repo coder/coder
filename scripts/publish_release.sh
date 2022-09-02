@@ -3,10 +3,6 @@
 # This script generates release notes and publishes all of the given assets to
 # GitHub releases. Depends on GitHub CLI.
 #
-# THIS IS NOT INTENDED TO BE CALLED BY DEVELOPERS! This is called by the release
-# pipeline to do the final publish step. If you want to create a release use:
-#   git tag -a -m "$ver" "$ver" && git push origin "$ver"
-#
 # Usage: ./publish_release.sh [--version 1.2.3] [--dry-run] path/to/asset1 path/to/asset2 ...
 #
 # The supplied images must already be pushed to the registry or this will fail.
@@ -28,10 +24,6 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-
-if [[ "${CI:-}" == "" ]]; then
-	error "This script must be run in CI"
-fi
 
 version=""
 dry_run=0

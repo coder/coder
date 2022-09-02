@@ -7,18 +7,17 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
+PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 
-GOOS="$(go env GOOS)"
-GOARCH="$(go env GOARCH)"
-CODER_DEV_BIN="build/coder_${GOOS}_${GOARCH}"
-
-cdroot
-mkdir -p ./.coderv2
-CODER_DEV_DIR="$(realpath ./.coderv2)"
+CODER_DEV_DIR="$PROJECT_ROOT/.coderv2/"
+CODER_DEV_BIN="${CODER_DEV_DIR}/coder"
+if [[ ! -d "${CODER_DEV_DIR}" ]]; then
+	mkdir -p "${CODER_DEV_DIR}"
+fi
 
 if [[ ! -x "${CODER_DEV_BIN}" ]]; then
 	echo "Run this command first:"
-	echo "  make $CODER_DEV_BIN"
+	echo "go build -o ${CODER_DEV_BIN} ${PROJECT_ROOT}/enterprise/cmd/coder"
 	exit 1
 fi
 
