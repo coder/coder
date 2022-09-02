@@ -372,6 +372,17 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If custom state, deny request since user could be orphaning their
+	// cloud resources.
+	if createBuild.ProvisionerState != nil {
+		if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only template managers may provide custom state",
+			})
+			return
+		}
+	}
+
 	// Store prior build number to compute new build number
 	var priorBuildNum int32
 	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)

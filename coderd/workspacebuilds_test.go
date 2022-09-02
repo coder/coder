@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -162,6 +163,60 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.Equal(t, user.Username, builds[0].InitiatorUsername)
 		require.NoError(t, err)
+	})
+
+	t.Run("OrphanNotOwner", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		regularUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		workspace := coderdtest.CreateWorkspace(t, regularUser, first.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, regularUser, workspace.LatestBuild.ID)
+
+		_, err := regularUser.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        workspace.LatestBuild.Transition,
+			ProvisionerState:  []byte(" "),
+		})
+		require.Error(t, err)
+
+		var cerr *codersdk.Error
+		require.True(t, errors.As(err, &cerr))
+
+		code := cerr.StatusCode()
+		require.Equal(t, http.StatusForbidden, code, "unexpected status %s", http.StatusText(code))
+	})
+
+	t.Run("Orphan", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        workspace.LatestBuild.Transition,
+			ProvisionerState:  []byte(" "),
+		})
+		require.Nil(t, err)
 	})
 
 	t.Run("PaginateNonExistentRow", func(t *testing.T) {
