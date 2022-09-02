@@ -1,3 +1,4 @@
+import { colors } from "theme/colors"
 import Drawer from "@material-ui/core/Drawer"
 import IconButton from "@material-ui/core/IconButton"
 import List from "@material-ui/core/List"
@@ -169,7 +170,7 @@ const useStyles = makeStyles((theme) => ({
   },
   link: {
     alignItems: "center",
-    color: "hsl(220, 11%, 71%)",
+    color: colors.gray[6],
     display: "flex",
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
