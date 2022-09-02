@@ -490,6 +490,8 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
@@ -501,7 +503,7 @@ jobs:
           set -euo pipefail
           go mod download
 
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}

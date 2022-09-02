@@ -141,12 +141,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
           {deleteError}
           {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
           <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-          <WorkspaceSection
-            title={Language.resourcesTitle}
-            contentsProps={{ className: styles.resourcesTableContents }}
-          >
-            <TemplateResourcesTable resources={getStartedResources(templateResources)} />
-          </WorkspaceSection>
+          <TemplateResourcesTable resources={getStartedResources(templateResources)} />
           <WorkspaceSection
             title={Language.readmeTitle}
             contentsProps={{ className: styles.readmeContents }}
@@ -188,16 +183,13 @@ export const useStyles = makeStyles((theme) => {
     },
     markdownWrapper: {
       background: theme.palette.background.paper,
-      padding: theme.spacing(3.5),
+      padding: theme.spacing(3, 4),
 
       // Adds text wrapping to <pre> tag added by ReactMarkdown
       "& pre": {
         whiteSpace: "pre-wrap",
         wordWrap: "break-word",
       },
-    },
-    resourcesTableContents: {
-      margin: 0,
     },
     versionsTableContents: {
       margin: 0,

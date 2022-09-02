@@ -155,6 +155,7 @@ func New(options *Options) *API {
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	r.Use(
+		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
