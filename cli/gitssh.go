@@ -154,6 +154,9 @@ func praseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 		// to using the default identity files.
 		r = strings.NewReader(fallbackIdentityFiles)
 	}
+	if errBuf.Len() > 0 {
+		return nil, xerrors.Errorf("ssh -G encountered an error: %s", errBuf.String())
+	}
 
 	s := bufio.NewScanner(r)
 	for s.Scan() {
