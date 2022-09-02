@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 type RequestParams struct {
@@ -69,6 +70,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Action:         p.Action,
 			Diff:           diffRaw,
 			StatusCode:     int32(sw.Status),
+			RequestID:      httpmw.RequestID(p.Request),
 		})
 		if err != nil {
 			p.Log.Error(ctx, "export audit log", slog.Error(err))
