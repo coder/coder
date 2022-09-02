@@ -127,7 +127,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   arrowRight: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
+    color: theme.palette.text.secondary,
     width: 20,
     height: 20,
   },
