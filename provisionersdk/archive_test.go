@@ -35,7 +35,7 @@ func TestTar(t *testing.T) {
 func TestUntar(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	file, err := os.CreateTemp(dir, "")
+	file, err := os.CreateTemp(dir, "*.tf")
 	require.NoError(t, err)
 	_ = file.Close()
 	archive, err := provisionersdk.Tar(dir, 1024)
