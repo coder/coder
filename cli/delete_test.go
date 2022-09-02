@@ -59,6 +59,7 @@ func TestDelete(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
+		cmd.SetErr(pty.Output())
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
