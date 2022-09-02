@@ -147,6 +147,7 @@ func praseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Env = append(cmd.Env, env...)
 	cmd.Stdout = &outBuf
+	cmd.Stderr = io.Discard
 	err = cmd.Run()
 	if err != nil {
 		// If ssh -G failed, the SSH version is likely too old, fallback
