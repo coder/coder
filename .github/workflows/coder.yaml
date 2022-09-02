@@ -501,7 +501,7 @@ jobs:
           set -euo pipefail
           go mod download
 
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
