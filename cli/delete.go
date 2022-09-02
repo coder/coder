@@ -12,6 +12,7 @@ import (
 
 // nolint
 func deleteWorkspace() *cobra.Command {
+	var orphan bool
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
@@ -36,9 +37,29 @@ func deleteWorkspace() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			var state []byte
+			if orphan {
+				cliui.Warn(cmd.ErrOrStderr(), "Orphaning workspace",
+					"Template edit permission is required to orphan workspaces.",
+				)
+
+				state, err = client.WorkspaceBuildState(cmd.Context(), workspace.LatestBuild.ID)
+				if err != nil {
+					return err
+				}
+
+				state, err = codersdk.OrphanTerraformState(state)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("new state: %s\n", state)
+			}
+
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransitionDelete,
+				Transition:       codersdk.WorkspaceTransitionDelete,
+				ProvisionerState: state,
 			})
 			if err != nil {
 				return err
@@ -53,6 +74,10 @@ func deleteWorkspace() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&orphan, "orphan", false,
+		`Delete workspace without deleting its resources. This can delete a
+workspace in a broken state, but may also lead to unaccounted cloud resources.`,
+	)
 	cliui.AllowSkipPrompt(cmd)
 	return cmd
 }

@@ -33,6 +33,26 @@ type Workspace struct {
 	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
+// OrphanTerraformState removes all the resources from the provided Terraform
+// state. When the new state is used, Terraform will operate as if none
+// of the resources in the original state exist.
+func OrphanTerraformState(state []byte) ([]byte, error) {
+	stateMap := make(map[string]interface{})
+	err := json.Unmarshal(state, &stateMap)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ok := stateMap["resources"]
+	if !ok {
+		return nil, xerrors.Errorf("no resources detected, is this terraform state?")
+	}
+
+	stateMap["resources"] = []int{}
+
+	return json.Marshal(stateMap)
+}
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
