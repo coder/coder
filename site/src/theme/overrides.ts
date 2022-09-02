@@ -131,6 +131,15 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
+
+    MuiTableRow: {
+      root: {
+        "&:last-child .MuiTableCell-root": {
+          borderBottom: 0,
+        },
+      },
+    },
+
     MuiInputBase: {
       root: {
         borderRadius,
