@@ -86,7 +86,7 @@
     "@types/semver": "^7.3.12",
     "@types/superagent": "4.1.15",
     "@types/uuid": "8.3.4",
-    "@typescript-eslint/eslint-plugin": "5.31.0",
+    "@typescript-eslint/eslint-plugin": "5.36.1",
     "@typescript-eslint/parser": "5.31.0",
     "@xstate/cli": "0.3.0",
     "canvas": "^2.9.3",
