@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"net/http"
 	"net/netip"
 	"strconv"
 	"testing"
@@ -113,4 +114,13 @@ func TestDERP(t *testing.T) {
 
 	w1.Close()
 	w2.Close()
+}
+
+func TestDERPLatencyCheck(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	res, err := client.Request(context.Background(), http.MethodGet, "/derp/latency-check", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }

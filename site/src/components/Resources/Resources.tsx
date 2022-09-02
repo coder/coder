@@ -5,6 +5,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
@@ -150,6 +151,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                   agentName={agent.name}
                                 />
                               ))}
+                            </>
+                          )}
+                          {canUpdateWorkspace && agent.status === "connecting" && (
+                            <>
+                              <Skeleton width={80} height={60} />
+                              <Skeleton width={120} height={60} />
                             </>
                           )}
                         </div>

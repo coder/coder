@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
@@ -23,6 +24,7 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:             make([]database.APIKey, 0),
+			agentStats:          make([]database.AgentStat, 0),
 			organizationMembers: make([]database.OrganizationMember, 0),
 			organizations:       make([]database.Organization, 0),
 			users:               make([]database.User, 0),
@@ -78,6 +80,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
+	agentStats                     []database.AgentStat
 	auditLogs                      []database.AuditLog
 	files                          []database.File
 	gitSSHKey                      []database.GitSSHKey
@@ -133,6 +136,64 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+	// no-op
+	return nil
+}
+
+func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	stat := database.AgentStat{
+		ID:          p.ID,
+		CreatedAt:   p.CreatedAt,
+		WorkspaceID: p.WorkspaceID,
+		AgentID:     p.AgentID,
+		UserID:      p.UserID,
+		Payload:     p.Payload,
+		TemplateID:  p.TemplateID,
+	}
+	q.agentStats = append(q.agentStats, stat)
+	return stat, nil
+}
+
+func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	counts := make(map[time.Time]map[string]struct{})
+
+	for _, as := range q.agentStats {
+		if as.TemplateID != templateID {
+			continue
+		}
+
+		date := as.CreatedAt.Truncate(time.Hour * 24)
+		dateEntry := counts[date]
+		if dateEntry == nil {
+			dateEntry = make(map[string]struct{})
+		}
+		counts[date] = dateEntry
+
+		dateEntry[as.UserID.String()] = struct{}{}
+	}
+
+	countKeys := maps.Keys(counts)
+	sort.Slice(countKeys, func(i, j int) bool {
+		return countKeys[i].Before(countKeys[j])
+	})
+
+	var rs []database.GetTemplateDAUsRow
+	for _, key := range countKeys {
+		rs = append(rs, database.GetTemplateDAUsRow{
+			Date:   key,
+			Amount: int64(len(counts[key])),
+		})
+	}
+
+	return rs, nil
 }
 
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
@@ -525,20 +586,6 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 		}
 	}
 	return apps, nil
-}
-
-func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	workspaces := make([]database.Workspace, 0)
-	for _, ws := range q.workspaces {
-		if ws.AutostartSchedule.String != "" {
-			workspaces = append(workspaces, ws)
-		} else if ws.Ttl.Valid {
-			workspaces = append(workspaces, ws)
-		}
-	}
-	return workspaces, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
@@ -2147,6 +2194,22 @@ func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.LastUsedAt = arg.LastUsedAt
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2306,7 +2369,8 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 }
 
 func (q *fakeQuerier) InsertLicense(
-	_ context.Context, arg database.InsertLicenseParams) (database.License, error) {
+	_ context.Context, arg database.InsertLicenseParams,
+) (database.License, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

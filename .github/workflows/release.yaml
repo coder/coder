@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.18"
+          go-version: "~1.19"
 
       - name: Cache Node
         id: cache-node
@@ -146,7 +146,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.18"
+          go-version: "~1.19"
 
       - name: Import Signing Certificates
         uses: Apple-Actions/import-codesign-certs@v1

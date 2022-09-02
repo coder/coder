@@ -65,6 +65,7 @@ type Options struct {
 	WebRTCDialer      WebRTCDialer
 	FetchMetadata     FetchMetadata
 
+	StatsReporter          StatsReporter
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
@@ -100,6 +101,8 @@ func New(options Options) io.Closer {
 		envVars:                options.EnvironmentVariables,
 		coordinatorDialer:      options.CoordinatorDialer,
 		fetchMetadata:          options.FetchMetadata,
+		stats:                  &Stats{},
+		statsReporter:          options.StatsReporter,
 	}
 	server.init(ctx)
 	return server
@@ -125,6 +128,8 @@ type agent struct {
 
 	network           *tailnet.Conn
 	coordinatorDialer CoordinatorDialer
+	stats             *Stats
+	statsReporter     StatsReporter
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -194,6 +199,13 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
 		return
 	}
+	a.network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
+		if listenerExists {
+			// If a listener already exists, we would double-wrap the conn.
+			return conn
+		}
+		return a.stats.wrapConn(conn)
+	})
 	go a.runCoordinator(ctx)
 
 	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSSHPort))
@@ -207,7 +219,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(conn)
+			a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		}
 	}()
 	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
@@ -219,8 +231,10 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
+				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
+			conn = a.stats.wrapConn(conn)
 			// This cannot use a JSON decoder, since that can
 			// buffer additional data that is required for the PTY.
 			rawLen := make([]byte, 2)
@@ -364,17 +378,17 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	return nil
 }
 
-func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+func (a *agent) handlePeerConn(ctx context.Context, peerConn *peer.Conn) {
 	go func() {
 		select {
 		case <-a.closed:
-		case <-conn.Closed():
+		case <-peerConn.Closed():
 		}
-		_ = conn.Close()
+		_ = peerConn.Close()
 		a.connCloseWait.Done()
 	}()
 	for {
-		channel, err := conn.Accept(ctx)
+		channel, err := peerConn.Accept(ctx)
 		if err != nil {
 			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
 				return
@@ -383,9 +397,11 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			return
 		}
 
+		conn := channel.NetConn()
+
 		switch channel.Protocol() {
 		case ProtocolSSH:
-			go a.sshServer.HandleConn(channel.NetConn())
+			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		case ProtocolReconnectingPTY:
 			rawID := channel.Label()
 			// The ID format is referenced in conn.go.
@@ -418,9 +434,9 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 				Height:  uint16(height),
 				Width:   uint16(width),
 				Command: idParts[3],
-			}, channel.NetConn())
+			}, a.stats.wrapConn(conn))
 		case ProtocolDial:
-			go a.handleDial(ctx, channel.Label(), channel.NetConn())
+			go a.handleDial(ctx, channel.Label(), a.stats.wrapConn(conn))
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
@@ -514,6 +530,21 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.run(ctx)
+	if a.statsReporter != nil {
+		cl, err := a.statsReporter(ctx, a.logger, func() *Stats {
+			return a.stats.Copy()
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+			return
+		}
+		a.connCloseWait.Add(1)
+		go func() {
+			defer a.connCloseWait.Done()
+			<-a.closed
+			cl.Close()
+		}()
+	}
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.

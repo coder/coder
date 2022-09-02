@@ -13,6 +13,10 @@ const AdjustedMemoryIcon: typeof MemoryIcon = ({ style, ...props }) => {
   return <MemoryIcon style={{ ...style, fontSize: 24 }} {...props} />
 }
 
+// NOTE@jsjoeio, @BrunoQuaresma
+// These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
+// resource types. These are the most used ones and are based on user usage.
+// We may want to update from time-to-time.
 const iconByResource: Record<WorkspaceResource["type"], typeof MemoryIcon | undefined> = {
   docker_volume: FolderIcon,
   docker_container: AdjustedMemoryIcon,

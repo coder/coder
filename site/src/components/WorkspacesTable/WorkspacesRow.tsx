@@ -15,6 +15,7 @@ import {
 } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
+import { WorkspaceLastUsed } from "./WorkspaceLastUsed"
 
 const Language = {
   upToDateLabel: "Up to date",
@@ -64,6 +65,12 @@ export const WorkspacesRow: FC<
           }
         />
       </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
+        <TableCellData>
+          <WorkspaceLastUsed lastUsedAt={workspace.last_used_at} />
+        </TableCellData>
+      </TableCellLink>
+
       <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
           <span className={styles.outdatedLabel}>

@@ -14,6 +14,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
         },
+        ":root": {
+          colorScheme: palette.type,
+        },
       },
     },
     MuiAvatar: {

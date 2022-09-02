@@ -168,6 +168,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
 		"GET:/derp":                 "This requires a WebSocket upgrade!",
+		"GET:/derp/latency-check":   "This always returns a 200!",
 	}
 
 	assertRoute := map[string]RouteCheck{
@@ -196,6 +197,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":                 {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/report-stats":             {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!

@@ -14,7 +14,6 @@ export const Language = {
   activeUsersFilterName: "Active users",
   allUsersFilterName: "All users",
 }
-
 export interface UsersPageViewProps {
   users?: TypesGen.User[]
   roles?: TypesGen.AssignableRoles[]
@@ -67,12 +66,14 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         <PageHeaderTitle>{Language.pageTitle}</PageHeaderTitle>
       </PageHeader>
 
-      <SearchBarWithFilter
-        filter={filter}
-        onFilter={onFilter}
-        presetFilters={presetFilters}
-        error={error}
-      />
+      <div style={{ marginTop: "15px" }}>
+        <SearchBarWithFilter
+          filter={filter}
+          onFilter={onFilter}
+          presetFilters={presetFilters}
+          error={error}
+        />
+      </div>
 
       <UsersTable
         users={users}

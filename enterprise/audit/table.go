@@ -95,6 +95,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":               ActionTrack,
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
+		"last_used_at":       ActionIgnore,
 	},
 })
 
