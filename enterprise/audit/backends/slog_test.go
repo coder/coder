@@ -24,7 +24,7 @@ func TestSlogBackend(t *testing.T) {
 			logger  = slog.Make(sink)
 			backend = backends.NewSlog(logger)
 
-			alog = audittest.RandomAuditLog()
+			alog = audittest.RandomLog()
 		)
 		defer cancel()
 
