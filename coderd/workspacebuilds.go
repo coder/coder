@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisionersdk"
 )
 
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
@@ -372,17 +373,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If custom state, deny request since user could be orphaning their
-	// cloud resources.
-	if createBuild.ProvisionerState != nil {
-		if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
-			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-				Message: "Only template managers may provide custom state",
-			})
-			return
-		}
-	}
-
 	// Store prior build number to compute new build number
 	var priorBuildNum int32
 	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
@@ -402,6 +392,42 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if createBuild.Orphan {
+		if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Orphan is only permitted when deleting a workspace.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if createBuild.ProvisionerState != nil && createBuild.Orphan {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
+			})
+			return
+		}
+
+		createBuild.ProvisionerState, err = provisionersdk.OrphanState(priorHistory.ProvisionerState)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to manipulate state.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	// If custom state, deny request since user could be orphaning their
+	// cloud resources.
+	if createBuild.ProvisionerState != nil {
+		if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only template managers may provide custom state",
+			})
+			return
+		}
 	}
 
 	var workspaceBuild database.WorkspaceBuild

@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -755,3 +756,10 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 type nopcloser struct{}
 
 func (nopcloser) Close() error { return nil }
+
+// SDKError coerces err into an SDK error.
+func SDKError(t *testing.T, err error) *codersdk.Error {
+	var cerr *codersdk.Error
+	require.True(t, errors.As(err, &cerr))
+	return cerr
+}

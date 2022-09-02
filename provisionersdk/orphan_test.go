@@ -1,13 +1,13 @@
-package codersdk_test
+package provisionersdk_test
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisionersdk"
 )
 
-func TestOrphanTerraformState(t *testing.T) {
+func TestOrphanState(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
@@ -28,13 +28,13 @@ func TestOrphanTerraformState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := codersdk.OrphanTerraformState(tt.args.state)
+			got, err := provisionersdk.OrphanState(tt.args.state)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("OrphanTerraformState() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("OrphanState() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("OrphanTerraformState() = %s, want %s", got, tt.want)
+				t.Errorf("OrphanState() = %s, want %s", got, tt.want)
 			}
 		})
 	}

@@ -231,41 +231,10 @@ func TestWorkspaceBuilds(t *testing.T) {
 	})
 }
 
-func TestWorkspaceBuilds_CustomState(t *testing.T) {
+func TestWorkspaceBuilds_State(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Forbidden", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		regularUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-
-		workspace := coderdtest.CreateWorkspace(t, regularUser, first.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, regularUser, workspace.LatestBuild.ID)
-
-		_, err := regularUser.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        workspace.LatestBuild.Transition,
-			ProvisionerState:  []byte(" "),
-		})
-		require.Error(t, err)
-
-		var cerr *codersdk.Error
-		require.True(t, errors.As(err, &cerr))
-
-		code := cerr.StatusCode()
-		require.Equal(t, http.StatusForbidden, code, "unexpected status %s", http.StatusText(code))
-	})
-
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Permissions", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -288,6 +257,66 @@ func TestWorkspaceBuilds_CustomState(t *testing.T) {
 		require.Nil(t, err)
 
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// A regular user on the very same template must not be able to modify the
+		// state.
+		regularUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		workspace = coderdtest.CreateWorkspace(t, regularUser, first.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, regularUser, workspace.LatestBuild.ID)
+
+		_, err = regularUser.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        workspace.LatestBuild.Transition,
+			ProvisionerState:  []byte(" "),
+		})
+		require.Error(t, err)
+
+		var cerr *codersdk.Error
+		require.True(t, errors.As(err, &cerr))
+
+		code := cerr.StatusCode()
+		require.Equal(t, http.StatusForbidden, code, "unexpected status %s", http.StatusText(code))
+	})
+
+	t.Run("Orphan", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Providing both state and orphan fails.
+		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionDelete,
+			ProvisionerState:  []byte(" "),
+			Orphan:            true,
+		})
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+
+		// Regular orphan operation succeeds.
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionDelete,
+			Orphan:            true,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		_, err = client.Workspace(ctx, workspace.ID)
+		require.Error(t, err)
+		require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
 	})
 }
 

@@ -33,32 +33,14 @@ type Workspace struct {
 	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
-// OrphanTerraformState removes all the resources from the provided Terraform
-// state. When the new state is used, Terraform will operate as if none
-// of the resources in the original state exist.
-func OrphanTerraformState(state []byte) ([]byte, error) {
-	stateMap := make(map[string]interface{})
-	err := json.Unmarshal(state, &stateMap)
-	if err != nil {
-		return nil, err
-	}
-
-	_, ok := stateMap["resources"]
-	if !ok {
-		return nil, xerrors.Errorf("no resources detected, is this terraform state?")
-	}
-
-	stateMap["resources"] = []int{}
-
-	return json.Marshal(stateMap)
-}
-
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
+	// Orphan may be set for the Destroy transition.
+	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.

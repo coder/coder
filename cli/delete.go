@@ -41,27 +41,16 @@ func deleteWorkspace() *cobra.Command {
 			var state []byte
 
 			if orphan {
-				cliui.Warn(cmd.ErrOrStderr(), "Orphaning workspace",
+				cliui.Warn(cmd.ErrOrStderr(), "Orphaning workspace required template edit permission",
 					"Template edit permission is required to orphan workspaces.",
 				)
-
-				state, err = client.WorkspaceBuildState(cmd.Context(), workspace.LatestBuild.ID)
-				if err != nil {
-					return err
-				}
-				// If there's alreay no state, orphanage makes no sense.
-				if len(state) > 0 {
-					state, err = codersdk.OrphanTerraformState(state)
-					if err != nil {
-						return err
-					}
-				}
 			}
 
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:       codersdk.WorkspaceTransitionDelete,
 				ProvisionerState: state,
+				Orphan:           orphan,
 			})
 			if err != nil {
 				return err
