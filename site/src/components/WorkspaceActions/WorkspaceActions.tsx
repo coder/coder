@@ -4,7 +4,6 @@ import { getWorkspaceStatus, WorkspaceStateEnum, WorkspaceStatus } from "util/wo
 import { Workspace } from "../../api/typesGenerated"
 import {
   ActionLoadingButton,
-  CancelButton,
   DeleteButton,
   DisabledButton,
   Language,
@@ -70,11 +69,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.stopping]: <ActionLoadingButton label={Language.stopping} />,
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
     [ButtonTypesEnum.deleting]: <ActionLoadingButton label={Language.deleting} />,
-    [ButtonTypesEnum.cancel]: <CancelButton handleAction={handleCancel} />,
     [ButtonTypesEnum.canceling]: <DisabledButton workspaceState={workspaceState} />,
     [ButtonTypesEnum.disabled]: <DisabledButton workspaceState={workspaceState} />,
     [ButtonTypesEnum.queued]: <DisabledButton workspaceState={workspaceState} />,
-    [ButtonTypesEnum.error]: <DisabledButton workspaceState={workspaceState} />,
     [ButtonTypesEnum.loading]: <DisabledButton workspaceState={workspaceState} />,
   }
 
