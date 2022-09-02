@@ -20,6 +20,7 @@ import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { AgentOutdatedTooltip } from "../Tooltips/AgentOutdatedTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
+import { ResourceAgentLatency } from "./ResourceAgentLatency"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 
 const Language = {
@@ -129,6 +130,9 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                             <span className={styles.agentVersion}>{displayVersion}</span>
                             <AgentOutdatedTooltip outdated={outdated} />
                           </div>
+                          <div className={styles.dataRow}>
+                            <ResourceAgentLatency latency={agent.latency} />
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -232,6 +236,7 @@ const useStyles = makeStyles((theme) => ({
     gridAutoFlow: "row",
     whiteSpace: "nowrap",
     gap: theme.spacing(0.75),
+    height: "fit-content",
   },
 
   dataRow: {
