@@ -36,14 +36,12 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
      ```sh
      # Install PostgreSQL
      helm repo add bitnami https://charts.bitnami.com/bitnami
-     helm install postgres bitnami/postgresql \
+     helm install coder-db bitnami/postgresql \
          --namespace coder \
          --set auth.username=coder \
          --set auth.password=coder \
          --set auth.database=coder \
          --set persistence.size=10Gi
-
-      # Add the secret to Coder
      ```
 
      The cluster-internal DB URL for the above database is:
@@ -60,6 +58,15 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
 
 1. Download the latest `coder_helm` package from
    [GitHub releases](https://github.com/coder/coder/releases).
+
+1. Create a secret with the database URL:
+
+   ```sh
+   # uses Bitnami PostgreSQL example. If you have another database,
+   # change to the proper URL.
+   kubectl create secret generic coder-db-url -n coder \
+      --from-literal=url=postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+   ```
 
 1. Create a `values.yaml` with the configuration settings you'd like for your
    deployment. For example:
@@ -93,8 +100,8 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
        - name: CODER_TEMPLATE_AUTOIMPORT
          value: "kubernetes"
 
-     tls:
-       secretName: my-tls-secret-name
+     #tls:
+     #  secretName: my-tls-secret-name
    ```
 
    > You can view our
@@ -105,8 +112,8 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
 
 1. Run the following commands to install the chart in your cluster.
 
-   ```console
-   $ helm install coder ./coder_helm_x.y.z.tgz \
+   ```sh
+   helm install coder ./coder_helm_x.y.z.tgz \
        --namespace coder \
        --values values.yaml
    ```
@@ -118,10 +125,28 @@ You can view Coder's logs by getting the pod name from `kubectl get pods` and
 then running `kubectl logs <pod name>`. You can also view these logs in your
 Cloud's log management system if you are using managed Kubernetes.
 
-To upgrade Coder in the future, you can run the following command with a new `coder_helm_x.y.z.tgz` file from GitHub releases:
+## Upgrading Coder via Helm
+
+To upgrade Coder in the future or change values,
+you can run the following command with a new `coder_helm_x.y.z.tgz` file from GitHub releases:
 
 ```console
 $ helm upgrade coder ./coder_helm_x.y.z.tgz \
     --namespace coder \
     -f values.yaml
 ```
+
+## Troubleshooting
+
+### Kubernetes-based workspace is stuck in "Connecting..."
+
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart. If you do not have a domain set up,
+this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
+
+See [troubleshooting templates](../templates.md#creating-and-troubleshooting-templates) for more steps.
+
+## Next steps
+
+- [Quickstart](../quickstart.md)
+- [Configuring Coder](../admin/configure.md)
+- [Templates](../templates.md)
