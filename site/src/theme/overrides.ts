@@ -134,7 +134,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
 
     MuiTableRow: {
       root: {
-        "&:last-child .MuiTableCell-root": {
+        "&:last-child .MuiTableCell-body": {
           borderBottom: 0,
         },
       },
