@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-func RandomAuditLog() database.AuditLog {
+func RandomLog() database.AuditLog {
 	_, inet, _ := net.ParseCIDR("127.0.0.1/32")
 	return database.AuditLog{
 		ID:             uuid.New(),

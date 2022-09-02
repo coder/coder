@@ -74,7 +74,7 @@ func TestAuditor(t *testing.T) {
 		{
 			name: "DefaultFilter",
 			filterDecision: func() audit.FilterDecision {
-				decision, _ := audit.DefaultFilter.Check(context.Background(), audittest.RandomAuditLog())
+				decision, _ := audit.DefaultFilter.Check(context.Background(), audittest.RandomLog())
 				return decision
 			}(),
 			backendDecision: audit.FilterDecisionExport,
@@ -97,7 +97,7 @@ func TestAuditor(t *testing.T) {
 				)
 			)
 
-			err := exporter.Export(context.Background(), audittest.RandomAuditLog())
+			err := exporter.Export(context.Background(), audittest.RandomLog())
 			if test.filterError != nil {
 				require.ErrorIs(t, err, test.filterError)
 			} else if test.backendError != nil {
