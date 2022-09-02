@@ -183,7 +183,7 @@ export const useStyles = makeStyles((theme) => {
     },
     markdownWrapper: {
       background: theme.palette.background.paper,
-      padding: theme.spacing(3.5),
+      padding: theme.spacing(3, 4),
 
       // Adds text wrapping to <pre> tag added by ReactMarkdown
       "& pre": {

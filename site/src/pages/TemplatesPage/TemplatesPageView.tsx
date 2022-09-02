@@ -1,5 +1,5 @@
 import Link from "@material-ui/core/Link"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -7,6 +7,7 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
@@ -80,6 +81,7 @@ export interface TemplatesPageViewProps {
 export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
+  const theme: Theme = useTheme()
 
   return (
     <Margins>
@@ -173,13 +175,21 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                   </TableCellLink>
 
                   <TableCellLink to={templatePageLink}>
-                    {Language.developerCount(template.workspace_owner_count)}
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {Language.developerCount(template.workspace_owner_count)}
+                    </span>
                   </TableCellLink>
 
                   <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                    {createDayString(template.updated_at)}
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {createDayString(template.updated_at)}
+                    </span>
                   </TableCellLink>
-                  <TableCellLink to={templatePageLink}>{template.created_by_name}</TableCellLink>
+                  <TableCellLink to={templatePageLink}>
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {template.created_by_name}
+                    </span>
+                  </TableCellLink>
                   <TableCellLink to={templatePageLink}>
                     <div className={styles.arrowCell}>
                       <KeyboardArrowRight className={styles.arrowRight} />

@@ -76,7 +76,7 @@ jobs:
           set -euo pipefail
           go mod download
 
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_windows_{amd64,arm64}.zip \
@@ -86,7 +86,7 @@ jobs:
           set -euxo pipefail
 
           # build and (maybe) push Docker images for each architecture
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           push=""
           if [[ "$CODER_RELEASE" == *t* ]]; then
             push="push/"
@@ -194,7 +194,7 @@ jobs:
           set -euo pipefail
           go mod download
 
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j \
             build/coder_"$version"_darwin_{amd64,arm64}.zip
         env:
@@ -249,7 +249,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          version="$(./script/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j \
             build/coder_helm_"$version".tgz
           mv ./build/*.tgz ./artifacts/
