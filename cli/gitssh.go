@@ -140,22 +140,18 @@ func praseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 		return nil, xerrors.Errorf("get user home dir failed: %w", err)
 	}
 
-	var outBuf, errBuf bytes.Buffer
+	var outBuf bytes.Buffer
 	var r io.Reader = &outBuf
 
 	args = append([]string{"-G"}, args...)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Env = append(cmd.Env, env...)
 	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
 	err = cmd.Run()
 	if err != nil {
 		// If ssh -G failed, the SSH version is likely too old, fallback
 		// to using the default identity files.
 		r = strings.NewReader(fallbackIdentityFiles)
-	}
-	if errBuf.Len() > 0 {
-		return nil, xerrors.Errorf("ssh -G encountered an error: %s", errBuf.String())
 	}
 
 	s := bufio.NewScanner(r)
