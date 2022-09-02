@@ -45,4 +45,7 @@ export const darkPalette: PaletteOptions = {
     dark: colors.red[15],
     contrastText: colors.gray[3],
   },
+  action: {
+    hover: colors.gray[13]
+  }
 }
