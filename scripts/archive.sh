@@ -3,7 +3,7 @@
 # This script creates an archive containing the given binary renamed to
 # `coder(.exe)?`, as well as the README.md and LICENSE files from the repo root.
 #
-# Usage: ./archive.sh --format tar.gz --os linux/darwin/windows [--output path/to/output.tar.gz] [--sign-darwin] [--agpl] path/to/binary
+# Usage: ./archive.sh --format tar.gz [--output path/to/output.tar.gz] [--sign-darwin] [--agpl] path/to/binary
 #
 # The --format parameter must be set, and must either be "zip" or "tar.gz".
 #
@@ -14,10 +14,9 @@
 # utility and then notarized using the `gon` utility, which may take a while.
 # $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
 # imported for this to work. Also, the input binary must already be signed with
-# the `codesign` tool.
+# the `codesign` tool.=
 #
-# If the --agpl parameter is specified, only the AGPL license is included in the
-# outputted archive.
+# If the --agpl parameter is specified, only includes AGPL license.
 #
 # The absolute output path is printed on success.
 
@@ -27,11 +26,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 format=""
 output_path=""
-sign_darwin="${CODER_SIGN_DARWIN:-0}"
-os=""
+sign_darwin=0
 agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l format:,output:,sign-darwin,os:,agpl -- "$@")"
+args="$(getopt -o "" -l format:,output:,sign-darwin,agpl -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -48,11 +46,10 @@ while true; do
 		output_path="$(realpath "$2")"
 		shift 2
 		;;
-	--os)
-		os="$2"
-		shift 2
-		;;
 	--sign-darwin)
+		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
+			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
+		fi
 		sign_darwin=1
 		shift
 		;;
@@ -81,11 +78,6 @@ if [[ ! -f "$1" ]]; then
 	error "File '$1' does not exist or is not a regular file"
 fi
 input_file="$(realpath "$1")"
-
-sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
-if [[ "$sign_darwin" == 1 ]] && [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-	error "AC_APPLICATION_IDENTITY must be set when --sign-darwin or CODER_SIGN_DARWIN=1 is supplied"
-fi
 
 # Check dependencies
 if [[ "$format" == "zip" ]]; then

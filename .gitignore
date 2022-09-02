@@ -30,7 +30,6 @@ site/**/*.typegen.ts
 site/build-storybook.log
 
 # Build
-build/
 dist/
 site/out/
 
