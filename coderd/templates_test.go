@@ -550,7 +550,9 @@ func TestTemplateDAUs(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerD:         true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)

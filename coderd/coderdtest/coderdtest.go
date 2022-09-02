@@ -77,6 +77,9 @@ type Options struct {
 	// IncludeProvisionerD when true means to start an in-memory provisionerD
 	IncludeProvisionerD bool
 	APIBuilder          func(*coderd.Options) *coderd.API
+
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -235,8 +238,8 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 			},
 		},
 		AutoImportTemplates:         options.AutoImportTemplates,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
+		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()
