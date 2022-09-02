@@ -1,5 +1,5 @@
 import Popover, { PopoverProps } from "@material-ui/core/Popover"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { FC, PropsWithChildren } from "react"
 
 type BorderedMenuVariant = "admin-dropdown" | "user-dropdown"
@@ -41,6 +41,6 @@ const useStyles = makeStyles((theme) => ({
     width: "292px",
     border: `2px solid ${theme.palette.secondary.dark}`,
     borderRadius: theme.shape.borderRadius,
-    boxShadow: theme.shadows[6]
+    boxShadow: theme.shadows[6],
   },
 }))

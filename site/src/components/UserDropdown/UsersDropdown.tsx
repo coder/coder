@@ -1,8 +1,8 @@
-import { colors } from "theme/colors"
 import Badge from "@material-ui/core/Badge"
 import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
 import React, { useState } from "react"
+import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
@@ -40,7 +40,11 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
           <Badge overlap="circle">
             <UserAvatar username={user.username} />
           </Badge>
-          {anchorEl ? <CloseDropdown color={colors.gray[6]} /> : <OpenDropdown color={colors.gray[6]} />}
+          {anchorEl ? (
+            <CloseDropdown color={colors.gray[6]} />
+          ) : (
+            <OpenDropdown color={colors.gray[6]} />
+          )}
         </div>
       </MenuItem>
 

@@ -1,4 +1,4 @@
-import { Theme, lighten } from "@material-ui/core/styles"
+import { lighten, Theme } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
 import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
@@ -46,7 +46,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         "&:hover": {
           boxShadow: "none",
           backgroundColor: colors.gray[17],
-          borderColor: lighten(palette.divider, .2)
+          borderColor: lighten(palette.divider, 0.2),
         },
       },
       sizeSmall: {
