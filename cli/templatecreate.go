@@ -49,6 +49,10 @@ func templateCreate() *cobra.Command {
 				templateName = args[0]
 			}
 
+			if len(templateName) > 31 {
+				return xerrors.Errorf("Template name must be less than 32 characters")
+			}
+
 			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 			if err == nil {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
