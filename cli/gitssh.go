@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,17 +19,24 @@ import (
 )
 
 func gitssh() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:    "gitssh",
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+			env := os.Environ()
 
-			// Catch interrupt signals as a best-effort attempt to clean
-			// up the temporary key file.
+			// Catch interrupt signals to ensure the temporary private
+			// key file is cleaned up on most cases.
 			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
 			defer stop()
+
+			// Early check so errors are reported immediately.
+			identityFiles, err := praseIdentityFilesForHost(ctx, args, env)
+			if err != nil {
+				return err
+			}
 
 			client, err := createAgentClient(cmd)
 			if err != nil {
@@ -52,8 +64,23 @@ func gitssh() *cobra.Command {
 				return xerrors.Errorf("close temp gitsshkey file: %w", err)
 			}
 
-			args = append([]string{"-i", privateKeyFile.Name()}, args...)
+			// Append our key, giving precedence to user keys. Note that
+			// OpenSSH server are typically configured with MaxAuthTries
+			// set to the default value of 6. This means that only the 6
+			// first keys can be tried. However, we will assume that if
+			// a user has configured 6+ keys for a host, they know what
+			// they're doing. This behavior is critical if a server has
+			// been configured with MaxAuthTries set to 1.
+			identityFiles = append(identityFiles, privateKeyFile.Name())
+
+			var identityArgs []string
+			for _, id := range identityFiles {
+				identityArgs = append(identityArgs, "-i", id)
+			}
+
+			args = append(identityArgs, args...)
 			c := exec.CommandContext(ctx, "ssh", args...)
+			c.Env = append(c.Env, env...)
 			c.Stderr = cmd.ErrOrStderr()
 			c.Stdout = cmd.OutOrStdout()
 			c.Stdin = cmd.InOrStdin()
@@ -77,4 +104,86 @@ func gitssh() *cobra.Command {
 			return nil
 		},
 	}
+
+	return cmd
+}
+
+// fallbackIdentityFiles is the list of identity files SSH tries when
+// none have been defined for a host.
+var fallbackIdentityFiles = strings.Join([]string{
+	"identityfile ~/.ssh/id_rsa",
+	"identityfile ~/.ssh/id_dsa",
+	"identityfile ~/.ssh/id_ecdsa",
+	"identityfile ~/.ssh/id_ecdsa_sk",
+	"identityfile ~/.ssh/id_ed25519",
+	"identityfile ~/.ssh/id_ed25519_sk",
+	"identityfile ~/.ssh/id_xmss",
+}, "\n")
+
+// praseIdentityFilesForHost uses ssh -G to discern what SSH keys have
+// been enabled for the host (via the users SSH config) and returns a
+// list of existing identity files.
+//
+// We do this because when no keys are defined for a host, SSH uses
+// fallback keys (see above). However, by passing `-i` to attach our
+// private key, we're effectively disabling the fallback keys.
+//
+// Example invokation:
+//
+//	ssh -G -o SendEnv=GIT_PROTOCOL git@github.com git-upload-pack 'coder/coder'
+//
+// The extra arguments work without issue and lets us run the command
+// as-is without stripping out the excess (git-upload-pack 'coder/coder').
+func praseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, xerrors.Errorf("get user home dir failed: %w", err)
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	var r io.Reader = &outBuf
+
+	args = append([]string{"-G"}, args...)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	cmd.Env = append(cmd.Env, env...)
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	err = cmd.Run()
+	if err != nil {
+		// If ssh -G failed, the SSH version is likely too old, fallback
+		// to using the default identity files.
+		r = strings.NewReader(fallbackIdentityFiles)
+	}
+
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		line := s.Text()
+		if strings.HasPrefix(line, "identityfile ") {
+			id := strings.TrimPrefix(line, "identityfile ")
+			if strings.HasPrefix(id, "~/") {
+				id = home + id[1:]
+			}
+			// OpenSSH on Windows is weird, it supports using (and does
+			// use) mixed \ and / in paths.
+			//
+			// Example: C:\Users\ZeroCool/.ssh/known_hosts
+			//
+			// To check the file existence in Go, though, we want to use
+			// proper Windows paths.
+			// OpenSSH is amazing, this will work on Windows too:
+			// C:\Users\ZeroCool/.ssh/id_rsa
+			id = filepath.FromSlash(id)
+
+			// Only include the identity file if it exists.
+			if _, err := os.Stat(id); err == nil {
+				identityFiles = append(identityFiles, id)
+			}
+		}
+	}
+	if err := s.Err(); err != nil {
+		// This should never happen, the check is for completeness.
+		return nil, xerrors.Errorf("scan ssh output: %w", err)
+	}
+
+	return identityFiles, nil
 }
