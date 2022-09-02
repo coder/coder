@@ -25,7 +25,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontSize: 18,
       },
       colorDefault: {
-        backgroundColor: "#a1adc9",
+        backgroundColor: colors.gray[6],
       },
     },
     MuiButton: {
