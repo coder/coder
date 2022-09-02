@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,11 +19,18 @@ func gitssh() *cobra.Command {
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			// Catch interrupt signals as a best-effort attempt to clean
+			// up the temporary key file.
+			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
+			defer stop()
+
 			client, err := createAgentClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
-			key, err := client.AgentGitSSHKey(cmd.Context())
+			key, err := client.AgentGitSSHKey(ctx)
 			if err != nil {
 				return xerrors.Errorf("get agent git ssh token: %w", err)
 			}
@@ -45,7 +53,7 @@ func gitssh() *cobra.Command {
 			}
 
 			args = append([]string{"-i", privateKeyFile.Name()}, args...)
-			c := exec.CommandContext(cmd.Context(), "ssh", args...)
+			c := exec.CommandContext(ctx, "ssh", args...)
 			c.Stderr = cmd.ErrOrStderr()
 			c.Stdout = cmd.OutOrStdout()
 			c.Stdin = cmd.InOrStdin()
