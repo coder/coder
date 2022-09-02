@@ -9,7 +9,7 @@
 # If no version is specified, defaults to the version from ./version.sh.
 #
 # If no output path is specified, defaults to
-# "$repo_root/dist/coder_helm_$version.tgz".
+# "$repo_root/build/coder_helm_$version.tgz".
 #
 # If the --push parameter is specified, the resulting artifact will be published
 # to the Coder OSS repo. This requires `gsutil` to be installed and configured.
@@ -56,8 +56,8 @@ fi
 
 if [[ "$output_path" == "" ]]; then
 	cdroot
-	mkdir -p dist
-	output_path="$(realpath "dist/coder_helm_$version.tgz")"
+	mkdir -p build
+	output_path="$(realpath "build/coder_helm_$version.tgz")"
 fi
 
 # Check dependencies
