@@ -44,9 +44,9 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>{Language.usernameLabel}</TableCell>
-            <TableCell>{Language.statusLabel}</TableCell>
-            <TableCell>
+            <TableCell width="50%">{Language.usernameLabel}</TableCell>
+            <TableCell width="25%">{Language.statusLabel}</TableCell>
+            <TableCell width="25%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
                 <UserRoleHelpTooltip />
