@@ -1,77 +1,84 @@
-Coder publishes containerized images
+You can install and run Coder using the official Docker images published on [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
 
-## Standalone container
+## Requirements
 
-Requirements:
+Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
 
-- Docker
--
+## Run Coder with built-in database and tunnel (quick)
 
-   sudo rm -r ~/coder-stuff2/
-   mkdir ~/coder-stuff2/
-   docker run --rm -it \
-    -e CODER_TUNNEL=true \
-    -e CODER_CONFIG_DIR=/opt/coder-data \
-   -v /var/run/docker.sock:/var/run/docker.sock \
-    -v $HOME/coder-stuff2/:/opt/coder-data/ \
-   ghcr.io/coder/coder:latest
+For proof-of-concept deployments, you can run a complete Coder instance with
+with the following command:
 
-1. Clone the `coder` repository:
+```sh
+export CODER_DATA=$HOME/.config/coderv2-docker
+mkdir -p $CODER_DATA
+docker run --rm -it \
+  -e CODER_TUNNEL=true \
+  -v $CODER_DATA:/home/coder/.config \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/coder/coder:latest
+```
+
+Coder configuration is defined via environment variables.
+See [configuring Coder](../admin/configure.md) for details.
+
+## Run Coder with access URL and external PostgreSQL (recommended)
+
+For production deployments, we recommend using an external PostgreSQL database.
+Set `ACCESS_URL` to the external URL that users and workspaces will use to
+connect to Coder.
+
+```sh
+docker run --rm -it \
+  -e CODER_ACCESS_URL="https://coder.example.com" \
+  -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/coder/coder:latest
+```
+
+Coder configuration is defined via environment variables.
+See [configuring Coder](../admin/configure.md) for details.
+
+## Run Coder with docker-compose
+
+Coder's publishes a [docker-compose example](../../docker-compose.yaml) which includes
+an PostgreSQL container and volume.
+
+1. Install [Docker Compose](https://docs.docker.com/compose/install/)
+
+2. Clone the `coder` repository:
 
    ```console
    git clone https://github.com/coder/coder.git
    ```
 
-2. Navigate into the `coder` folder and run `docker-compose up`:
+3. Start Coder with `docker-compose up`:
+
+   In order to use cloud-based templates (e.g. Kubernetes, AWS), you must set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to connect to Coder.
 
    ```console
    cd coder
-   # Coder will bind to localhost:7080.
-   # You may use localhost:7080 as your access URL
-   # when using Docker workspaces exclusively.
-   #  CODER_ACCESS_URL=http://localhost:7080
-   # Otherwise, an internet accessible access URL
-   # is required.
-   CODER_ACCESS_URL=https://coder.mydomain.com
+
+   CODER_ACCESS_URL=https://coder.example.com
    docker-compose up
    ```
 
-   Otherwise, you can start the service:
+   > Without `CODER_ACCESS_URL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
 
-   ```console
-   cd coder
-   docker-compose up
-   ```
+4. Follow the on-screen instructions log in and create your first template and workspace
 
-   docker run --rm -it \
-    -e CODER_TUNNEL=true \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ~/idk:/home/coder \
-   ghcr.io/coder/coder:latest
+## Troubleshooting
 
-   Alternatively, if you would like to start a **temporary deployment**:
+### Docker-based workspace is stuck in "Connecting..."
 
-   ```console
-   docker run --rm -it \
-   -e CODER_DEV_MODE=true \
-   -v /var/run/docker.sock:/var/run/docker.sock \
-   ghcr.io/coder/coder:v0.5.10
-   ```
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates.md#creating-and-troubleshooting-templates) for more steps.
 
-3. Follow the on-screen instructions to create your first template and workspace
+### Permission denied while trying to connect to the Docker daemon socket
 
-If the user is not in the Docker group, you will see the following error:
+See Docker's official documentation to [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)
 
-```sh
-Error: Error pinging Docker server: Got permission denied while trying to connect to the Docker daemon socket
-```
+## Next steps
 
-The default docker socket only permits connections from `root` or members of the `docker`
-group. Remedy like this:
-
-```sh
-# replace "coder" with user running coderd
-sudo usermod -aG docker coder
-grep /etc/group -e "docker"
-sudo systemctl restart coder.service
-```
+- [Quickstart](../quickstart.md)
+- [Configuring Coder](../admin/configure.md)
+- [Templates](../templates.md)
