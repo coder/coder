@@ -219,7 +219,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				return
 			}
-			a.sshServer.HandleConn(a.stats.wrapConn(conn))
+			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		}
 	}()
 	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
