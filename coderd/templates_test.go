@@ -42,7 +42,7 @@ func TestTemplate(t *testing.T) {
 
 	t.Run("WorkspaceCount", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
@@ -529,7 +529,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("Workspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -550,7 +550,7 @@ func TestTemplateDAUs(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -620,12 +620,7 @@ func TestTemplateDAUs(t *testing.T) {
 
 	sshConn, err := conn.SSHClient()
 	require.NoError(t, err)
-
-	session, err := sshConn.NewSession()
-	require.NoError(t, err)
-
-	_, err = session.Output("echo hello")
-	require.NoError(t, err)
+	_ = sshConn.Close()
 
 	want := &codersdk.TemplateDAUsResponse{
 		Entries: []codersdk.DAUEntry{

@@ -74,9 +74,9 @@ type Options struct {
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 
-	// IncludeProvisionerD when true means to start an in-memory provisionerD
-	IncludeProvisionerD bool
-	APIBuilder          func(*coderd.Options) *coderd.API
+	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
+	IncludeProvisionerDaemon bool
+	APIBuilder               func(*coderd.Options) *coderd.API
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -93,7 +93,7 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 	if options == nil {
 		options = &Options{}
 	}
-	options.IncludeProvisionerD = true
+	options.IncludeProvisionerDaemon = true
 	client, closer := newWithCloser(t, options)
 	return client, closer
 }
@@ -244,7 +244,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv.Config.Handler = coderAPI.Handler
 
 	var provisionerCloser io.Closer = nopcloser{}
-	if options.IncludeProvisionerD {
+	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
@@ -276,8 +276,8 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        10 * time.Millisecond,
-		UpdateInterval:      25 * time.Millisecond,
+		PollInterval:        50 * time.Millisecond,
+		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),

@@ -40,7 +40,7 @@ func TestTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
@@ -87,7 +87,7 @@ func TestTemplateCreate(t *testing.T) {
 
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:           createTestParseResponse(),
@@ -123,7 +123,7 @@ func TestTemplateCreate(t *testing.T) {
 
 	t.Run("WithParameterFileContainingTheValue", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:           createTestParseResponse(),
@@ -162,7 +162,7 @@ func TestTemplateCreate(t *testing.T) {
 
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:           createTestParseResponse(),
@@ -200,7 +200,7 @@ func TestTemplateCreate(t *testing.T) {
 
 	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 
 		create := func() error {

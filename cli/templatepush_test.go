@@ -31,7 +31,7 @@ func TestTemplatePush(t *testing.T) {
 	//	7. Asset 0 params in new version
 	t.Run("NewParameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		// Create initial template version to update
 		lastActiveVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -110,7 +110,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -157,7 +157,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("UseWorkingDir", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
