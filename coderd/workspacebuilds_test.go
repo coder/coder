@@ -231,7 +231,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 	})
 }
 
-func TestWorkspaceBuilds_State(t *testing.T) {
+func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Permissions", func(t *testing.T) {
