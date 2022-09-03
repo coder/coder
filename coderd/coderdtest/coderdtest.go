@@ -455,11 +455,11 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
-	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
+	require.Eventually(t, func() bool {
 		var err error
-		templateVersion, err = client.TemplateVersion(ctx, version)
+		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}))
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return templateVersion
 }
 
@@ -469,10 +469,10 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
-		workspaceBuild, err := client.WorkspaceBuild(ctx, build)
+	require.Eventually(t, func() bool {
+		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}))
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
 }
 
@@ -482,9 +482,9 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
-	require.True(t, testutil.EventuallyLong(t, func(ctx context.Context) bool {
+	require.Eventually(t, func() bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(ctx, build)
+		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -497,7 +497,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}))
+	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
 }
 
