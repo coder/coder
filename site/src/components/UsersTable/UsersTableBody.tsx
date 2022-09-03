@@ -72,7 +72,20 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
         return (
           <TableRow key={user.id}>
             <TableCell>
-              <AvatarData title={user.username} subtitle={user.email} highlightTitle />
+              <AvatarData
+                title={user.username}
+                subtitle={user.email}
+                highlightTitle
+                avatar={
+                  user.avatar_url ? (
+                    <img
+                      className={styles.avatar}
+                      alt={`${user.username}'s Avatar`}
+                      src={user.avatar_url}
+                    />
+                  ) : null
+                }
+              />
             </TableCell>
             <TableCell
               className={combineClasses([
@@ -138,5 +151,10 @@ const useStyles = makeStyles((theme) => ({
   },
   suspended: {
     color: theme.palette.text.secondary,
+  },
+  avatar: {
+    width: theme.spacing(4.5),
+    height: theme.spacing(4.5),
+    borderRadius: "100%",
   },
 }))

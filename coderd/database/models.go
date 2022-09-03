@@ -494,15 +494,16 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	Email          string     `db:"email" json:"email"`
-	Username       string     `db:"username" json:"username"`
-	HashedPassword []byte     `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
-	Status         UserStatus `db:"status" json:"status"`
-	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType  `db:"login_type" json:"login_type"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatus     `db:"status" json:"status"`
+	RBACRoles      []string       `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
 }
 
 type UserLink struct {

@@ -51,6 +51,7 @@ describe("NavbarView", () => {
     const mockUser = {
       ...MockUser,
       username: "bryan",
+      avatar_url: "",
     }
 
     // When

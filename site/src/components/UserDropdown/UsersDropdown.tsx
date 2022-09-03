@@ -37,7 +37,7 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
       >
         <div className={styles.inner}>
           <Badge overlap="circle">
-            <UserAvatar username={user.username} />
+            <UserAvatar username={user.username} avatarURL={user.avatar_url} />
           </Badge>
           {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </div>
