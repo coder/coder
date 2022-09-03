@@ -20,7 +20,7 @@ docker run --rm -it \
 ```
 
 Coder configuration is defined via environment variables.
-See [configuring Coder](../admin/configure.md) for details.
+Learn more about Coder's [configuration options](../admin/configure.md).
 
 ## Run Coder with access URL and external PostgreSQL (recommended)
 
@@ -37,7 +37,7 @@ docker run --rm -it \
 ```
 
 Coder configuration is defined via environment variables.
-See [configuring Coder](../admin/configure.md) for details.
+Learn more about Coder's [configuration options](../admin/configure.md).
 
 ## Run Coder with docker-compose
 

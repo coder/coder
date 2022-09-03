@@ -141,6 +141,12 @@
       "path": "./admin/index.md",
       "children": [
         {
+          "title": "Users",
+          "description": "Learn about user roles available in Coder and how to create and manage users",
+          "icon_path": "./images/icons/users.svg",
+          "path": "./admin/users.md"
+        },
+        {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
           "path": "./admin/auth.md"
@@ -156,12 +162,6 @@
           "path": "./admin/upgrade.md"
         }
       ]
-    },
-    {
-      "title": "Users",
-      "description": "Learn about user roles available in Coder and how to create and manage users",
-      "icon_path": "./images/icons/users.svg",
-      "path": "./users.md"
     },
     {
       "title": "Contributing",

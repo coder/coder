@@ -21,6 +21,10 @@ Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](ht
    coder server --postgres-url <url> --access-url <url>
    ```
 
+   > Set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to
+   > connect to Coder. This is not required if you are using the tunnel. Learn more
+   > about Coder's [configuration options](../admin/configure.md).
+
 1. Visit the Coder URL in the logs to set up your first account, or use the CLI.
 
 ## Next steps
