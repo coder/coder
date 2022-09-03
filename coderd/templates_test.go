@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -597,10 +596,6 @@ func TestTemplateDAUs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	opts := &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Named("client"),
-	}
-
 	daus, err := client.TemplateDAUs(context.Background(), template.ID)
 	require.NoError(t, err)
 
@@ -612,7 +607,7 @@ func TestTemplateDAUs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("tailnet"), resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
