@@ -1,3 +1,5 @@
-There are a number of different ways to install Coder
+There are a number of different methods to install Coder:
 
-<children></children>
+<children>
+  This page is rendered on https://coder.com/docs/coder-oss/install. Refer to the other documents in the `install/` directory for per-platform instructions.
+</children>

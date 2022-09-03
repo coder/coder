@@ -1,9 +1,5 @@
 {
-  "versions": [
-    "main",
-    "v0.8.1",
-    "v0.7.12"
-  ],
+  "versions": ["main", "v0.8.1", "v0.7.12"],
   "routes": [
     {
       "title": "About",
@@ -47,7 +43,7 @@
         },
         {
           "title": "Standalone binaries",
-          "description": "Download the binary for Mac, Windows, or Linux.",
+          "description": "Download binaries for macOS, Windows, and Linux.",
           "path": "./install/manual.md"
         }
       ]
