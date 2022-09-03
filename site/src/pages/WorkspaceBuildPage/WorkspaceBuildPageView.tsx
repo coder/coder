@@ -1,3 +1,4 @@
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
 import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
@@ -26,6 +27,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, 
       </PageHeader>
 
       <Stack>
+        <ErrorSummary error="test" />
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
         {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}

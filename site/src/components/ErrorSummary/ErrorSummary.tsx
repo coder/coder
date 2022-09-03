@@ -17,7 +17,7 @@ export const Language = {
 }
 
 export interface ErrorSummaryProps {
-  error: ApiError | Error | unknown
+  error: ApiError | Error | unknown | JSX.Element
   retry?: () => void
   dismissible?: boolean
   defaultMessage?: string
