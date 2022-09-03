@@ -91,17 +91,19 @@ build-fat build-full build: $(CODER_FAT_BINARIES)
 release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ALL_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
 .PHONY: release
 
-build/coder-slim_$(VERSION)_checksums.sha1: $(CODER_SLIM_BINARIES)
+build/coder-slim_$(VERSION)_checksums.sha1 site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 	pushd ./build
-		openssl dgst -r -sha1 coder-slim_"$(VERSION)"_* | tee "$(@F)"
+		openssl dgst -r -sha1 coder-slim_"$(VERSION)"_* | tee "coder-slim_$(VERSION)_checksums.sha1"
 	popd
+
+	cp "build/coder-slim_$(VERSION)_checksums.sha1" "site/out/bin/coder.sha1"
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./build
 		tar cf "$(@F)" coder-slim_"$(VERSION)"_*
 	popd
 
-build/coder-slim_$(VERSION).tar.zst site/out/coder.tar.zst: build/coder-slim_$(VERSION).tar
+build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar
 	zstd -6 \
 		--force \
 		--ultra \
@@ -110,7 +112,7 @@ build/coder-slim_$(VERSION).tar.zst site/out/coder.tar.zst: build/coder-slim_$(V
 		-o "build/coder-slim_$(VERSION).tar.zst" \
 		"build/coder-slim_$(VERSION).tar"
 
-	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/coder.tar.zst"
+	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/bin/coder.tar.zst"
 	# delete the uncompressed binaries from the embedded dir
 	rm site/out/coder-*
 
@@ -134,7 +136,7 @@ $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION
 	ln "$<" "$@"
 
 # "fat" binaries always depend on the site and the compressed slim binaries.
-$(CODER_FAT_BINARIES): site/out/index.html site/out/coder.tar.zst
+$(CODER_FAT_BINARIES): site/out/index.html site/out/bin/coder.tar.zst
 
 # This is a handy block that parses the target to determine whether it's "slim"
 # or "fat", which OS was specified and which architecture was specified.
