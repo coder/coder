@@ -95,6 +95,8 @@ Join our community on [Discord](https://discord.gg/coder) and [Twitter](https://
 
 ## Contributing
 
+If you're using Coder in your organization, please try to add your company name to the [ADOPTERS.md](./ADOPTERS.md). It really helps the project to gain momentum and credibility. It's a small contribution back to the project with a big impact. 
+
 Read the [contributing docs](https://coder.com/docs/coder-oss/latest/CONTRIBUTING).
 
 Find our list of contributors [here](https://github.com/coder/coder/graphs/contributors).
