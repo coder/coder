@@ -56,7 +56,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 		t.Error("NewAuthTester cannot be called with custom Authorizer")
 	}
 	options.Authorizer = authorizer
-	options.IncludeProvisionerD = true
+	options.IncludeProvisionerDaemon = true
 
 	client, _, api := newWithAPI(t, options)
 	admin := CreateFirstUser(t, client)

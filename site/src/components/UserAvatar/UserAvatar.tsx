@@ -5,8 +5,17 @@ import { firstLetter } from "../../util/firstLetter"
 export interface UserAvatarProps {
   className?: string
   username: string
+  avatarURL: string
 }
 
-export const UserAvatar: FC<UserAvatarProps> = ({ username, className }) => {
-  return <Avatar className={className}>{firstLetter(username)}</Avatar>
+export const UserAvatar: FC<UserAvatarProps> = ({ username, className, avatarURL }) => {
+  return (
+    <Avatar className={className}>
+      {avatarURL ? (
+        <img alt={`${username}'s Avatar`} src={avatarURL} width="100%" />
+      ) : (
+        firstLetter(username)
+      )}
+    </Avatar>
+  )
 }

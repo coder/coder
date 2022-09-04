@@ -83,6 +83,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"status":          ActionTrack,
 		"rbac_roles":      ActionTrack,
 		"login_type":      ActionIgnore,
+		"avatar_url":      ActionIgnore,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

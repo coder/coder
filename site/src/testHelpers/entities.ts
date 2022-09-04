@@ -70,6 +70,7 @@ export const MockUser: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
+  avatar_url: "https://github.com/coder.png",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -80,6 +81,7 @@ export const MockUserAdmin: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockUserAdminRole],
+  avatar_url: "",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -90,6 +92,7 @@ export const MockUser2: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -100,6 +103,7 @@ export const SuspendedMockUser: TypesGen.User = {
   status: "suspended",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const MockOrganization: TypesGen.Organization = {

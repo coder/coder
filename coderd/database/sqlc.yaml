@@ -18,6 +18,7 @@ packages:
 
 rename:
   api_key: APIKey
+  avatar_url: AvatarURL
   login_type_oidc: LoginTypeOIDC
   oauth_access_token: OAuthAccessToken
   oauth_expiry: OAuthExpiry
