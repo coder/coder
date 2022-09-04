@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.18.0"
+      version = "~> 2.20.0"
     }
   }
 }
@@ -52,18 +52,25 @@ resource "docker_volume" "home_volume" {
 resource "coder_metadata" "home_info" {
   resource_id = docker_volume.home_volume.id
   item {
-    key = "🤫🤫🤫<br/><br/>"
-    value = "❤️❤️❤️"
+    key       = "🤫🤫🤫<br/><br/>"
+    value     = "❤️❤️❤️"
     sensitive = true
   }
 }
 
 
+data "docker_registry_image" "dogfood" {
+  name = "codercom/oss-dogfood:main"
+}
 
+resource "docker_image" "dogfood" {
+  name          = data.docker_registry_image.dogfood.name
+  pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
+}
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "docker.io/codercom/oss-dogfood:main"
+  image = docker_image.dogfood.name
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -93,14 +100,14 @@ resource "docker_container" "workspace" {
 }
 
 resource "coder_metadata" "container_info" {
-  count = data.coder_workspace.me.start_count
+  count       = data.coder_workspace.me.start_count
   resource_id = docker_container.workspace[0].id
   item {
-    key = "memory"
+    key   = "memory"
     value = docker_container.workspace[0].memory
   }
   item {
-    key = "runtime"
+    key   = "runtime"
     value = docker_container.workspace[0].runtime
   }
 }
