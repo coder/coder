@@ -14,7 +14,7 @@ func TestTemplateVersions(t *testing.T) {
 	t.Parallel()
 	t.Run("ListVersions", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

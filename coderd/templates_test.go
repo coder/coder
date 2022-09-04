@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -42,7 +41,7 @@ func TestTemplate(t *testing.T) {
 
 	t.Run("WorkspaceCount", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
@@ -529,7 +528,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("Workspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -550,7 +549,7 @@ func TestTemplateDAUs(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -597,10 +596,6 @@ func TestTemplateDAUs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	opts := &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Named("client"),
-	}
-
 	daus, err := client.TemplateDAUs(context.Background(), template.ID)
 	require.NoError(t, err)
 
@@ -612,7 +607,7 @@ func TestTemplateDAUs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("tailnet"), resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
@@ -620,12 +615,7 @@ func TestTemplateDAUs(t *testing.T) {
 
 	sshConn, err := conn.SSHClient()
 	require.NoError(t, err)
-
-	session, err := sshConn.NewSession()
-	require.NoError(t, err)
-
-	_, err = session.Output("echo hello")
-	require.NoError(t, err)
+	_ = sshConn.Close()
 
 	want := &codersdk.TemplateDAUsResponse{
 		Entries: []codersdk.DAUEntry{
