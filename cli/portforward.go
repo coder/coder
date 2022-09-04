@@ -12,10 +12,11 @@ import (
 	"sync"
 	"syscall"
 
-	"cdr.dev/slog"
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"

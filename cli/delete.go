@@ -41,8 +41,9 @@ func deleteWorkspace() *cobra.Command {
 			var state []byte
 
 			if orphan {
-				cliui.Warn(cmd.ErrOrStderr(), "Orphaning workspace required template edit permission",
-					"Template edit permission is required to orphan workspaces.",
+				cliui.Warn(
+					cmd.ErrOrStderr(),
+					"Orphaning workspace required template edit permission",
 				)
 			}
 
