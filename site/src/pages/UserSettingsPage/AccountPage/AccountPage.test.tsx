@@ -37,6 +37,7 @@ describe("AccountPage", () => {
           status: "active",
           organization_ids: ["123"],
           roles: [],
+          avatar_url: "",
           ...data,
         }),
       )

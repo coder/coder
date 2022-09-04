@@ -13,6 +13,7 @@ export const AuditLogExample = Template.bind({})
 AuditLogExample.args = {
   Avatar: {
     username: MockUser.username,
+    avatarURL: "",
   },
   caption: MockUserAgent.ip_address,
   primaryText: MockUser.email,
@@ -25,6 +26,7 @@ export const AuditLogEmptyUserExample = Template.bind({})
 AuditLogEmptyUserExample.args = {
   Avatar: {
     username: MockUser.username,
+    avatarURL: "",
   },
   caption: MockUserAgent.ip_address,
   primaryText: "Deleted User",

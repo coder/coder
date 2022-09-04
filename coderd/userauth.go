@@ -144,6 +144,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		AllowSignups: api.GithubOAuth2Config.AllowSignups,
 		Email:        verifiedEmail.GetEmail(),
 		Username:     ghUser.GetLogin(),
+		AvatarURL:    ghUser.GetAvatarURL(),
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -207,6 +208,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Verified bool   `json:"email_verified"`
 		Username string `json:"preferred_username"`
+		Picture  string `json:"picture"`
 	}
 	err = idToken.Claims(&claims)
 	if err != nil {
@@ -256,6 +258,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		AllowSignups: api.OIDCConfig.AllowSignups,
 		Email:        claims.Email,
 		Username:     claims.Username,
+		AvatarURL:    claims.Picture,
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -292,6 +295,7 @@ type oauthLoginParams struct {
 	AllowSignups bool
 	Email        string
 	Username     string
+	AvatarURL    string
 }
 
 type httpError struct {
@@ -410,6 +414,15 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
+		needsUpdate := false
+		if user.AvatarURL.String != params.AvatarURL {
+			user.AvatarURL = sql.NullString{
+				String: params.AvatarURL,
+				Valid:  true,
+			}
+			needsUpdate = true
+		}
+
 		// If the upstream email or username has changed we should mirror
 		// that in Coder. Many enterprises use a user's email/username as
 		// security auditing fields so they need to stay synced.
@@ -417,6 +430,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// provisioning consequences (updates to usernames may delete persistent
 		// resources such as user home volumes).
 		if user.Email != params.Email {
+			user.Email = params.Email
+			needsUpdate = true
+		}
+
+		if needsUpdate {
 			// TODO(JonA): Since we're processing updates to a user's upstream
 			// email/username, it's possible for a different built-in user to
 			// have already claimed the username.
@@ -425,9 +443,10 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// user and changes their username.
 			user, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 				ID:        user.ID,
-				Email:     params.Email,
+				Email:     user.Email,
 				Username:  user.Username,
 				UpdatedAt: database.Now(),
+				AvatarURL: user.AvatarURL,
 			})
 			if err != nil {
 				return xerrors.Errorf("update user profile: %w", err)
