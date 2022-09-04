@@ -1,2 +1,2 @@
 ALTER TABLE users
-    ADD COLUMN avatar_url varchar(64);
+    ADD COLUMN avatar_url text;
