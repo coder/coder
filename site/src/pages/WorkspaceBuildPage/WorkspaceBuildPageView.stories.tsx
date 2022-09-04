@@ -1,5 +1,9 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockWorkspaceBuild, MockWorkspaceBuildLogs } from "../../testHelpers/entities"
+import {
+  MockFailedWorkspaceBuild,
+  MockWorkspaceBuild,
+  MockWorkspaceBuildLogs,
+} from "../../testHelpers/entities"
 import { WorkspaceBuildPageView, WorkspaceBuildPageViewProps } from "./WorkspaceBuildPageView"
 
 export default {
@@ -13,5 +17,10 @@ export const Example = Template.bind({})
 Example.args = {
   build: MockWorkspaceBuild,
   logs: MockWorkspaceBuildLogs,
-  isWaitingForLogs: false,
+}
+
+export const FailedDelete = Template.bind({})
+FailedDelete.args = {
+  build: MockFailedWorkspaceBuild("delete"),
+  logs: MockWorkspaceBuildLogs,
 }
