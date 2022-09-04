@@ -18,8 +18,8 @@ export const darkPalette: PaletteOptions = {
     dark: colors.indigo[7],
   },
   background: {
-    default: colors.gray[15],
-    paper: colors.gray[14],
+    default: colors.gray[17],
+    paper: colors.gray[16],
   },
   text: {
     primary: colors.gray[3],

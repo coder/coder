@@ -89,9 +89,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTable: {
       root: {
-        borderCollapse: "collapse",
+        borderCollapse: "unset",
         border: "none",
-        background: palette.background.default,
+        background: palette.background.paper,
         boxShadow: `0 0 0 1px ${palette.background.default} inset`,
         overflow: "hidden",
 
