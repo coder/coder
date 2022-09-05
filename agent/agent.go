@@ -29,6 +29,7 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -58,6 +59,7 @@ var (
 	tailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
 	tailnetSSHPort             = 1
 	tailnetReconnectingPTYPort = 2
+	tailnetSpeedtestPort       = 3
 )
 
 type Options struct {
@@ -254,6 +256,23 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 				continue
 			}
 			go a.handleReconnectingPTY(ctx, msg, conn)
+		}
+	}()
+	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSpeedtestPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := speedtestListener.Accept()
+			if err != nil {
+				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
+				return
+			}
+			go func() {
+				_ = speedtest.ServeConn(conn)
+			}()
 		}
 	}()
 }
