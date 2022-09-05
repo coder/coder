@@ -728,26 +728,28 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 	if ok {
 		rpty, ok = rawRPTY.(*reconnectingPTY)
 		if !ok {
-			a.logger.Warn(ctx, "found invalid type in reconnecting pty map", slog.F("id", msg.ID))
+			a.logger.Error(ctx, "found invalid type in reconnecting pty map", slog.F("id", msg.ID))
+			return
 		}
 	} else {
 		// Empty command will default to the users shell!
 		cmd, err := a.createCommand(ctx, msg.Command, nil)
 		if err != nil {
-			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
+			a.logger.Error(ctx, "create reconnecting pty command", slog.Error(err))
 			return
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-		ptty, process, err := pty.Start(cmd)
-		if err != nil {
-			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
-		}
-
 		// Default to buffer 64KiB.
 		circularBuffer, err := circbuf.NewBuffer(64 << 10)
 		if err != nil {
-			a.logger.Warn(ctx, "create circular buffer", slog.Error(err))
+			a.logger.Error(ctx, "create circular buffer", slog.Error(err))
+			return
+		}
+
+		ptty, process, err := pty.Start(cmd)
+		if err != nil {
+			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
 			return
 		}
 
