@@ -28,8 +28,6 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
-	"github.com/pion/turn/v2"
-	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
@@ -58,7 +56,6 @@ import (
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -111,9 +108,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		tlsEnable                        bool
 		tlsKeyFile                       string
 		tlsMinVersion                    string
-		turnRelayAddress                 string
 		tunnel                           bool
-		stunServers                      []string
 		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
@@ -292,22 +287,6 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
-			turnServer, err := turnconn.New(&turn.RelayAddressGeneratorStatic{
-				RelayAddress: net.ParseIP(turnRelayAddress),
-				Address:      turnRelayAddress,
-			})
-			if err != nil {
-				return xerrors.Errorf("create turn server: %w", err)
-			}
-			defer turnServer.Close()
-
-			iceServers := make([]webrtc.ICEServer, 0)
-			for _, stunServer := range stunServers {
-				iceServers = append(iceServers, webrtc.ICEServer{
-					URLs: []string{stunServer},
-				})
-			}
-
 			// Validate provided auto-import templates.
 			var (
 				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(autoImportTemplates))
@@ -352,7 +331,6 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
-				ICEServers:                  iceServers,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
@@ -361,8 +339,6 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				GoogleTokenValidator:        googleTokenValidator,
 				SecureAuthCookie:            secureAuthCookie,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
-				TailscaleEnable:             tailscaleEnable,
-				TURNServer:                  turnServer,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
 				AutoImportTemplates:         validatedAutoImportTemplates,
@@ -470,7 +446,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 					OIDCAuth:        oidcClientID != "",
 					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
-					STUN:            len(stunServers) != 0,
+					STUN:            len(derpServerSTUNAddrs) != 0,
 					Tunnel:          tunnel,
 				})
 				if err != nil {
@@ -831,12 +807,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
 		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
-	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
-		"stun:stun.l.google.com:19302",
-	}, "Specify URLs for STUN servers to enable P2P connections.")
 	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
-	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
-		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)

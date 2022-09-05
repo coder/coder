@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -29,12 +28,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
-	"github.com/coder/coder/peerbroker/proto"
-	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -63,67 +57,6 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiAgent)
-}
-
-func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
-
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(rw, http.StatusPreconditionFailed, codersdk.Response{
-			Message: fmt.Sprintf("Agent isn't connected! Status: %s.", apiAgent.Status),
-		})
-		return
-	}
-
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
-
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Server(wsNetConn, config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-
-	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
-
-	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
-		ChannelID: workspaceAgent.ID.String(),
-		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
-		Pubsub:    api.Pubsub,
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
-		return
-	}
 }
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
@@ -183,230 +116,6 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, nil)
-}
-
-func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
-
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace build job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	ensureLatestBuild := func() error {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
-		if err != nil {
-			return err
-		}
-		if build.ID != latestBuild.ID {
-			return xerrors.New("build is outdated")
-		}
-		return nil
-	}
-
-	err = ensureLatestBuild()
-	if err != nil {
-		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
-			slog.F("resource", resource),
-			slog.F("agent", workspaceAgent),
-		)
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: "Agent trying to connect from non-latest build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
-
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Server(wsNetConn, config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-
-	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
-		ChannelID: workspaceAgent.ID.String(),
-		Pubsub:    api.Pubsub,
-		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-	defer closer.Close()
-
-	firstConnectedAt := workspaceAgent.FirstConnectedAt
-	if !firstConnectedAt.Valid {
-		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		}
-	}
-	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
-		Valid: true,
-	}
-	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               workspaceAgent.ID,
-			FirstConnectedAt: firstConnectedAt,
-			LastConnectedAt:  lastConnectedAt,
-			DisconnectedAt:   disconnectedAt,
-			UpdatedAt:        database.Now(),
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	defer func() {
-		disconnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		}
-		_ = updateConnectionTimes()
-	}()
-
-	err = updateConnectionTimes()
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
-
-	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
-
-	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
-
-	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-session.CloseChan():
-			return
-		case <-ticker.C:
-			lastConnectedAt = sql.NullTime{
-				Time:  database.Now(),
-				Valid: true,
-			}
-			err = updateConnectionTimes()
-			if err != nil {
-				_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-				return
-			}
-			err = ensureLatestBuild()
-			if err != nil {
-				// Disconnect agents that are no longer valid.
-				_ = conn.Close(websocket.StatusGoingAway, "")
-				return
-			}
-		}
-	}
-}
-
-func (api *API) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusOK, api.ICEServers)
-}
-
-// userWorkspaceAgentTurn is a user connecting to a remote workspace agent
-// through turn.
-func (api *API) userWorkspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Passed authorization
-	api.workspaceAgentTurn(rw, r)
-}
-
-// workspaceAgentTurn proxies a WebSocket connection to the TURN server.
-func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
-
-	localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
-	remoteAddress := &net.TCPAddr{
-		IP: net.ParseIP(r.RemoteAddr),
-	}
-	// By default requests have the remote address and port.
-	host, port, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid remote address.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	remoteAddress.IP = net.ParseIP(host)
-	remoteAddress.Port, err = strconv.Atoi(port)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Port for remote address %q must be an integer.", r.RemoteAddr),
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	wsConn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close()     // Also closes conn.
-	tracing.EndHTTPSpan(r, 200) // end span so we don't get long lived trace data
-
-	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
-	select {
-	case <-api.TURNServer.Accept(wsNetConn, remoteAddress, localAddress).Closed():
-	case <-ctx.Done():
-	}
-	api.Logger.Debug(ctx, "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -490,75 +199,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-// dialWorkspaceAgent connects to a workspace agent by ID. Only rely on
-// r.Context() for cancellation if it's use is safe or r.Hijack() has
-// not been performed.
-func (api *API) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
-	client, server := provisionersdk.TransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go func() {
-		_ = peerbroker.ProxyListen(ctx, server, peerbroker.ProxyOptions{
-			ChannelID: agentID.String(),
-			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
-			Pubsub:    api.Pubsub,
-		})
-		_ = client.Close()
-		_ = server.Close()
-	}()
-
-	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
-	stream, err := peerClient.NegotiateConnection(ctx)
-	if err != nil {
-		cancelFunc()
-		return nil, xerrors.Errorf("negotiate: %w", err)
-	}
-	options := &peer.ConnOptions{
-		Logger: api.Logger.Named("agent-dialer"),
-	}
-	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
-	options.SettingEngine.SetRelayAcceptanceMinWait(0)
-	// Use the ProxyDialer for the TURN server.
-	// This is required for connections where P2P is not enabled.
-	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
-		clientPipe, serverPipe := net.Pipe()
-		go func() {
-			<-ctx.Done()
-			_ = clientPipe.Close()
-			_ = serverPipe.Close()
-		}()
-		localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
-		remoteAddress := &net.TCPAddr{
-			IP: net.ParseIP(r.RemoteAddr),
-		}
-		// By default requests have the remote address and port.
-		host, port, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return nil, xerrors.Errorf("split remote address: %w", err)
-		}
-		remoteAddress.IP = net.ParseIP(host)
-		remoteAddress.Port, err = strconv.Atoi(port)
-		if err != nil {
-			return nil, xerrors.Errorf("convert remote port: %w", err)
-		}
-		api.TURNServer.Accept(clientPipe, remoteAddress, localAddress)
-		return serverPipe, nil
-	}))
-	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
-	if err != nil {
-		cancelFunc()
-		return nil, xerrors.Errorf("dial: %w", err)
-	}
-	go func() {
-		<-peerConn.Closed()
-		cancelFunc()
-	}()
-	return &agent.WebRTCConn{
-		Negotiator: peerClient,
-		Conn:       peerConn,
-	}, nil
-}
-
-func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (agent.Conn, error) {
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
 	clientConn, serverConn := net.Pipe()
 	go func() {
 		<-r.Context().Done()
@@ -585,7 +226,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (a
 			_ = conn.Close()
 		}
 	}()
-	return &agent.TailnetConn{
+	return &agent.Conn{
 		Conn: conn,
 	}, nil
 }
@@ -607,6 +248,48 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Ensure the resource is still valid!
+	// We only accept agents for resources on the latest build.
+	ensureLatestBuild := func() error {
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if build.ID != latestBuild.ID {
+			return xerrors.New("build is outdated")
+		}
+		return nil
+	}
+
+	err = ensureLatestBuild()
+	if err != nil {
+		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
+			slog.F("resource", resource),
+			slog.F("agent", workspaceAgent),
+		)
+		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			Message: "Agent trying to connect from non-latest build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -616,11 +299,87 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetCoordinator.ServeAgent(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), workspaceAgent.ID)
+	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
+	firstConnectedAt := workspaceAgent.FirstConnectedAt
+	if !firstConnectedAt.Valid {
+		firstConnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+	}
+	lastConnectedAt := sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	disconnectedAt := workspaceAgent.DisconnectedAt
+	updateConnectionTimes := func() error {
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               workspaceAgent.ID,
+			FirstConnectedAt: firstConnectedAt,
+			LastConnectedAt:  lastConnectedAt,
+			DisconnectedAt:   disconnectedAt,
+			UpdatedAt:        database.Now(),
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	defer func() {
+		disconnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+		_ = updateConnectionTimes()
+	}()
+
+	err = updateConnectionTimes()
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
+	}
+
+	// end span so we don't get long lived trace data
+	tracing.EndHTTPSpan(r, 200)
+	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	closeChan := make(chan struct{})
+	go func() {
+		defer close(closeChan)
+		err = api.TailnetCoordinator.ServeAgent(wsNetConn, workspaceAgent.ID)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, err.Error())
+			return
+		}
+	}()
+	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-closeChan:
+			return
+		case <-ticker.C:
+		}
+		lastConnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+		err = updateConnectionTimes()
+		if err != nil {
+			_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+			return
+		}
+		err = ensureLatestBuild()
+		if err != nil {
+			// Disconnect agents that are no longer valid.
+			_ = conn.Close(websocket.StatusGoingAway, "")
+			return
+		}
 	}
 }
 

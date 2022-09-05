@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -18,7 +17,6 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -112,7 +110,6 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentCloser := agent.New(agent.Options{
 			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
@@ -123,13 +120,15 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		defer cancel()
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer func() {
 			_ = conn.Close()
 		}()
-		_, err = conn.Ping()
-		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			_, err := conn.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
 	t.Run("FailNonLatestBuild", func(t *testing.T) {
@@ -202,7 +201,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 
-		_, err = agentClient.ListenWorkspaceAgent(ctx, slogtest.Make(t, nil))
+		_, err = agentClient.ListenWorkspaceAgentTailnet(ctx)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "build is outdated")
 	})
@@ -246,7 +245,6 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
@@ -257,18 +255,15 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	opts := &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Named("client"),
-	}
-	// Force a TURN connection!
-	opts.SettingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4})
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, opts)
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
 	}()
-	_, err = conn.Ping()
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err := conn.Ping()
+		return err == nil
+	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestWorkspaceAgentTailnet(t *testing.T) {
@@ -306,7 +301,6 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
@@ -373,7 +367,6 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {

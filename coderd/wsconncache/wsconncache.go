@@ -32,11 +32,11 @@ func New(dialer Dialer, inactiveTimeout time.Duration) *Cache {
 }
 
 // Dialer creates a new agent connection by ID.
-type Dialer func(r *http.Request, id uuid.UUID) (agent.Conn, error)
+type Dialer func(r *http.Request, id uuid.UUID) (*agent.Conn, error)
 
 // Conn wraps an agent connection with a reusable HTTP transport.
 type Conn struct {
-	agent.Conn
+	*agent.Conn
 
 	locks         atomic.Uint64
 	timeoutMutex  sync.Mutex

@@ -584,7 +584,6 @@ func TestTemplateDAUs(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		Logger:            slogtest.Make(t, nil),
 		StatsReporter:     agentClient.AgentReportStats,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 	})

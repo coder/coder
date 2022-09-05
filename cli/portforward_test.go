@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -108,26 +106,6 @@ func TestPortForward(t *testing.T) {
 				_, port, err := net.SplitHostPort(l.Addr().String())
 				require.NoErrorf(t, err, "split UDP address %q", l.Addr().String())
 				return l.Addr().String(), port
-			},
-		},
-		{
-			name:    "Unix",
-			network: "unix",
-			flag:    "--unix=%v:%v",
-			setupRemote: func(t *testing.T) net.Listener {
-				if runtime.GOOS == "windows" {
-					t.Skip("Unix socket forwarding isn't supported on Windows")
-				}
-
-				tmpDir := t.TempDir()
-				l, err := net.Listen("unix", filepath.Join(tmpDir, "test.sock"))
-				require.NoError(t, err, "create UDP listener")
-				return l
-			},
-			setupLocal: func(t *testing.T) (string, string) {
-				tmpDir := t.TempDir()
-				path := filepath.Join(tmpDir, "test.sock")
-				return path, path
 			},
 		},
 	}
@@ -234,74 +212,16 @@ func TestPortForward(t *testing.T) {
 		})
 	}
 
-	// Test doing a TCP -> Unix forward.
-	//nolint:paralleltest
-	t.Run("TCP2Unix", func(t *testing.T) {
-		var (
-			// Find the TCP and Unix cases so we can use their setupLocal and
-			// setupRemote methods respectively.
-			tcpCase  = cases[0]
-			unixCase = cases[2]
-
-			// Setup remote Unix listener.
-			p1 = setupTestListener(t, unixCase.setupRemote(t))
-		)
-
-		// Create a flag that forwards from local TCP to Unix listener 1.
-		// Notably this is a --unix flag.
-		localAddress, localFlag := tcpCase.setupLocal(t)
-		flag := fmt.Sprintf(unixCase.flag, localFlag, p1)
-
-		// Launch port-forward in a goroutine so we can start dialing
-		// the "local" listener.
-		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
-		clitest.SetupConfig(t, client, root)
-		buf := newThreadSafeBuffer()
-		cmd.SetOut(buf)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		errC := make(chan error)
-		go func() {
-			errC <- cmd.ExecuteContext(ctx)
-		}()
-		waitForPortForwardReady(t, buf)
-
-		t.Parallel() // Port is reserved, enable parallel execution.
-
-		// Open two connections simultaneously and test them out of
-		// sync.
-		d := net.Dialer{Timeout: testutil.WaitShort}
-		c1, err := d.DialContext(ctx, tcpCase.network, localAddress)
-		require.NoError(t, err, "open connection 1 to 'local' listener")
-		defer c1.Close()
-		c2, err := d.DialContext(ctx, tcpCase.network, localAddress)
-		require.NoError(t, err, "open connection 2 to 'local' listener")
-		defer c2.Close()
-		testDial(t, c2)
-		testDial(t, c1)
-
-		cancel()
-		err = <-errC
-		require.ErrorIs(t, err, context.Canceled)
-	})
-
-	// Test doing TCP, UDP and Unix at the same time.
+	// Test doing TCP and UDP at the same time.
 	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
-			// These aren't fixed size because we exclude Unix on Windows.
 			dials = []addr{}
 			flags = []string{}
 		)
 
 		// Start listeners and populate arrays with the cases.
 		for _, c := range cases {
-			if strings.HasPrefix(c.network, "unix") && runtime.GOOS == "windows" {
-				// Unix isn't supported on Windows, but we can still
-				// test other protocols together.
-				continue
-			}
-
 			p := setupTestListener(t, c.setupRemote(t))
 
 			localAddress, localFlag := c.setupLocal(t)
@@ -391,7 +311,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start workspace agent in a goroutine
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String(), "--wireguard=false")
+	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	clitest.SetupConfig(t, client, root)
 	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
@@ -444,11 +364,9 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 	}()
 
 	addr := l.Addr().String()
-	if !strings.HasPrefix(l.Addr().Network(), "unix") {
-		_, port, err := net.SplitHostPort(addr)
-		require.NoErrorf(t, err, "split non-Unix listen path %q", addr)
-		addr = port
-	}
+	_, port, err := net.SplitHostPort(addr)
+	require.NoErrorf(t, err, "split non-Unix listen path %q", addr)
+	addr = port
 
 	return addr
 }

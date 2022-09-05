@@ -117,7 +117,7 @@ endif
 fmt: fmt/prettier fmt/terraform fmt/shfmt
 .PHONY: fmt
 
-gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
+gen: coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
 .PHONY: gen
 
 install: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
@@ -151,14 +151,6 @@ lint/shellcheck: $(shell shfmt -f .)
 	@echo "--- shellcheck"
 	shellcheck --external-sources $(shell shfmt -f .)
 .PHONY: lint/shellcheck
-
-peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./peerbroker/proto/peerbroker.proto
 
 provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 	protoc \

@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/klauspost/compress/zstd"
-	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
@@ -34,7 +33,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -64,17 +62,14 @@ type Options struct {
 	GithubOAuth2Config   *GithubOAuth2Config
 	OIDCConfig           *OIDCConfig
 	PrometheusRegistry   *prometheus.Registry
-	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
-	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 	FeaturesService      FeaturesService
 
-	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 
@@ -142,11 +137,7 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 	}
-	if options.TailscaleEnable {
-		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
-	} else {
-		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
-	}
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -377,14 +368,8 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
-				r.Get("/listen", api.workspaceAgentListen)
-
 				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.Get("/turn", api.workspaceAgentTurn)
-				r.Get("/iceservers", api.workspaceAgentICEServers)
-
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
-
 				r.Get("/report-stats", api.workspaceAgentReportStats)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
@@ -394,11 +379,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/dial", api.workspaceAgentDial)
-				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
-				r.Get("/iceservers", api.workspaceAgentICEServers)
-
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})

@@ -12,10 +12,11 @@ import (
 	"sync"
 	"syscall"
 
-	"cdr.dev/slog"
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
@@ -27,7 +28,6 @@ func portForward() *cobra.Command {
 		tcpForwards  []string // <port>:<port>
 		udpForwards  []string // <port>:<port>
 		unixForwards []string // <path>:<path> OR <port>:<path>
-		wireguard    bool
 	)
 	cmd := &cobra.Command{
 		Use:     "port-forward <workspace>",
@@ -101,12 +101,7 @@ func portForward() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var conn agent.Conn
-			if !wireguard {
-				conn, err = client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
-			} else {
-				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
-			}
+			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
 			if err != nil {
 				return err
 			}
@@ -166,12 +161,10 @@ func portForward() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&tcpForwards, "tcp", "p", []string{}, "Forward a TCP port from the workspace to the local machine")
 	cmd.Flags().StringArrayVar(&udpForwards, "udp", []string{}, "Forward a UDP port from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
 	cmd.Flags().StringArrayVar(&unixForwards, "unix", []string{}, "Forward a Unix socket in the workspace to a local Unix socket or TCP port")
-	cmd.Flags().BoolVarP(&wireguard, "wireguard", "", false, "Specifies whether to use wireguard networking or not.")
-	_ = cmd.Flags().MarkHidden("wireguard")
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn agent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *agent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
 	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (

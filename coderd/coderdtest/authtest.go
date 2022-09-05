@@ -187,18 +187,14 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/users/oidc/callback":          {NoAuthorize: true},
 
 		// All workspaceagents endpoints do not use rbac
-		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/azure-instance-identity":    {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/google-instance-identity":   {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/gitsshkey":                {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/iceservers":               {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/me/version":                 {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/report-stats":             {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/report-stats":           {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
@@ -258,14 +254,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
-		},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {
-			AssertAction: rbac.ActionCreate,
-			AssertObject: workspaceExecObj,
-		},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/turn": {
-			AssertAction: rbac.ActionCreate,
-			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
 			AssertAction: rbac.ActionCreate,
