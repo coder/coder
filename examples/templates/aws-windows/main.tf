@@ -70,16 +70,38 @@ data "aws_ami" "windows" {
 }
 
 resource "coder_agent" "main" {
-  arch = "amd64"
-  auth = "aws-instance-identity"
-  os   = "windows"
+  arch           = "amd64"
+  auth           = "aws-instance-identity"
+  os             = "windows"
+  startup_script = <<EOF
+# Set admin password
+Get-LocalUser -Name "Administrator" | Set-LocalUser -Password (ConvertTo-SecureString -AsPlainText "${local.admin_password}" -Force)
+# To disable password entirely, see https://serverfault.com/a/968240
+
+# Enable RDP
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+
+# Enable RDP through Windows Firewall
+Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+# Disable Network Level Authentication (NLA)
+# Clients will connect via Coder's tunnel
+(Get-WmiObject -class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -ComputerName $env:COMPUTERNAME -Filter "TerminalName='RDP-tcp'").SetUserAuthenticationRequired(0)
+
+# Install Chocolatey package manager
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+EOF
 }
 
 locals {
+  # Password to log in via RDP
+  #
+  # Must meet Windows password complexity requirements:
+  # https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements#reference
+  admin_password = "coderRDP!"
 
   # User data is used to stop/start AWS instances. See:
   # https://github.com/hashicorp/terraform-provider-aws/issues/22
-
   user_data_start = <<EOT
 <powershell>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -100,7 +122,6 @@ resource "aws_instance" "dev" {
   ami               = data.aws_ami.windows.id
   availability_zone = "${var.region}a"
   instance_type     = var.instance_type
-  count             = 1
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
@@ -114,15 +135,20 @@ resource "aws_instance" "dev" {
 resource "coder_metadata" "workspace_info" {
   resource_id = aws_instance.dev.id
   item {
-    key   = "region"
+    key       = "Administrator password"
+    value     = local.admin_password
+    sensitive = true
+  }
+  item {
+    key   = "Region"
     value = var.region
   }
   item {
-    key   = "instance type"
+    key   = "Instance type"
     value = aws_instance.dev.instance_type
   }
   item {
-    key   = "disk"
+    key   = "Disk"
     value = "${aws_instance.dev.root_block_device[0].volume_size} GiB"
   }
 }
