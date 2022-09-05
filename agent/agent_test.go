@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -490,6 +491,21 @@ func TestAgent(t *testing.T) {
 			_, err := conn.Ping()
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
+	})
+
+	t.Run("Speedtest", func(t *testing.T) {
+		t.Parallel()
+		if testing.Short() {
+			t.Skip("The minimum duration for a speedtest is hardcoded in Tailscale to 5s!")
+		}
+		derpMap := tailnettest.RunDERPAndSTUN(t)
+		conn, _ := setupAgent(t, agent.Metadata{
+			DERPMap: derpMap,
+		}, 0)
+		defer conn.Close()
+		res, err := conn.Speedtest(speedtest.Upload, speedtest.MinDuration)
+		require.NoError(t, err)
+		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
 	})
 }
 

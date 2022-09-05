@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/tailnet"
@@ -113,6 +114,18 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 		return nil, xerrors.Errorf("ssh conn: %w", err)
 	}
 	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+func (c *Conn) Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+	speedConn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetSpeedtestPort)))
+	if err != nil {
+		return nil, xerrors.Errorf("dial speedtest: %w", err)
+	}
+	results, err := speedtest.RunClientWithConn(direction, duration, speedConn)
+	if err != nil {
+		return nil, xerrors.Errorf("run speedtest: %w", err)
+	}
+	return results, err
 }
 
 func (c *Conn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
