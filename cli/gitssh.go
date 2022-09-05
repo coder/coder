@@ -33,7 +33,7 @@ func gitssh() *cobra.Command {
 			defer stop()
 
 			// Early check so errors are reported immediately.
-			identityFiles, err := praseIdentityFilesForHost(ctx, args, env)
+			identityFiles, err := parseIdentityFilesForHost(ctx, args, env)
 			if err != nil {
 				return err
 			}
@@ -120,7 +120,7 @@ var fallbackIdentityFiles = strings.Join([]string{
 	"identityfile ~/.ssh/id_xmss",
 }, "\n")
 
-// praseIdentityFilesForHost uses ssh -G to discern what SSH keys have
+// parseIdentityFilesForHost uses ssh -G to discern what SSH keys have
 // been enabled for the host (via the users SSH config) and returns a
 // list of existing identity files.
 //
@@ -128,13 +128,13 @@ var fallbackIdentityFiles = strings.Join([]string{
 // fallback keys (see above). However, by passing `-i` to attach our
 // private key, we're effectively disabling the fallback keys.
 //
-// Example invokation:
+// Example invocation:
 //
 //	ssh -G -o SendEnv=GIT_PROTOCOL git@github.com git-upload-pack 'coder/coder'
 //
 // The extra arguments work without issue and lets us run the command
 // as-is without stripping out the excess (git-upload-pack 'coder/coder').
-func praseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
+func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, xerrors.Errorf("get user home dir failed: %w", err)
