@@ -6,6 +6,8 @@ tags: [cloud, aws]
 
 # aws-windows
 
+<img src="./screenshot.png" width="600" />
+
 ## Connecting via RDP
 
 You can connect to your workspace over a RDP tunnel. First, ensure
