@@ -31,7 +31,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
 	t.Helper()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -69,7 +69,7 @@ func TestSSH(t *testing.T) {
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -104,7 +104,7 @@ func TestSSH(t *testing.T) {
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
@@ -175,7 +175,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
