@@ -41,6 +41,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	// get user public key
 	keypair, err := client.GitSSHKey(ctx, codersdk.Me)
 	require.NoError(t, err)
+	//nolint:dogsled
 	pubkey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 	require.NoError(t, err)
 
