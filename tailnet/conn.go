@@ -276,11 +276,13 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 		for _, addr := range s.LocalAddrs {
 			endpoints = append(endpoints, addr.Addr.String())
 		}
-		c.lastMutex.Lock()
-		c.lastEndpoints = endpoints
-		node := makeNode()
-		c.lastMutex.Unlock()
-		callback(node)
+		go func() {
+			c.lastMutex.Lock()
+			c.lastEndpoints = endpoints
+			node := makeNode()
+			c.lastMutex.Unlock()
+			callback(node)
+		}()
 	})
 }
 
