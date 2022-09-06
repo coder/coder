@@ -1,7 +1,7 @@
 import { lighten, Theme } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
-import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
+import { borderRadius } from "./constants"
 
 export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
@@ -33,7 +33,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         // Prevents a loading button from collapsing!
         minHeight: 42,
         fontWeight: "normal",
-        fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         textTransform: "none",
         letterSpacing: "none",
@@ -78,7 +77,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     MuiTableHead: {
       root: {
         display: "table-header-group",
-        fontFamily: MONOSPACE_FONT_FAMILY,
       },
     },
     MuiTableContainer: {
@@ -89,9 +87,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTable: {
       root: {
-        borderCollapse: "collapse",
+        borderCollapse: "unset",
         border: "none",
-        background: palette.background.default,
+        background: palette.background.paper,
         boxShadow: `0 0 0 1px ${palette.background.default} inset`,
         overflow: "hidden",
 
@@ -116,7 +114,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontWeight: 600,
       },
       root: {
-        fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
