@@ -941,6 +941,7 @@ func convertWorkspace(
 		Name:              workspace.Name,
 		AutostartSchedule: autostartSchedule,
 		TTLMillis:         ttlMillis,
+		LastUsedAt:        workspace.LastUsedAt,
 	}
 }
 

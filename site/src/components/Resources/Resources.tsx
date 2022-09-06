@@ -5,6 +5,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
@@ -20,6 +21,7 @@ import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
 import { AgentOutdatedTooltip } from "../Tooltips/AgentOutdatedTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
+import { ResourceAgentLatency } from "./ResourceAgentLatency"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 
 const Language = {
@@ -129,6 +131,9 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                             <span className={styles.agentVersion}>{displayVersion}</span>
                             <AgentOutdatedTooltip outdated={outdated} />
                           </div>
+                          <div className={styles.dataRow}>
+                            <ResourceAgentLatency latency={agent.latency} />
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -156,6 +161,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                   agentName={agent.name}
                                 />
                               ))}
+                            </>
+                          )}
+                          {canUpdateWorkspace && agent.status === "connecting" && (
+                            <>
+                              <Skeleton width={80} height={60} />
+                              <Skeleton width={120} height={60} />
                             </>
                           )}
                         </div>
@@ -231,6 +242,7 @@ const useStyles = makeStyles((theme) => ({
     gridAutoFlow: "row",
     whiteSpace: "nowrap",
     gap: theme.spacing(0.75),
+    height: "fit-content",
   },
 
   dataRow: {

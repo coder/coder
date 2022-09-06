@@ -7,8 +7,14 @@ import { SSHKeysPageView } from "./SSHKeysPageView"
 
 export const Language = {
   title: "SSH keys",
-  description:
-    "Coder automatically inserts a private key into every workspace; you can add the corresponding public key to any services (such as Git) that you need access to from your workspace.",
+  description: (
+    <p>
+      The following public key is used to authenticate Git in workspaces. You may add it to Git
+      services (such as GitHub) that you need to access from your workspace. <br />
+      <br />
+      Coder configures authentication via <code>$GIT_SSH_COMMAND</code>.
+    </p>
+  ),
   regenerateDialogTitle: "Regenerate SSH key?",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",

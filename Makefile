@@ -30,7 +30,9 @@ bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum 
 		darwin:amd64,arm64
 .PHONY: bin
 
-build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+GO_FILES=$(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum $(shell find ./examples/templates)
+
+build: site/out/index.html $(GO_FILES)
 	rm -rf ./dist
 	mkdir -p ./dist
 	rm -f ./site/out/bin/coder*
@@ -54,6 +56,30 @@ build: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name 
 		windows:amd64,arm64 \
 		darwin:amd64,arm64
 .PHONY: build
+
+# Builds a test binary for just Linux
+build-linux-test: site/out/index.html $(GO_FILES)
+	rm -rf ./dist
+	mkdir -p ./dist
+	rm -f ./site/out/bin/coder*
+
+	# build slim artifacts and copy them to the site output directory
+	./scripts/build_go_slim.sh \
+		--version "$(VERSION)" \
+		--compress 6 \
+		--output ./dist/ \
+		linux:amd64,armv7,arm64 \
+		windows:amd64,arm64 \
+		darwin:amd64,arm64
+
+	# build not-so-slim artifacts with the default name format
+	./scripts/build_go_matrix.sh \
+		--version "$(VERSION)" \
+		--output ./dist/ \
+		--archive \
+		--package-linux \
+		linux:amd64
+.PHONY: build-linux-test
 
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)

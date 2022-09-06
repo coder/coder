@@ -56,7 +56,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 		t.Error("NewAuthTester cannot be called with custom Authorizer")
 	}
 	options.Authorizer = authorizer
-	options.IncludeProvisionerD = true
+	options.IncludeProvisionerDaemon = true
 
 	client, _, api := newWithAPI(t, options)
 	admin := CreateFirstUser(t, client)
@@ -197,6 +197,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":                 {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/report-stats":             {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!

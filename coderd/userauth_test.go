@@ -226,10 +226,11 @@ func TestUserOAuth2Github(t *testing.T) {
 						},
 					}}, nil
 				},
-				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+				AuthenticatedUser: func(ctx context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
-						Login: github.String("kyle"),
-						ID:    i64ptr(1234),
+						Login:     github.String("kyle"),
+						ID:        i64ptr(1234),
+						AvatarURL: github.String("/hello-world"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -249,6 +250,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
 		require.Equal(t, "kyle", user.Username)
+		require.Equal(t, "/hello-world", user.AvatarURL)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -297,6 +299,7 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups bool
 		EmailDomain  string
 		Username     string
+		AvatarURL    string
 		StatusCode   int
 	}{{
 		Name: "EmailNotVerified",
@@ -357,6 +360,18 @@ func TestUserOIDC(t *testing.T) {
 		Username:     "kyle",
 		AllowSignups: true,
 		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "WithPicture",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+			"username":       "kyle",
+			"picture":        "/example.png",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		AvatarURL:    "/example.png",
+		StatusCode:   http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -378,6 +393,13 @@ func TestUserOIDC(t *testing.T) {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
+			}
+
+			if tc.AvatarURL != "" {
+				client.SessionToken = resp.Cookies()[0].Value
+				user, err := client.User(ctx, "me")
+				require.NoError(t, err)
+				require.Equal(t, tc.AvatarURL, user.AvatarURL)
 			}
 		})
 	}

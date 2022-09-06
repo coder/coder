@@ -68,20 +68,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const styles = useStyles()
   const navigate = useNavigate()
 
+  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
+    <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+  ) : (
+    <></>
+  )
+  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
+    <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+  ) : (
+    <></>
+  )
+
   return (
     <Margins>
-      <Stack spacing={1}>
-        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-      </Stack>
       <PageHeader
         actions={
           <Stack direction="row" spacing={1} className={styles.actions}>
@@ -109,39 +108,37 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
       </PageHeader>
 
-      <Stack direction="row" spacing={3}>
-        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
-          <WorkspaceScheduleBanner
-            isLoading={bannerProps.isLoading}
-            onExtend={bannerProps.onExtend}
+      <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
+        {buildError}
+        {cancellationError}
+
+        <WorkspaceScheduleBanner
+          isLoading={bannerProps.isLoading}
+          onExtend={bannerProps.onExtend}
+          workspace={workspace}
+        />
+
+        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
+
+        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {!!resources && !!resources.length && (
+          <Resources
+            resources={resources}
+            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
             workspace={workspace}
+            canUpdateWorkspace={canUpdateWorkspace}
+            buildInfo={buildInfo}
           />
+        )}
 
-          <WorkspaceDeletedBanner
-            workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
-          />
-
-          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
-
-          {!!resources && !!resources.length && (
-            <Resources
-              resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
-              workspace={workspace}
-              canUpdateWorkspace={canUpdateWorkspace}
-              buildInfo={buildInfo}
-            />
+        <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
+          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+            <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+          ) : (
+            <BuildsTable builds={builds} className={styles.timelineTable} />
           )}
-
-          <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
-            {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-              <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
-            ) : (
-              <BuildsTable builds={builds} className={styles.timelineTable} />
-            )}
-          </WorkspaceSection>
-        </Stack>
+        </WorkspaceSection>
       </Stack>
     </Margins>
   )

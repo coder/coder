@@ -23,7 +23,7 @@ func TestProvisionerDaemons(t *testing.T) {
 			// Takes too long to allocate memory on Windows!
 			t.Skip()
 		}
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		data := make([]byte, provisionersdk.MaxMessageSize)
 		rand.Read(data)

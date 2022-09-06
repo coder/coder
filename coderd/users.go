@@ -391,6 +391,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
+		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
 		UpdatedAt: database.Now(),
 	})
@@ -1075,6 +1076,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		AvatarURL:       user.AvatarURL.String,
 	}
 
 	for _, roleName := range user.RBACRoles {

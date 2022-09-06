@@ -120,6 +120,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		autoImportTemplates              []string
 		spooky                           bool
 		verbose                          bool
+		metricsCacheRefreshInterval      time.Duration
+		agentStatRefreshInterval         time.Duration
 	)
 
 	root := &cobra.Command{
@@ -327,7 +329,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				validatedAutoImportTemplates[i] = v
 			}
 
-			derpMap, err := tailnet.NewDERPMap(ctx, &tailcfg.DERPRegion{
+			defaultRegion := &tailcfg.DERPRegion{
 				RegionID:   derpServerRegionID,
 				RegionCode: derpServerRegionCode,
 				RegionName: derpServerRegionName,
@@ -339,27 +341,33 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 					STUNPort:  -1,
 					ForceHTTP: accessURLParsed.Scheme == "http",
 				}},
-			}, derpServerSTUNAddrs, derpConfigURL)
+			}
+			if !derpServerEnabled {
+				defaultRegion = nil
+			}
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
 			options := &coderd.Options{
-				AccessURL:            accessURLParsed,
-				ICEServers:           iceServers,
-				Logger:               logger.Named("coderd"),
-				Database:             databasefake.New(),
-				DERPMap:              derpMap,
-				Pubsub:               database.NewPubsubInMemory(),
-				CacheDir:             cacheDir,
-				GoogleTokenValidator: googleTokenValidator,
-				SecureAuthCookie:     secureAuthCookie,
-				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
-				TailscaleEnable:      tailscaleEnable,
-				TURNServer:           turnServer,
-				TracerProvider:       tracerProvider,
-				Telemetry:            telemetry.NewNoop(),
-				AutoImportTemplates:  validatedAutoImportTemplates,
+				AccessURL:                   accessURLParsed,
+				ICEServers:                  iceServers,
+				Logger:                      logger.Named("coderd"),
+				Database:                    databasefake.New(),
+				DERPMap:                     derpMap,
+				Pubsub:                      database.NewPubsubInMemory(),
+				CacheDir:                    cacheDir,
+				GoogleTokenValidator:        googleTokenValidator,
+				SecureAuthCookie:            secureAuthCookie,
+				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
+				TailscaleEnable:             tailscaleEnable,
+				TURNServer:                  turnServer,
+				TracerProvider:              tracerProvider,
+				Telemetry:                   telemetry.NewNoop(),
+				AutoImportTemplates:         validatedAutoImportTemplates,
+				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
+				AgentStatsRefreshInterval:   agentStatRefreshInterval,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -834,8 +842,16 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes")
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
-	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 	_ = root.Flags().MarkHidden("spooky")
+	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
+
+	// These metrics flags are for manually testing the metric system.
+	// The defaults should be acceptable for any Coder deployment of any
+	// reasonable size.
+	cliflag.DurationVarP(root.Flags(), &metricsCacheRefreshInterval, "metrics-cache-refresh-interval", "", "CODER_METRICS_CACHE_REFRESH_INTERVAL", time.Hour, "How frequently metrics are refreshed")
+	_ = root.Flags().MarkHidden("metrics-cache-refresh-interval")
+	cliflag.DurationVarP(root.Flags(), &agentStatRefreshInterval, "agent-stats-refresh-interval", "", "CODER_AGENT_STATS_REFRESH_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")
+	_ = root.Flags().MarkHidden("agent-stats-report-interval")
 
 	return root
 }

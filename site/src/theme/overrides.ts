@@ -14,6 +14,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
         },
+        ":root": {
+          colorScheme: palette.type,
+        },
       },
     },
     MuiAvatar: {
@@ -128,6 +131,15 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
+
+    MuiTableRow: {
+      root: {
+        "&:last-child .MuiTableCell-body": {
+          borderBottom: 0,
+        },
+      },
+    },
+
     MuiInputBase: {
       root: {
         borderRadius,
@@ -142,7 +154,8 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
-        "&:hover .MuiOutlinedInput-notchedOutline": {
+
+        "&:hover:not(.Mui-focused) .MuiOutlinedInput-notchedOutline": {
           borderColor: palette.divider,
         },
       },

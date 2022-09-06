@@ -38,7 +38,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
     <div className={styles.userInfo}>
       <div className={styles.root}>
         <div className={styles.avatarContainer}>
-          <UserAvatar className={styles.avatar} username={user.username} />
+          <UserAvatar
+            className={styles.avatar}
+            username={user.username}
+            avatarURL={user.avatar_url}
+          />
         </div>
         <Typography className={styles.userName}>{user.username}</Typography>
         <Typography className={styles.userEmail}>{user.email}</Typography>

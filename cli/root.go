@@ -78,6 +78,7 @@ func Core() []*cobra.Command {
 		schedules(),
 		show(),
 		ssh(),
+		speedtest(),
 		start(),
 		state(),
 		stop(),

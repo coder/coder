@@ -74,9 +74,9 @@ type Options struct {
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 
-	// IncludeProvisionerD when true means to start an in-memory provisionerD
-	IncludeProvisionerD bool
-	APIBuilder          func(*coderd.Options) *coderd.API
+	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
+	IncludeProvisionerDaemon bool
+	APIBuilder               func(*coderd.Options) *coderd.API
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -93,7 +93,7 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 	if options == nil {
 		options = &Options{}
 	}
-	options.IncludeProvisionerD = true
+	options.IncludeProvisionerDaemon = true
 	client, closer := newWithCloser(t, options)
 	return client, closer
 }
@@ -234,7 +234,9 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 				},
 			},
 		},
-		AutoImportTemplates: options.AutoImportTemplates,
+		AutoImportTemplates:         options.AutoImportTemplates,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()
@@ -242,7 +244,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv.Config.Handler = coderAPI.Handler
 
 	var provisionerCloser io.Closer = nopcloser{}
-	if options.IncludeProvisionerD {
+	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
@@ -274,8 +276,8 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        10 * time.Millisecond,
-		UpdateInterval:      25 * time.Millisecond,
+		PollInterval:        50 * time.Millisecond,
+		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
@@ -453,11 +455,11 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
-	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
+	require.Eventually(t, func() bool {
 		var err error
-		templateVersion, err = client.TemplateVersion(ctx, version)
+		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}))
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return templateVersion
 }
 
@@ -467,10 +469,10 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.True(t, testutil.EventuallyShort(t, func(ctx context.Context) bool {
-		workspaceBuild, err := client.WorkspaceBuild(ctx, build)
+	require.Eventually(t, func() bool {
+		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}))
+	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
 }
 
@@ -480,9 +482,9 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 	t.Logf("waiting for workspace agents (build %s)", build)
 	var resources []codersdk.WorkspaceResource
-	require.True(t, testutil.EventuallyLong(t, func(ctx context.Context) bool {
+	require.Eventually(t, func() bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(ctx, build)
+		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -495,7 +497,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			}
 		}
 		return true
-	}))
+	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
 }
 
