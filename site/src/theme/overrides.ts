@@ -1,5 +1,4 @@
-import { Theme } from "@material-ui/core/styles"
-import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { lighten, Theme } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
 import { borderRadius } from "./constants"
@@ -26,7 +25,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontSize: 18,
       },
       colorDefault: {
-        backgroundColor: "#a1adc9",
+        backgroundColor: colors.gray[6],
       },
     },
     MuiButton: {
@@ -45,7 +44,8 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         backgroundColor: colors.gray[17],
         "&:hover": {
           boxShadow: "none",
-          backgroundColor: "#000000",
+          backgroundColor: colors.gray[17],
+          borderColor: lighten(palette.divider, 0.2),
         },
       },
       sizeSmall: {
@@ -110,7 +110,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     MuiTableCell: {
       head: {
         fontSize: 14,
-        color: colors.gray[5],
+        color: palette.text.secondary,
         fontWeight: 600,
       },
       root: {
@@ -159,7 +159,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiLink: {
       root: {
-        color: (palette.primary as SimplePaletteColorOptions).light,
+        color: palette.primary.light,
       },
     },
     MuiPaper: {

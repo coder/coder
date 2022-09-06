@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/peer"
@@ -39,6 +40,7 @@ type Conn interface {
 	CloseWithError(err error) error
 	ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error)
 	SSH() (net.Conn, error)
+	Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	SSHClient() (*ssh.Client, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 }
@@ -75,6 +77,10 @@ func (c *WebRTCConn) SSH() (net.Conn, error) {
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
 	return channel.NetConn(), nil
+}
+
+func (*WebRTCConn) Speedtest(_ speedtest.Direction, _ time.Duration) ([]speedtest.Result, error) {
+	return nil, xerrors.New("not implemented")
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -225,6 +231,18 @@ func (c *TailnetConn) SSHClient() (*ssh.Client, error) {
 		return nil, xerrors.Errorf("ssh conn: %w", err)
 	}
 	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+func (c *TailnetConn) Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+	speedConn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetSpeedtestPort)))
+	if err != nil {
+		return nil, xerrors.Errorf("dial speedtest: %w", err)
+	}
+	results, err := speedtest.RunClientWithConn(direction, duration, speedConn)
+	if err != nil {
+		return nil, xerrors.Errorf("run speedtest: %w", err)
+	}
+	return results, err
 }
 
 func (c *TailnetConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
