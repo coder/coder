@@ -42,7 +42,7 @@ rcodesign encode-app-store-connect-api-key \
 	"$AC_APIKEY_ISSUER_ID" \
 	"$AC_KEY_ID" \
 	"$AC_APIKEY_FILE" \
-	> "$key_file"
+	>"$key_file"
 
 # The notarization process is very fragile and heavily dependent on Apple's
 # notarization server not returning server errors, so we retry this step twice
@@ -53,8 +53,7 @@ for i in $(seq 1 2); do
 		-vvv \
 		--key "$key_file" \
 		--wait "$@" \
-		1>&2 \
-		&& rc=0 && break || rc=$?
+		1>&2 && rc=0 && break || rc=$?
 
 	log "rcodesign exit code: $rc"
 	if [[ $i -lt 5 ]]; then
