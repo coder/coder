@@ -7,9 +7,9 @@ import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Markdown } from "components/Markdown/Markdown"
 import frontMatter from "front-matter"
 import { FC } from "react"
-import ReactMarkdown from "react-markdown"
 import { Link as RouterLink } from "react-router-dom"
 import { firstLetter } from "util/firstLetter"
 import {
@@ -147,17 +147,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
             contentsProps={{ className: styles.readmeContents }}
           >
             <div className={styles.markdownWrapper}>
-              <ReactMarkdown
-                components={{
-                  a: ({ href, target, children }) => (
-                    <Link href={href} target={target}>
-                      {children}
-                    </Link>
-                  ),
-                }}
-              >
-                {readme.body}
-              </ReactMarkdown>
+              <Markdown>{readme.body}</Markdown>
             </div>
           </WorkspaceSection>
           <WorkspaceSection
@@ -184,12 +174,6 @@ export const useStyles = makeStyles((theme) => {
     markdownWrapper: {
       background: theme.palette.background.paper,
       padding: theme.spacing(3, 4),
-
-      // Adds text wrapping to <pre> tag added by ReactMarkdown
-      "& pre": {
-        whiteSpace: "pre-wrap",
-        wordWrap: "break-word",
-      },
     },
     versionsTableContents: {
       margin: 0,
