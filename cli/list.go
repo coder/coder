@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,9 +59,10 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 
 func list() *cobra.Command {
 	var (
-		columns     []string
-		searchQuery string
-		me          bool
+		columns           []string
+		searchQuery       string
+		me                bool
+		displayWorkspaces []workspaceListRow
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -76,6 +78,7 @@ func list() *cobra.Command {
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}
+
 			if me {
 				myUser, err := client.User(cmd.Context(), codersdk.Me)
 				if err != nil {
@@ -104,7 +107,7 @@ func list() *cobra.Command {
 			}
 
 			now := time.Now()
-			displayWorkspaces := make([]workspaceListRow, len(workspaces))
+			displayWorkspaces = make([]workspaceListRow, len(workspaces))
 			for i, workspace := range workspaces {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
@@ -118,8 +121,14 @@ func list() *cobra.Command {
 			return err
 		},
 	}
+	v := reflect.Indirect(reflect.ValueOf(displayWorkspaces))
+	availColumns, err := cliui.TypeToTableHeaders(v.Type().Elem())
+	if err != nil {
+		panic(err)
+	}
+
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
-		"Specify a column to filter in the table.")
+		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", availColumns))
 	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
 	cmd.Flags().BoolVar(&me, "me", false, "Only show workspaces owned by the current user.")
 	return cmd
