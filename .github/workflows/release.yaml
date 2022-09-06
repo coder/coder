@@ -110,6 +110,9 @@ jobs:
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
 
+      - name: Delete Apple Developer certificate and API key
+        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail
