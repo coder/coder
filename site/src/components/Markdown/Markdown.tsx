@@ -9,7 +9,7 @@ import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
 import ReactMarkdown from "react-markdown"
 import SyntaxHighlighter from "react-syntax-highlighter"
-import { dracula as dark } from "react-syntax-highlighter/dist/esm/styles/hljs"
+import { dracula as dark } from "react-syntax-highlighter/dist/cjs/styles/hljs"
 import gfm from "remark-gfm"
 
 export interface MarkdownProps {
