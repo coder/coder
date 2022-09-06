@@ -1,5 +1,5 @@
 import Link from "@material-ui/core/Link"
-import { Theme, useTheme } from "@material-ui/core/styles"
+import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -18,6 +18,7 @@ export interface MarkdownProps {
 
 export const Markdown: FC<{ children: string }> = ({ children }) => {
   const theme: Theme = useTheme()
+  const styles = useStyles()
 
   return (
     <ReactMarkdown
@@ -52,7 +53,7 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
               {String(children).replace(/\n$/, "")}
             </SyntaxHighlighter>
           ) : (
-            <code className={className} {...props}>
+            <code className={styles.codeWithoutLanguage} {...props}>
               {children}
             </code>
           )
@@ -91,3 +92,14 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
     </ReactMarkdown>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  codeWithoutLanguage: {
+    display: "block",
+    overflowX: "auto",
+    padding: "0.5em",
+    background: theme.palette.background.default,
+    borderRadius: theme.shape.borderRadius,
+    color: theme.palette.text.primary,
+  },
+}))
