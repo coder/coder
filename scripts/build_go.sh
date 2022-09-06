@@ -16,9 +16,9 @@
 # builds) and the absolute path to the binary will be printed to stdout on
 # completion.
 #
-# If the --sign-darwin parameter is specified and the OS is darwin, binaries
-# will be signed using the `codesign` utility. $AC_APPLICATION_IDENTITY must be
-# set and the signing certificate must be imported for this to work.
+# If the --sign-darwin parameter is specified and the OS is darwin, the output
+# binary will be signed using ./sign_darwin.sh. Read that file for more details
+# on the requirements.
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
@@ -65,9 +65,6 @@ while true; do
 		shift
 		;;
 	--sign-darwin)
-		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
-		fi
 		sign_darwin=1
 		shift
 		;;
@@ -133,13 +130,7 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
-	codesign \
-		-f -v \
-		-s "$AC_APPLICATION_IDENTITY" \
-		--timestamp \
-		--options runtime \
-		"$output_path" \
-		1>&2
+	execrelative ./scripts/sign_darwin.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"
