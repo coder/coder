@@ -25,14 +25,6 @@ provider "aws" {
   shared_credentials_files = ["/home/coder/.aws/credentials"]
 }
 
-# data "template_file" "user-data-start" {
-#   template = file("${path.module}/config/user-data-start.sh")
-# }
-#
-# data "template_file" "user-data-end" {
-#   template = file("${path.module}/config/user-data-end.sh")
-# }
-
 locals {
 
   # User data is used to stop/start AWS instances. See:
@@ -112,7 +104,7 @@ resource "aws_launch_template" "coder-oss-ubuntu" {
   user_data = data.cloudinit_config.main.rendered
 }
 
-# provision auto-scaling group to host ECS task defintions
+# provision auto-scaling group to host ECS task definitions
 resource "aws_autoscaling_group" "main" {
   name                  = "coder-ecs-auto-scaling-group"
   min_size              = 1
@@ -206,7 +198,7 @@ resource "aws_ecs_task_definition" "workspace" {
     }
   ])
 
-  # workspace persistent volume defintion
+  # workspace persistent volume definition
   volume {
     name = "home-dir"
 
