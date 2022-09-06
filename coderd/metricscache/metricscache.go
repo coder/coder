@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
@@ -24,7 +26,7 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	templateDAUResponses atomic.Pointer[map[string]codersdk.TemplateDAUsResponse]
+	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 
 	doneCh chan struct{}
 	cancel func()
@@ -49,34 +51,60 @@ func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
 	return c
 }
 
-func fillEmptyDays(rows []database.GetTemplateDAUsRow) []database.GetTemplateDAUsRow {
-	var newRows []database.GetTemplateDAUsRow
+func fillEmptyDays(sortedDates []time.Time) []time.Time {
+	var newDates []time.Time
 
-	for i, row := range rows {
+	for i, ti := range sortedDates {
 		if i == 0 {
-			newRows = append(newRows, row)
+			newDates = append(newDates, ti)
 			continue
 		}
 
-		last := rows[i-1]
+		last := sortedDates[i-1]
 
 		const day = time.Hour * 24
-		diff := row.Date.Sub(last.Date)
+		diff := ti.Sub(last)
 		for diff > day {
 			if diff <= day {
 				break
 			}
-			last.Date = last.Date.Add(day)
-			last.Amount = 0
-			newRows = append(newRows, last)
+			last = last.Add(day)
+			newDates = append(newDates, last)
 			diff -= day
 		}
 
-		newRows = append(newRows, row)
+		newDates = append(newDates, ti)
 		continue
 	}
 
-	return newRows
+	return newDates
+}
+
+func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAUsResponse {
+	respMap := make(map[time.Time][]uuid.UUID)
+	for _, row := range rows {
+		uuids := respMap[row.Date]
+		if uuids == nil {
+			uuids = make([]uuid.UUID, 0, 8)
+		}
+		uuids = append(uuids, row.UserID)
+		respMap[row.Date] = uuids
+	}
+
+	dates := maps.Keys(respMap)
+	slices.SortFunc(dates, func(a, b time.Time) bool {
+		return a.Before(b)
+	})
+
+	var resp codersdk.TemplateDAUsResponse
+	for _, date := range fillEmptyDays(dates) {
+		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
+			Date:   date,
+			Amount: len(respMap[date]),
+		})
+	}
+
+	return resp
 }
 
 func (c *Cache) refresh(ctx context.Context) error {
@@ -90,22 +118,14 @@ func (c *Cache) refresh(ctx context.Context) error {
 		return err
 	}
 
-	templateDAUs := make(map[string]codersdk.TemplateDAUsResponse, len(templates))
+	templateDAUs := make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
 
 	for _, template := range templates {
-		daus, err := c.database.GetTemplateDAUs(ctx, template.ID)
+		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
 		if err != nil {
 			return err
 		}
-
-		var resp codersdk.TemplateDAUsResponse
-		for _, ent := range fillEmptyDays(daus) {
-			resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-				Date:   ent.Date,
-				Amount: int(ent.Amount),
-			})
-		}
-		templateDAUs[template.ID.String()] = resp
+		templateDAUs[template.ID] = convertDAUResponse(rows)
 	}
 
 	c.templateDAUResponses.Store(&templateDAUs)
@@ -163,7 +183,7 @@ func (c *Cache) TemplateDAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
 		return codersdk.TemplateDAUsResponse{}
 	}
 
-	resp, ok := (*m)[id.String()]
+	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
 		return codersdk.TemplateDAUsResponse{}

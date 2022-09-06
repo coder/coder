@@ -39,7 +39,7 @@ site/out/
 *.lock.hcl
 .terraform/
 
-.vscode/*.log
+.vscode/*
 **/*.swp
 .coderv2/*
 **/__debug_bin

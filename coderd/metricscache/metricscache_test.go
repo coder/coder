@@ -157,7 +157,7 @@ func TestCache(t *testing.T) {
 			t.Parallel()
 			var (
 				db    = databasefake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), time.Millisecond*100)
+				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
 			)
 
 			defer cache.Close()
@@ -177,7 +177,7 @@ func TestCache(t *testing.T) {
 			require.Eventuallyf(t, func() bool {
 				got = cache.TemplateDAUs(templateID)
 				return reflect.DeepEqual(got.Entries, tt.want)
-			}, testutil.WaitShort, testutil.IntervalFast,
+			}, testutil.WaitShort, testutil.IntervalMedium,
 				"GetDAUs() = %v, want %v", got, tt.want,
 			)
 		})
