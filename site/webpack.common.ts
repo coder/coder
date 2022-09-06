@@ -14,9 +14,13 @@ import { Configuration, EnvironmentPlugin } from "webpack"
 const environmentPlugin = new EnvironmentPlugin({
   INSPECT_XSTATE: "",
   CODER_VERSION: "main",
+  CODER_ENABLE_WILDCARD_APPS: "",
 })
 console.info(`--- Setting INSPECT_XSTATE to '${process.env.INSPECT_XSTATE || ""}'`)
 console.info(`--- Setting CODER_VERSION to '${process.env.CODER_VERSION || "main"}'`)
+console.info(
+  `--- Setting CODER_ENABLE_WILDCARD_APPS to '${process.env.CODER_ENABLE_WILDCARD_APPS ?? ""}'`,
+)
 console.info(`--- Setting NODE_ENV to '${process.env.NODE_ENV || ""}'`)
 
 /**
