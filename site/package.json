@@ -89,7 +89,7 @@
     "@typescript-eslint/eslint-plugin": "5.36.1",
     "@typescript-eslint/parser": "5.31.0",
     "@xstate/cli": "0.3.0",
-    "canvas": "^2.9.3",
+    "canvas": "^2.10.0",
     "chromatic": "6.9.0",
     "copy-webpack-plugin": "10.2.4",
     "css-loader": "6.7.1",
