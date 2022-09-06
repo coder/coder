@@ -97,17 +97,18 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
-		ID:             uuid.New(),
-		Time:           time.Now(),
-		UserID:         user.ID,
-		Ip:             ipNet,
-		UserAgent:      r.UserAgent(),
-		ResourceType:   database.ResourceTypeUser,
-		ResourceID:     user.ID,
-		ResourceTarget: user.Username,
-		Action:         database.AuditActionWrite,
-		Diff:           diff,
-		StatusCode:     http.StatusOK,
+		ID:               uuid.New(),
+		Time:             time.Now(),
+		UserID:           user.ID,
+		Ip:               ipNet,
+		UserAgent:        r.UserAgent(),
+		ResourceType:     database.ResourceTypeUser,
+		ResourceID:       user.ID,
+		ResourceTarget:   user.Username,
+		Action:           database.AuditActionWrite,
+		Diff:             diff,
+		StatusCode:       http.StatusOK,
+		AdditionalFields: []byte("{}"),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
