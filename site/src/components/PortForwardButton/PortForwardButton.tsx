@@ -67,7 +67,7 @@ export const PortForwardButton: React.FC<React.PropsWithChildren<PortForwardButt
       >
         <Stack direction="column" spacing={1}>
           <HelpTooltipText>
-            You can portforward this resource by typing the{" "}
+            You can port forward this resource by typing the{" "}
             <strong>port, workspace name, agent name</strong> and <strong>your username</strong> in
             the URL like the example below
           </HelpTooltipText>
