@@ -2,7 +2,6 @@ package metricscache_test
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -25,19 +24,23 @@ func TestCache(t *testing.T) {
 	t.Parallel()
 
 	var (
-		zebra = uuid.New()
-		tiger = uuid.New()
+		zebra = uuid.UUID{1}
+		tiger = uuid.UUID{2}
 	)
 
 	type args struct {
 		rows []database.InsertAgentStatParams
 	}
+	type want struct {
+		entries     []codersdk.DAUEntry
+		uniqueUsers int
+	}
 	tests := []struct {
 		name string
 		args args
-		want []codersdk.DAUEntry
+		want want
 	}{
-		{"empty", args{}, nil},
+		{"empty", args{}, want{nil, 0}},
 		{"one hole", args{
 			rows: []database.InsertAgentStatParams{
 				{
@@ -49,7 +52,7 @@ func TestCache(t *testing.T) {
 					UserID:    zebra,
 				},
 			},
-		}, []codersdk.DAUEntry{
+		}, want{[]codersdk.DAUEntry{
 			{
 				Date:   date(2022, 8, 27),
 				Amount: 1,
@@ -66,7 +69,8 @@ func TestCache(t *testing.T) {
 				Date:   date(2022, 8, 30),
 				Amount: 1,
 			},
-		}},
+		}, 1},
+		},
 		{"no holes", args{
 			rows: []database.InsertAgentStatParams{
 				{
@@ -82,7 +86,7 @@ func TestCache(t *testing.T) {
 					UserID:    zebra,
 				},
 			},
-		}, []codersdk.DAUEntry{
+		}, want{[]codersdk.DAUEntry{
 			{
 				Date:   date(2022, 8, 27),
 				Amount: 1,
@@ -95,7 +99,7 @@ func TestCache(t *testing.T) {
 				Date:   date(2022, 8, 29),
 				Amount: 1,
 			},
-		}},
+		}, 1}},
 		{"holes", args{
 			rows: []database.InsertAgentStatParams{
 				{
@@ -119,7 +123,7 @@ func TestCache(t *testing.T) {
 					UserID:    tiger,
 				},
 			},
-		}, []codersdk.DAUEntry{
+		}, want{[]codersdk.DAUEntry{
 			{
 				Date:   date(2022, 1, 1),
 				Amount: 2,
@@ -148,7 +152,7 @@ func TestCache(t *testing.T) {
 				Date:   date(2022, 1, 7),
 				Amount: 2,
 			},
-		}},
+		}, 2}},
 	}
 
 	for _, tt := range tests {
@@ -167,19 +171,26 @@ func TestCache(t *testing.T) {
 				ID: templateID,
 			})
 
+			gotUniqueUsers, ok := cache.TemplateUniqueUsers(templateID)
+			require.False(t, ok, "template shouldn't have loaded yet")
+
 			for _, row := range tt.args.rows {
 				row.TemplateID = templateID
 				db.InsertAgentStat(context.Background(), row)
 			}
 
-			var got codersdk.TemplateDAUsResponse
-
 			require.Eventuallyf(t, func() bool {
-				got = cache.TemplateDAUs(templateID)
-				return reflect.DeepEqual(got.Entries, tt.want)
+				return len(cache.TemplateDAUs(templateID).Entries) > 0
 			}, testutil.WaitShort, testutil.IntervalMedium,
-				"GetDAUs() = %v, want %v", got, tt.want,
+				"TemplateDAUs never populated",
 			)
+
+			gotUniqueUsers, ok = cache.TemplateUniqueUsers(templateID)
+			require.True(t, ok)
+
+			gotEntries := cache.TemplateDAUs(templateID)
+			require.Equal(t, tt.want.entries, gotEntries.Entries)
+			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
 		})
 	}
 }

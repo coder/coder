@@ -27,6 +27,7 @@ type Cache struct {
 	log      slog.Logger
 
 	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	templateUniqueUsers  atomic.Pointer[map[uuid.UUID]int]
 
 	doneCh chan struct{}
 	cancel func()
@@ -107,6 +108,14 @@ func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAU
 	return resp
 }
 
+func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
+	seen := make(map[uuid.UUID]struct{}, len(rows))
+	for _, row := range rows {
+		seen[row.UserID] = struct{}{}
+	}
+	return len(seen)
+}
+
 func (c *Cache) refresh(ctx context.Context) error {
 	err := c.database.DeleteOldAgentStats(ctx)
 	if err != nil {
@@ -118,17 +127,21 @@ func (c *Cache) refresh(ctx context.Context) error {
 		return err
 	}
 
-	templateDAUs := make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
-
+	var (
+		templateDAUs        = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		templateUniqueUsers = make(map[uuid.UUID]int)
+	)
 	for _, template := range templates {
 		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
 		if err != nil {
 			return err
 		}
 		templateDAUs[template.ID] = convertDAUResponse(rows)
+		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 	}
-
 	c.templateDAUResponses.Store(&templateDAUs)
+	c.templateUniqueUsers.Store(&templateUniqueUsers)
+
 	return nil
 }
 
@@ -189,4 +202,21 @@ func (c *Cache) TemplateDAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
 		return codersdk.TemplateDAUsResponse{}
 	}
 	return resp
+}
+
+// TemplateUniqueUsers returns the total number of unique users for the template,
+// from all the Cache data.
+func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
+	m := c.templateUniqueUsers.Load()
+	if m == nil {
+		// Data loading.
+		return -1, false
+	}
+
+	resp, ok := (*m)[id]
+	if !ok {
+		// Probably no data.
+		return -1, false
+	}
+	return resp, true
 }

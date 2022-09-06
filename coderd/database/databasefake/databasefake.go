@@ -176,7 +176,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		if dateEntry == nil {
 			dateEntry = make(map[uuid.UUID]struct{})
 		}
-		dateEntry[as.ID] = struct{}{}
+		dateEntry[as.UserID] = struct{}{}
 		seens[date] = dateEntry
 	}
 
