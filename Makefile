@@ -92,15 +92,15 @@ release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(COD
 .PHONY: release
 
 build/coder-slim_$(VERSION)_checksums.sha1 site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
-	pushd ./build
-		openssl dgst -r -sha1 coder-slim_"$(VERSION)"_* | tee "coder-slim_$(VERSION)_checksums.sha1"
+	pushd ./site/out/bin
+		openssl dgst -r -sha1 coder-* | tee coder.sha1
 	popd
 
-	cp "build/coder-slim_$(VERSION)_checksums.sha1" "site/out/bin/coder.sha1"
+	cp "site/out/bin/coder.sha1" "build/coder-slim_$(VERSION)_checksums.sha1"
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
-	pushd ./build
-		tar cf "$(@F)" coder-slim_"$(VERSION)"_*
+	pushd ./site/out/bin
+		tar cf "../../../build/$(@F)" coder-*
 	popd
 
 build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar
@@ -114,7 +114,7 @@ build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim
 
 	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/bin/coder.tar.zst"
 	# delete the uncompressed binaries from the embedded dir
-	rm site/out/coder-*
+	rm site/out/bin/coder-*
 
 # Redirect from version-less targets to the versioned ones. There is a similar
 # target for slim binaries below.
@@ -136,7 +136,10 @@ $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION
 	ln "$<" "$@"
 
 # "fat" binaries always depend on the site and the compressed slim binaries.
-$(CODER_FAT_BINARIES): site/out/index.html site/out/bin/coder.tar.zst
+$(CODER_FAT_BINARIES): \
+	site/out/index.html \
+	site/out/bin/coder.sha1 \
+	site/out/bin/coder.tar.zst
 
 # This is a handy block that parses the target to determine whether it's "slim"
 # or "fat", which OS was specified and which architecture was specified.
@@ -195,8 +198,7 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 			dot_ext=".$$ext"
 		fi
 
-		mkdir -p ./site/out
-		cp "$@" "./site/out/coder-$$os-$$arch$$dot_ext"
+		cp "$@" "./site/out/bin/coder-$$os-$$arch$$dot_ext"
 	fi
 
 # This task builds all archives. It parses the target name to get the metadata
@@ -404,8 +406,6 @@ site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -typ
 	cd site
 	yarn typegen
 	yarn build
-	# Restores GITKEEP files!
-	git checkout HEAD out
 
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
