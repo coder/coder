@@ -67,7 +67,7 @@ func deleteWorkspace() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&orphan, "orphan", false,
-		`Delete workspace without deleting its resources. This can delete a
+		`Delete a workspace without deleting its resources. This can delete a
 workspace in a broken state, but may also lead to unaccounted cloud resources.`,
 	)
 	cliui.AllowSkipPrompt(cmd)
