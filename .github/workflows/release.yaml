@@ -65,6 +65,17 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Install rcodesign
+        run: |
+          set -euo pipefail
+
+          # Install a prebuilt binary of rcodesign for linux amd64. Once the
+          # following PR is merged and released upstream, we can download
+          # directly from GitHub releases instead:
+          #   https://github.com/indygreg/PyOxidizer/pull/635
+          wget -O /tmp/rcodesign https://cdn.discordapp.com/attachments/283356472258199552/1016767245717872700/rcodesign
+          sudo install --mode 755 /tmp/rcodesign /usr/local/bin/rcodesign
+
       - name: Setup Apple Developer certificate and API key
         run: |
           set -euo pipefail
