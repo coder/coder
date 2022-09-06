@@ -44,7 +44,7 @@
         {
           "title": "Standalone binaries",
           "description": "Download binaries for macOS, Windows, and Linux.",
-          "path": "./install/manual.md"
+          "path": "./install/binary.md"
         }
       ]
     },
