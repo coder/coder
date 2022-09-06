@@ -72,11 +72,11 @@ jobs:
           chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
           echo "$AC_CERTIFICATE_BASE64" | base64 -d > /tmp/apple_cert.p12
           echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
-          echo "$AC_APIKEY_BASE64" | base64 -d > /tmp/apple_apikey.p8
+          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
         env:
           AC_CERTIFICATE_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
-          AC_APIKEY_BASE64: ${{ secrets.AC_APIKEY_PEM_BASE64 }}
+          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
       - name: Build binaries
         run: |
