@@ -5,7 +5,7 @@ import { Language as usersXServiceLanguage } from "xServices/users/usersXService
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
-import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
+import { Language as ResetPasswordDialogLanguage } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import { Language as UsersTableBodyLanguage } from "../../components/UsersTable/UsersTableBody"
 import {

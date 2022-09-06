@@ -2,7 +2,7 @@ import { ComponentMeta, Story } from "@storybook/react"
 import { DeleteWorkspaceDialog, DeleteWorkspaceDialogProps } from "./DeleteWorkspaceDialog"
 
 export default {
-  title: "Components/DeleteWorkspaceDialog",
+  title: "Components/Dialogs/DeleteWorkspaceDialog",
   component: DeleteWorkspaceDialog,
   argTypes: {
     onClose: {

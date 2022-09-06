@@ -1,5 +1,5 @@
 import { useMachine, useSelector } from "@xstate/react"
-import { ConfirmDialog } from "components/ConfirmDialog/ConfirmDialog"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
