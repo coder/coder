@@ -318,6 +318,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 		createBuild.TemplateVersionID = latestBuild.TemplateVersionID
 	}
+
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createBuild.TemplateVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -336,6 +337,47 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var state []byte
+	// If custom state, deny request since user could be corrupting or leaking
+	// cloud state.
+	if createBuild.ProvisionerState != nil || createBuild.Orphan {
+		if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only template managers may provide custom state",
+			})
+			return
+		}
+		state = createBuild.ProvisionerState
+	}
+
+	if createBuild.Orphan {
+		if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Orphan is only permitted when deleting a workspace.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if createBuild.ProvisionerState != nil && createBuild.Orphan {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
+			})
+			return
+		}
+		state = []byte{}
+	}
+
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -363,15 +405,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// Store prior build number to compute new build number
 	var priorBuildNum int32
 	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
@@ -391,6 +424,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if state == nil {
+		state = priorHistory.ProvisionerState
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -456,10 +493,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-		state := createBuild.ProvisionerState
-		if len(state) == 0 {
-			state = priorHistory.ProvisionerState
 		}
 
 		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
