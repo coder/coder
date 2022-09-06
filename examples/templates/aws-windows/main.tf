@@ -87,9 +87,6 @@ Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 # Disable Network Level Authentication (NLA)
 # Clients will connect via Coder's tunnel
 (Get-WmiObject -class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -ComputerName $env:COMPUTERNAME -Filter "TerminalName='RDP-tcp'").SetUserAuthenticationRequired(0)
-
-# Install Chocolatey package manager
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 EOF
 }
 
@@ -104,6 +101,18 @@ locals {
   # https://github.com/hashicorp/terraform-provider-aws/issues/22
   user_data_start = <<EOT
 <powershell>
+
+# Install Chocolatey package manager before
+# the agent starts to use via startup_script
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Reload path so sessions include "choco" and "refreshenv"
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Install Git and reload path
+choco install -y git
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 ${coder_agent.main.init_script}
 </powershell>

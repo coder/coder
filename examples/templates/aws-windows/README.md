@@ -8,6 +8,26 @@ tags: [cloud, aws]
 
 <img src="./screenshot.png" width="600" />
 
+## Installing Packages
+
+This template will add the [Chocolatey Package Manager](https://chocolatey.org/) via the user data. This can be used to add software to your workspace.
+
+**ex. Firefox**:
+
+```powershell
+choco install firefox
+```
+
+**ex. Visual Studio 2019 + Managed Desktop Tools**:
+
+```powershell
+choco install visualstudio2019community --package-parameters "--add=Microsoft.VisualStudio.Workload.ManagedDesktop;includeRecommended --passive --locale en-US"
+```
+
+> You can pre-install packages in the `startup_script` to add them to all workspaces! `git` is added this way.
+
+To remove chocolatey from this template,
+
 ## Connecting via RDP
 
 You can connect to your workspace over a RDP tunnel. First, ensure
