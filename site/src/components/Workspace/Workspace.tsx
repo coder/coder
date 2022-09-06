@@ -131,7 +131,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
-        {Boolean(resources) && Boolean(resources.length) && (
+        {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
             getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
