@@ -18,7 +18,7 @@ func TestDelete(t *testing.T) {
 	t.Parallel()
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -45,7 +45,7 @@ func TestDelete(t *testing.T) {
 
 	t.Run("DifferentUser", func(t *testing.T) {
 		t.Parallel()
-		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		adminUser := coderdtest.CreateFirstUser(t, adminClient)
 		orgID := adminUser.OrganizationID
 		client := coderdtest.CreateAnotherUser(t, adminClient, orgID)

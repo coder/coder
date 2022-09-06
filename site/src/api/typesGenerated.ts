@@ -458,6 +458,7 @@ export interface User {
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
+  readonly avatar_url: string
 }
 
 // From codersdk/users.go
@@ -536,7 +537,7 @@ export interface WorkspaceAgent {
   readonly directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
-  readonly latency: Record<string, DERPRegion>
+  readonly latency?: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go

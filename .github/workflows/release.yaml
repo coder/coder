@@ -71,28 +71,46 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Build Site
+        run: make site/out/index.html
+
       - name: Build Linux and Windows Binaries
         run: |
           set -euo pipefail
           go mod download
 
-          version="$(./scripts/version.sh)"
-          make -j \
-            build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
-            build/coder_"$version"_windows_{amd64,arm64}.zip \
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            --compress 22 \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build linux and windows binaries
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --package-linux \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64
 
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail
 
           # build and (maybe) push Docker images for each architecture
-          version="$(./scripts/version.sh)"
-          push=""
-          if [[ "$CODER_RELEASE" == *t* ]]; then
-            push="push/"
-          fi
-          make -j \
-            "$push"build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          images=()
+          for arch in amd64 armv7 arm64; do
+            img="$(
+              ./scripts/build_docker.sh \
+                ${{ (!github.event.inputs.dry_run && !github.event.inputs.snapshot) && '--push' || '' }} \
+                --arch "$arch" \
+                ./dist/coder_*_linux_"$arch"
+            )"
+            images+=("$img")
+          done
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -102,13 +120,14 @@ jobs:
           fi
 
           # build and push multi-arch manifest
-          make -j push/build/coder_"$version"_linux.tag
+          ./scripts/build_docker_multiarch.sh \
+            --push \
+            "${images[@]}"
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
-            make -j push/build/coder_"$version"_linux.tag
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
@@ -120,11 +139,11 @@ jobs:
         with:
           name: linux
           path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.apk
-            ./build/*.deb
-            ./build/*.rpm
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.apk
+            dist/*.deb
+            dist/*.rpm
 
   # The mac binaries get built on mac runners because they need to be signed,
   # and the signing tool only runs on mac. This darwin job only builds the Mac
@@ -194,11 +213,22 @@ jobs:
           set -euo pipefail
           go mod download
 
-          version="$(./scripts/version.sh)"
-          make -j \
-            build/coder_"$version"_darwin_{amd64,arm64}.zip
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            --compress 22 \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build darwin binaries
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --archive \
+            --sign-darwin \
+            darwin:amd64,arm64
         env:
-          CODER_SIGN_DARWIN: "1"
           AC_USERNAME: ${{ secrets.AC_USERNAME }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
           AC_APPLICATION_IDENTITY: BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
@@ -207,7 +237,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: darwin
-          path: ./build/*.zip
+          path: ./dist/coder_*.zip
 
   publish:
     runs-on: ubuntu-latest
@@ -248,11 +278,8 @@ jobs:
       - name: Publish Helm
         run: |
           set -euxo pipefail
-
-          version="$(./scripts/version.sh)"
-          make -j \
-            build/coder_helm_"$version".tgz
-          mv ./build/*.tgz ./artifacts/
+          ./scripts/helm.sh --push
+          mv ./dist/*.tgz ./artifacts/
 
       - name: Publish Release
         run: |

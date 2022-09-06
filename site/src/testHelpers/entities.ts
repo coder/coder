@@ -70,6 +70,7 @@ export const MockUser: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
+  avatar_url: "https://github.com/coder.png",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -80,6 +81,7 @@ export const MockUserAdmin: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockUserAdminRole],
+  avatar_url: "",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -90,6 +92,7 @@ export const MockUser2: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -100,6 +103,7 @@ export const SuspendedMockUser: TypesGen.User = {
   status: "suspended",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const MockOrganization: TypesGen.Organization = {
@@ -311,7 +315,12 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   status: "connected",
   updated_at: "",
   version: MockBuildInfo.version,
-  latency: {},
+  latency: {
+    "Coder Embedded DERP": {
+      latency_ms: 32.55,
+      preferred: true,
+    },
+  },
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -320,6 +329,7 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   name: "another-workspace-agent",
   status: "disconnected",
   version: "",
+  latency: {},
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -328,6 +338,21 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
   name: "an-outdated-workspace-agent",
   version: "v99.999.9998+abcdef",
   operating_system: "Windows",
+  latency: {
+    ...MockWorkspaceAgent.latency,
+    Chicago: {
+      preferred: false,
+      latency_ms: 95.11,
+    },
+    "San Francisco": {
+      preferred: false,
+      latency_ms: 111.55,
+    },
+    Paris: {
+      preferred: false,
+      latency_ms: 221.66,
+    },
+  },
 }
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
@@ -336,6 +361,7 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   name: "another-workspace-agent",
   status: "connecting",
   version: "",
+  latency: {},
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {

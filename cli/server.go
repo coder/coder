@@ -329,7 +329,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				validatedAutoImportTemplates[i] = v
 			}
 
-			derpMap, err := tailnet.NewDERPMap(ctx, &tailcfg.DERPRegion{
+			defaultRegion := &tailcfg.DERPRegion{
 				RegionID:   derpServerRegionID,
 				RegionCode: derpServerRegionCode,
 				RegionName: derpServerRegionName,
@@ -341,7 +341,11 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 					STUNPort:  -1,
 					ForceHTTP: accessURLParsed.Scheme == "http",
 				}},
-			}, derpServerSTUNAddrs, derpConfigURL)
+			}
+			if !derpServerEnabled {
+				defaultRegion = nil
+			}
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
