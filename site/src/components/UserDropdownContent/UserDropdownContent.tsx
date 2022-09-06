@@ -3,7 +3,7 @@ import Divider from "@material-ui/core/Divider"
 import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import { FC } from "react"
@@ -146,7 +146,7 @@ const useStyles = makeStyles((theme) => ({
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.05),
+      backgroundColor: theme.palette.action.hover,
       transition: "background-color 0.3s ease",
     },
   },

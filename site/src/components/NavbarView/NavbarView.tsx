@@ -2,10 +2,11 @@ import Drawer from "@material-ui/core/Drawer"
 import IconButton from "@material-ui/core/IconButton"
 import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import MenuIcon from "@material-ui/icons/Menu"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
+import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
@@ -169,7 +170,7 @@ const useStyles = makeStyles((theme) => ({
   },
   link: {
     alignItems: "center",
-    color: "hsl(220, 11%, 71%)",
+    color: colors.gray[6],
     display: "flex",
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
@@ -177,7 +178,7 @@ const useStyles = makeStyles((theme) => ({
     transition: "background-color 0.3s ease",
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.05),
+      backgroundColor: theme.palette.action.hover,
     },
 
     // NavLink adds this class when the current route matches.

@@ -1,31 +1,32 @@
-import { fade, makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import { FC } from "react"
 
 const useStyles = makeStyles<Theme, ArrowProps>((theme: Theme) => ({
   arrowIcon: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
+    color: ({ color }) => color ?? theme.palette.primary.contrastText,
     marginLeft: ({ margin }) => (margin ? theme.spacing(1) : 0),
     width: 16,
     height: 16,
   },
   arrowIconUp: {
-    color: theme.palette.primary.contrastText,
+    color: ({ color }) => color ?? theme.palette.primary.contrastText,
   },
 }))
 
 interface ArrowProps {
   margin?: boolean
+  color?: string
 }
 
-export const OpenDropdown: FC<ArrowProps> = ({ margin = true }) => {
-  const styles = useStyles({ margin })
+export const OpenDropdown: FC<ArrowProps> = ({ margin = true, color }) => {
+  const styles = useStyles({ margin, color })
   return <KeyboardArrowDown aria-label="open-dropdown" className={styles.arrowIcon} />
 }
 
-export const CloseDropdown: FC<ArrowProps> = ({ margin = true }) => {
-  const styles = useStyles({ margin })
+export const CloseDropdown: FC<ArrowProps> = ({ margin = true, color }) => {
+  const styles = useStyles({ margin, color })
   return (
     <KeyboardArrowUp
       aria-label="close-dropdown"

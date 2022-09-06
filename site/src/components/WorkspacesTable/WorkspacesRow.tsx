@@ -1,4 +1,4 @@
-import { fade, makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
@@ -101,7 +101,7 @@ export const WorkspacesRow: FC<
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.dark, 0.1),
+      backgroundColor: theme.palette.action.hover,
     },
 
     "&:focus": {
@@ -113,7 +113,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   arrowRight: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
+    color: theme.palette.text.secondary,
     width: 20,
     height: 20,
   },
