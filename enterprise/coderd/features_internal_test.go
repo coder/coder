@@ -11,23 +11,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/enterprise/audit/backends"
-
 	"github.com/golang-jwt/jwt/v4"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd"
 	agplCoderd "github.com/coder/coder/coderd"
 	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/testutil"
 )
 
@@ -288,7 +285,7 @@ func TestFeaturesServiceSyncEntitlements(t *testing.T) {
 	})
 }
 
-func requestEntitlements(t *testing.T, uut coderd.FeaturesService) codersdk.Entitlements {
+func requestEntitlements(t *testing.T, uut agplCoderd.FeaturesService) codersdk.Entitlements {
 	t.Helper()
 	r := httptest.NewRequest("GET", "https://example.com/api/v2/entitlements", nil)
 	rw := httptest.NewRecorder()
