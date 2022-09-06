@@ -65,7 +65,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 	rows := make([]templateTableRow, len(templates))
 	for i, template := range templates {
 		suffix := ""
-		if template.WorkspaceOwnerCount != 1 {
+		if template.ActiveUserCount != 1 {
 			suffix = "s"
 		}
 
@@ -76,7 +76,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 			OrganizationID:       template.OrganizationID,
 			Provisioner:          template.Provisioner,
 			ActiveVersionID:      template.ActiveVersionID,
-			UsedBy:               cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+			UsedBy:               cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.ActiveUserCount, suffix)),
 			MaxTTL:               (time.Duration(template.MaxTTLMillis) * time.Millisecond),
 			MinAutostartInterval: (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond),
 		}

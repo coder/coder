@@ -173,6 +173,7 @@ func TestCache(t *testing.T) {
 
 			gotUniqueUsers, ok := cache.TemplateUniqueUsers(templateID)
 			require.False(t, ok, "template shouldn't have loaded yet")
+			require.EqualValues(t, -1, gotUniqueUsers)
 
 			for _, row := range tt.args.rows {
 				row.TemplateID = templateID
@@ -180,7 +181,8 @@ func TestCache(t *testing.T) {
 			}
 
 			require.Eventuallyf(t, func() bool {
-				return len(cache.TemplateDAUs(templateID).Entries) > 0
+				_, ok := cache.TemplateDAUs(templateID)
+				return ok
 			}, testutil.WaitShort, testutil.IntervalMedium,
 				"TemplateDAUs never populated",
 			)
@@ -188,7 +190,8 @@ func TestCache(t *testing.T) {
 			gotUniqueUsers, ok = cache.TemplateUniqueUsers(templateID)
 			require.True(t, ok)
 
-			gotEntries := cache.TemplateDAUs(templateID)
+			gotEntries, ok := cache.TemplateDAUs(templateID)
+			require.True(t, ok)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
 		})

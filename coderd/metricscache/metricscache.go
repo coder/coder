@@ -29,7 +29,7 @@ type Cache struct {
 	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 	templateUniqueUsers  atomic.Pointer[map[uuid.UUID]int]
 
-	doneCh chan struct{}
+	done   chan struct{}
 	cancel func()
 
 	interval time.Duration
@@ -44,7 +44,7 @@ func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
 	c := &Cache{
 		database: db,
 		log:      log,
-		doneCh:   make(chan struct{}),
+		done:     make(chan struct{}),
 		cancel:   cancel,
 		interval: interval,
 	}
@@ -146,7 +146,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 }
 
 func (c *Cache) run(ctx context.Context) {
-	defer close(c.doneCh)
+	defer close(c.done)
 
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
@@ -173,7 +173,7 @@ func (c *Cache) run(ctx context.Context) {
 
 		select {
 		case <-ticker.C:
-		case <-c.doneCh:
+		case <-c.done:
 			return
 		case <-ctx.Done():
 			return
@@ -183,29 +183,29 @@ func (c *Cache) run(ctx context.Context) {
 
 func (c *Cache) Close() error {
 	c.cancel()
-	<-c.doneCh
+	<-c.done
 	return nil
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
 // or is loading for the first time.
-func (c *Cache) TemplateDAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
+func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.TemplateDAUsResponse, bool) {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.
-		return codersdk.TemplateDAUsResponse{}
+		return nil, false
 	}
 
 	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
-		return codersdk.TemplateDAUsResponse{}
+		return nil, false
 	}
-	return resp
+	return &resp, true
 }
 
-// TemplateUniqueUsers returns the total number of unique users for the template,
-// from all the Cache data.
+// TemplateUniqueUsers returns the number of unique Template users
+// from all Cache data.
 func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 	m := c.templateUniqueUsers.Load()
 	if m == nil {
