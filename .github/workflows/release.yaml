@@ -60,7 +60,10 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+        run: |
+          set -euo pipefail
+          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
+          sudo dpkg -i /tmp/nfpm.deb
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -81,11 +84,11 @@ jobs:
           set -euo pipefail
           touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
           chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
-          echo "$AC_CERTIFICATE_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
           echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
           echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
         env:
-          AC_CERTIFICATE_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
