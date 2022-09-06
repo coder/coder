@@ -50,7 +50,7 @@ export const config: Configuration = {
     // Regenerate the entire out/ directory (except GITKEEP and out/bin/) when
     // producing production builds
     clean: {
-      keep: /(GITKEEP|bin\/)/
+      keep: /(GITKEEP|bin\/)/,
     },
   },
 
