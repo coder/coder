@@ -8,13 +8,13 @@ export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
     main: colors.blue[7],
-    contrastText: colors.gray[3],
+    contrastText: colors.gray[4],
     light: colors.blue[6],
     dark: colors.blue[9],
   },
   secondary: {
     main: colors.green[11],
-    contrastText: colors.gray[3],
+    contrastText: colors.gray[4],
     dark: colors.indigo[7],
   },
   background: {
@@ -22,7 +22,7 @@ export const darkPalette: PaletteOptions = {
     paper: colors.gray[16],
   },
   text: {
-    primary: colors.gray[3],
+    primary: colors.gray[4],
     secondary: colors.gray[5],
   },
   divider: colors.gray[13],
@@ -38,12 +38,12 @@ export const darkPalette: PaletteOptions = {
   info: {
     main: colors.blue[11],
     dark: colors.blue[15],
-    contrastText: colors.gray[3],
+    contrastText: colors.gray[4],
   },
   error: {
     main: colors.red[5],
     dark: colors.red[15],
-    contrastText: colors.gray[3],
+    contrastText: colors.gray[4],
   },
   action: {
     hover: colors.gray[13],
