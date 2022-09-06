@@ -76,6 +76,16 @@ export interface AuditLog {
   readonly user?: User
 }
 
+// From codersdk/audit.go
+export interface AuditLogCountResponse {
+  readonly count: number
+}
+
+// From codersdk/audit.go
+export interface AuditLogResponse {
+  readonly audit_logs: AuditLog[]
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean

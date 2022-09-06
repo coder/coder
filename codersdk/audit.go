@@ -1,7 +1,9 @@
 package codersdk
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"net/netip"
 	"time"
 
@@ -53,4 +55,68 @@ type AuditLog struct {
 	Description      string          `json:"description"`
 
 	User *User `json:"user"`
+}
+
+type AuditLogResponse struct {
+	AuditLogs []AuditLog `json:"audit_logs"`
+}
+
+type AuditLogCountResponse struct {
+	Count int64 `json:"count"`
+}
+
+// AuditLogs retrieves audit logs from the given page.
+func (c *Client) AuditLogs(ctx context.Context, page Pagination) (AuditLogResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, page.asRequestOption())
+	if err != nil {
+		return AuditLogResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AuditLogResponse{}, readBodyAsError(res)
+	}
+
+	var logRes AuditLogResponse
+	err = json.NewDecoder(res.Body).Decode(&logRes)
+	if err != nil {
+		return AuditLogResponse{}, err
+	}
+
+	return logRes, nil
+}
+
+// AuditLogCount returns the count of all audit logs in the product.
+func (c *Client) AuditLogCount(ctx context.Context) (AuditLogCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil)
+	if err != nil {
+		return AuditLogCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AuditLogCountResponse{}, readBodyAsError(res)
+	}
+
+	var logRes AuditLogCountResponse
+	err = json.NewDecoder(res.Body).Decode(&logRes)
+	if err != nil {
+		return AuditLogCountResponse{}, err
+	}
+
+	return logRes, nil
+}
+
+func (c *Client) CreateTestAuditLog(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/audit/testgenerate", nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return err
+	}
+
+	return nil
 }

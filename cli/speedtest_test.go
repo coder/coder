@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
@@ -11,7 +13,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSpeedtest(t *testing.T) {
