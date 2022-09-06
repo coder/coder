@@ -55,7 +55,7 @@ export const Language = {
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
-  ttlCausesShutdownAfterStart: "after its next start",
+  ttlCausesShutdownAfterStart: "after its last start",
   ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
   startSection: "Start",
