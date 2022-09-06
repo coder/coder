@@ -42,7 +42,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
   presetFilters,
   error,
 }) => {
-  const styles = useStyles({ error: !!error })
+  const styles = useStyles({ error: Boolean(error) })
 
   const form = useFormik<FilterFormValues>({
     enableReinitialize: true,
@@ -108,7 +108,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
             id="query"
             name="query"
             value={form.values.query}
-            error={!!error}
+            error={Boolean(error)}
             className={styles.inputStyles}
             onChange={form.handleChange}
             startAdornment={

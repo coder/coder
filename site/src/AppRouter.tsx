@@ -145,7 +145,7 @@ export const AppRouter: FC = () => {
                 <AuthAndFrame>
                   <RequirePermission
                     isFeatureVisible={
-                      featureVisibility[FeatureNames.AuditLog] && !!permissions?.viewAuditLog
+                      featureVisibility[FeatureNames.AuditLog] && Boolean(permissions?.viewAuditLog)
                     }
                   >
                     <AuditPage />
