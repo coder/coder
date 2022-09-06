@@ -16,7 +16,6 @@ import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
-import { TemplatePage } from "./pages/TemplatePage/TemplatePage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
 import { AccountPage } from "./pages/UserSettingsPage/AccountPage/AccountPage"
 import { SecurityPage } from "./pages/UserSettingsPage/SecurityPage/SecurityPage"
@@ -34,6 +33,7 @@ const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
+const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
