@@ -79,10 +79,10 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         confirmLoading={templateState.matches("deleting")}
         title={t("deleteDialog.title")}
         description={t("deleteDialog.description")}
-        handleConfirm={() => {
+        onConfirm={() => {
           templateSend("CONFIRM_DELETE")
         }}
-        handleCancel={() => {
+        onCancel={() => {
           templateSend("CANCEL_DELETE")
         }}
       />

@@ -143,8 +143,8 @@ export const WorkspacePage: FC = () => {
           title={t("deleteDialog.title")}
           description={t("deleteDialog.description")}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
-          handleCancel={() => workspaceSend("CANCEL_DELETE")}
-          handleConfirm={() => {
+          onCancel={() => workspaceSend("CANCEL_DELETE")}
+          onConfirm={() => {
             workspaceSend("DELETE")
           }}
         />

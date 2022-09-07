@@ -3,8 +3,8 @@ import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
 export interface DeleteDialogProps {
   isOpen: boolean
-  handleConfirm: () => void
-  handleCancel: () => void
+  onConfirm: () => void
+  onCancel: () => void
   title: string
   description: string | ReactNode
   confirmLoading?: boolean
@@ -12,8 +12,8 @@ export interface DeleteDialogProps {
 
 export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> = ({
   isOpen,
-  handleCancel,
-  handleConfirm,
+  onCancel,
+  onConfirm,
   title,
   description,
   confirmLoading,
@@ -23,8 +23,8 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
     hideCancel={false}
     open={isOpen}
     title={title}
-    onConfirm={handleConfirm}
-    onClose={handleCancel}
+    onConfirm={onConfirm}
+    onClose={onCancel}
     description={description}
     confirmLoading={confirmLoading}
   />

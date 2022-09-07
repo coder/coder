@@ -5,7 +5,7 @@ export default {
   title: "Components/Dialogs/DeleteDialog",
   component: DeleteDialog,
   argTypes: {
-    onClose: {
+    onCancel: {
       action: "onClose",
     },
     onConfirm: {
