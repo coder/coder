@@ -2,12 +2,6 @@
 
 This article walks you through how to uninstall your Coder server.
 
-<blockquote class="danger">
-  <p>
-  Uninstalling Coder with the built-in PostgreSQL database will delete the database engine and database. Consider backing up the database directory if you would like to reuse it with a future installation. This does not apply if you have installed your own PostgreSQL database instance.
-  </p>
-</blockquote>
-
 To uninstall your Coder server, delete the following directories.
 
 ## Cached Coder releases
