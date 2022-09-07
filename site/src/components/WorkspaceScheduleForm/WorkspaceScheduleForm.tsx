@@ -230,6 +230,7 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
                   name="autoStartEnabled"
                   checked={form.values.autoStartEnabled}
                   onChange={handleToggleAutoStart}
+                  color="primary"
                 />
               }
               label={Language.startSwitch}
