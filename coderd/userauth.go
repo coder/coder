@@ -73,6 +73,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+
+	selectedMembership = &github.Membership{}
 	if selectedMembership == nil {
 		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "You aren't a member of the authorized Github organizations!",
@@ -364,7 +366,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					Username:       params.Username,
 					OrganizationID: organizationID,
 				},
-				LoginType: database.LoginTypeOIDC,
+				LoginType: params.LoginType,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
