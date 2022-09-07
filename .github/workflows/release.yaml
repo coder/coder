@@ -194,6 +194,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: |
