@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -30,7 +29,6 @@ func TestAuditLogs(t *testing.T) {
 		alogs, err := client.AuditLogs(ctx, codersdk.Pagination{Limit: 1})
 		require.NoError(t, err)
 
-		spew.Dump(alogs.AuditLogs)
 		require.Equal(t, int64(1), count.Count)
 		require.Len(t, alogs.AuditLogs, 1)
 	})
