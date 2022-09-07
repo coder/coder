@@ -65,6 +65,25 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+      - name: Install protoc-gen-go-drpc
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile
+          # or the version in the comments will differ.
+          set -x
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
+
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
@@ -78,6 +97,7 @@ jobs:
 
           version="$(./scripts/version.sh)"
           make -j \
+            -W coderd/database/querier.go \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_windows_{amd64,arm64}.zip \
 
@@ -164,6 +184,25 @@ jobs:
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             js-${{ runner.os }}-
+
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+      - name: Install protoc-gen-go-drpc
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile
+          # or the version in the comments will differ.
+          set -x
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
 
       - name: Install dependencies
         run: |
