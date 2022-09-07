@@ -767,7 +767,8 @@ export const MockAuditLog: TypesGen.AuditLog = {
   time: "2022-05-19T16:45:57.122Z",
   organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   ip: "127.0.0.1",
-  user_agent: "browser",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
   resource_type: "workspace",
   resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
   resource_target: "bruno-dev",
