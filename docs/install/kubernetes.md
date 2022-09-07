@@ -65,7 +65,7 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
    # Uses Bitnami PostgreSQL example. If you have another database,
    # change to the proper URL.
    kubectl create secret generic coder-db-url -n coder \
-      --from-literal=url=postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+      --from-literal=url="postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
    ```
 
 1. Create a `values.yaml` with the configuration settings you'd like for your
