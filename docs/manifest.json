@@ -39,6 +39,11 @@
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder.",
           "path": "./install/upgrade.md"
+        },
+        {
+          "title": "Licensed Features",
+          "description": "Learn how to enable licensed features.",
+          "path": "./install/license.md"
         }
       ]
     },
