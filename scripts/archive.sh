@@ -93,7 +93,8 @@ if [[ "$format" == "tar.gz" ]]; then
 	dependencies tar
 fi
 if [[ "$sign_darwin" == 1 ]]; then
-	dependencies jq codesign gon
+	dependencies rcodesign
+	requiredenvs AC_APIKEY_ISSUER_ID AC_KEY_ID AC_APIKEY_FILE
 fi
 
 # Determine default output path.

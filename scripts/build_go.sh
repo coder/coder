@@ -89,7 +89,8 @@ fi
 # Check dependencies
 dependencies go
 if [[ "$sign_darwin" == 1 ]]; then
-	dependencies codesign
+	dependencies rcodesign
+	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
 
 build_args=(
